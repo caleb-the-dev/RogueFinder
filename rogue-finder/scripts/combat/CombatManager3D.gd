@@ -178,18 +178,17 @@ func _setup_ui() -> void:
 
 ## --- Input ---
 
-func _input(event: InputEvent) -> void:
-	# When the examine panel is open, lock all world interaction.
-	# GUI _gui_input() runs before _input(), so the panel's ScrollContainer
-	# already handles scroll events when the mouse is over it — we only need
-	# to swallow everything that would otherwise reach the world layer.
+func _unhandled_input(event: InputEvent) -> void:
+	# Godot 4 input order: _input() → GUI _gui_input() → _unhandled_input().
+	# By using _unhandled_input(), the StatPanel's Button / ScrollContainer
+	# receive events first via _gui_input(). Only events that GUI did NOT
+	# consume reach here, so we can block the world without breaking the panel UI.
 	if _stat_panel.visible:
+		# ESC closes the panel; everything else is swallowed to lock the world.
 		if event is InputEventKey and event.pressed and not event.echo:
 			if event.keycode == KEY_ESCAPE:
 				_stat_panel.hide_panel()
-				get_viewport().set_input_as_handled()
-		elif event is InputEventMouseButton or event is InputEventMouseMotion:
-			get_viewport().set_input_as_handled()
+		get_viewport().set_input_as_handled()
 		return
 
 	if state != CombatState.PLAYER_TURN:
