@@ -1,9 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://rfcombat01"]
+[gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script"      path="res://scripts/combat/CombatManager.gd" id="1_mgr"]
-[ext_resource type="PackedScene" path="res://scenes/combat/Grid.tscn"          id="2_grid"]
-[ext_resource type="PackedScene" path="res://scenes/combat/QTEBar.tscn"        id="3_qte"]
-[ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn"               id="4_hud"]
+[ext_resource type="Script" path="res://scripts/combat/CombatManager.gd" id="1_mgr"]
+[ext_resource type="PackedScene" path="res://scenes/combat/Grid.tscn" id="2_grid"]
+[ext_resource type="PackedScene" path="res://scenes/combat/QTEBar.tscn" id="3_qte"]
+[ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn" id="4_hud"]
 
 ; Root node uses CombatManager as its script — it IS the combat manager.
 [node name="CombatScene" type="Node2D"]
