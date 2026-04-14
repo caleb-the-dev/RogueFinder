@@ -21,11 +21,12 @@ var is_alive: bool      = true
 const BOX_SIZE: Vector3     = Vector3(0.7, 1.6, 0.7)
 const BOX_HALF_HEIGHT: float = 0.8   # BOX_SIZE.y / 2 — keeps feet at y = 0
 
-var _mesh: MeshInstance3D       = null
+var _mesh: MeshInstance3D           = null
 var _selection_ring: MeshInstance3D = null
-var _label: Label3D             = null
+var _label: Label3D                 = null
+var _hp_bar: Label3D                = null
 var _body_mat: StandardMaterial3D   = null  # kept for hit-flash restore
-var _base_color: Color          = Color.WHITE
+var _base_color: Color              = Color.WHITE
 
 func _ready() -> void:
 	_build_visuals()
@@ -65,12 +66,20 @@ func _build_visuals() -> void:
 
 	# --- Name label (billboard, above the box) ---
 	_label = Label3D.new()
-	_label.position    = Vector3(0.0, BOX_SIZE.y + 0.3, 0.0)
-	_label.font_size   = 28
-	_label.billboard   = BaseMaterial3D.BILLBOARD_ENABLED
+	_label.position      = Vector3(0.0, BOX_SIZE.y + 0.5, 0.0)
+	_label.font_size     = 28
+	_label.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
 	_label.no_depth_test = true
-	_label.modulate    = Color.WHITE
+	_label.modulate      = Color.WHITE
 	add_child(_label)
+
+	# --- HP bar (billboard, between name and box top) ---
+	_hp_bar = Label3D.new()
+	_hp_bar.position      = Vector3(0.0, BOX_SIZE.y + 0.2, 0.0)
+	_hp_bar.font_size     = 18
+	_hp_bar.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
+	_hp_bar.no_depth_test = true
+	add_child(_hp_bar)
 
 ## --- Public API ---
 
@@ -130,9 +139,29 @@ func _refresh_visuals() -> void:
 	if not is_node_ready():
 		return
 	if _label and data:
-		_label.text = data.unit_name
+		# Enemies with no character_name show their archetype label instead
+		if data.character_name != "":
+			_label.text = data.character_name
+		else:
+			_label.text = data.archetype_id.replace("_", " ").capitalize()
+	if _hp_bar and data:
+		_refresh_hp_bar()
 	_update_base_color()
 	_apply_base_color()
+
+func _refresh_hp_bar() -> void:
+	var ratio: float = float(current_hp) / float(data.hp_max) if data.hp_max > 0 else 0.0
+	var filled: int  = roundi(ratio * 8.0)
+	var bar := ""
+	for i in range(8):
+		bar += "█" if i < filled else "░"
+	_hp_bar.text = bar
+	if ratio > 0.66:
+		_hp_bar.modulate = Color(0.25, 1.0, 0.35)   # green
+	elif ratio > 0.33:
+		_hp_bar.modulate = Color(1.0, 0.85, 0.15)   # yellow
+	else:
+		_hp_bar.modulate = Color(1.0, 0.25, 0.22)   # red
 
 func _update_base_color() -> void:
 	if not is_alive:

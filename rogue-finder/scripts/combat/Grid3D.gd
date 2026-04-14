@@ -8,8 +8,8 @@ extends Node3D
 
 signal cell_clicked(grid_pos: Vector2i)
 
-const COLS: int        = 6
-const ROWS: int        = 4
+const COLS: int        = 10
+const ROWS: int        = 10
 const CELL_SIZE: float = 2.0
 const CELL_GAP: float  = 0.08  # gap between tiles for readability
 
@@ -82,14 +82,19 @@ func clear_occupied(pos: Vector2i) -> void:
 ## --- Movement Range ---
 
 func get_move_range(origin: Vector2i, speed: int) -> Array[Vector2i]:
+	# Diagonal movement costs 1.5 (straight = 1.0, diagonal = 1.5).
+	# Formula: cost = max(dx, dy) + min(dx, dy) * 0.5
+	# Example: speed 3 → 3 straight, 2 diagonal, or 1 straight + 1 diagonal (cost 2.5).
 	var result: Array[Vector2i] = []
 	for row in range(ROWS):
 		for col in range(COLS):
 			var p := Vector2i(col, row)
 			if p == origin:
 				continue
-			var dist: int = abs(p.x - origin.x) + abs(p.y - origin.y)
-			if dist <= speed and not is_occupied(p):
+			var dx: int   = abs(p.x - origin.x)
+			var dy: int   = abs(p.y - origin.y)
+			var cost: float = float(maxi(dx, dy)) + float(mini(dx, dy)) * 0.5
+			if cost <= float(speed) and not is_occupied(p):
 				result.append(p)
 	return result
 

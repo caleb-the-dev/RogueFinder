@@ -16,7 +16,7 @@ extends Resource
 
 @export var character_name: String  = "Unit"
 ## Key into ArchetypeLibrary.ARCHETYPES. Determines allowed class, backgrounds,
-## artwork, and attribute ranges. "player_custom" is reserved for the player character.
+## artwork, and attribute ranges. "RogueFinder" is reserved for the player character.
 @export var archetype_id: String    = "generic"
 @export var is_player_unit: bool    = false
 
@@ -29,6 +29,13 @@ extends Resource
 @export var background: String  = ""
 ## Combat role. Fixed per archetype. e.g. "Rogue", "Barbarian", "Wizard".
 @export var unit_class: String  = ""
+
+## ======================================================
+## --- Portrait (UI display — shown in StatPanel / UnitInfoBar) ---
+## Falls back to the Godot icon if null. Replace with character art when available.
+## ======================================================
+
+@export var portrait: Texture2D = null
 
 ## ======================================================
 ## --- Artwork (placeholder paths — sprite sheets TBD) ---

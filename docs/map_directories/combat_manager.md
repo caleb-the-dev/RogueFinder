@@ -1,6 +1,6 @@
 # System: Combat Manager
 
-> Last updated: 2026-04-14 (Session 2 — Stage 1.5)
+> Last updated: 2026-04-14 (Session 5 — input isolation for StatPanel; removed ATK/DEF/SPD from UnitInfoBar)
 
 ---
 
@@ -30,9 +30,10 @@ There are two versions: `CombatManager3D.gd` (active, 3D) and `CombatManager.gd`
 | **Grid3D** | Cell queries (`is_valid`, `is_occupied`, `get_unit_at`), move range, highlights, world↔grid math |
 | **Unit3D** | HP/energy reads, `take_damage()`, `move_to()`, `play_attack_anim()`, `reset_turn()`, signal subscriptions |
 | **QTEBar** | `start_qte()` call; listens for `qte_resolved(accuracy)` signal |
-| **HUD** | `refresh(player_units, enemy_units)` called after every state change |
 | **CameraController** | Built by CM3D; `trigger_shake()` called on successful hit |
-| **UnitData** | Constructed by `_make_unit_data()` and passed into `Unit3D.setup()` |
+| **UnitInfoBar** | `show_for(unit)` on single-click; `refresh(unit)` after damage; `hide_bar()` on deselect |
+| **StatPanel** | `show_for(unit)` on double-click; `hide_panel()` on deselect / combat end |
+| **ArchetypeLibrary** | `create(archetype_id, name, is_player)` to build all units at scene start |
 
 ---
 
@@ -81,15 +82,16 @@ None — CombatManager3D is the root; other systems signal *up* to it, not the o
 | Method | Purpose |
 |--------|---------|
 | `_ready()` | Builds entire scene: env → camera → grid → units → UI |
-| `_make_unit_data(...)` | Factory for UnitData resources |
-| `_input(event)` | Entry point for all player clicks; dispatches by combat state |
-| `_handle_left_click()` | Raycasts grid cell, routes to select/move/attack |
+| `_unhandled_input(event)` | Entry point for all player input. Uses `_unhandled_input` (not `_input`) so StatPanel GUI controls receive events first. When StatPanel is visible, swallows all events except ESC (which closes the panel). |
+| `_handle_left_click()` | Single-click: raycasts cell → select/move/attack; shows UnitInfoBar |
+| `_handle_double_click()` | Double-click: raycasts cell → opens StatPanel for that unit |
+| `_request_end_player_turn()` | Space key handler: shows confirm dialog if any unit can still act |
+| `_check_auto_end_turn()` | Called after each attack; auto-ends turn when no player can act |
 | `_initiate_attack(attacker, target)` | `await` chain: lunge anim → QTE → apply damage → shake |
-| `_on_qte_resolved(accuracy)` | Receives QTE result, calls `_calculate_damage()`, applies it |
+| `_on_qte_resolved(accuracy)` | Applies damage, checks auto-end, refreshes UnitInfoBar |
 | `_run_enemy_turn()` | Iterates enemy units, simulates QTE via `qte_resolution` stat |
-| `_calculate_damage(atk, def, accuracy)` | `max(1, (atk - def) * accuracy)` |
+| `_calculate_damage(atk, def, accuracy)` | `max(1, round(atk * stat_mult * acc_mult))` |
 | `_check_win_lose()` | Checks for all-dead on either side, transitions to WIN/LOSE |
-| `_refresh_hud()` | Calls `hud.refresh()` — called after every meaningful state change |
 
 ---
 
@@ -115,6 +117,9 @@ damage = max(1, (attacker.attack - defender.defense) * accuracy)
 
 ## Notes
 
-- CM3D builds 3 player units (columns 1–2) and 3 enemy units (columns 3–4) on a 6×4 grid.
-- `_process_enemy_actions()` uses `await get_tree().create_timer(0.4)` between enemies for pacing.
+- CM3D builds 3 player units (left side, col 0–1) and 3 enemy units (right side, col 8–9) on a 10×10 grid.
+- Player slot 0 is always the RogueFinder PC (archetype "RogueFinder", named "Vael"). Slots 1-2 are random allied archetypes auto-named from flavor pools.
+- Space key ends the player turn. If any unit can still act, a confirmation dialog appears first.
+- Turn auto-ends after each attack resolves, if no alive player unit can still take an active action.
+- `_process_enemy_actions()` uses `await get_tree().create_timer(0.65)` between enemies for pacing.
 - The `await` on `_initiate_attack()` blocks the coroutine until QTE resolves — this is why `QTE_RUNNING` state exists to block input.
