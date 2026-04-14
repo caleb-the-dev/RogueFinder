@@ -129,6 +129,24 @@ Do NOT test: rendering, input, anything needing a live scene.
 
 ---
 
+## Documentation & Context Maintenance
+
+### The Map Protocol
+- **Always** read `/docs/map_directories/map.md` first when starting a new session or before working on any system you are unfamiliar with.
+- `map.md` is the high-level index of all game systems. Use it to navigate to the relevant system bucket file before reading source code.
+- Each system bucket file in `/docs/map_directories/` is the authoritative prose description of that system's purpose, dependencies, signals, and public API.
+
+### Automatic Updates
+After implementing any significant logic change or new system, Claude must update the relevant `.md` file(s) in `/docs/map_directories/` to reflect:
+- Changed or new signals
+- Changed or new public methods
+- New dependencies on other systems
+- Structural or design decisions made during implementation
+
+If a change affects multiple systems (e.g., a new signal crosses two systems), update **both** bucket files and the index in `map.md` if a new system was added.
+
+---
+
 ## Open Questions / Deferred
 
 - Grid size: 6×4 — may adjust after playtest
