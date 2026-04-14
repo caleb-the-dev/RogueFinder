@@ -133,26 +133,49 @@ Do NOT test: rendering, input, anything needing a live scene.
 
 Claude Code runs each session inside a git worktree (a linked checkout under `.claude/worktrees/`). This is architectural — it cannot be disabled via settings. The worktree branch is **exclusively locked** to that directory: attempting to switch to it in GitHub Desktop will always fail with "already used by worktree".
 
+### The intended workflow (fast iteration)
+
+```
+1. User gives prompt
+2. Claude works in the worktree
+3. Claude commits, then merges directly into main and pushes  ← Claude does this
+4. User opens Godot from the normal project folder — changes are there immediately
+5. User closes the Claude Code session
+6. User runs cleanup commands (see below)
+```
+
+The user **never needs to touch GitHub Desktop or create a PR** to test changes. Main is always updated before Claude says "done."
+
+### What Claude must do at the end of every session
+
+Before telling the user the work is ready, Claude must run these commands (substituting the actual repo root and worktree name):
+
+```bash
+# 1. Commit any final changes in the worktree (if not already done)
+git add -A && git commit -m "..."
+
+# 2. Merge the worktree branch into main from the main repo directory
+git -C "C:\Users\caleb\.local\bin\Projects\RogueFinder" merge <worktree-branch> --no-ff
+
+# 3. Push main
+git -C "C:\Users\caleb\.local\bin\Projects\RogueFinder" push origin main
+```
+
+After step 3, the user's normal project folder is up to date and Godot can be opened immediately.
+
+### User cleanup (after closing the Claude Code session)
+
+Run from the repo root (`C:\Users\caleb\.local\bin\Projects\RogueFinder`):
+```powershell
+cd C:\Users\caleb\.local\bin\Projects\RogueFinder
+git worktree remove .claude/worktrees/<worktree-name> --force
+git branch -d claude/<worktree-name>
+```
+Then Fetch Origin in GitHub Desktop to confirm `main` is clean.
+
 ### Key rule: never switch to the Claude branch in GitHub Desktop
 
-The Claude branch is not meant to be checked out in GitHub Desktop. Stay on `main` at all times. Merge Claude's work via GitHub.com, then fetch on `main`.
-
-### End-of-session checklist (Claude must surface these steps before closing every session)
-
-1. Commit and push all changes (Claude does this).
-2. Open the PR on GitHub.com and **merge it there** — do not try to switch branches in GitHub Desktop.
-3. In GitHub Desktop: click **Fetch origin** while on `main` — the merged commits appear automatically.
-4. **Close the Claude Code session.**
-5. From a terminal at the repo root:
-   ```
-   git worktree remove .claude/worktrees/<worktree-name> --force
-   git branch -d claude/<worktree-name>
-   ```
-6. GitHub Desktop on `main` — fetch once more to confirm it's clean.
-
-### Why "switch branch" in GitHub Desktop always fails during a session
-
-Git marks a worktree's branch as exclusively in-use. No other checkout can reference it while the worktree exists. This is a git constraint, not a GitHub Desktop bug. The worktree folder (`C:\Users\caleb\.local\bin\Projects\RogueFinder\.claude\worktrees\<name>`) IS the checkout — open it directly in VS Code or File Explorer if you need to inspect the files mid-session.
+The worktree branch is exclusively locked while the session is open — switching to it in GitHub Desktop always fails. Stay on `main` at all times. Changes reach `main` automatically via the merge step above.
 
 ---
 
