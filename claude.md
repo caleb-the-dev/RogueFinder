@@ -77,8 +77,8 @@ res://
 
 - **3v3 combat** — 3 player units vs up to 3 enemies
 - **Team-based initiative** — all players act, then all enemies
-- **Action economy per turn:** Stride (free) + Active Action (costs Energy)
-- **QTE:** sliding bar — hit accuracy × stat delta = damage
+- **Action economy per turn:** Stride (free) + Active Action/Ability (costs Energy) + Consumable (if combatant has one)
+- **QTE:** example: sliding bar — hit accuracy × stat delta = damage
 - **Enemy AI:** hidden `qte_resolution` stat (grunt 0.3, elite 0.8)
 - **NPC death is permanent** within a run
 - **Player character survives at 1 HP** if party wins the fight they die in
@@ -154,6 +154,11 @@ Claude Code runs each session inside a git worktree (a linked checkout under `.c
 - **Always** read `/docs/map_directories/map.md` first when starting a new session or before working on any system you are unfamiliar with.
 - `map.md` is the high-level index of all game systems. Use it to navigate to the relevant system bucket file before reading source code.
 - Each system bucket file in `/docs/map_directories/` is the authoritative prose description of that system's purpose, dependencies, signals, and public API.
+- Only read through the directories that you need to; this strategy is meant to give a map without overburdening with unnecessary context
+
+### This claude.md file
+- Do not use this doc to house workflow, placeholder information, or scratchwork
+- Write or read C:\Users\caleb\.local\bin\Projects\RogueFinder\docs\backlog.md for any future plans, but do not read this file automatically. The user will keep track of the backlog. 
 
 ### Automatic Updates
 After implementing any significant logic change or new system, Claude must update the relevant `.md` file(s) in `/docs/map_directories/` to reflect:
@@ -164,11 +169,5 @@ After implementing any significant logic change or new system, Claude must updat
 
 If a change affects multiple systems (e.g., a new signal crosses two systems), update **both** bucket files and the index in `map.md` if a new system was added.
 
----
-
-## Open Questions / Deferred
-
-- Grid size: 6×4 — may adjust after playtest
-- QTE variety: sliding bar only in Stage 1; more types TBD
-- Balance numbers: TBD after Stage 1.5 validation
-- Stage 2 scope: TBD (node map? recruitment? enemy variety?)
+### Future Structure
+- Saving will eventually be a core feature of this game. Consider how this will affect systems as they are built.
