@@ -1,6 +1,6 @@
 # System: Combat Manager
 
-> Last updated: 2026-04-14 (Session 4 — UnitInfoBar; auto-end turn; 10×10; double-click examine)
+> Last updated: 2026-04-14 (Session 5 — input isolation for StatPanel; removed ATK/DEF/SPD from UnitInfoBar)
 
 ---
 
@@ -82,7 +82,7 @@ None — CombatManager3D is the root; other systems signal *up* to it, not the o
 | Method | Purpose |
 |--------|---------|
 | `_ready()` | Builds entire scene: env → camera → grid → units → UI |
-| `_input(event)` | Entry point for all player input; dispatches by combat state |
+| `_unhandled_input(event)` | Entry point for all player input. Uses `_unhandled_input` (not `_input`) so StatPanel GUI controls receive events first. When StatPanel is visible, swallows all events except ESC (which closes the panel). |
 | `_handle_left_click()` | Single-click: raycasts cell → select/move/attack; shows UnitInfoBar |
 | `_handle_double_click()` | Double-click: raycasts cell → opens StatPanel for that unit |
 | `_request_end_player_turn()` | Space key handler: shows confirm dialog if any unit can still act |

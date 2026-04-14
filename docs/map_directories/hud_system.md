@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-14 (Session 4 — HUD removed from 3D; replaced by UnitInfoBar + StatPanel)
+> Last updated: 2026-04-14 (Session 5 — UnitInfoBar bars widened; ATK/DEF/SPD removed)
 
 ---
 
@@ -19,7 +19,7 @@
 
 **Layer 4.** Shown at the bottom-center of the screen when any unit is clicked.
 
-Displays: portrait · name · class · HP bar · Energy bar · ATK / DEF / SPD.
+Displays: portrait · name · class · HP bar · Energy bar. (ATK/DEF/SPD removed — attack varies per ability; those stats belong in the StatPanel examine view.)
 
 ### Public API
 
