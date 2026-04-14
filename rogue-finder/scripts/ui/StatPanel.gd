@@ -68,8 +68,10 @@ func _build_ui() -> void:
 	_rtl = RichTextLabel.new()
 	_rtl.bbcode_enabled = true
 	_rtl.fit_content    = true
-	# Width fills the scroll area minus scrollbar room
-	_rtl.size = Vector2(_scroll.size.x - 16.0, 0.0)
+	# Constrain width so text wraps; let fit_content grow the height naturally.
+	# Do NOT set size.y — overriding it to 0 defeats fit_content and hides all text.
+	_rtl.custom_minimum_size = Vector2(PANEL_W - 28.0, 0.0)
+	_rtl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rtl.add_theme_font_size_override("normal_font_size", 12)
 	_scroll.add_child(_rtl)
 

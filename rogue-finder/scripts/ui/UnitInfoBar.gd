@@ -4,13 +4,13 @@ extends CanvasLayer
 ## --- UnitInfoBar ---
 ## Condensed unit info strip at the bottom-center of the screen.
 ## Shown on single-click of any unit (player or enemy). Hidden on deselect.
-## Displays: portrait, name/class, HP bar, energy bar, ATK/DEF/SPD.
+## Displays: portrait, name/class, HP bar, energy bar.
 ## Layer 4: above world, below StatPanel (layer 8) and QTE (layer 10).
 
 const PANEL_W: float   = 460.0
 const PANEL_H: float   = 76.0
 const PORTRAIT_SZ: float = 56.0
-const BAR_W: float     = 152.0
+const BAR_W: float     = 280.0
 const BAR_H: float     = 9.0
 
 var _panel: ColorRect        = null
@@ -23,7 +23,6 @@ var _hp_text: Label          = null
 var _en_bg: ColorRect        = null
 var _en_fill: ColorRect      = null
 var _en_text: Label          = null
-var _stats_lbl: Label        = null
 
 func _ready() -> void:
 	layer = 4
@@ -82,13 +81,6 @@ func _build_ui() -> void:
 	_en_fill = _make_bar_fill(bar_x + 22.0, 60.0, Color(0.22, 0.55, 1.0))
 	_en_text = _make_bar_text(num_x + 22.0, 58.0)
 
-	# ATK / DEF / SPD stats (right side)
-	_stats_lbl = Label.new()
-	_stats_lbl.position = Vector2(PANEL_W - 128.0, 14.0)
-	_stats_lbl.size     = Vector2(120.0, 50.0)
-	_stats_lbl.add_theme_font_size_override("font_size", 11)
-	_panel.add_child(_stats_lbl)
-
 ## --- Helper builders ---
 
 func _make_prefix(text: String, x: float, y: float) -> Label:
@@ -138,8 +130,6 @@ func show_for(unit: Unit3D) -> void:
 	_name_lbl.text = d.character_name if d.character_name != "" \
 		else d.archetype_id.replace("_", " ").capitalize()
 	_class_lbl.text = "%s  ·  %s" % [d.unit_class, ("Player" if d.is_player_unit else "Enemy")]
-
-	_stats_lbl.text = "ATK  %d\nDEF  %d\nSPD  %d" % [d.attack, d.defense, d.speed]
 
 	_refresh_bars(unit)
 	visible = true
