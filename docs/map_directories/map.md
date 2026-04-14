@@ -1,7 +1,7 @@
 # RogueFinder — System Map
 
 > High-level index of all game systems. Read this first each session, then navigate to the relevant bucket file.
-> Last updated: 2026-04-14 (Session 2 — Stage 1.5 complete)
+> Last updated: 2026-04-14 (Session 3 — Combatant Data Model added)
 
 ---
 
@@ -15,7 +15,9 @@
 | [QTE System](#qte-system) | [qte_system.md](qte_system.md) | ✅ Active | Core |
 | [Camera System](#camera-system) | [camera_system.md](camera_system.md) | ✅ Active (3D only) | Presentation |
 | [HUD System](#hud-system) | [hud_system.md](hud_system.md) | ✅ Active (duck-typed) | Presentation |
-| [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ✅ Active | Data |
+| [Stat Panel](#stat-panel) | *(see combatant_data.md)* | ✅ Active | Presentation |
+| [Combatant Data Model](#combatant-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active (3D) | Data |
+| [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
 | [Game State](#game-state) | [game_state.md](game_state.md) | 🔲 Stub | Global |
 
 ---
@@ -24,17 +26,24 @@
 
 ```
 CombatManager3D
-  ├── Grid3D          (cell queries, highlights, world↔grid math)
-  ├── Unit3D ×6       (HP/energy state, movement, animations)
-  ├── QTEBar          (skill-check overlay → accuracy float)
-  ├── HUD             (display refresh after every state change)
-  ├── CameraController(built by CM3D; shake on hit)
-  └── UnitData        (stat resource passed into Unit3D.setup())
+  ├── Grid3D           (cell queries, highlights, world↔grid math)
+  ├── Unit3D ×6        (HP/energy state, movement, animations)
+  ├── QTEBar           (skill-check overlay → accuracy float)
+  ├── HUD              (display refresh after every state change)
+  ├── CameraController (built by CM3D; shake on hit)
+  ├── StatPanel        (unit stat overlay; shown on select, hidden on deselect)
+  └── ArchetypeLibrary (creates CombatantData for each unit at scene load)
 
 Unit3D
-  └── UnitData        (stat source)
+  └── CombatantData    (stat source — replaces UnitData for 3D)
 
-GameState             (autoload stub — not yet wired to anything)
+StatPanel
+  └── CombatantData    (reads all fields for display)
+
+ArchetypeLibrary
+  └── CombatantData    (creates instances)
+
+GameState              (autoload stub — not yet wired to anything)
 ```
 
 ---
@@ -59,8 +68,14 @@ DOS2-style isometric orbit camera. Supports Q/E 45° rotation, scroll zoom, and 
 ### HUD System
 CanvasLayer that displays HP and energy as ASCII bars for all 6 units. Duck-typed `refresh()` accepts both `Unit` (2D) and `Unit3D` arrays — no explicit type dependency.
 
-### Unit Data Resource
-`@tool` Resource class. Holds all unit stats as `@export` fields. The only data contract between the Combat Manager (which constructs it) and Unit3D (which reads it via `setup()`).
+### Stat Panel
+CanvasLayer overlay (layer 8) that pops up when any unit is clicked, showing the complete `CombatantData` for that unit: identity, archetype, background, class, attributes, all derived stats, equipment slots, and ability pool. Hidden on deselect and combat end. Lives in `scripts/ui/StatPanel.gd`.
+
+### Combatant Data Model
+Two-file system: `CombatantData` (Resource) stores identity, core attributes, and slot data; all derived combat stats are computed properties. `ArchetypeLibrary` (static class) defines 5 archetypes and provides `create()` to instantiate randomized `CombatantData`. See `combatant_data.md` for full field reference.
+
+### Unit Data Resource (Legacy)
+Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite. See `unit_data.md`.
 
 ### Game State
 Autoload singleton stub. Intended for run-wide data (party roster, items, map progress). Not yet wired to any system.
@@ -81,7 +96,13 @@ res://
 │   │   ├── CombatManager.gd     ← legacy 2D
 │   │   ├── Unit.gd              ← legacy 2D
 │   │   └── Grid.gd              ← legacy 2D
-│   ├── ui/HUD.gd
-│   └── globals/GameState.gd
-└── resources/UnitData.gd
+│   ├── ui/
+│   │   ├── HUD.gd
+│   │   └── StatPanel.gd         ← unit stat overlay (3D)
+│   └── globals/
+│       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
+│       └── GameState.gd
+└── resources/
+    ├── CombatantData.gd         ← active data resource (3D)
+    └── UnitData.gd              ← legacy data resource (2D only)
 ```
