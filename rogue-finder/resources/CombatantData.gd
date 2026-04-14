@@ -16,7 +16,7 @@ extends Resource
 
 @export var character_name: String  = "Unit"
 ## Key into ArchetypeLibrary.ARCHETYPES. Determines allowed class, backgrounds,
-## artwork, and attribute ranges. "player_custom" is reserved for the player character.
+## artwork, and attribute ranges. "RogueFinder" is reserved for the player character.
 @export var archetype_id: String    = "generic"
 @export var is_player_unit: bool    = false
 

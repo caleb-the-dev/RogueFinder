@@ -25,8 +25,8 @@ extends RefCounted
 ## "qte_range"      : [min, max] float  — enemy-only auto-accuracy
 
 const ARCHETYPES: Dictionary = {
-	## Player character — fully custom; ranges are wide to allow interesting variety.
-	"player_custom": {
+	## RogueFinder — the player character. One per party; wide ranges for variety.
+	"RogueFinder": {
 		"class":          "Custom",
 		"artwork_idle":   "",
 		"artwork_attack": "",
@@ -103,9 +103,10 @@ const ARCHETYPES: Dictionary = {
 }
 
 ## --- Flavor name pools ---
-## Used when no character_name is supplied (unnamed NPC encounters).
+## Used when is_player=true and no character_name is supplied (party allies auto-named).
+## Enemies (is_player=false) are never auto-named — they show their archetype above their head.
 const _NAME_POOLS: Dictionary = {
-	"player_custom": ["Hero"],
+	"RogueFinder":  ["Hero"],
 	"archer_bandit": ["Kale", "Sora", "Wren", "Dax", "Mira", "Fenn"],
 	"grunt":         ["Brak", "Mord", "Thug", "Krak", "Uge", "Dorn"],
 	"alchemist":     ["Finch", "Alda", "Quill", "Senna", "Pip", "Loris"],
@@ -158,11 +159,15 @@ static func create(archetype_id: String, character_name: String = "",
 	data.armor_defense  = rng.randi_range(def["armor_range"][0], def["armor_range"][1])
 	data.qte_resolution = rng.randf_range(def["qte_range"][0], def["qte_range"][1])
 
-	# Name: provided override, or draw from flavor pool
+	# Name: explicit override always wins.
+	# Player units with no name get one from the flavor pool.
+	# Enemy units with no name stay empty — Unit3D will show the archetype label instead.
 	if character_name != "":
 		data.character_name = character_name
-	else:
+	elif is_player:
 		var pool: Array = _NAME_POOLS.get(archetype_id, ["Unit"])
 		data.character_name = pool[rng.randi_range(0, pool.size() - 1)]
+	else:
+		data.character_name = ""
 
 	return data

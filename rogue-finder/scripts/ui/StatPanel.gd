@@ -21,7 +21,7 @@ func _ready() -> void:
 func _build_ui() -> void:
 	_panel = ColorRect.new()
 	_panel.color    = Color(0.05, 0.06, 0.12, 0.95)
-	_panel.position = Vector2(10.0, 44.0)
+	_panel.position = Vector2(10.0, 8.0)
 	_panel.size     = Vector2(272.0, 600.0)
 	add_child(_panel)
 
@@ -61,7 +61,9 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	var lines: PackedStringArray = []
 
 	# -- Identity --
-	lines.append("=== %s ===" % d.character_name)
+	var display_name: String = d.character_name if d.character_name != "" \
+		else d.archetype_id.replace("_", " ").capitalize()
+	lines.append("=== %s ===" % display_name)
 	lines.append("Archetype:  %s" % d.archetype_id.replace("_", " ").capitalize())
 	lines.append("Class:      %s" % d.unit_class)
 	lines.append("Background: %s" % _or_empty(d.background))

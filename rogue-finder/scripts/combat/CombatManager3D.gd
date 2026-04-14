@@ -26,7 +26,6 @@ var _attack_target: Unit3D       = null
 var _grid: Grid3D                 = null
 var _camera_rig: CameraController = null
 var _qte_bar: QTEBar              = null
-var _hud: HUD                     = null
 var _stat_panel: StatPanel        = null
 var _status_label: Label          = null
 
@@ -38,7 +37,6 @@ func _ready() -> void:
 	_setup_grid()
 	_setup_units()
 	_setup_ui()
-	_refresh_hud()
 	_update_status()
 
 func _setup_environment() -> void:
@@ -68,38 +66,44 @@ func _setup_grid() -> void:
 func _setup_units() -> void:
 	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
 
-	# --- Player units ---
-	# Named characters with archetype "player_custom"; attributes randomized within wide ranges.
-	var player_defs: Array = [
-		{ "name": "Vael", "pos": Vector2i(1, 1) },
-		{ "name": "Kira", "pos": Vector2i(1, 2) },
-		{ "name": "Brom", "pos": Vector2i(0, 1) },
-	]
-	for def in player_defs:
-		var cd: CombatantData = ArchetypeLibrary.create("player_custom", def["name"], true)
+	# --- Player unit 0: The RogueFinder (PC) ---
+	# Always uses the "RogueFinder" archetype with a fixed name. One per party.
+	var pc_cd: CombatantData = ArchetypeLibrary.create("RogueFinder", "Vael", true)
+	var pc: Unit3D = unit_scene.instantiate()
+	add_child(pc)
+	pc.setup(pc_cd, Vector2i(1, 1))
+	pc.global_position = _grid.grid_to_world(Vector2i(1, 1))
+	_grid.set_occupied(Vector2i(1, 1), pc)
+	pc.unit_died.connect(_on_unit_died)
+	_player_units.append(pc)
+
+	# --- Player units 1-2: Allies (random archetype, auto-named from flavor pool) ---
+	var ally_archetypes: Array[String] = ["archer_bandit", "grunt", "alchemist", "elite_guard"]
+	var ally_positions: Array[Vector2i] = [Vector2i(1, 2), Vector2i(0, 1)]
+	for pos in ally_positions:
+		var arch: String = ally_archetypes[randi() % ally_archetypes.size()]
+		# character_name="" + is_player=true → auto-named from the archetype's flavor pool
+		var cd: CombatantData = ArchetypeLibrary.create(arch, "", true)
 		var unit: Unit3D = unit_scene.instantiate()
 		add_child(unit)
-		unit.setup(cd, def["pos"])
-		unit.global_position = _grid.grid_to_world(def["pos"])
-		_grid.set_occupied(def["pos"], unit)
+		unit.setup(cd, pos)
+		unit.global_position = _grid.grid_to_world(pos)
+		_grid.set_occupied(pos, unit)
 		unit.unit_died.connect(_on_unit_died)
 		_player_units.append(unit)
 
 	# --- Enemy units ---
-	# Each slot draws a random archetype from the pool, so the enemy composition
-	# changes every reload. This gives wide stat variation for testing.
+	# character_name="" + is_player=false → empty; Unit3D shows archetype label above head.
 	var enemy_archetypes: Array[String] = ["archer_bandit", "grunt", "alchemist", "elite_guard"]
-	var enemy_positions: Array = [
-		Vector2i(4, 1), Vector2i(5, 2), Vector2i(4, 2),
-	]
-	for i in range(enemy_positions.size()):
+	var enemy_positions: Array[Vector2i] = [Vector2i(4, 1), Vector2i(5, 2), Vector2i(4, 2)]
+	for pos in enemy_positions:
 		var arch: String = enemy_archetypes[randi() % enemy_archetypes.size()]
 		var cd: CombatantData = ArchetypeLibrary.create(arch, "", false)
 		var unit: Unit3D = unit_scene.instantiate()
 		add_child(unit)
-		unit.setup(cd, enemy_positions[i])
-		unit.global_position = _grid.grid_to_world(enemy_positions[i])
-		_grid.set_occupied(enemy_positions[i], unit)
+		unit.setup(cd, pos)
+		unit.global_position = _grid.grid_to_world(pos)
+		_grid.set_occupied(pos, unit)
 		unit.unit_died.connect(_on_unit_died)
 		_enemy_units.append(unit)
 
@@ -107,9 +111,6 @@ func _setup_ui() -> void:
 	_qte_bar = preload("res://scenes/combat/QTEBar.tscn").instantiate()
 	add_child(_qte_bar)
 	_qte_bar.qte_resolved.connect(_on_qte_resolved)
-
-	_hud = preload("res://scenes/ui/HUD.tscn").instantiate()
-	add_child(_hud)
 
 	# Stat panel (left side) — shown when a unit is selected
 	_stat_panel = StatPanel.new()
@@ -281,7 +282,6 @@ func _on_qte_resolved(accuracy: float) -> void:
 		_attack_target.take_damage(dmg)
 		_camera_rig.trigger_shake()
 
-	_refresh_hud()
 	_attack_target = null
 
 	# Don't override a WIN/LOSE state that take_damage may have set
@@ -317,7 +317,6 @@ func _run_enemy_turn() -> void:
 	for unit in _enemy_units:
 		unit.regen_energy()
 		unit.reset_turn()
-	_refresh_hud()
 	state = CombatState.PLAYER_TURN
 	_update_status()
 
@@ -343,7 +342,6 @@ func _process_enemy_actions() -> void:
 
 		target.take_damage(dmg)
 		_camera_rig.trigger_shake()
-		_refresh_hud()
 
 		if state == CombatState.WIN or state == CombatState.LOSE:
 			return
@@ -354,7 +352,6 @@ func _process_enemy_actions() -> void:
 
 func _on_unit_died(unit: Unit3D) -> void:
 	_grid.clear_occupied(unit.grid_pos)
-	_refresh_hud()
 	_check_win_lose()
 
 func _check_win_lose() -> void:
@@ -387,11 +384,7 @@ func _calculate_damage(atk: int, def: int, accuracy: float) -> int:
 	var acc_mult: float  = clampf(accuracy, 0.1, 1.0)
 	return maxi(1, roundi(float(atk) * stat_mult * acc_mult))
 
-## --- HUD + Status ---
-
-func _refresh_hud() -> void:
-	if _hud:
-		_hud.refresh(_player_units, _enemy_units)
+## --- Status ---
 
 func _update_status() -> void:
 	if not _status_label:

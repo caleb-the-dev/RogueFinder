@@ -22,7 +22,8 @@ func _ready() -> void:
 	test_archetype_elite_guard_armor_range()
 	test_archetype_unknown_falls_back_to_grunt()
 	test_archetype_name_override()
-	test_archetype_auto_name_from_pool()
+	test_archetype_enemy_name_empty()
+	test_archetype_ally_auto_name_from_pool()
 	print("=== All CombatantData tests passed ===")
 
 ## --- Derived Stat Tests ---
@@ -147,10 +148,20 @@ func test_archetype_name_override() -> void:
 		"character_name override should be 'Claude', got %s" % d.character_name)
 	print("  PASS test_archetype_name_override")
 
-func test_archetype_auto_name_from_pool() -> void:
+func test_archetype_enemy_name_empty() -> void:
+	# Enemies (is_player=false) with no explicit name should have an empty character_name.
+	# Unit3D will display the archetype label above their head instead.
+	for i in range(10):
+		var d: CombatantData = ArchetypeLibrary.create("grunt")
+		assert(d.character_name == "",
+			"enemy grunt with no name should be empty, got '%s'" % d.character_name)
+	print("  PASS test_archetype_enemy_name_empty")
+
+func test_archetype_ally_auto_name_from_pool() -> void:
+	# Player allies (is_player=true) with no explicit name draw from the flavor pool.
 	var grunt_names: Array = ["Brak", "Mord", "Thug", "Krak", "Uge", "Dorn"]
 	for i in range(20):
-		var d: CombatantData = ArchetypeLibrary.create("grunt")
+		var d: CombatantData = ArchetypeLibrary.create("grunt", "", true)
 		assert(d.character_name in grunt_names,
-			"auto name '%s' is not in grunt name pool" % d.character_name)
-	print("  PASS test_archetype_auto_name_from_pool")
+			"ally grunt auto name '%s' is not in grunt name pool" % d.character_name)
+	print("  PASS test_archetype_ally_auto_name_from_pool")
