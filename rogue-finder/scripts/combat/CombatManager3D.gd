@@ -6,6 +6,8 @@ extends Node3D
 ## Builds the entire scene in _ready() — no child nodes needed in the .tscn.
 ## Controls: Click to select/move, [A] attack mode, [Enter] end turn, [ESC] deselect.
 ## Camera: [Q] rotate CCW, [E] rotate CW, scroll wheel zoom.
+##
+## "Redo" button at bottom-left reloads the scene with freshly randomized units.
 
 const ATTACK_ENERGY_COST: int  = 3
 const ENEMY_TURN_DELAY: float  = 0.65  # seconds between enemy actions
@@ -21,11 +23,12 @@ var _enemy_units:  Array[Unit3D] = []
 var _selected_unit: Unit3D       = null
 var _attack_target: Unit3D       = null
 
-var _grid: Grid3D              = null
+var _grid: Grid3D                 = null
 var _camera_rig: CameraController = null
-var _qte_bar: QTEBar           = null
-var _hud: HUD                  = null
-var _status_label: Label       = null
+var _qte_bar: QTEBar              = null
+var _hud: HUD                     = null
+var _stat_panel: StatPanel        = null
+var _status_label: Label          = null
 
 ## --- Initialization ---
 
@@ -66,51 +69,39 @@ func _setup_units() -> void:
 	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
 
 	# --- Player units ---
-	var player_cfgs: Array = [
-		{ "name": "Vael", "pos": Vector2i(1, 1), "hp": 20, "atk": 12, "def": 8  },
-		{ "name": "Kira", "pos": Vector2i(1, 2), "hp": 16, "atk": 10, "def": 10 },
-		{ "name": "Brom", "pos": Vector2i(0, 1), "hp": 24, "atk": 8,  "def": 14 },
+	# Named characters with archetype "player_custom"; attributes randomized within wide ranges.
+	var player_defs: Array = [
+		{ "name": "Vael", "pos": Vector2i(1, 1) },
+		{ "name": "Kira", "pos": Vector2i(1, 2) },
+		{ "name": "Brom", "pos": Vector2i(0, 1) },
 	]
-	for cfg in player_cfgs:
-		var ud := _make_unit_data(cfg["name"], true, cfg["hp"], cfg["atk"], cfg["def"], 3, 0.0)
+	for def in player_defs:
+		var cd: CombatantData = ArchetypeLibrary.create("player_custom", def["name"], true)
 		var unit: Unit3D = unit_scene.instantiate()
 		add_child(unit)
-		unit.setup(ud, cfg["pos"])
-		unit.global_position = _grid.grid_to_world(cfg["pos"])
-		_grid.set_occupied(cfg["pos"], unit)
+		unit.setup(cd, def["pos"])
+		unit.global_position = _grid.grid_to_world(def["pos"])
+		_grid.set_occupied(def["pos"], unit)
 		unit.unit_died.connect(_on_unit_died)
 		_player_units.append(unit)
 
 	# --- Enemy units ---
-	var enemy_cfgs: Array = [
-		{ "name": "Grunt A", "pos": Vector2i(4, 1), "hp": 15, "atk": 8, "def": 8, "qte": 0.3 },
-		{ "name": "Grunt B", "pos": Vector2i(5, 2), "hp": 15, "atk": 8, "def": 8, "qte": 0.3 },
-		{ "name": "Grunt C", "pos": Vector2i(4, 2), "hp": 15, "atk": 8, "def": 8, "qte": 0.3 },
+	# Each slot draws a random archetype from the pool, so the enemy composition
+	# changes every reload. This gives wide stat variation for testing.
+	var enemy_archetypes: Array[String] = ["archer_bandit", "grunt", "alchemist", "elite_guard"]
+	var enemy_positions: Array = [
+		Vector2i(4, 1), Vector2i(5, 2), Vector2i(4, 2),
 	]
-	for cfg in enemy_cfgs:
-		var ud := _make_unit_data(cfg["name"], false, cfg["hp"], cfg["atk"], cfg["def"], 2, cfg["qte"])
+	for i in range(enemy_positions.size()):
+		var arch: String = enemy_archetypes[randi() % enemy_archetypes.size()]
+		var cd: CombatantData = ArchetypeLibrary.create(arch, "", false)
 		var unit: Unit3D = unit_scene.instantiate()
 		add_child(unit)
-		unit.setup(ud, cfg["pos"])
-		unit.global_position = _grid.grid_to_world(cfg["pos"])
-		_grid.set_occupied(cfg["pos"], unit)
+		unit.setup(cd, enemy_positions[i])
+		unit.global_position = _grid.grid_to_world(enemy_positions[i])
+		_grid.set_occupied(enemy_positions[i], unit)
 		unit.unit_died.connect(_on_unit_died)
 		_enemy_units.append(unit)
-
-## Helper to reduce duplication when creating UnitData resources.
-func _make_unit_data(unit_name: String, is_player: bool, hp: int,
-		atk: int, def: int, spd: int, qte_res: float) -> UnitData:
-	var ud := UnitData.new()
-	ud.unit_name      = unit_name
-	ud.is_player_unit = is_player
-	ud.hp_max         = hp
-	ud.attack         = atk
-	ud.defense        = def
-	ud.speed          = spd
-	ud.energy_max     = 10
-	ud.energy_regen   = 3
-	ud.qte_resolution = qte_res
-	return ud
 
 func _setup_ui() -> void:
 	_qte_bar = preload("res://scenes/combat/QTEBar.tscn").instantiate()
@@ -120,7 +111,11 @@ func _setup_ui() -> void:
 	_hud = preload("res://scenes/ui/HUD.tscn").instantiate()
 	add_child(_hud)
 
-	# Floating status label at top-left
+	# Stat panel (left side) — shown when a unit is selected
+	_stat_panel = StatPanel.new()
+	add_child(_stat_panel)
+
+	# Floating status label at top-left, above the stat panel
 	var status_layer := CanvasLayer.new()
 	status_layer.layer = 3
 	add_child(status_layer)
@@ -129,6 +124,18 @@ func _setup_ui() -> void:
 	_status_label.size     = Vector2(620.0, 28.0)
 	_status_label.add_theme_font_size_override("font_size", 16)
 	status_layer.add_child(_status_label)
+
+	# Redo button — reloads the scene so all units are freshly randomized.
+	# Useful for testing stat variation across different archetype rolls.
+	var redo_layer := CanvasLayer.new()
+	redo_layer.layer = 3
+	add_child(redo_layer)
+	var redo_btn := Button.new()
+	redo_btn.text     = "Redo (Reroll)"
+	redo_btn.position = Vector2(10.0, 648.0)
+	redo_btn.size     = Vector2(140.0, 36.0)
+	redo_btn.pressed.connect(func() -> void: get_tree().reload_current_scene())
+	redo_layer.add_child(redo_btn)
 
 ## --- Input ---
 
@@ -172,8 +179,15 @@ func _handle_left_click() -> void:
 
 func _try_select_unit(cell: Vector2i) -> void:
 	var obj: Object = _grid.get_unit_at(cell)
-	if obj is Unit3D and obj.data.is_player_unit and obj.is_alive:
-		_select_unit(obj as Unit3D)
+	if obj is Unit3D and obj.is_alive:
+		var unit := obj as Unit3D
+		if unit.data.is_player_unit:
+			# Player unit: select for movement/action AND show stats
+			_select_unit(unit)
+		else:
+			# Enemy unit in IDLE: just show stats, don't take control
+			_deselect()
+			_stat_panel.show_for(unit)
 	else:
 		_deselect()
 
@@ -188,6 +202,9 @@ func _select_unit(unit: Unit3D) -> void:
 		for cell in _grid.get_move_range(unit.grid_pos, unit.data.speed):
 			_grid.set_highlight(cell, "move")
 	mode = PlayerMode.STRIDE_MODE if unit.can_stride() else PlayerMode.IDLE
+
+	# Show this unit's full stat card
+	_stat_panel.show_for(unit)
 	_update_status()
 
 func _deselect() -> void:
@@ -195,6 +212,7 @@ func _deselect() -> void:
 		_selected_unit.set_selected(false)
 		_selected_unit = null
 	_grid.clear_highlights()
+	_stat_panel.hide_panel()
 	mode = PlayerMode.IDLE
 	_update_status()
 
@@ -215,7 +233,8 @@ func _try_move(cell: Vector2i) -> void:
 	var tw: Tween = create_tween()
 	tw.tween_property(_selected_unit, "global_position", _grid.grid_to_world(cell), 0.18)
 
-	# Refresh highlights now that the unit has moved
+	# Refresh highlights and stat panel (HP/energy are unchanged by movement,
+	# but position in stat display updates on next explicit selection)
 	_grid.clear_highlights()
 	_grid.set_highlight(cell, "selected")
 	mode = PlayerMode.IDLE
@@ -357,6 +376,7 @@ func _check_win_lose() -> void:
 
 func _end_combat(player_won: bool) -> void:
 	state = CombatState.WIN if player_won else CombatState.LOSE
+	_stat_panel.hide_panel()
 	_update_status()
 
 ## --- Damage Formula ---

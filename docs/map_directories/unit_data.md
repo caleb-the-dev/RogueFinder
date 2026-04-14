@@ -1,6 +1,8 @@
-# System: Unit Data Resource
+# System: Unit Data Resource (Legacy 2D)
 
-> Last updated: 2026-04-14 (Session 2 — Stage 1.5)
+> Last updated: 2026-04-14 (Session 3 — marked legacy)
+> **SUPERSEDED** for the 3D system by `CombatantData` + `ArchetypeLibrary`.
+> `UnitData` is kept for `Unit.gd` (2D) and its test suite only. Do not use for new work.
 
 ---
 

@@ -9,7 +9,7 @@ extends Node3D
 signal unit_died(unit: Unit3D)
 signal unit_moved(unit: Unit3D, new_pos: Vector2i)
 
-@export var data: UnitData
+@export var data: CombatantData
 
 var current_hp: int     = 0
 var current_energy: int = 0
@@ -74,7 +74,7 @@ func _build_visuals() -> void:
 
 ## --- Public API ---
 
-func setup(unit_data: UnitData, pos: Vector2i) -> void:
+func setup(unit_data: CombatantData, pos: Vector2i) -> void:
 	data           = unit_data
 	current_hp     = data.hp_max
 	current_energy = data.energy_max
