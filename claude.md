@@ -133,35 +133,42 @@ Do NOT test: rendering, input, anything needing a live scene.
 
 Claude Code runs each session inside a git worktree (a linked checkout under `.claude/worktrees/`). This is architectural — it cannot be disabled via settings. The worktree branch is **exclusively locked** to that directory: attempting to switch to it in GitHub Desktop will always fail with "already used by worktree".
 
-### The intended workflow (fast iteration)
+### The intended workflow (fast iteration, main stays protected)
 
 ```
 1. User gives prompt
-2. Claude works in the worktree
-3. Claude commits, then merges directly into main and pushes  ← Claude does this
-4. User opens Godot from the normal project folder — changes are there immediately
-5. User closes the Claude Code session
-6. User runs cleanup commands (see below)
+2. Claude works in the worktree, commits, and pushes the worktree branch
+3. Claude tells the user the worktree test path for this session
+4. User opens Godot from the WORKTREE folder to test — main is untouched
+5. User approves → Claude merges to main and pushes
+   User rejects  → Claude keeps iterating in the same worktree (go to step 2)
+6. User closes the Claude Code session
+7. User runs cleanup commands (see below)
 ```
 
-The user **never needs to touch GitHub Desktop or create a PR** to test changes. Main is always updated before Claude says "done."
+Main is **never touched until the user explicitly approves.** The worktree folder is the staging environment.
 
-### What Claude must do at the end of every session
+### What Claude must do when work is ready to test
 
-Before telling the user the work is ready, Claude must run these commands (substituting the actual repo root and worktree name):
+1. Commit all changes in the worktree.
+2. Push the worktree branch to origin.
+3. Tell the user the Godot test path for this session, e.g.:
+   ```
+   Test path: C:\Users\caleb\.local\bin\Projects\RogueFinder\.claude\worktrees\<name>\rogue-finder\
+   Open that folder in Godot to test. Tell me to merge when you're happy.
+   ```
+
+### What Claude must do when the user approves
 
 ```bash
-# 1. Commit any final changes in the worktree (if not already done)
-git add -A && git commit -m "..."
-
-# 2. Merge the worktree branch into main from the main repo directory
+# Merge the worktree branch into main from the main repo directory
 git -C "C:\Users\caleb\.local\bin\Projects\RogueFinder" merge <worktree-branch> --no-ff
 
-# 3. Push main
+# Push main
 git -C "C:\Users\caleb\.local\bin\Projects\RogueFinder" push origin main
 ```
 
-After step 3, the user's normal project folder is up to date and Godot can be opened immediately.
+After this, the user's normal project folder is up to date.
 
 ### User cleanup (after closing the Claude Code session)
 
@@ -175,7 +182,7 @@ Then Fetch Origin in GitHub Desktop to confirm `main` is clean.
 
 ### Key rule: never switch to the Claude branch in GitHub Desktop
 
-The worktree branch is exclusively locked while the session is open — switching to it in GitHub Desktop always fails. Stay on `main` at all times. Changes reach `main` automatically via the merge step above.
+The worktree branch is exclusively locked while the session is open — switching to it in GitHub Desktop always fails. Stay on `main` at all times.
 
 ---
 
