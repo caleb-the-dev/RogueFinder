@@ -131,20 +131,28 @@ Do NOT test: rendering, input, anything needing a live scene.
 
 ## Session & Worktree Cleanup
 
-Claude Code runs each session inside a git worktree (a linked checkout under `.claude/worktrees/`). The worktree branch **cannot be deleted while the session is open** — attempting cleanup while the session is still running causes a "already used by worktree" error in GitHub Desktop and blocks branch switching.
+Claude Code runs each session inside a git worktree (a linked checkout under `.claude/worktrees/`). This is architectural — it cannot be disabled via settings. The worktree branch is **exclusively locked** to that directory: attempting to switch to it in GitHub Desktop will always fail with "already used by worktree".
+
+### Key rule: never switch to the Claude branch in GitHub Desktop
+
+The Claude branch is not meant to be checked out in GitHub Desktop. Stay on `main` at all times. Merge Claude's work via GitHub.com, then fetch on `main`.
 
 ### End-of-session checklist (Claude must surface these steps before closing every session)
 
-1. Commit and push all changes.
-2. Merge the branch into `main` (via PR or direct merge).
-3. **Close the Claude Code session first**, then from a terminal at the repo root:
+1. Commit and push all changes (Claude does this).
+2. Open the PR on GitHub.com and **merge it there** — do not try to switch branches in GitHub Desktop.
+3. In GitHub Desktop: click **Fetch origin** while on `main` — the merged commits appear automatically.
+4. **Close the Claude Code session.**
+5. From a terminal at the repo root:
    ```
    git worktree remove .claude/worktrees/<worktree-name> --force
    git branch -d claude/<worktree-name>
    ```
-4. Fetch in GitHub Desktop — `main` should be the only branch remaining.
+6. GitHub Desktop on `main` — fetch once more to confirm it's clean.
 
-> This has caused friction two sessions in a row. Always remind the user of steps 3–4 before ending a session.
+### Why "switch branch" in GitHub Desktop always fails during a session
+
+Git marks a worktree's branch as exclusively in-use. No other checkout can reference it while the worktree exists. This is a git constraint, not a GitHub Desktop bug. The worktree folder (`C:\Users\caleb\.local\bin\Projects\RogueFinder\.claude\worktrees\<name>`) IS the checkout — open it directly in VS Code or File Explorer if you need to inspect the files mid-session.
 
 ---
 
