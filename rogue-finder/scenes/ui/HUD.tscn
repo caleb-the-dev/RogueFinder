@@ -2,34 +2,6 @@
 
 [ext_resource type="Script" path="res://scripts/ui/HUD.gd" id="1_hud"]
 
-; HUD overlay — high layer so it always renders on top of the grid
 [node name="HUD" type="CanvasLayer"]
 layer = 5
 script = ExtResource("1_hud")
-
-; Solid panel on the right side of the screen
-[node name="Panel" type="Panel" parent="."]
-position = Vector2(556, 44)
-size = Vector2(370, 360)
-
-; Side-by-side columns: allies on the left, enemies on the right
-[node name="HBox" type="HBoxContainer" parent="Panel"]
-position = Vector2(8, 8)
-size = Vector2(354, 344)
-
-[node name="PlayerColumn" type="VBoxContainer" parent="Panel/HBox"]
-custom_minimum_size = Vector2(170, 0)
-
-; Title label — text set in HUD._ready()
-[node name="Title" type="Label" parent="Panel/HBox/PlayerColumn"]
-theme_override_font_sizes/font_size = 13
-text = "─ ALLIES ─"
-horizontal_alignment = 1
-
-[node name="EnemyColumn" type="VBoxContainer" parent="Panel/HBox"]
-custom_minimum_size = Vector2(170, 0)
-
-[node name="Title" type="Label" parent="Panel/HBox/EnemyColumn"]
-theme_override_font_sizes/font_size = 13
-text = "─ ENEMIES ─"
-horizontal_alignment = 1
