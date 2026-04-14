@@ -129,6 +129,25 @@ Do NOT test: rendering, input, anything needing a live scene.
 
 ---
 
+## Session & Worktree Cleanup
+
+Claude Code runs each session inside a git worktree (a linked checkout under `.claude/worktrees/`). The worktree branch **cannot be deleted while the session is open** — attempting cleanup while the session is still running causes a "already used by worktree" error in GitHub Desktop and blocks branch switching.
+
+### End-of-session checklist (Claude must surface these steps before closing every session)
+
+1. Commit and push all changes.
+2. Merge the branch into `main` (via PR or direct merge).
+3. **Close the Claude Code session first**, then from a terminal at the repo root:
+   ```
+   git worktree remove .claude/worktrees/<worktree-name> --force
+   git branch -d claude/<worktree-name>
+   ```
+4. Fetch in GitHub Desktop — `main` should be the only branch remaining.
+
+> This has caused friction two sessions in a row. Always remind the user of steps 3–4 before ending a session.
+
+---
+
 ## Documentation & Context Maintenance
 
 ### The Map Protocol
