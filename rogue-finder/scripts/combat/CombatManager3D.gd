@@ -179,6 +179,19 @@ func _setup_ui() -> void:
 ## --- Input ---
 
 func _input(event: InputEvent) -> void:
+	# When the examine panel is open, lock all world interaction.
+	# GUI _gui_input() runs before _input(), so the panel's ScrollContainer
+	# already handles scroll events when the mouse is over it — we only need
+	# to swallow everything that would otherwise reach the world layer.
+	if _stat_panel.visible:
+		if event is InputEventKey and event.pressed and not event.echo:
+			if event.keycode == KEY_ESCAPE:
+				_stat_panel.hide_panel()
+				get_viewport().set_input_as_handled()
+		elif event is InputEventMouseButton or event is InputEventMouseMotion:
+			get_viewport().set_input_as_handled()
+		return
+
 	if state != CombatState.PLAYER_TURN:
 		return
 
