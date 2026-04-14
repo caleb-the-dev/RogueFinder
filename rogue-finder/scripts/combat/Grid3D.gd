@@ -8,8 +8,8 @@ extends Node3D
 
 signal cell_clicked(grid_pos: Vector2i)
 
-const COLS: int        = 6
-const ROWS: int        = 4
+const COLS: int        = 10
+const ROWS: int        = 10
 const CELL_SIZE: float = 2.0
 const CELL_GAP: float  = 0.08  # gap between tiles for readability
 

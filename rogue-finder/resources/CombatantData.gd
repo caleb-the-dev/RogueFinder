@@ -31,6 +31,13 @@ extends Resource
 @export var unit_class: String  = ""
 
 ## ======================================================
+## --- Portrait (UI display — shown in StatPanel / UnitInfoBar) ---
+## Falls back to the Godot icon if null. Replace with character art when available.
+## ======================================================
+
+@export var portrait: Texture2D = null
+
+## ======================================================
 ## --- Artwork (placeholder paths — sprite sheets TBD) ---
 ## ======================================================
 

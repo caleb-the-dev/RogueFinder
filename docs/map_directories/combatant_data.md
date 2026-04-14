@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-14 (Session 3 — Stage 2 start)
+> Last updated: 2026-04-14 (Session 4 — portrait field added; RogueFinder archetype; enemy naming)
 
 ---
 
@@ -50,6 +50,11 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `background` | `String` | e.g. "Crook", "Baker". Pool is per-archetype. |
 | `unit_class` | `String` | e.g. "Rogue", "Barbarian", "Wizard". Fixed per archetype. |
 
+### Portrait
+| Field | Type | Notes |
+|-------|------|-------|
+| `portrait` | `Texture2D` | Face portrait for StatPanel / UnitInfoBar. `null` → falls back to Godot icon. |
+
 ### Artwork
 | Field | Type | Notes |
 |-------|------|-------|
@@ -96,7 +101,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 
 | ID | Class | Backgrounds | STR | DEX | COG | WIL | VIT | Armor |
 |----|-------|-------------|-----|-----|-----|-----|-----|-------|
-| `player_custom` | Custom | Noble, Peasant, Scholar, Soldier, Merchant | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 |
+| `RogueFinder` | Custom | Noble, Peasant, Scholar, Soldier, Merchant | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 |
 | `archer_bandit` | Rogue | Crook, Soldier | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 |
 | `grunt` | Barbarian | Crook, Soldier | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 |
 | `alchemist` | Wizard | Baker, Scholar, Merchant | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 |

@@ -1,6 +1,6 @@
 # System: Grid System
 
-> Last updated: 2026-04-14 (Session 2 — Stage 1.5)
+> Last updated: 2026-04-14 (Session 4 — 10×10 default; diagonal movement cost)
 
 ---
 
@@ -42,8 +42,8 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 
 | Constant | 3D Value | 2D Value | Meaning |
 |----------|----------|----------|---------|
-| `COLS` | 6 | 6 | Grid width in cells |
-| `ROWS` | 4 | 4 | Grid height in cells |
+| `COLS` | 10 | 6 | Grid width in cells |
+| `ROWS` | 10 | 4 | Grid height in cells |
 | `CELL_SIZE` | 2.0 | 80 | World units (3D) / pixels (2D) per cell |
 | `CELL_GAP` | 0.08 | — | Visual gap between tiles in 3D |
 
@@ -81,7 +81,7 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `get_move_range` | `(origin: Vector2i, speed: int) -> Array[Vector2i]` | BFS flood-fill within Manhattan distance = speed; excludes occupied cells |
+| `get_move_range` | `(origin: Vector2i, speed: int) -> Array[Vector2i]` | Returns reachable cells using diagonal cost formula: `max(dx,dy) + min(dx,dy)*0.5 ≤ speed`; excludes occupied cells |
 
 ### Highlighting
 

@@ -1,7 +1,7 @@
 # RogueFinder — System Map
 
 > High-level index of all game systems. Read this first each session, then navigate to the relevant bucket file.
-> Last updated: 2026-04-14 (Session 3 — Combatant Data Model added)
+> Last updated: 2026-04-14 (Session 4 — UnitInfoBar added; HUD removed from 3D; 10×10 grid)
 
 ---
 
@@ -14,8 +14,9 @@
 | [Unit System](#unit-system) | [unit_system.md](unit_system.md) | ✅ Active (3D) + Legacy (2D) | Core |
 | [QTE System](#qte-system) | [qte_system.md](qte_system.md) | ✅ Active | Core |
 | [Camera System](#camera-system) | [camera_system.md](camera_system.md) | ✅ Active (3D only) | Presentation |
-| [HUD System](#hud-system) | [hud_system.md](hud_system.md) | ✅ Active (duck-typed) | Presentation |
-| [Stat Panel](#stat-panel) | *(see combatant_data.md)* | ✅ Active | Presentation |
+| [HUD System](#hud-system) | [hud_system.md](hud_system.md) | ⚠️ Legacy 2D only | Presentation |
+| [Stat Panel](#stat-panel) | [hud_system.md](hud_system.md) | ✅ Active (double-click examine) | Presentation |
+| [Unit Info Bar](#unit-info-bar) | [hud_system.md](hud_system.md) | ✅ Active (single-click strip) | Presentation |
 | [Combatant Data Model](#combatant-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active (3D) | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
 | [Game State](#game-state) | [game_state.md](game_state.md) | 🔲 Stub | Global |
@@ -29,9 +30,9 @@ CombatManager3D
   ├── Grid3D           (cell queries, highlights, world↔grid math)
   ├── Unit3D ×6        (HP/energy state, movement, animations)
   ├── QTEBar           (skill-check overlay → accuracy float)
-  ├── HUD              (display refresh after every state change)
   ├── CameraController (built by CM3D; shake on hit)
-  ├── StatPanel        (unit stat overlay; shown on select, hidden on deselect)
+  ├── UnitInfoBar      (condensed strip; shown on single-click)
+  ├── StatPanel        (full examine window; shown on double-click)
   └── ArchetypeLibrary (creates CombatantData for each unit at scene load)
 
 Unit3D
@@ -69,7 +70,10 @@ DOS2-style isometric orbit camera. Supports Q/E 45° rotation, scroll zoom, and 
 CanvasLayer that displays HP and energy as ASCII bars for all 6 units. Duck-typed `refresh()` accepts both `Unit` (2D) and `Unit3D` arrays — no explicit type dependency.
 
 ### Stat Panel
-CanvasLayer overlay (layer 8) that pops up when any unit is clicked, showing the complete `CombatantData` for that unit: identity, archetype, background, class, attributes, all derived stats, equipment slots, and ability pool. Hidden on deselect and combat end. Lives in `scripts/ui/StatPanel.gd`.
+CanvasLayer overlay (layer 8) opened on **double-click** of any unit. Shows the complete `CombatantData`: portrait, identity, attributes, derived stats, equipment, abilities (no artwork section). Scrollable. Closed by the ✕ button or ESC. Lives in `scripts/ui/StatPanel.gd`.
+
+### Unit Info Bar
+Condensed CanvasLayer strip (layer 4) at the bottom-center of the screen. Shown on **single-click** of any unit (player or enemy). Displays portrait, name, class, HP bar, energy bar, ATK/DEF/SPD. Hidden on deselect and combat end. Lives in `scripts/ui/UnitInfoBar.gd`.
 
 ### Combatant Data Model
 Two-file system: `CombatantData` (Resource) stores identity, core attributes, and slot data; all derived combat stats are computed properties. `ArchetypeLibrary` (static class) defines 5 archetypes and provides `create()` to instantiate randomized `CombatantData`. See `combatant_data.md` for full field reference.
@@ -97,8 +101,9 @@ res://
 │   │   ├── Unit.gd              ← legacy 2D
 │   │   └── Grid.gd              ← legacy 2D
 │   ├── ui/
-│   │   ├── HUD.gd
-│   │   └── StatPanel.gd         ← unit stat overlay (3D)
+│   │   ├── HUD.gd               ← legacy 2D only
+│   │   ├── StatPanel.gd         ← full examine window (double-click)
+│   │   └── UnitInfoBar.gd       ← condensed strip (single-click)
 │   └── globals/
 │       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
 │       └── GameState.gd
