@@ -1,0 +1,29 @@
+[gd_scene load_steps=2 format=3 uid="uid://rfunit01"]
+
+[ext_resource type="Script" path="res://scripts/combat/Unit.gd" id="1_unit"]
+
+[node name="Unit" type="Node2D"]
+script = ExtResource("1_unit")
+
+; Colored rectangle that fills most of the cell (80x80 minus a 5px margin)
+[node name="Visual" type="ColorRect" parent="."]
+position = Vector2(5, 5)
+size = Vector2(70, 70)
+color = Color(0.22, 0.5, 1, 1)
+
+; Unit name displayed at the top of the cell
+[node name="NameLabel" type="Label" parent="."]
+position = Vector2(5, 7)
+size = Vector2(70, 20)
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+text = "Unit"
+clip_text = true
+
+; HP / Energy numbers displayed in the lower half of the cell
+[node name="StatsLabel" type="Label" parent="."]
+position = Vector2(5, 38)
+size = Vector2(70, 34)
+theme_override_font_sizes/font_size = 10
+horizontal_alignment = 1
+text = "HP -/-\nE  -/-"

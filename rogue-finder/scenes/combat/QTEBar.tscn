@@ -1,0 +1,49 @@
+[gd_scene load_steps=2 format=3 uid="uid://rfqte01"]
+
+[ext_resource type="Script" path="res://scripts/combat/QTEBar.gd" id="1_qte"]
+
+; QTE overlay — CanvasLayer renders on top of everything else
+[node name="QTEBar" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1_qte")
+
+; Semi-transparent dark tint over the whole screen
+[node name="Overlay" type="ColorRect" parent="."]
+position = Vector2(0, 0)
+size = Vector2(1280, 720)
+color = Color(0, 0, 0, 0.72)
+
+; "Press SPACE…" prompt above the bar
+[node name="InstructionLabel" type="Label" parent="."]
+position = Vector2(370, 282)
+size = Vector2(540, 32)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+text = "Press SPACE or click to strike!"
+
+; Gray bar background — Cursor and SweetSpot are children so they move with it
+[node name="BarBG" type="ColorRect" parent="."]
+position = Vector2(400, 324)
+size = Vector2(480, 48)
+color = Color(0.28, 0.28, 0.30)
+
+; Green "sweet spot" zone (35 % – 65 % of bar width = x 168 – 312)
+[node name="SweetSpot" type="ColorRect" parent="BarBG"]
+position = Vector2(168, 0)
+size = Vector2(144, 48)
+color = Color(0.18, 0.75, 0.22, 0.60)
+
+; White cursor that slides left → right during the QTE
+[node name="Cursor" type="ColorRect" parent="BarBG"]
+position = Vector2(0, 0)
+size = Vector2(10, 48)
+color = Color(1, 1, 1, 1)
+
+; Result text shown briefly after the player registers a hit
+[node name="ResultLabel" type="Label" parent="."]
+visible = false
+position = Vector2(370, 386)
+size = Vector2(540, 44)
+theme_override_font_sizes/font_size = 26
+horizontal_alignment = 1
+text = ""

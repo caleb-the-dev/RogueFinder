@@ -1,0 +1,28 @@
+[gd_scene load_steps=5 format=3 uid="uid://rfcombat01"]
+
+[ext_resource type="Script"      path="res://scripts/combat/CombatManager.gd" id="1_mgr"]
+[ext_resource type="PackedScene" path="res://scenes/combat/Grid.tscn"          id="2_grid"]
+[ext_resource type="PackedScene" path="res://scenes/combat/QTEBar.tscn"        id="3_qte"]
+[ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn"               id="4_hud"]
+
+; Root node uses CombatManager as its script — it IS the combat manager.
+[node name="CombatScene" type="Node2D"]
+script = ExtResource("1_mgr")
+
+; 6x4 grid at (50, 50) — leaves room for status bar below and HUD to the right
+[node name="Grid" parent="." instance=ExtResource("2_grid")]
+position = Vector2(50, 50)
+
+; QTE sliding-bar overlay (renders on CanvasLayer 10, above everything)
+[node name="QTEBar" parent="." instance=ExtResource("3_qte")]
+
+; Unit HP / Energy panel (renders on CanvasLayer 5)
+[node name="HUD" parent="." instance=ExtResource("4_hud")]
+
+; Phase and action feedback — updates every turn via CombatManager
+[node name="StatusLabel" type="Label" parent="."]
+position = Vector2(50, 382)
+size = Vector2(495, 60)
+theme_override_font_sizes/font_size = 14
+autowrap_mode = 3
+text = "Initializing..."

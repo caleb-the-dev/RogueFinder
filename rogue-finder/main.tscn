@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://rfmain01"]
+
+[ext_resource type="PackedScene" path="res://scenes/combat/CombatScene.tscn" id="1_combat"]
+
+; Entry point for Stage 1 — loads directly into combat.
+; Future stages will replace this with a node map or title screen.
+[node name="Main" type="Node2D"]
+
+[node name="CombatScene" parent="." instance=ExtResource("1_combat")]

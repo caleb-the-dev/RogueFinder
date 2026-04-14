@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://rfgrid01"]
+
+[ext_resource type="Script" path="res://scripts/combat/Grid.gd" id="1_grid"]
+
+; Grid root — CombatManager positions this node in the scene
+[node name="Grid" type="Node2D"]
+script = ExtResource("1_grid")
+
+; Units added here at runtime by CombatManager via Grid.place_unit()
+[node name="Units" type="Node2D" parent="."]
