@@ -62,13 +62,14 @@ func _build_ui() -> void:
 
 ## --- Public API ---
 
-func refresh(player_units: Array[Unit], enemy_units: Array[Unit]) -> void:
+## Arrays are untyped so this works with both Unit (2D) and Unit3D via duck typing.
+func refresh(player_units: Array, enemy_units: Array) -> void:
 	for i in range(mini(player_units.size(), _player_cards.size())):
 		_player_cards[i].text = _format_unit(player_units[i])
 	for i in range(mini(enemy_units.size(), _enemy_cards.size())):
 		_enemy_cards[i].text = _format_unit(enemy_units[i])
 
-func _format_unit(unit: Unit) -> String:
+func _format_unit(unit) -> String:
 	if not unit.is_alive:
 		return "%s\n[DEAD]" % unit.data.unit_name
 	var hp_bar: String = _mini_bar(unit.current_hp,     unit.data.hp_max,     10)

@@ -11,13 +11,12 @@ config_version=5
 [application]
 
 config/name="RogueFinder"
+run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
-run/main_scene="res://main.tscn"
 
 [autoload]
 
-; Global run state — accessible anywhere via the GameState singleton
 GameState="*res://scripts/globals/GameState.gd"
 
 [display]
@@ -25,7 +24,6 @@ GameState="*res://scripts/globals/GameState.gd"
 window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 
 [physics]
 
