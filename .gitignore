@@ -10,3 +10,6 @@ export_presets.cfg
 
 # Claude Code — worktree checkouts live here; never commit them
 .claude/worktrees/
+
+# Feature request / session input docs — not source, not needed in history
+docs/feature_*.md
