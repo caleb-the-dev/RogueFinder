@@ -342,8 +342,8 @@ func _on_ability_selected(ability_id: String) -> void:
 	for target in targets:
 		var dx: int = abs(target.grid_pos.x - _selected_unit.grid_pos.x)
 		var dy: int = abs(target.grid_pos.y - _selected_unit.grid_pos.y)
-		var dist: float = float(maxi(dx, dy)) + float(mini(dx, dy)) * 0.5
-		if dist <= float(_pending_ability.range):
+		var dist: int = dx + dy  # Manhattan distance — consistent with Grid3D move range
+		if dist <= _pending_ability.range:
 			_grid.set_highlight(target.grid_pos, "ability_target")
 	_update_status()
 
