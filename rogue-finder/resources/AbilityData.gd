@@ -25,7 +25,7 @@ enum TargetType {
 @export var tags:         Array[String] = []
 @export var energy_cost:  int      = 0
 @export var range:        int      = 1
-@export var target_type:  int      = TargetType.SINGLE_ENEMY
+@export var target_type:  TargetType = TargetType.SINGLE_ENEMY
 @export var description:  String   = ""
 ## Placeholder icon — defaults to the Godot icon at runtime in AbilityLibrary.
 @export var ability_icon: Texture2D = null
