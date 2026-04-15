@@ -106,8 +106,8 @@ func open_for(unit: Unit3D, camera: Camera3D) -> void:
 	# Position ability buttons
 	for i in range(4):
 		var btn: Button      = _ability_buttons[i]
-		var offset: Vector2  = _OFFSETS[i]
-		var btn_center: Vector2 = center + offset
+		var btn_offset: Vector2 = _OFFSETS[i]
+		var btn_center: Vector2 = center + btn_offset
 		btn.position = btn_center - Vector2(BTN_SIZE * 0.5, BTN_SIZE * 0.5)
 		_refresh_ability_button(btn, i, unit)
 

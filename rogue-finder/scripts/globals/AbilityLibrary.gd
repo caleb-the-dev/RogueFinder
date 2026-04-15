@@ -139,9 +139,9 @@ static func get_ability(ability_id: String) -> AbilityData:
 	var a := AbilityData.new()
 	a.ability_id   = ability_id
 	a.ability_name = def["name"]
-	a.tags         = def["tags"].duplicate()
+	a.tags.assign(def["tags"])  # .assign() converts untyped Array → Array[String]
 	a.energy_cost  = def["cost"]
-	a.range        = def["range"]
+	a.tile_range   = def["range"]
 	a.target_type  = def["target"]
 	a.ability_icon = godot_icon
 	a.description  = def["description"]

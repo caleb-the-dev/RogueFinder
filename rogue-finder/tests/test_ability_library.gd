@@ -13,7 +13,7 @@ func _test_ability_data_defaults() -> void:
 	var ability := AbilityData.new()
 	assert(ability.ability_id == "", "default ability_id should be empty")
 	assert(ability.energy_cost == 0, "default energy_cost should be 0")
-	assert(ability.range == 1, "default range should be 1")
+	assert(ability.tile_range == 1, "default range should be 1")
 	assert(ability.target_type == AbilityData.TargetType.SINGLE_ENEMY,
 		"default target_type should be SINGLE_ENEMY")
 
@@ -23,13 +23,13 @@ func _test_known_ability() -> void:
 	assert(a.ability_id == "strike", "ID mismatch: " + a.ability_id)
 	assert(a.ability_name == "Strike", "name mismatch: " + a.ability_name)
 	assert(a.energy_cost == 2, "strike energy_cost should be 2, got " + str(a.energy_cost))
-	assert(a.range == 1, "strike range should be 1")
+	assert(a.tile_range == 1, "strike range should be 1")
 	assert(a.target_type == AbilityData.TargetType.SINGLE_ENEMY, "strike should target SINGLE_ENEMY")
 	assert(a.description != "", "description should not be empty")
 
 	var b: AbilityData = AbilityLibrary.get_ability("taunt")
 	assert(b.energy_cost == 1, "taunt energy_cost should be 1")
-	assert(b.range == 3, "taunt range should be 3")
+	assert(b.tile_range == 3, "taunt range should be 3")
 
 	var c: AbilityData = AbilityLibrary.get_ability("healing_draught")
 	assert(c.target_type == AbilityData.TargetType.SELF, "healing_draught should target SELF")
