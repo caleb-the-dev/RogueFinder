@@ -15,7 +15,8 @@ extends RefCounted
 ## "artwork_idle"   : String            — res:// path placeholder
 ## "artwork_attack" : String            — res:// path placeholder
 ## "backgrounds"    : Array[String]     — pool; one is chosen at random
-## "abilities"      : Array             — fixed 4-slot list ("" = empty slot)
+## "abilities"      : Array             — fixed 4-slot list of ability IDs ("" = empty slot)
+## "consumable"     : String            — item ID or display name ("" = none)
 ## "str_range"      : [min, max] int
 ## "dex_range"      : [min, max] int
 ## "cog_range"      : [min, max] int
@@ -31,7 +32,8 @@ const ARCHETYPES: Dictionary = {
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Noble", "Peasant", "Scholar", "Soldier", "Merchant"],
-		"abilities":      ["Strike", "Guard", "Inspire", ""],
+		"abilities":      ["strike", "guard", "inspire", ""],
+		"consumable":     "Smoke Vial",
 		"str_range":      [1, 4],
 		"dex_range":      [1, 4],
 		"cog_range":      [1, 4],
@@ -46,7 +48,8 @@ const ARCHETYPES: Dictionary = {
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Crook", "Soldier"],
-		"abilities":      ["Quick Shot", "Disengage", "", ""],
+		"abilities":      ["quick_shot", "disengage", "", ""],
+		"consumable":     "",
 		"str_range":      [1, 2],
 		"dex_range":      [3, 4],
 		"cog_range":      [1, 2],
@@ -61,7 +64,8 @@ const ARCHETYPES: Dictionary = {
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Crook", "Soldier"],
-		"abilities":      ["Heavy Strike", "", "", ""],
+		"abilities":      ["heavy_strike", "", "", ""],
+		"consumable":     "",
 		"str_range":      [2, 4],
 		"dex_range":      [1, 2],
 		"cog_range":      [0, 1],
@@ -76,7 +80,8 @@ const ARCHETYPES: Dictionary = {
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Baker", "Scholar", "Merchant"],
-		"abilities":      ["Acid Splash", "Smoke Bomb", "Healing Draught", ""],
+		"abilities":      ["acid_splash", "smoke_bomb", "healing_draught", ""],
+		"consumable":     "Healing Potion",
 		"str_range":      [0, 1],
 		"dex_range":      [1, 3],
 		"cog_range":      [3, 5],
@@ -91,7 +96,8 @@ const ARCHETYPES: Dictionary = {
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Soldier", "Noble"],
-		"abilities":      ["Shield Bash", "Counter", "Taunt", ""],
+		"abilities":      ["shield_bash", "counter", "taunt", ""],
+		"consumable":     "",
 		"str_range":      [3, 5],
 		"dex_range":      [1, 3],
 		"cog_range":      [1, 2],
@@ -143,6 +149,9 @@ static func create(archetype_id: String, character_name: String = "",
 	# Pad to exactly 4 slots
 	while data.abilities.size() < 4:
 		data.abilities.append("")
+
+	# Consumable item (empty string = none)
+	data.consumable = def.get("consumable", "")
 
 	# Random background from the archetype's allowed pool
 	var bgs: Array = def["backgrounds"]

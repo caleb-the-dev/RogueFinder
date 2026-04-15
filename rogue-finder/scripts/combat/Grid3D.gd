@@ -13,10 +13,11 @@ const ROWS: int        = 10
 const CELL_SIZE: float = 2.0
 const CELL_GAP: float  = 0.08  # gap between tiles for readability
 
-const COLOR_DEFAULT:  Color = Color(0.22, 0.22, 0.26, 1.0)
-const COLOR_MOVE:     Color = Color(0.18, 0.45, 0.90, 0.85)
-const COLOR_ATTACK:   Color = Color(0.85, 0.22, 0.22, 0.85)
-const COLOR_SELECTED: Color = Color(0.90, 0.78, 0.10, 0.90)
+const COLOR_DEFAULT:      Color = Color(0.22, 0.22, 0.26, 1.0)
+const COLOR_MOVE:         Color = Color(0.18, 0.45, 0.90, 0.85)
+const COLOR_ATTACK:       Color = Color(0.85, 0.22, 0.22, 0.85)
+const COLOR_SELECTED:     Color = Color(0.90, 0.78, 0.10, 0.90)
+const COLOR_ABILITY_TARGET: Color = Color(0.65, 0.20, 0.90, 0.85)  # purple
 
 # highlighted_cells: Vector2i -> "move" | "attack" | "selected"
 var highlighted_cells: Dictionary = {}
@@ -119,10 +120,11 @@ func _refresh_cell_color(pos: Vector2i) -> void:
 		return
 	var mat: StandardMaterial3D = _cell_materials[idx]
 	match highlighted_cells.get(pos, ""):
-		"move":     mat.albedo_color = COLOR_MOVE
-		"attack":   mat.albedo_color = COLOR_ATTACK
-		"selected": mat.albedo_color = COLOR_SELECTED
-		_:          mat.albedo_color = COLOR_DEFAULT
+		"move":           mat.albedo_color = COLOR_MOVE
+		"attack":         mat.albedo_color = COLOR_ATTACK
+		"selected":       mat.albedo_color = COLOR_SELECTED
+		"ability_target": mat.albedo_color = COLOR_ABILITY_TARGET
+		_:                mat.albedo_color = COLOR_DEFAULT
 
 ## --- Mouse Raycast ---
 

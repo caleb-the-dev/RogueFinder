@@ -4,33 +4,35 @@ extends Node3D
 ## --- CombatManager3D ---
 ## Turn state machine for the 3D combat prototype.
 ## Builds the entire scene in _ready() — no child nodes needed in the .tscn.
-## Controls: Click to select/move, [A] attack mode, [Enter] end turn, [ESC] deselect.
+## Controls: Click to select/move, radial action menu for abilities/consumables,
+##           [Enter] end turn, [ESC] deselect.
 ## Camera: [Q] rotate CCW, [E] rotate CW, scroll wheel zoom.
 ##
 ## "Redo" button at bottom-left reloads the scene with freshly randomized units.
 
-const ATTACK_ENERGY_COST: int  = 3
-const ENEMY_TURN_DELAY: float  = 0.65  # seconds between enemy actions
+const ENEMY_TURN_DELAY: float = 0.65
 
 enum CombatState { PLAYER_TURN, QTE_RUNNING, ENEMY_TURN, WIN, LOSE }
-enum PlayerMode  { IDLE, STRIDE_MODE, ATTACK_MODE }
+enum PlayerMode  { IDLE, STRIDE_MODE, ABILITY_TARGET_MODE }
 
 var state: CombatState = CombatState.PLAYER_TURN
-var mode: PlayerMode   = PlayerMode.IDLE
+var mode:  PlayerMode  = PlayerMode.IDLE
 
-var _player_units: Array[Unit3D] = []
-var _enemy_units:  Array[Unit3D] = []
-var _selected_unit: Unit3D       = null
-var _attack_target: Unit3D       = null
+var _player_units:   Array[Unit3D]      = []
+var _enemy_units:    Array[Unit3D]      = []
+var _selected_unit:  Unit3D             = null
+var _attack_target:  Unit3D             = null
+var _pending_ability: AbilityData       = null   ## set when ability chosen from menu
 
-var _grid: Grid3D                 = null
-var _camera_rig: CameraController = null
-var _qte_bar: QTEBar              = null
-var _stat_panel: StatPanel        = null
-var _info_bar: UnitInfoBar        = null
-var _info_bar_unit: Unit3D        = null  # which unit the bar is currently tracking
-var _confirm_panel: ColorRect     = null  # "end turn early?" dialog
-var _status_label: Label          = null
+var _grid:           Grid3D             = null
+var _camera_rig:     CameraController   = null
+var _qte_bar:        QTEBar             = null
+var _stat_panel:     StatPanel          = null
+var _info_bar:       UnitInfoBar        = null
+var _action_menu:    ActionMenu         = null
+var _info_bar_unit:  Unit3D             = null
+var _confirm_panel:  ColorRect          = null
+var _status_label:   Label              = null
 
 ## --- Initialization ---
 
@@ -123,6 +125,12 @@ func _setup_ui() -> void:
 	_info_bar = UnitInfoBar.new()
 	add_child(_info_bar)
 
+	# Radial action menu — shown on player unit selection
+	_action_menu = ActionMenu.new()
+	add_child(_action_menu)
+	_action_menu.ability_selected.connect(_on_ability_selected)
+	_action_menu.consumable_selected.connect(_on_consumable_selected)
+
 	# Floating status label at top-left
 	var status_layer := CanvasLayer.new()
 	status_layer.layer = 3
@@ -179,12 +187,7 @@ func _setup_ui() -> void:
 ## --- Input ---
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Godot 4 input order: _input() → GUI _gui_input() → _unhandled_input().
-	# By using _unhandled_input(), the StatPanel's Button / ScrollContainer
-	# receive events first via _gui_input(). Only events that GUI did NOT
-	# consume reach here, so we can block the world without breaking the panel UI.
 	if _stat_panel.visible:
-		# ESC closes the panel; everything else is swallowed to lock the world.
 		if event is InputEventKey and event.pressed and not event.echo:
 			if event.keycode == KEY_ESCAPE:
 				_stat_panel.hide_panel()
@@ -199,10 +202,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_ESCAPE:
 				_deselect()
 				get_viewport().set_input_as_handled()
-			KEY_A:
-				if _selected_unit and _selected_unit.can_act(ATTACK_ENERGY_COST):
-					_enter_attack_mode()
-					get_viewport().set_input_as_handled()
 			KEY_SPACE:
 				_request_end_player_turn()
 				get_viewport().set_input_as_handled()
@@ -226,8 +225,8 @@ func _handle_left_click() -> void:
 			_try_select_unit(cell)
 		PlayerMode.STRIDE_MODE:
 			_try_move(cell)
-		PlayerMode.ATTACK_MODE:
-			_try_attack(cell)
+		PlayerMode.ABILITY_TARGET_MODE:
+			_try_ability_target(cell)
 
 ## Double-click on any unit opens the full StatPanel examine window.
 func _handle_double_click() -> void:
@@ -248,11 +247,9 @@ func _try_select_unit(cell: Vector2i) -> void:
 	if obj is Unit3D and obj.is_alive:
 		var unit := obj as Unit3D
 		if unit.data.is_player_unit:
-			# Player unit: select for movement/action + show condensed info bar
 			_select_unit(unit)
 			_show_info_bar(unit)
 		else:
-			# Enemy unit: show condensed info, don't take control
 			_deselect()
 			_show_info_bar(unit)
 	else:
@@ -269,6 +266,8 @@ func _select_unit(unit: Unit3D) -> void:
 		for cell in _grid.get_move_range(unit.grid_pos, unit.data.speed):
 			_grid.set_highlight(cell, "move")
 	mode = PlayerMode.STRIDE_MODE if unit.can_stride() else PlayerMode.IDLE
+	# Open (or refresh) the radial menu for this unit
+	_action_menu.open_for(unit, _camera_rig.get_camera())
 	_update_status()
 
 func _deselect() -> void:
@@ -278,7 +277,9 @@ func _deselect() -> void:
 	_grid.clear_highlights()
 	_stat_panel.hide_panel()
 	_info_bar.hide_bar()
+	_action_menu.close()
 	_info_bar_unit = null
+	_pending_ability = null
 	mode = PlayerMode.IDLE
 	_update_status()
 
@@ -306,62 +307,116 @@ func _try_move(cell: Vector2i) -> void:
 	mode = PlayerMode.IDLE
 	_update_status()
 
-func _enter_attack_mode() -> void:
+## Called when the player picks an ability from the ActionMenu.
+func _on_ability_selected(ability_id: String) -> void:
 	if not _selected_unit:
 		return
-	mode = PlayerMode.ATTACK_MODE
+	_pending_ability = AbilityLibrary.get_ability(ability_id)
+
+	# Self-targeting abilities skip the target-pick step and go straight to QTE
+	if _pending_ability.target_type == AbilityData.TargetType.SELF:
+		_initiate_action(_selected_unit, _selected_unit)
+		return
+
+	# Collect valid target cells based on target_type and range
+	var targets: Array[Unit3D] = []
+	if _pending_ability.target_type == AbilityData.TargetType.SINGLE_ALLY:
+		for pu in _player_units:
+			if pu.is_alive:
+				targets.append(pu)
+	else:
+		# SINGLE_ENEMY, AOE, CONE — all use enemy cells for now (effect logic comes later)
+		for eu in _enemy_units:
+			if eu.is_alive:
+				targets.append(eu)
+
+	if targets.is_empty():
+		# No valid targets — cancel the selection silently
+		_pending_ability = null
+		return
+
+	# Highlight valid target cells in purple (ability_target)
+	mode = PlayerMode.ABILITY_TARGET_MODE
 	_grid.clear_highlights()
 	_grid.set_highlight(_selected_unit.grid_pos, "selected")
-	for enemy in _enemy_units:
-		if enemy.is_alive:
-			_grid.set_highlight(enemy.grid_pos, "attack")
+	for target in targets:
+		var dx: int = abs(target.grid_pos.x - _selected_unit.grid_pos.x)
+		var dy: int = abs(target.grid_pos.y - _selected_unit.grid_pos.y)
+		var dist: int = dx + dy  # Manhattan distance — consistent with Grid3D move range
+		if dist <= _pending_ability.tile_range:
+			_grid.set_highlight(target.grid_pos, "ability_target")
 	_update_status()
 
-func _try_attack(cell: Vector2i) -> void:
-	if not _selected_unit:
+## Resolve the player clicking a cell while in ABILITY_TARGET_MODE.
+func _try_ability_target(cell: Vector2i) -> void:
+	if not _selected_unit or not _pending_ability:
 		return
-	if _grid.highlighted_cells.get(cell, "") != "attack":
+	if _grid.highlighted_cells.get(cell, "") != "ability_target":
+		# Clicked a non-target cell — cancel ability mode, return to IDLE
+		_pending_ability = null
+		_select_unit(_selected_unit)   # re-opens menu and refreshes highlights
 		return
 	var obj: Object = _grid.get_unit_at(cell)
 	if not obj is Unit3D:
 		return
-	_attack_target = obj as Unit3D
-	_initiate_attack(_selected_unit, _attack_target)
+	var target := obj as Unit3D
+	if not target.is_alive:
+		return
+	_initiate_action(_selected_unit, target)  # _attack_target set inside _initiate_action
 
-func _initiate_attack(attacker: Unit3D, target: Unit3D) -> void:
+## Consume the equipped item (sets consumable to "" so the button greys out).
+func _on_consumable_selected() -> void:
+	if not _selected_unit:
+		return
+	_selected_unit.data.consumable = ""
+	# Refresh info bar and re-open menu so consumable button updates immediately
+	_info_bar.refresh(_selected_unit)
+	_action_menu.open_for(_selected_unit, _camera_rig.get_camera())
+
+## Kicks off the QTE sequence. Uses _pending_ability.energy_cost for spending.
+## Must only be called after _pending_ability is set.
+## Stores target in _attack_target so _on_qte_resolved() can access it regardless
+## of whether the entry path was self-targeting or player-picked.
+func _initiate_action(attacker: Unit3D, target: Unit3D) -> void:
+	_attack_target = target        ## always set here — not at call sites
 	state = CombatState.QTE_RUNNING
 	mode  = PlayerMode.IDLE
 	_grid.clear_highlights()
+	_action_menu.close()
 	_update_status()
-	# Start lunge animation; QTE fires after the lunge reaches the target
 	attacker.play_attack_anim(target.global_position)
 	await get_tree().create_timer(0.09).timeout
 	_qte_bar.start_qte()
 
 func _on_qte_resolved(accuracy: float) -> void:
+	# Guard: _pending_ability must always be set before the QTE runs
+	if not _pending_ability:
+		push_error("CombatManager3D: _on_qte_resolved called with no _pending_ability")
+		state = CombatState.PLAYER_TURN
+		_update_status()
+		return
+
 	if _selected_unit and _attack_target:
 		var dmg: int = _calculate_damage(
 			_selected_unit.data.attack, _attack_target.data.defense, accuracy)
-		_selected_unit.spend_energy(ATTACK_ENERGY_COST)
+		_selected_unit.spend_energy(_pending_ability.energy_cost)
 		_selected_unit.has_acted = true
 		_attack_target.take_damage(dmg)
 		_camera_rig.trigger_shake()
 
-	_attack_target = null
+	_pending_ability = null
+	_attack_target   = null
 
-	# Don't override a WIN/LOSE state that take_damage may have set
 	if state == CombatState.WIN or state == CombatState.LOSE:
 		return
 
 	state = CombatState.PLAYER_TURN
 	if _selected_unit and _selected_unit.is_alive:
-		_select_unit(_selected_unit)
+		_select_unit(_selected_unit)    # re-opens menu; abilities will be greyed (has_acted)
 		_info_bar.refresh(_selected_unit)
 	else:
 		_deselect()
 	_update_status()
-
-	# Auto-end the turn if every alive player unit has used their action
 	_check_auto_end_turn()
 
 ## --- End Player Turn ---
@@ -369,7 +424,7 @@ func _on_qte_resolved(accuracy: float) -> void:
 ## Manually triggered by Space. Shows a confirmation dialog if any unit can still act.
 func _request_end_player_turn() -> void:
 	for unit in _player_units:
-		if unit.is_alive and not unit.has_acted and unit.can_act(ATTACK_ENERGY_COST):
+		if unit.is_alive and _unit_can_still_act(unit):
 			_confirm_panel.visible = true
 			return
 	_end_player_turn()
@@ -384,8 +439,8 @@ func _check_auto_end_turn() -> void:
 	if state != CombatState.PLAYER_TURN:
 		return
 	for unit in _player_units:
-		if unit.is_alive and not unit.has_acted and unit.can_act(ATTACK_ENERGY_COST):
-			return  # at least one unit hasn't acted and still can
+		if unit.is_alive and _unit_can_still_act(unit):
+			return
 	_end_player_turn()
 
 ## Show a unit in the InfoBar and track it for post-damage refresh.
@@ -488,6 +543,20 @@ func _calculate_damage(atk: int, def: int, accuracy: float) -> int:
 	var acc_mult: float  = clampf(accuracy, 0.1, 1.0)
 	return maxi(1, roundi(float(atk) * stat_mult * acc_mult))
 
+## --- Helpers ---
+
+## Returns true if the unit has not yet acted AND can afford at least one slotted ability.
+func _unit_can_still_act(unit: Unit3D) -> bool:
+	if unit.has_acted:
+		return false
+	for ability_id in unit.data.abilities:
+		if ability_id == "":
+			continue
+		var ability: AbilityData = AbilityLibrary.get_ability(ability_id)
+		if unit.current_energy >= ability.energy_cost:
+			return true
+	return false
+
 ## --- Status ---
 
 func _update_status() -> void:
@@ -499,9 +568,10 @@ func _update_status() -> void:
 				PlayerMode.IDLE:
 					_status_label.text = "PLAYER TURN — click a unit  |  double-click = examine  |  Space = end turn"
 				PlayerMode.STRIDE_MODE:
-					_status_label.text = "STRIDE — click blue cell to move  |  [A] attack  |  ESC cancel"
-				PlayerMode.ATTACK_MODE:
-					_status_label.text = "ATTACK — click a red enemy  |  ESC cancel"
+					_status_label.text = "STRIDE — click blue cell to move  |  ESC cancel"
+				PlayerMode.ABILITY_TARGET_MODE:
+					var aname: String = _pending_ability.ability_name if _pending_ability else "Ability"
+					_status_label.text = "%s — click a purple target  |  ESC cancel" % aname
 		CombatState.QTE_RUNNING:
 			_status_label.text = "QTE — press SPACE or click to strike!"
 		CombatState.ENEMY_TURN:

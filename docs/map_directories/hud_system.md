@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-14 (Session 5 — UnitInfoBar bars widened; ATK/DEF/SPD removed)
+> Last updated: 2026-04-14 (Session 3 — ActionMenu added)
 
 ---
 
@@ -43,6 +43,36 @@ Displays: portrait · name · archetype · background · team · all attributes 
 |--------|-----------|---------|
 | `show_for` | `(unit: Unit3D) -> void` | Populate and show the panel for this unit |
 | `hide_panel` | `() -> void` | Hide the examine window |
+
+---
+
+## ActionMenu
+
+**Layer 12.** Shown when a player unit is selected. Closed on deselect, ESC, or when an action is chosen.
+
+D-pad layout: 4 ability buttons (top / right / bottom / left, 80×80 px each) surrounding a slightly smaller consumable button (64×64 px, center). Positioned at the selected unit's projected screen coordinates.
+
+Buttons are greyed out and disabled when:
+- Ability slot is empty (`""`)
+- `unit.has_acted == true`
+- `unit.current_energy < ability.energy_cost`
+- `unit.data.consumable == ""`  (consumable button only)
+
+Hover shows a tooltip with ability name, tags, energy cost, and description.
+
+### Public API
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `open_for` | `(unit: Unit3D, camera: Camera3D) -> void` | Populate, position, and show |
+| `close` | `() -> void` | Hide the menu |
+
+### Signals
+
+| Signal | Args | Fired when |
+|--------|------|-----------|
+| `ability_selected` | `ability_id: String` | Player clicks an ability button |
+| `consumable_selected` | — | Player clicks the consumable button |
 
 ---
 
