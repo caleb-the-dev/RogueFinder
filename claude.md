@@ -16,11 +16,11 @@
 
 ## Current Build State
 
-- **Stage:** Stage 1.5 — 3D combat prototype ✅ built, on `main`, needs first playtest
-- **Last session:** Session 2 — 2026-04-14
-- **Working:** Full 3D refactor complete (CameraController, Unit3D, Grid3D, CombatManager3D)
-- **Broken / deferred:** Not yet run in Godot — UIDs will be assigned on first open
-- **Next task:** Open in Godot, playtest, report failures → then move to Stage 2 polish
+- **Stage:** Stage 1.5 — 3D combat prototype, playtested and working
+- **Last session:** Session 6 (combat actions) — 2026-04-15
+- **Working:** Full 3D combat loop — select unit → radial ability menu → target → QTE → damage; consumables; auto-end turn
+- **Broken / deferred:** Ability effects are all placeholders (proxy through QTE damage); no per-ability QTEs yet
+- **Next task:** Functional ability effects, per-ability QTEs, or CSV ability import
 
 ---
 
@@ -38,24 +38,31 @@ res://
 │   │   ├── Unit.tscn            # Legacy 2D
 │   │   └── Grid.tscn            # Legacy 2D
 │   └── ui/
-│       └── HUD.tscn             # CanvasLayer overlay (layer 5)
+│       └── HUD.tscn             # CanvasLayer overlay (layer 5) — legacy 2D only
 ├── scripts/
 │   ├── camera/
 │   │   └── CameraController.gd  # DOS2-style orbit, Q/E rotate, shake
 │   ├── combat/
 │   │   ├── CombatManager3D.gd   # Turn SM, builds whole scene in _ready()
 │   │   ├── Unit3D.gd            # Box mesh, lunge anim, hit flash, 8-dir
-│   │   ├── Grid3D.gd            # PlaneMesh tiles, raycast picking
+│   │   ├── Grid3D.gd            # PlaneMesh tiles, raycast picking, highlights
 │   │   ├── QTEBar.gd            # Sliding-bar QTE
 │   │   ├── CombatManager.gd     # Legacy 2D
 │   │   ├── Unit.gd              # Legacy 2D
 │   │   └── Grid.gd              # Legacy 2D
 │   ├── ui/
-│   │   └── HUD.gd               # ASCII HP/Energy bars (duck-typed, works 2D+3D)
+│   │   ├── ActionMenu.gd        # Radial ability/consumable pop-up (layer 12)
+│   │   ├── StatPanel.gd         # Full examine window (double-click, layer 8)
+│   │   ├── UnitInfoBar.gd       # Condensed strip (single-click, layer 4)
+│   │   └── HUD.gd               # Legacy 2D only
 │   └── globals/
+│       ├── AbilityLibrary.gd    # 12 placeholder abilities, static factory
+│       ├── ArchetypeLibrary.gd  # 5 archetypes, CombatantData factory
 │       └── GameState.gd         # Autoload stub
 ├── resources/
-│   └── UnitData.gd              # Stat resource (@export fields)
+│   ├── AbilityData.gd           # Ability resource (TargetType enum + fields)
+│   ├── CombatantData.gd         # Active stat resource (3D)
+│   └── UnitData.gd              # Legacy stat resource (2D only)
 └── main.tscn                    # Entry point → CombatScene3D
 ```
 
@@ -67,6 +74,7 @@ res://
 - `snake_case` vars/funcs, `PascalCase` class/node names, `ALL_CAPS` constants
 - One script per scene; prefer **signals** over direct calls
 - `@export` for inspector-tweakable values; `@onready` for node refs
+- **Placeholder art:** Use the Godot icon (`load("res://icon.svg")`) as the default for all 2D placeholder artwork (portraits, ability icons, item icons). Replace with real art when assets arrive.
 - Section headers: `## --- Section Name ---`; comment the *why*, not the *what*
 - All .tscn files stay **minimal** (root + script only) — build children in `_ready()`
 - Signals named as past-tense events: `unit_moved`, `qte_resolved`
@@ -126,6 +134,22 @@ Do NOT test: rendering, input, anything needing a live scene.
 - **CombatManager3D:** full state machine matching 2D version; builds env + camera + grid + units entirely in code; attack plays lunge then QTE; hit triggers shake
 - **HUD.gd:** `refresh()` made untyped for Unit / Unit3D duck-typing compat
 - All .tscn files kept minimal; `main.tscn` points to CombatScene3D
+
+### Sessions 3–5 — 2026-04-14 — Combatant Data Model + UI Polish
+- **CombatantData** resource: identity, attributes, derived stats, ability slots, consumable; replaces UnitData for 3D
+- **ArchetypeLibrary:** 5 archetypes (RogueFinder, archer_bandit, grunt, alchemist, elite_guard), randomized factory
+- **Unit3D:** floating 8-block HP bar (color-coded), archetype label fallback when name empty
+- **Grid3D:** expanded to 10×10; diagonal movement costs 1.5 speed
+- **UnitInfoBar:** condensed CanvasLayer strip (layer 4), shown on single-click
+- **StatPanel:** full examine window (layer 8), shown on double-click, scrollable, ESC/✕ to close
+- Camera + CM3D both use `_unhandled_input()` — GUI takes priority; Space + confirm dialog to end turn
+
+### Session 6 — 2026-04-15 — Combat Actions (Radial Menu + Ability System)
+- **AbilityData:** typed Resource with TargetType enum (SELF/SINGLE_ENEMY/SINGLE_ALLY/AOE/CONE) and `tile_range` field
+- **AbilityLibrary:** 12 placeholder abilities, static factory, CSV-ready `get_ability()` API
+- **ActionMenu:** D-pad radial CanvasLayer (layer 12) — 4 ability buttons + center consumable; screen-projected from unit; hover tooltips; greyed when unaffordable or `has_acted`
+- **CombatManager3D:** ABILITY_TARGET_MODE (purple highlights, Manhattan distance range), `_pending_ability` flow, consumable use, `_unit_can_still_act()` for auto-end; [A] key removed
+- All abilities proxy through existing QTE → damage (playable; effects are placeholder)
 
 ---
 
