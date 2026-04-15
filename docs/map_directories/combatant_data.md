@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-14 (Session 3 — AbilityData, AbilityLibrary added; ability IDs replace name strings)
+> Last updated: 2026-04-15 (Session 6-7 — EffectData added; AbilityData rewritten with TargetShape/ApplicableTo/Attribute enums; AbilityLibrary abilities fully defined with typed effects)
 
 ---
 
@@ -247,3 +247,33 @@ static func get_ability(ability_id: String) -> AbilityData
 ### Notes
 - A future CSV import will replace the `ABILITIES` dictionary without changing the `get_ability()` signature.
 - Every non-empty string in `CombatantData.abilities` must be a valid key in `AbilityLibrary.ABILITIES`.
+
+---
+
+## Where NOT to Look
+
+- **Effect math is NOT here** — `EffectData` defines the shape of an effect (type, base_value, etc.) but all resolution math lives in `CombatManager3D._apply_effects()`.
+- **Stat mutation at runtime is NOT here** — `CombatantData` stores base values; `_apply_stat_delta()` in CM3D modifies them mid-combat.
+- **Unit visuals are NOT here** — HP bar rendering, lunge animations, hit flash are in `Unit3D.gd`.
+
+---
+
+## Key Patterns & Gotchas
+
+- **Stats clamp to [0, 5] mid-combat** — `_apply_stat_delta()` in CM3D enforces this. `CombatantData` itself has no clamping logic.
+- **Stat changes are permanent within a session** — there is no reset at combat end yet. A future task will snapshot base stats at `Unit3D.setup()` time and restore them after combat.
+- **`cognition` has no derived stat yet** — reserved for ability cost scaling (TBD). Do not build anything that depends on it.
+- **`abilities` array is exactly 4 slots** — empty string = unfilled slot. The ActionMenu button is greyed (not hidden) for empty slots.
+- **`get_ability()` never returns null** — returns a safe stub for unknown IDs. Safe to call without nil checks.
+
+---
+
+## Recent Changes
+
+| Date | Change |
+|---|---|
+| 2026-04-15 | Added `EffectData` resource (EffectType, PoolType, MoveType enums + fields) |
+| 2026-04-15 | Rewrote `AbilityData` with `TargetShape`, `ApplicableTo`, `Attribute` enums; added `effects: Array[EffectData]`, `passthrough` |
+| 2026-04-15 | `AbilityLibrary`: all 12 abilities fully defined with typed `EffectData` entries |
+| 2026-04-14 | `AbilityData` initial version with `TargetType` enum and `tile_range`; ability IDs replace name strings in `CombatantData.abilities` |
+| 2026-04-14 | `ArchetypeLibrary`: 5 archetypes defined; randomized factory |
