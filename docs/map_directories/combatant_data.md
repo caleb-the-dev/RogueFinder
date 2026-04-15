@@ -145,28 +145,74 @@ static func create(archetype_id: String, character_name: String = "",
 
 `resources/AbilityData.gd` — Resource subclass. One instance per ability. Created by `AbilityLibrary.get_ability()`.
 
+### Enums
+
+**Attribute** — which stat an ability scales with; also used by EffectData as `target_stat` for BUFF/DEBUFF:
+`STRENGTH(0)`, `DEXTERITY(1)`, `COGNITION(2)`, `VITALITY(3)`, `WILLPOWER(4)`, `NONE(5)`
+
+**TargetShape** — the geometry of the targeting area:
+
+| Value | Behavior |
+|-------|---------|
+| `SELF` | Auto-targets the caster; no highlight step |
+| `SINGLE` | Player picks one valid unit within range |
+| `CONE` | T-shape: 1 cell adjacent to caster + 3 cells forming the top of the T |
+| `LINE` | Straight line extending from the caster in a chosen direction |
+| `RADIAL` | Diamond AoE — 5 wide × 5 tall |
+
+**ApplicableTo** — which units can be targeted (irrelevant when `target_shape` is `SELF`):
+`ALLY(0)`, `ENEMY(1)`, `ANY(2)`
+
 ### Fields
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `ability_id` | `String` | Snake_case key, e.g. `"heavy_strike"` |
 | `ability_name` | `String` | Display name |
-| `tags` | `Array[String]` | e.g. `["Melee"]`, `["Magic", "Ranged"]` |
+| `attribute` | `Attribute` | Stat this ability scales with |
+| `target_shape` | `TargetShape` | Area/geometry of targeting |
+| `applicable_to` | `ApplicableTo` | Which units can be targeted |
+| `tile_range` | `int` | 0–10; `-1` = whole map |
+| `passthrough` | `bool` | Effect continues past first collision (LINE/CONE/RADIAL only) |
 | `energy_cost` | `int` | Subtracted from unit energy on use |
-| `range` | `int` | Max tile distance to a valid target |
-| `target_type` | `TargetType` | `AbilityData.TargetType` enum (see below) |
+| `effects` | `Array[EffectData]` | Ordered list of effects; first effect determines QTE type |
 | `description` | `String` | Flavor + mechanical tooltip text |
 | `ability_icon` | `Texture2D` | Defaults to Godot icon (placeholder) |
 
-### TargetType Enum
+---
 
-| Value | Int | Behavior |
-|-------|-----|---------|
-| `SELF` | 0 | Auto-targets the caster; no target pick step |
-| `SINGLE_ENEMY` | 1 | Player picks one living enemy within range |
-| `SINGLE_ALLY` | 2 | Player picks one living ally within range |
-| `AOE` | 3 | Placeholder — uses enemy cells for now |
-| `CONE` | 4 | Placeholder — uses enemy cells for now |
+## EffectData
+
+`resources/EffectData.gd` — Resource subclass. One instance per effect within an ability. Created by `AbilityLibrary.get_ability()` from nested dicts — never instantiated directly.
+
+### Enums
+
+**EffectType:** `HARM(0)`, `MEND(1)`, `FORCE(2)`, `TRAVEL(3)`, `BUFF(4)`, `DEBUFF(5)`
+
+**PoolType** (HARM / MEND only): `HP(0)`, `ENERGY(1)`
+
+**MoveType** (TRAVEL only): `FREE(0)`, `LINE(1)`
+
+### Fields
+
+| Field | Type | Used by |
+|-------|------|---------|
+| `effect_type` | `EffectType` | All |
+| `base_value` | `int` | All |
+| `target_pool` | `PoolType` | HARM, MEND |
+| `target_stat` | `int` | BUFF, DEBUFF (stores `AbilityData.Attribute` int) |
+| `movement_type` | `MoveType` | TRAVEL |
+
+### QTE Resolution
+
+One QTE fires per ability (typed to the first effect). The resulting `accuracy: float` (0.0–1.0) is shared across all effects:
+
+| Effect Type | Formula |
+|-------------|---------|
+| HARM / MEND | `max(1, round(accuracy × (base_value + caster.attribute_value)))` |
+| BUFF / DEBUFF | flat `base_value`; accuracy < 0.3 = miss |
+| FORCE | `round(accuracy × base_value)` tiles pushed |
+| TRAVEL | `base_value` tiles always; accuracy = success threshold only |
 
 ---
 
@@ -174,22 +220,22 @@ static func create(archetype_id: String, character_name: String = "",
 
 `scripts/globals/AbilityLibrary.gd` — static class, mirrors `ArchetypeLibrary`.
 
-### Defined Abilities (12 placeholders)
+### Defined Abilities (12)
 
-| ID | Name | Tags | Cost | Range | Target |
-|----|------|------|------|-------|--------|
-| `strike` | Strike | Melee | 2 | 1 | SingleEnemy |
-| `heavy_strike` | Heavy Strike | Melee | 4 | 1 | SingleEnemy |
-| `quick_shot` | Quick Shot | Ranged | 2 | 4 | SingleEnemy |
-| `disengage` | Disengage | Utility | 2 | 1 | Self |
-| `acid_splash` | Acid Splash | Magic, Ranged | 3 | 3 | SingleEnemy |
-| `smoke_bomb` | Smoke Bomb | Utility | 2 | 2 | AOE |
-| `healing_draught` | Healing Draught | Utility | 3 | 1 | Self |
-| `shield_bash` | Shield Bash | Melee | 3 | 1 | SingleEnemy |
-| `counter` | Counter | Melee | 2 | 1 | Self |
-| `taunt` | Taunt | Utility | 1 | 3 | SingleEnemy |
-| `inspire` | Inspire | Utility | 3 | 3 | SingleAlly |
-| `guard` | Guard | Utility | 2 | 1 | Self |
+| ID | Name | Attribute | Cost | Range | Shape | Applicable To | Effects |
+|----|------|-----------|------|-------|-------|--------------|---------|
+| `strike` | Strike | STR | 2 | 1 | Single | Enemy | HARM 5 HP |
+| `heavy_strike` | Heavy Strike | STR | 4 | 1 | Single | Enemy | HARM 9 HP |
+| `quick_shot` | Quick Shot | DEX | 2 | 4 | Single | Enemy | HARM 4 HP |
+| `disengage` | Disengage | DEX | 2 | 1 | Self | Any | TRAVEL 1 FREE |
+| `acid_splash` | Acid Splash | COG | 3 | 3 | Single | Enemy | HARM 3 HP + DEBUFF 1 DEX |
+| `smoke_bomb` | Smoke Bomb | COG | 2 | 2 | Radial | Any | DEBUFF 1 DEX |
+| `healing_draught` | Healing Draught | VIT | 3 | 0 | Self | Any | MEND 5 HP |
+| `shield_bash` | Shield Bash | STR | 3 | 1 | Single | Enemy | HARM 3 HP + DEBUFF 1 STR |
+| `counter` | Counter | WIL | 2 | 0 | Self | Any | BUFF 2 STR |
+| `taunt` | Taunt | WIL | 1 | 3 | Single | Enemy | DEBUFF 1 WIL |
+| `inspire` | Inspire | WIL | 3 | 3 | Single | Ally | BUFF 1 STR |
+| `guard` | Guard | VIT | 2 | 0 | Self | Any | BUFF 2 VIT |
 
 ### Public API
 

@@ -313,37 +313,46 @@ func _on_ability_selected(ability_id: String) -> void:
 		return
 	_pending_ability = AbilityLibrary.get_ability(ability_id)
 
-	# Self-targeting abilities skip the target-pick step and go straight to QTE
-	if _pending_ability.target_type == AbilityData.TargetType.SELF:
+	# SELF-targeting abilities skip the target-pick step and go straight to QTE
+	if _pending_ability.target_shape == AbilityData.TargetShape.SELF:
 		_initiate_action(_selected_unit, _selected_unit)
 		return
 
-	# Collect valid target cells based on target_type and range
+	# Collect valid targets based on applicable_to
 	var targets: Array[Unit3D] = []
-	if _pending_ability.target_type == AbilityData.TargetType.SINGLE_ALLY:
-		for pu in _player_units:
-			if pu.is_alive:
-				targets.append(pu)
-	else:
-		# SINGLE_ENEMY, AOE, CONE — all use enemy cells for now (effect logic comes later)
-		for eu in _enemy_units:
-			if eu.is_alive:
-				targets.append(eu)
+	match _pending_ability.applicable_to:
+		AbilityData.ApplicableTo.ALLY:
+			for pu in _player_units:
+				if pu.is_alive:
+					targets.append(pu)
+		AbilityData.ApplicableTo.ENEMY:
+			for eu in _enemy_units:
+				if eu.is_alive:
+					targets.append(eu)
+		AbilityData.ApplicableTo.ANY:
+			for pu in _player_units:
+				if pu.is_alive:
+					targets.append(pu)
+			for eu in _enemy_units:
+				if eu.is_alive:
+					targets.append(eu)
 
 	if targets.is_empty():
-		# No valid targets — cancel the selection silently
 		_pending_ability = null
 		return
 
 	# Highlight valid target cells in purple (ability_target)
+	# AoE shapes (CONE, LINE, RADIAL) still use single-target pick as a placeholder
+	# until per-shape resolution is implemented.
 	mode = PlayerMode.ABILITY_TARGET_MODE
 	_grid.clear_highlights()
 	_grid.set_highlight(_selected_unit.grid_pos, "selected")
 	for target in targets:
 		var dx: int = abs(target.grid_pos.x - _selected_unit.grid_pos.x)
 		var dy: int = abs(target.grid_pos.y - _selected_unit.grid_pos.y)
-		var dist: int = dx + dy  # Manhattan distance — consistent with Grid3D move range
-		if dist <= _pending_ability.tile_range:
+		var dist: int = dx + dy
+		var in_range: bool = (_pending_ability.tile_range == -1) or (dist <= _pending_ability.tile_range)
+		if in_range:
 			_grid.set_highlight(target.grid_pos, "ability_target")
 	_update_status()
 
@@ -389,7 +398,6 @@ func _initiate_action(attacker: Unit3D, target: Unit3D) -> void:
 	_qte_bar.start_qte()
 
 func _on_qte_resolved(accuracy: float) -> void:
-	# Guard: _pending_ability must always be set before the QTE runs
 	if not _pending_ability:
 		push_error("CombatManager3D: _on_qte_resolved called with no _pending_ability")
 		state = CombatState.PLAYER_TURN
@@ -397,11 +405,9 @@ func _on_qte_resolved(accuracy: float) -> void:
 		return
 
 	if _selected_unit and _attack_target:
-		var dmg: int = _calculate_damage(
-			_selected_unit.data.attack, _attack_target.data.defense, accuracy)
 		_selected_unit.spend_energy(_pending_ability.energy_cost)
 		_selected_unit.has_acted = true
-		_attack_target.take_damage(dmg)
+		_apply_effects(_pending_ability, _selected_unit, _attack_target, accuracy)
 		_camera_rig.trigger_shake()
 
 	_pending_ability = null
@@ -412,12 +418,64 @@ func _on_qte_resolved(accuracy: float) -> void:
 
 	state = CombatState.PLAYER_TURN
 	if _selected_unit and _selected_unit.is_alive:
-		_select_unit(_selected_unit)    # re-opens menu; abilities will be greyed (has_acted)
+		_select_unit(_selected_unit)
 		_info_bar.refresh(_selected_unit)
 	else:
 		_deselect()
 	_update_status()
 	_check_auto_end_turn()
+
+## Resolves every effect in ability.effects against target using the shared accuracy float.
+## accuracy comes from the QTE result (0.0–1.0); all effects share the same roll.
+func _apply_effects(ability: AbilityData, caster: Unit3D, target: Unit3D, accuracy: float) -> void:
+	var attr_val: int = _get_attribute_value(caster, ability.attribute)
+	for effect: EffectData in ability.effects:
+		match effect.effect_type:
+			EffectData.EffectType.HARM:
+				var dmg: int = maxi(1, roundi(accuracy * float(effect.base_value + attr_val)))
+				target.take_damage(dmg)
+			EffectData.EffectType.MEND:
+				var heal: int = maxi(1, roundi(accuracy * float(effect.base_value + attr_val)))
+				target.heal(heal)
+			EffectData.EffectType.BUFF:
+				# accuracy < 0.3 = whiff; flat value otherwise
+				if accuracy >= 0.3:
+					_apply_stat_delta(target, effect.target_stat, effect.base_value)
+			EffectData.EffectType.DEBUFF:
+				if accuracy >= 0.3:
+					_apply_stat_delta(target, effect.target_stat, -effect.base_value)
+			EffectData.EffectType.FORCE:
+				# TODO: push target N tiles; deal collision damage
+				pass
+			EffectData.EffectType.TRAVEL:
+				# TODO: move caster to a valid destination tile
+				pass
+
+## Returns the raw attribute int value from a unit's CombatantData.
+func _get_attribute_value(unit: Unit3D, attribute: AbilityData.Attribute) -> int:
+	match attribute:
+		AbilityData.Attribute.STRENGTH:  return unit.data.strength
+		AbilityData.Attribute.DEXTERITY: return unit.data.dexterity
+		AbilityData.Attribute.COGNITION: return unit.data.cognition
+		AbilityData.Attribute.VITALITY:  return unit.data.vitality
+		AbilityData.Attribute.WILLPOWER: return unit.data.willpower
+		_: return 0
+
+## Applies a +/- delta to one of a unit's core attributes.
+## Clamped to [0, 5] — the defined range for all attributes.
+## NOTE: stat changes are not currently reset at combat end; that is a future task.
+func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
+	match stat:
+		AbilityData.Attribute.STRENGTH:
+			unit.data.strength  = clampi(unit.data.strength  + delta, 0, 5)
+		AbilityData.Attribute.DEXTERITY:
+			unit.data.dexterity = clampi(unit.data.dexterity + delta, 0, 5)
+		AbilityData.Attribute.COGNITION:
+			unit.data.cognition = clampi(unit.data.cognition + delta, 0, 5)
+		AbilityData.Attribute.VITALITY:
+			unit.data.vitality  = clampi(unit.data.vitality  + delta, 0, 5)
+		AbilityData.Attribute.WILLPOWER:
+			unit.data.willpower = clampi(unit.data.willpower + delta, 0, 5)
 
 ## --- End Player Turn ---
 
@@ -484,14 +542,17 @@ func _process_enemy_actions() -> void:
 			break
 
 		var target: Unit3D = targets[randi() % targets.size()]
-		var dmg: int = _calculate_damage(
-			enemy.data.attack, target.data.defense, enemy.data.qte_resolution)
+		## Enemy uses its first ability (index 0) for the attack, falling back to "strike"
+		var enemy_ability_id: String = enemy.data.abilities[0] if enemy.data.abilities[0] != "" else "strike"
+		var enemy_ability: AbilityData = AbilityLibrary.get_ability(enemy_ability_id)
+		## Enemy accuracy simulated by qte_resolution stat
+		var accuracy: float = enemy.data.qte_resolution
 
 		# Lunge, then deal damage at the moment of impact
 		enemy.play_attack_anim(target.global_position)
 		await get_tree().create_timer(0.10).timeout
 
-		target.take_damage(dmg)
+		_apply_effects(enemy_ability, enemy, target, accuracy)
 		_camera_rig.trigger_shake()
 		# Refresh condensed bar if the attacked unit is currently shown
 		if _info_bar_unit == target:
