@@ -5,6 +5,7 @@ func _initialize() -> void:
 	_test_known_ability()
 	_test_unknown_ability_stub()
 	_test_all_archetype_abilities_resolve()
+	_test_archetype_library_updates()
 	print("All AbilityLibrary tests PASSED.")
 	quit()
 
@@ -52,3 +53,22 @@ func _test_all_archetype_abilities_resolve() -> void:
 		var a: AbilityData = AbilityLibrary.get_ability(id)
 		assert(a != null, "ability should not be null: " + id)
 		assert(a.ability_id == id, "ID roundtrip failed for: " + id)
+
+func _test_archetype_library_updates() -> void:
+	var rogue: CombatantData = ArchetypeLibrary.create("RogueFinder", "Vael", true)
+	assert(rogue.consumable == "Smoke Vial",
+		"RogueFinder consumable should be 'Smoke Vial', got: " + rogue.consumable)
+	assert(rogue.abilities[0] == "strike",
+		"RogueFinder abilities[0] should be 'strike', got: " + rogue.abilities[0])
+
+	var alch: CombatantData = ArchetypeLibrary.create("alchemist", "", false)
+	assert(alch.consumable == "Healing Potion",
+		"alchemist consumable should be 'Healing Potion', got: " + alch.consumable)
+	assert(alch.abilities[0] == "acid_splash",
+		"alchemist abilities[0] should be 'acid_splash', got: " + alch.abilities[0])
+
+	var grunt: CombatantData = ArchetypeLibrary.create("grunt", "", false)
+	assert(grunt.consumable == "",
+		"grunt consumable should be empty, got: " + grunt.consumable)
+	assert(grunt.abilities[0] == "heavy_strike",
+		"grunt abilities[0] should be 'heavy_strike', got: " + grunt.abilities[0])
