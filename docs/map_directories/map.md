@@ -1,7 +1,7 @@
 # RogueFinder — System Map
 
 > High-level index of all game systems. Read this first each session, then navigate to the relevant bucket file.
-> Last updated: 2026-04-14 (Session 4 — UnitInfoBar added; HUD removed from 3D; 10×10 grid)
+> Last updated: 2026-04-14 (Session 3 — ActionMenu, AbilityData, AbilityLibrary added)
 
 ---
 
@@ -20,6 +20,9 @@
 | [Combatant Data Model](#combatant-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active (3D) | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
 | [Game State](#game-state) | [game_state.md](game_state.md) | 🔲 Stub | Global |
+| [Action Menu](#action-menu) | [hud_system.md](hud_system.md) | ✅ Active | Presentation |
+| [Ability Data Model](#ability-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
+| [Ability Library](#ability-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 
 ---
 
@@ -33,10 +36,12 @@ CombatManager3D
   ├── CameraController (built by CM3D; shake on hit)
   ├── UnitInfoBar      (condensed strip; shown on single-click)
   ├── StatPanel        (full examine window; shown on double-click)
-  └── ArchetypeLibrary (creates CombatantData for each unit at scene load)
+  ├── ArchetypeLibrary (creates CombatantData for each unit at scene load)
+  └── ActionMenu       (radial pop-up; signals ability_selected, consumable_selected)
 
 Unit3D
-  └── CombatantData    (stat source — replaces UnitData for 3D)
+  ├── CombatantData    (stat source — replaces UnitData for 3D)
+  └── AbilityLibrary   (looked up by ActionMenu and CombatManager3D)
 
 StatPanel
   └── CombatantData    (reads all fields for display)
@@ -84,6 +89,15 @@ Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) a
 ### Game State
 Autoload singleton stub. Intended for run-wide data (party roster, items, map progress). Not yet wired to any system.
 
+### Action Menu
+CanvasLayer (layer 12) pop-up shown when a player unit is selected. D-pad layout: 4 ability buttons + 1 consumable center button. Projects the unit's 3D position to screen space. Emits `ability_selected(ability_id)` and `consumable_selected()`. Buttons grey out based on energy and `has_acted` state.
+
+### Ability Data Model
+`AbilityData` (Resource) stores all fields for a single ability: ID, name, tags, energy cost, range, target type, description, icon. `TargetType` enum: `SELF`, `SINGLE_ENEMY`, `SINGLE_ALLY`, `AOE`, `CONE`.
+
+### Ability Library
+`AbilityLibrary` (static class) defines 12 placeholder abilities and provides `get_ability(id) -> AbilityData`. Returns a safe stub for unknown IDs. Future CSV import will replace the inline dictionary without changing the API.
+
 ---
 
 ## File Locations
@@ -103,11 +117,14 @@ res://
 │   ├── ui/
 │   │   ├── HUD.gd               ← legacy 2D only
 │   │   ├── StatPanel.gd         ← full examine window (double-click)
-│   │   └── UnitInfoBar.gd       ← condensed strip (single-click)
+│   │   ├── UnitInfoBar.gd       ← condensed strip (single-click)
+│   │   └── ActionMenu.gd        ← radial action pop-up (player unit selection)
 │   └── globals/
+│       ├── AbilityLibrary.gd    ← ability factory (12 placeholder abilities)
 │       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
 │       └── GameState.gd
 └── resources/
+    ├── AbilityData.gd           ← ability data resource (TargetType enum + fields)
     ├── CombatantData.gd         ← active data resource (3D)
     └── UnitData.gd              ← legacy data resource (2D only)
 ```

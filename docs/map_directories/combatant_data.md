@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-14 (Session 4 — portrait field added; RogueFinder archetype; enemy naming)
+> Last updated: 2026-04-14 (Session 3 — AbilityData, AbilityLibrary added; ability IDs replace name strings)
 
 ---
 
@@ -71,10 +71,11 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `vitality` | `hp_max` (10 × VIT) and `energy_max` (5 + VIT) |
 
 ### Equipment Slots (placeholder strings — item system TBD)
-`weapon`, `armor`, `consumable`, `accessory`
+`weapon`, `armor`, `accessory` — currently empty strings.
+`consumable` — display name of the equipped consumable item (e.g. `"Healing Potion"`). Set to `""` when used in combat. Empty string means no consumable available.
 
 ### Ability Pool
-`abilities: Array[String]` — exactly 4 slots. Fixed per archetype. Empty string = unfilled slot.
+`abilities: Array[String]` — exactly 4 slots. Stores **ability IDs** (e.g. `"strike"`, `"heavy_strike"`). Fixed per archetype. Empty string = unfilled slot. Looked up via `AbilityLibrary.get_ability()` at runtime.
 
 ### Enemy-Only
 `qte_resolution: float` — auto-resolve accuracy for enemy QTE simulation (0.0–1.0).
@@ -137,3 +138,66 @@ static func create(archetype_id: String, character_name: String = "",
 - A future CSV import will replace the hardcoded `ARCHETYPES` dictionary in `ArchetypeLibrary`.
 - `cognition` has no derived stat yet — it is reserved for the ability system (energy cost scaling, etc.).
 - `armor_defense` is set by `ArchetypeLibrary.create()` until the item system drives it from the equipped armor.
+
+---
+
+## AbilityData
+
+`resources/AbilityData.gd` — Resource subclass. One instance per ability. Created by `AbilityLibrary.get_ability()`.
+
+### Fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `ability_id` | `String` | Snake_case key, e.g. `"heavy_strike"` |
+| `ability_name` | `String` | Display name |
+| `tags` | `Array[String]` | e.g. `["Melee"]`, `["Magic", "Ranged"]` |
+| `energy_cost` | `int` | Subtracted from unit energy on use |
+| `range` | `int` | Max tile distance to a valid target |
+| `target_type` | `TargetType` | `AbilityData.TargetType` enum (see below) |
+| `description` | `String` | Flavor + mechanical tooltip text |
+| `ability_icon` | `Texture2D` | Defaults to Godot icon (placeholder) |
+
+### TargetType Enum
+
+| Value | Int | Behavior |
+|-------|-----|---------|
+| `SELF` | 0 | Auto-targets the caster; no target pick step |
+| `SINGLE_ENEMY` | 1 | Player picks one living enemy within range |
+| `SINGLE_ALLY` | 2 | Player picks one living ally within range |
+| `AOE` | 3 | Placeholder — uses enemy cells for now |
+| `CONE` | 4 | Placeholder — uses enemy cells for now |
+
+---
+
+## AbilityLibrary
+
+`scripts/globals/AbilityLibrary.gd` — static class, mirrors `ArchetypeLibrary`.
+
+### Defined Abilities (12 placeholders)
+
+| ID | Name | Tags | Cost | Range | Target |
+|----|------|------|------|-------|--------|
+| `strike` | Strike | Melee | 2 | 1 | SingleEnemy |
+| `heavy_strike` | Heavy Strike | Melee | 4 | 1 | SingleEnemy |
+| `quick_shot` | Quick Shot | Ranged | 2 | 4 | SingleEnemy |
+| `disengage` | Disengage | Utility | 2 | 1 | Self |
+| `acid_splash` | Acid Splash | Magic, Ranged | 3 | 3 | SingleEnemy |
+| `smoke_bomb` | Smoke Bomb | Utility | 2 | 2 | AOE |
+| `healing_draught` | Healing Draught | Utility | 3 | 1 | Self |
+| `shield_bash` | Shield Bash | Melee | 3 | 1 | SingleEnemy |
+| `counter` | Counter | Melee | 2 | 1 | Self |
+| `taunt` | Taunt | Utility | 1 | 3 | SingleEnemy |
+| `inspire` | Inspire | Utility | 3 | 3 | SingleAlly |
+| `guard` | Guard | Utility | 2 | 1 | Self |
+
+### Public API
+
+```gdscript
+## Returns a populated AbilityData. Never returns null — falls back to a stub for unknown IDs.
+static func get_ability(ability_id: String) -> AbilityData
+```
+
+### Notes
+- A future CSV import will replace the `ABILITIES` dictionary without changing the `get_ability()` signature.
+- Every non-empty string in `CombatantData.abilities` must be a valid key in `AbilityLibrary.ABILITIES`.
