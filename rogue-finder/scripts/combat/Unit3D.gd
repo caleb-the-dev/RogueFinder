@@ -104,6 +104,10 @@ func take_damage(amount: int) -> void:
 	_play_hit_flash()
 	_refresh_visuals()
 
+func heal(amount: int) -> void:
+	current_hp = mini(current_hp + amount, data.hp_max)
+	_refresh_visuals()
+
 func spend_energy(amount: int) -> bool:
 	if current_energy < amount:
 		return false
