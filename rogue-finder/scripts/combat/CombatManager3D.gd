@@ -359,7 +359,10 @@ func _try_ability_target(cell: Vector2i) -> void:
 	var obj: Object = _grid.get_unit_at(cell)
 	if not obj is Unit3D:
 		return
-	_initiate_action(_selected_unit, obj as Unit3D)  # _attack_target set inside _initiate_action
+	var target := obj as Unit3D
+	if not target.is_alive:
+		return
+	_initiate_action(_selected_unit, target)  # _attack_target set inside _initiate_action
 
 ## Consume the equipped item (sets consumable to "" so the button greys out).
 func _on_consumable_selected() -> void:
