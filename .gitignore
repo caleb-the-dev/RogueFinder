@@ -1,0 +1,12 @@
+# Godot — generated project data (never commit these)
+.godot/
+*.uid
+
+# Godot — export presets contain paths/keys, commit only if intentional
+export_presets.cfg
+
+# Godot — import metadata (regenerated on project open)
+*.import
+
+# Claude Code — worktree checkouts live here; never commit them
+.claude/worktrees/
