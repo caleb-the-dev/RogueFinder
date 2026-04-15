@@ -31,7 +31,8 @@ var _current_unit:     Unit3D          = null
 var _ability_ids:      Array[String]   = []
 
 ## Cardinal offsets: top, right, bottom, left
-const _OFFSETS: Array = [
+## GDScript 4 does not support typed Array constants — static var used instead.
+static var _OFFSETS: Array[Vector2] = [
 	Vector2(0.0,         -BTN_OFFSET),
 	Vector2(BTN_OFFSET,   0.0),
 	Vector2(0.0,          BTN_OFFSET),
@@ -91,6 +92,7 @@ func _build_ui() -> void:
 ## camera: pass _camera_rig.get_camera() from CombatManager3D.
 func open_for(unit: Unit3D, camera: Camera3D) -> void:
 	_current_unit = unit
+	# CombatantData.abilities is always exactly 4 elements — see CombatantData.gd
 	_ability_ids  = unit.data.abilities.duplicate()
 
 	# Project 3D world pos to 2D screen, then clamp so menu never clips
