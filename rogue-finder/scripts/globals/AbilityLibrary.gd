@@ -115,10 +115,18 @@ const ABILITIES: Dictionary = {
 	},
 }
 
+## Cached Godot icon — loaded once on first ability lookup.
+static var _icon: Texture2D = null
+
+static func _get_icon() -> Texture2D:
+	if _icon == null:
+		_icon = load("res://icon.svg")
+	return _icon
+
 ## Returns a populated AbilityData for the given ID.
 ## Falls back to a blank stub if the ID is unknown — never returns null.
 static func get_ability(ability_id: String) -> AbilityData:
-	var godot_icon: Texture2D = load("res://icon.svg")
+	var godot_icon: Texture2D = _get_icon()
 	if not ABILITIES.has(ability_id):
 		var stub := AbilityData.new()
 		stub.ability_id   = "unknown"
