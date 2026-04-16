@@ -758,8 +758,9 @@ func _cardinal_direction(from: Vector2i, to: Vector2i) -> Vector2i:
 		return Vector2i(0, sign(diff.y))
 
 ## Returns every grid cell covered by the ability's shape, given caster and aim positions.
-## RADIAL: diamond ≤ 2 Manhattan from origin. Without passthrough, distance-2 cells blocked
-##         by occupied distance-1 cells in the same direction.
+## RADIAL: diamond ≤ 2 Manhattan from origin. Without passthrough, only pure cardinal
+##         distance-2 cells are blocked (by a unit sitting directly between them and origin).
+##         Diagonal distance-2 cells are never blocked — no clean intermediate exists.
 ## ARC:    3-wide row at distance 1 — no passthrough logic (arc always hits all 3).
 ## CONE:   T-shape — stem at depth 1, crossbar at depth 2. Without passthrough, a unit
 ##         at the stem blocks the entire crossbar.
@@ -776,19 +777,13 @@ func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: Abili
 					var cell := Vector2i(origin_pos.x + dx, origin_pos.y + dy)
 					if not _grid.is_valid(cell):
 						continue
-					# Without passthrough, distance-2 cells blocked by occupied distance-1 neighbors
-					if not ability.passthrough and abs(dx) + abs(dy) == 2:
-						var blocked: bool = false
-						if dx != 0 and dy != 0:
-							# Diagonal cell — either adjacent cardinal intermediate can block it
-							var mid1 := Vector2i(origin_pos.x + sign(dx), origin_pos.y)
-							var mid2 := Vector2i(origin_pos.x, origin_pos.y + sign(dy))
-							blocked = _grid.is_occupied(mid1) or _grid.is_occupied(mid2)
-						else:
-							# Cardinal cell — single intermediate
-							var mid := Vector2i(origin_pos.x + sign(dx), origin_pos.y + sign(dy))
-							blocked = _grid.is_occupied(mid)
-						if blocked:
+					# Without passthrough, only pure cardinal distance-2 cells can be blocked
+					# (a unit directly between the origin and that cell stops the blast).
+					# Diagonal distance-2 cells have no clean intermediate — never blocked.
+					if not ability.passthrough and abs(dx) + abs(dy) == 2 \
+							and (dx == 0 or dy == 0):
+						var mid := Vector2i(origin_pos.x + sign(dx), origin_pos.y + sign(dy))
+						if _grid.is_occupied(mid):
 							continue
 					cells.append(cell)
 		AbilityData.TargetShape.ARC:
