@@ -760,6 +760,7 @@ func _on_ct_timeout(idx: int) -> void:
 	_resolve_ct_beat(idx, 0.25)   ## timeout = miss
 
 ## Checks whether a mouse click hit any active target and resolves the nearest one.
+## A click that misses all active targets counts as a failure for the current beat.
 func _handle_ct_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton and event.pressed
 			and event.button_index == MOUSE_BUTTON_LEFT):
@@ -772,6 +773,12 @@ func _handle_ct_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			_resolve_ct_beat(i, 1.25)   ## within radius = perfect hit
 			return   ## one click resolves at most one target
+	## Click landed outside every active target — penalise the current beat
+	for i in range(_ct_active.size()):
+		if _ct_active[i]:
+			get_viewport().set_input_as_handled()
+			_resolve_ct_beat(i, 0.25)   ## misclick = miss
+			return
 
 ## Resolves a single click-target beat: flashes the node, records the result,
 ## and aggregates when all beats are done.
