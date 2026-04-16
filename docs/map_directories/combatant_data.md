@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-15 (Session 6-7 — EffectData added; AbilityData rewritten with TargetShape/ApplicableTo/Attribute enums; AbilityLibrary abilities fully defined with typed effects)
+> Last updated: 2026-04-15 (Session 7 — ARC shape added; CONE reshaped; ForceType enum; 6 new abilities; archetype ability assignments updated)
 
 ---
 
@@ -16,7 +16,7 @@
 
 | File | Role |
 |------|------|
-| `resources/CombatantData.gd` | Resource: identity, attributes, equipment, ability pool. All derived stats are computed properties. |
+| `resources/CombatantData.gd` | Resource: identity, attributes, equipment, ability pool. Derived stats are computed properties. |
 | `scripts/globals/ArchetypeLibrary.gd` | Static factory: archetype definitions + `create()` method. |
 
 ---
@@ -24,8 +24,8 @@
 ## Design Principles
 
 **Identity vs. Blueprint:**
-- `character_name` — the name this specific combatant goes by (e.g., "Claude")
-- `archetype_id` — the species/template (e.g., "archer_bandit"). Fixes class, artwork, and the *pools* from which background and attributes are drawn.
+- `character_name` — the name this specific combatant goes by (e.g., "Vael")
+- `archetype_id` — the species/template (e.g., "archer_bandit"). Fixes class, artwork, and the pools from which background and attributes are drawn.
 
 Like a Pokémon: the archetype is Pikachu, the character_name is whatever the trainer called it.
 
@@ -44,7 +44,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `archetype_id` | `String` | Key into `ArchetypeLibrary.ARCHETYPES`. |
 | `is_player_unit` | `bool` | Team assignment; drives AI vs. player control. |
 
-### Background & Class (placeholder — values from future CSV)
+### Background & Class
 | Field | Type | Notes |
 |-------|------|-------|
 | `background` | `String` | e.g. "Crook", "Baker". Pool is per-archetype. |
@@ -70,12 +70,12 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `willpower` | `energy_regen` (2 + WIL) |
 | `vitality` | `hp_max` (10 × VIT) and `energy_max` (5 + VIT) |
 
-### Equipment Slots (placeholder strings — item system TBD)
-`weapon`, `armor`, `accessory` — currently empty strings.
-`consumable` — display name of the equipped consumable item (e.g. `"Healing Potion"`). Set to `""` when used in combat. Empty string means no consumable available.
+### Equipment Slots
+`weapon`, `armor`, `accessory` — currently empty strings (item system TBD).
+`consumable` — display name of equipped consumable (e.g. `"Healing Potion"`). Set to `""` when used in combat.
 
 ### Ability Pool
-`abilities: Array[String]` — exactly 4 slots. Stores **ability IDs** (e.g. `"strike"`, `"heavy_strike"`). Fixed per archetype. Empty string = unfilled slot. Looked up via `AbilityLibrary.get_ability()` at runtime.
+`abilities: Array[String]` — exactly 4 slots. Stores ability IDs (e.g. `"strike"`). Empty string = unfilled slot. Looked up via `AbilityLibrary.get_ability()` at runtime.
 
 ### Enemy-Only
 `qte_resolution: float` — auto-resolve accuracy for enemy QTE simulation (0.0–1.0).
@@ -91,8 +91,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `energy_regen` | `2 + willpower` |
 | `speed` | `2 + dexterity` |
 | `attack` | `5 + strength` |
-| `defense` | alias → `armor_defense` (set by factory; item system TBD) |
-| `unit_name` | alias → `character_name` (duck-type compat with HUD/Unit3D) |
+| `defense` | alias → `armor_defense` |
 
 ---
 
@@ -100,20 +99,17 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 
 ### Defined Archetypes
 
-| ID | Class | Backgrounds | STR | DEX | COG | WIL | VIT | Armor |
-|----|-------|-------------|-----|-----|-----|-----|-----|-------|
-| `RogueFinder` | Custom | Noble, Peasant, Scholar, Soldier, Merchant | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 |
-| `archer_bandit` | Rogue | Crook, Soldier | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 |
-| `grunt` | Barbarian | Crook, Soldier | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 |
-| `alchemist` | Wizard | Baker, Scholar, Merchant | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 |
-| `elite_guard` | Warrior | Soldier, Noble | 3–5 | 1–3 | 1–2 | 2–4 | 3–5 | 7–10 |
+| ID | Class | STR | DEX | COG | WIL | VIT | Armor | Abilities |
+|----|-------|-----|-----|-----|-----|-----|-------|-----------|
+| `RogueFinder` | Custom | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 | strike, guard, fireball, sweep |
+| `archer_bandit` | Rogue | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 | quick_shot, disengage, piercing_shot, gust |
+| `grunt` | Barbarian | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 | heavy_strike, charge, -, - |
+| `alchemist` | Wizard | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 | heal_burst, smoke_bomb, healing_draught, fire_breath |
+| `elite_guard` | Warrior | 3–5 | 1–3 | 1–2 | 2–4 | 3–5 | 7–10 | shield_bash, yank, windblast, sweep |
 
 ### Public API
 
 ```gdscript
-## Creates a randomized CombatantData for the given archetype.
-## character_name: optional override; falls back to flavor name pool if "".
-## is_player: sets is_player_unit on result.
 static func create(archetype_id: String, character_name: String = "",
     is_player: bool = false) -> CombatantData
 ```
@@ -132,15 +128,6 @@ static func create(archetype_id: String, character_name: String = "",
 
 ---
 
-## Notes
-
-- `UnitData.gd` still exists for the legacy 2D system (`Unit.gd`, `test_unit.gd`). Do not delete it until the 2D prototype is retired.
-- A future CSV import will replace the hardcoded `ARCHETYPES` dictionary in `ArchetypeLibrary`.
-- `cognition` has no derived stat yet — it is reserved for the ability system (energy cost scaling, etc.).
-- `armor_defense` is set by `ArchetypeLibrary.create()` until the item system drives it from the equipped armor.
-
----
-
 ## AbilityData
 
 `resources/AbilityData.gd` — Resource subclass. One instance per ability. Created by `AbilityLibrary.get_ability()`.
@@ -154,36 +141,37 @@ static func create(archetype_id: String, character_name: String = "",
 
 | Value | Behavior |
 |-------|---------|
-| `SELF` | Auto-targets the caster; no highlight step |
-| `SINGLE` | Player picks one valid unit within range |
-| `CONE` | T-shape: 1 cell adjacent to caster + 3 cells forming the top of the T |
-| `LINE` | Straight line extending from the caster in a chosen direction |
-| `RADIAL` | Diamond AoE — 5 wide × 5 tall |
+| `SELF(0)` | Auto-targets the caster; no highlight step |
+| `SINGLE(1)` | Player picks one valid unit within range |
+| `CONE(2)` | Expanding T: stem(1) → 3-wide crossbar(2) → 5-wide back row(3). Without passthrough, a unit at the stem blocks depth 2+3. |
+| `LINE(3)` | Straight ray up to tile_range; stops at first unit unless passthrough=true |
+| `RADIAL(4)` | Diamond ≤ 2 Manhattan. Without passthrough, pure cardinal distance-2 cells blocked by a unit directly between them and origin. Diagonal cells never blocked. |
+| `ARC(5)` | 3-wide adjacent row: left, center, right of the chosen direction. No passthrough logic. |
 
-**ApplicableTo** — which units can be targeted (irrelevant when `target_shape` is `SELF`):
+**ApplicableTo** — which units can be affected:
 `ALLY(0)`, `ENEMY(1)`, `ANY(2)`
 
 ### Fields
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `ability_id` | `String` | Snake_case key, e.g. `"heavy_strike"` |
+| `ability_id` | `String` | Snake_case key |
 | `ability_name` | `String` | Display name |
 | `attribute` | `Attribute` | Stat this ability scales with |
-| `target_shape` | `TargetShape` | Area/geometry of targeting |
-| `applicable_to` | `ApplicableTo` | Which units can be targeted |
+| `target_shape` | `TargetShape` | Area geometry |
+| `applicable_to` | `ApplicableTo` | Which units can be affected |
 | `tile_range` | `int` | 0–10; `-1` = whole map |
-| `passthrough` | `bool` | Effect continues past first collision (LINE/CONE/RADIAL only) |
+| `passthrough` | `bool` | CONE: crossbar/back not blocked by stem unit. RADIAL: cardinal back cells not blocked. LINE: continues past first unit. |
 | `energy_cost` | `int` | Subtracted from unit energy on use |
-| `effects` | `Array[EffectData]` | Ordered list of effects; first effect determines QTE type |
-| `description` | `String` | Flavor + mechanical tooltip text |
+| `effects` | `Array[EffectData]` | Ordered list; one QTE fires for the whole ability |
+| `description` | `String` | Flavor + mechanic tooltip |
 | `ability_icon` | `Texture2D` | Defaults to Godot icon (placeholder) |
 
 ---
 
 ## EffectData
 
-`resources/EffectData.gd` — Resource subclass. One instance per effect within an ability. Created by `AbilityLibrary.get_ability()` from nested dicts — never instantiated directly.
+`resources/EffectData.gd` — Resource subclass. One instance per effect within an ability.
 
 ### Enums
 
@@ -192,6 +180,16 @@ static func create(archetype_id: String, character_name: String = "",
 **PoolType** (HARM / MEND only): `HP(0)`, `ENERGY(1)`
 
 **MoveType** (TRAVEL only): `FREE(0)`, `LINE(1)`
+
+**ForceType** (FORCE only):
+
+| Value | Direction |
+|-------|-----------|
+| `PUSH(0)` | Away from caster along caster→target axis |
+| `PULL(1)` | Toward caster along target→caster axis |
+| `LEFT(2)` | 90° left of caster→target axis |
+| `RIGHT(3)` | 90° right of caster→target axis |
+| `RADIAL(4)` | Away from the blast origin cell (used with RADIAL shape) |
 
 ### Fields
 
@@ -202,17 +200,18 @@ static func create(archetype_id: String, character_name: String = "",
 | `target_pool` | `PoolType` | HARM, MEND |
 | `target_stat` | `int` | BUFF, DEBUFF (stores `AbilityData.Attribute` int) |
 | `movement_type` | `MoveType` | TRAVEL |
+| `force_type` | `ForceType` | FORCE |
 
 ### QTE Resolution
 
-One QTE fires per ability (typed to the first effect). The resulting `accuracy: float` (0.0–1.0) is shared across all effects:
+One QTE fires per ability. The resulting `accuracy: float` (0.0–1.0) is shared across all effects:
 
 | Effect Type | Formula |
 |-------------|---------|
 | HARM / MEND | `max(1, round(accuracy × (base_value + caster.attribute_value)))` |
 | BUFF / DEBUFF | flat `base_value`; accuracy < 0.3 = miss |
-| FORCE | `round(accuracy × base_value)` tiles pushed |
-| TRAVEL | `base_value` tiles always; accuracy = success threshold only |
+| FORCE | slides target up to `base_value` tiles; accuracy < 0.3 = miss |
+| TRAVEL | player picks destination; QTE accuracy unused for distance |
 
 ---
 
@@ -220,10 +219,10 @@ One QTE fires per ability (typed to the first effect). The resulting `accuracy: 
 
 `scripts/globals/AbilityLibrary.gd` — static class, mirrors `ArchetypeLibrary`.
 
-### Defined Abilities (12)
+### Defined Abilities (20)
 
-| ID | Name | Attribute | Cost | Range | Shape | Applicable To | Effects |
-|----|------|-----------|------|-------|-------|--------------|---------|
+| ID | Name | Attr | Cost | Range | Shape | Targets | Effects |
+|----|------|------|------|-------|-------|---------|---------|
 | `strike` | Strike | STR | 2 | 1 | Single | Enemy | HARM 5 HP |
 | `heavy_strike` | Heavy Strike | STR | 4 | 1 | Single | Enemy | HARM 9 HP |
 | `quick_shot` | Quick Shot | DEX | 2 | 4 | Single | Enemy | HARM 4 HP |
@@ -236,6 +235,15 @@ One QTE fires per ability (typed to the first effect). The resulting `accuracy: 
 | `taunt` | Taunt | WIL | 1 | 3 | Single | Enemy | DEBUFF 1 WIL |
 | `inspire` | Inspire | WIL | 3 | 3 | Single | Ally | BUFF 1 STR |
 | `guard` | Guard | VIT | 2 | 0 | Self | Any | BUFF 2 VIT |
+| `sweep` | Sweep | STR | 3 | 1 | Arc | Enemy | HARM 4 HP |
+| `piercing_shot` | Piercing Shot | DEX | 3 | 6 | Line | Enemy | HARM 4 HP (passthrough) |
+| `fire_breath` | Fire Breath | COG | 4 | 1 | Cone | Enemy | HARM 5 HP |
+| `fireball` | Fireball | COG | 5 | 4 | Radial | Any | HARM 6 HP (passthrough=false) |
+| `heal_burst` | Heal Burst | WIL | 4 | 2 | Radial | Ally | MEND 5 HP (passthrough=true) |
+| `charge` | Charge | STR | 2 | 3 | Self | Any | TRAVEL 3 LINE |
+| `gust` | Gust | DEX | 2 | 3 | Single | Any | FORCE PUSH 2 |
+| `yank` | Yank | STR | 2 | 3 | Single | Any | FORCE PULL 2 |
+| `windblast` | Windblast | COG | 3 | 3 | Radial | Enemy | FORCE RADIAL 2 |
 
 ### Public API
 
@@ -244,27 +252,24 @@ One QTE fires per ability (typed to the first effect). The resulting `accuracy: 
 static func get_ability(ability_id: String) -> AbilityData
 ```
 
-### Notes
-- A future CSV import will replace the `ABILITIES` dictionary without changing the `get_ability()` signature.
-- Every non-empty string in `CombatantData.abilities` must be a valid key in `AbilityLibrary.ABILITIES`.
-
 ---
 
 ## Where NOT to Look
 
-- **Effect math is NOT here** — `EffectData` defines the shape of an effect (type, base_value, etc.) but all resolution math lives in `CombatManager3D._apply_effects()`.
+- **Effect math is NOT here** — `EffectData` defines shape; all resolution math lives in `CombatManager3D._apply_effects()` and `_apply_force()`.
 - **Stat mutation at runtime is NOT here** — `CombatantData` stores base values; `_apply_stat_delta()` in CM3D modifies them mid-combat.
-- **Unit visuals are NOT here** — HP bar rendering, lunge animations, hit flash are in `Unit3D.gd`.
+- **Unit visuals are NOT here** — HP bar, lunge animations, buff/debuff indicators are in `Unit3D.gd`.
 
 ---
 
 ## Key Patterns & Gotchas
 
-- **Stats clamp to [0, 5] mid-combat** — `_apply_stat_delta()` in CM3D enforces this. `CombatantData` itself has no clamping logic.
-- **Stat changes are permanent within a session** — there is no reset at combat end yet. A future task will snapshot base stats at `Unit3D.setup()` time and restore them after combat.
-- **`cognition` has no derived stat yet** — reserved for ability cost scaling (TBD). Do not build anything that depends on it.
-- **`abilities` array is exactly 4 slots** — empty string = unfilled slot. The ActionMenu button is greyed (not hidden) for empty slots.
-- **`get_ability()` never returns null** — returns a safe stub for unknown IDs. Safe to call without nil checks.
+- **Stats clamp to [0, 5] mid-combat** — `_apply_stat_delta()` enforces this.
+- **Stat changes are permanent within a session** — no reset at combat end yet. Future: snapshot at `Unit3D.setup()` and restore post-combat.
+- **`cognition` has no derived stat yet** — reserved for ability cost scaling.
+- **`abilities` array is exactly 4 slots** — ActionMenu greys out empty slots.
+- **`get_ability()` never returns null** — safe to call without nil checks.
+- **ForceType.LEFT/RIGHT are implemented but not yet assigned** to any archetype ability.
 
 ---
 
@@ -272,8 +277,9 @@ static func get_ability(ability_id: String) -> AbilityData
 
 | Date | Change |
 |---|---|
-| 2026-04-15 | Added `EffectData` resource (EffectType, PoolType, MoveType enums + fields) |
-| 2026-04-15 | Rewrote `AbilityData` with `TargetShape`, `ApplicableTo`, `Attribute` enums; added `effects: Array[EffectData]`, `passthrough` |
-| 2026-04-15 | `AbilityLibrary`: all 12 abilities fully defined with typed `EffectData` entries |
-| 2026-04-14 | `AbilityData` initial version with `TargetType` enum and `tile_range`; ability IDs replace name strings in `CombatantData.abilities` |
-| 2026-04-14 | `ArchetypeLibrary`: 5 archetypes defined; randomized factory |
+| 2026-04-15 | Added `ARC(5)` to TargetShape — 3-wide adjacent arc for sweep-style abilities |
+| 2026-04-15 | Reshaped `CONE` to expanding T: stem(1) + crossbar(3) + back row(5) |
+| 2026-04-15 | Added `ForceType` enum to EffectData (PUSH/PULL/LEFT/RIGHT/RADIAL) + `force_type` field |
+| 2026-04-15 | Added 6 new abilities: fireball, heal_burst, charge, gust, yank, windblast |
+| 2026-04-15 | Updated all archetype ability assignments; `taunt`/`inspire` removed from active slots (still defined) |
+| 2026-04-15 | Added `EffectData` resource, rewrote `AbilityData`, defined all 14 base abilities with typed EffectData |
