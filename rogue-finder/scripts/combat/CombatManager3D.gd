@@ -13,7 +13,7 @@ extends Node3D
 const ENEMY_TURN_DELAY: float = 0.65
 
 enum CombatState { PLAYER_TURN, QTE_RUNNING, ENEMY_TURN, WIN, LOSE }
-enum PlayerMode  { IDLE, STRIDE_MODE, ABILITY_TARGET_MODE }
+enum PlayerMode  { IDLE, STRIDE_MODE, ABILITY_TARGET_MODE, TRAVEL_DESTINATION }
 
 var state: CombatState = CombatState.PLAYER_TURN
 var mode:  PlayerMode  = PlayerMode.IDLE
@@ -23,6 +23,8 @@ var _enemy_units:    Array[Unit3D]      = []
 var _selected_unit:  Unit3D             = null
 var _attack_target:  Unit3D             = null
 var _pending_ability: AbilityData       = null   ## set when ability chosen from menu
+var _aoe_origin:     Vector2i           = Vector2i(-1, -1)  ## aimed cell for AoE abilities
+var _travel_effect:  EffectData         = null   ## stored while awaiting destination pick
 
 var _grid:           Grid3D             = null
 var _camera_rig:     CameraController   = null
@@ -227,6 +229,8 @@ func _handle_left_click() -> void:
 			_try_move(cell)
 		PlayerMode.ABILITY_TARGET_MODE:
 			_try_ability_target(cell)
+		PlayerMode.TRAVEL_DESTINATION:
+			_try_travel_destination(cell)
 
 ## Double-click on any unit opens the full StatPanel examine window.
 func _handle_double_click() -> void:
@@ -278,8 +282,10 @@ func _deselect() -> void:
 	_stat_panel.hide_panel()
 	_info_bar.hide_bar()
 	_action_menu.close()
-	_info_bar_unit = null
+	_info_bar_unit   = null
 	_pending_ability = null
+	_aoe_origin      = Vector2i(-1, -1)
+	_travel_effect   = null
 	mode = PlayerMode.IDLE
 	_update_status()
 
@@ -337,23 +343,58 @@ func _on_ability_selected(ability_id: String) -> void:
 				if eu.is_alive:
 					targets.append(eu)
 
-	if targets.is_empty():
-		_pending_ability = null
-		return
-
-	# Highlight valid target cells in purple (ability_target)
-	# AoE shapes (CONE, LINE, RADIAL) still use single-target pick as a placeholder
-	# until per-shape resolution is implemented.
+	# Highlight valid aim cells — varies by shape.
 	mode = PlayerMode.ABILITY_TARGET_MODE
 	_grid.clear_highlights()
 	_grid.set_highlight(_selected_unit.grid_pos, "selected")
-	for target in targets:
-		var dx: int = abs(target.grid_pos.x - _selected_unit.grid_pos.x)
-		var dy: int = abs(target.grid_pos.y - _selected_unit.grid_pos.y)
-		var dist: int = dx + dy
-		var in_range: bool = (_pending_ability.tile_range == -1) or (dist <= _pending_ability.tile_range)
-		if in_range:
-			_grid.set_highlight(target.grid_pos, "ability_target")
+	var caster_pos := _selected_unit.grid_pos
+
+	match _pending_ability.target_shape:
+		AbilityData.TargetShape.SINGLE:
+			# Highlight individual living units that are in range
+			if targets.is_empty():
+				_pending_ability = null
+				return
+			for target in targets:
+				var dx: int = abs(target.grid_pos.x - caster_pos.x)
+				var dy: int = abs(target.grid_pos.y - caster_pos.y)
+				var dist: int = dx + dy
+				if _pending_ability.tile_range == -1 or dist <= _pending_ability.tile_range:
+					_grid.set_highlight(target.grid_pos, "ability_target")
+
+		AbilityData.TargetShape.RADIAL:
+			# Player picks the blast center — any cell within tile_range of caster
+			for row in range(Grid3D.ROWS):
+				for col in range(Grid3D.COLS):
+					var cell := Vector2i(col, row)
+					var dist: int = abs(cell.x - caster_pos.x) + abs(cell.y - caster_pos.y)
+					if dist <= _pending_ability.tile_range:
+						_grid.set_highlight(cell, "ability_target")
+
+		AbilityData.TargetShape.CONE:
+			# Player picks one of the 4 cardinal adjacent cells to set direction
+			var cardinals: Array[Vector2i] = [
+				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
+			]
+			for dir in cardinals:
+				var cell := caster_pos + dir
+				if _grid.is_valid(cell):
+					_grid.set_highlight(cell, "ability_target")
+
+		AbilityData.TargetShape.LINE:
+			# Player picks any cell along the 4 cardinal axes up to tile_range
+			var cardinals: Array[Vector2i] = [
+				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
+			]
+			for dir in cardinals:
+				var cur := caster_pos + dir
+				var steps: int = 0
+				var limit: int = _pending_ability.tile_range if _pending_ability.tile_range != -1 else 999
+				while _grid.is_valid(cur) and steps < limit:
+					_grid.set_highlight(cur, "ability_target")
+					cur = cur + dir
+					steps += 1
+
 	_update_status()
 
 ## Resolve the player clicking a cell while in ABILITY_TARGET_MODE.
@@ -361,17 +402,37 @@ func _try_ability_target(cell: Vector2i) -> void:
 	if not _selected_unit or not _pending_ability:
 		return
 	if _grid.highlighted_cells.get(cell, "") != "ability_target":
-		# Clicked a non-target cell — cancel ability mode, return to IDLE
+		# Clicked outside valid aim cells — cancel and re-open menu
 		_pending_ability = null
-		_select_unit(_selected_unit)   # re-opens menu and refreshes highlights
+		_select_unit(_selected_unit)
 		return
-	var obj: Object = _grid.get_unit_at(cell)
-	if not obj is Unit3D:
-		return
-	var target := obj as Unit3D
-	if not target.is_alive:
-		return
-	_initiate_action(_selected_unit, target)  # _attack_target set inside _initiate_action
+
+	match _pending_ability.target_shape:
+		AbilityData.TargetShape.SINGLE:
+			var obj: Object = _grid.get_unit_at(cell)
+			if not obj is Unit3D:
+				return
+			var target := obj as Unit3D
+			if not target.is_alive:
+				return
+			_initiate_action(_selected_unit, target)
+		AbilityData.TargetShape.RADIAL, AbilityData.TargetShape.CONE, AbilityData.TargetShape.LINE:
+			# Store the aimed origin cell; the QTE result will resolve the full shape
+			_aoe_origin = cell
+			_initiate_aoe_action(_selected_unit, _grid.grid_to_world(cell))
+
+## Kick off a QTE for an AoE ability. No single target — uses origin world position
+## for the attack animation lunge direction.
+func _initiate_aoe_action(attacker: Unit3D, origin_world: Vector3) -> void:
+	_attack_target = null
+	state = CombatState.QTE_RUNNING
+	mode  = PlayerMode.IDLE
+	_grid.clear_highlights()
+	_action_menu.close()
+	_update_status()
+	attacker.play_attack_anim(origin_world)
+	await get_tree().create_timer(0.09).timeout
+	_qte_bar.start_qte()
 
 ## Consume the equipped item (sets consumable to "" so the button greys out).
 func _on_consumable_selected() -> void:
@@ -404,14 +465,43 @@ func _on_qte_resolved(accuracy: float) -> void:
 		_update_status()
 		return
 
-	if _selected_unit and _attack_target:
+	var has_aoe: bool  = _aoe_origin != Vector2i(-1, -1)
+	var has_target: bool = _attack_target != null
+
+	if _selected_unit and (has_target or has_aoe):
+		# Check for TRAVEL before spending energy/acting so we can enter destination mode
+		var travel_eff: EffectData = null
+		for eff: EffectData in _pending_ability.effects:
+			if eff.effect_type == EffectData.EffectType.TRAVEL:
+				travel_eff = eff
+				break
+
 		_selected_unit.spend_energy(_pending_ability.energy_cost)
 		_selected_unit.has_acted = true
-		_apply_effects(_pending_ability, _selected_unit, _attack_target, accuracy)
+
+		if travel_eff != null:
+			# Enter destination-pick mode; effect resolves when the player clicks a tile
+			_travel_effect  = travel_eff
+			_pending_ability = null
+			_attack_target   = null
+			_aoe_origin      = Vector2i(-1, -1)
+			state = CombatState.PLAYER_TURN
+			mode  = PlayerMode.TRAVEL_DESTINATION
+			_highlight_travel_destinations(_selected_unit, _travel_effect)
+			_update_status()
+			return
+		elif has_aoe:
+			var cells := _get_shape_cells(_selected_unit.grid_pos, _aoe_origin, _pending_ability)
+			for unit: Unit3D in _get_units_in_cells(cells, _pending_ability.applicable_to):
+				_apply_effects(_pending_ability, _selected_unit, unit, accuracy)
+		else:
+			_apply_effects(_pending_ability, _selected_unit, _attack_target, accuracy)
+
 		_camera_rig.trigger_shake()
 
 	_pending_ability = null
 	_attack_target   = null
+	_aoe_origin      = Vector2i(-1, -1)
 
 	if state == CombatState.WIN or state == CombatState.LOSE:
 		return
@@ -476,6 +566,136 @@ func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
 			unit.data.vitality  = clampi(unit.data.vitality  + delta, 0, 5)
 		AbilityData.Attribute.WILLPOWER:
 			unit.data.willpower = clampi(unit.data.willpower + delta, 0, 5)
+
+## --- TRAVEL Effect ---
+
+## Highlights valid destination tiles for a TRAVEL effect.
+## FREE: all unoccupied cells within Manhattan ≤ base_value of the caster.
+## LINE: unoccupied cells along the 4 cardinal axes up to base_value, stopping at obstacles.
+func _highlight_travel_destinations(unit: Unit3D, effect: EffectData) -> void:
+	_grid.clear_highlights()
+	_grid.set_highlight(unit.grid_pos, "selected")
+	var move_range: int = effect.base_value
+
+	if effect.movement_type == EffectData.MoveType.FREE:
+		for row in range(Grid3D.ROWS):
+			for col in range(Grid3D.COLS):
+				var cell := Vector2i(col, row)
+				var dist: int = abs(cell.x - unit.grid_pos.x) + abs(cell.y - unit.grid_pos.y)
+				if dist > 0 and dist <= move_range and not _grid.is_occupied(cell):
+					_grid.set_highlight(cell, "move")
+	else:
+		# LINE: straight-line repositioning only
+		var cardinals: Array[Vector2i] = [
+			Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
+		]
+		for dir in cardinals:
+			var cur := unit.grid_pos + dir
+			var steps: int = 0
+			while _grid.is_valid(cur) and steps < move_range:
+				if _grid.is_occupied(cur):
+					break  # blocked
+				_grid.set_highlight(cur, "move")
+				cur = cur + dir
+				steps += 1
+
+## Resolves the player clicking a destination tile during TRAVEL_DESTINATION mode.
+func _try_travel_destination(cell: Vector2i) -> void:
+	if not _selected_unit or not _travel_effect:
+		return
+	if _grid.highlighted_cells.get(cell, "") != "move":
+		# Clicked outside valid destinations — cancel travel
+		_travel_effect = null
+		mode = PlayerMode.IDLE
+		_grid.clear_highlights()
+		_update_status()
+		return
+
+	var old_pos: Vector2i = _selected_unit.grid_pos
+	_grid.clear_occupied(old_pos)
+	_selected_unit.move_to(cell)
+	_grid.set_occupied(cell, _selected_unit)
+	var tw: Tween = create_tween()
+	tw.tween_property(_selected_unit, "global_position", _grid.grid_to_world(cell), 0.18)
+
+	_travel_effect = null
+	mode = PlayerMode.IDLE
+	_grid.clear_highlights()
+	_grid.set_highlight(cell, "selected")
+	_update_status()
+	_check_auto_end_turn()
+
+## --- AoE Shape Helpers ---
+
+## Returns the cardinal direction from `from` to `to`, snapping to the dominant axis.
+## e.g. (3, 1) → (1, 0);  (1, 3) → (0, 1)
+func _cardinal_direction(from: Vector2i, to: Vector2i) -> Vector2i:
+	var diff := to - from
+	if abs(diff.x) >= abs(diff.y):
+		return Vector2i(sign(diff.x), 0)
+	else:
+		return Vector2i(0, sign(diff.y))
+
+## Returns every grid cell covered by the ability's shape, given caster and aim positions.
+## RADIAL: all cells within Manhattan ≤ 2 of origin (fixed blast radius).
+## CONE:   T-shape — root adjacent to caster + 3-wide row one step further.
+## LINE:   straight ray from caster through origin, up to tile_range; stops at first
+##         occupied cell unless ability.passthrough is true.
+func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: AbilityData) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	match ability.target_shape:
+		AbilityData.TargetShape.RADIAL:
+			var radius: int = 2  # fixed by design spec ("5 wide × 5 tall" diamond)
+			for dx in range(-radius, radius + 1):
+				for dy in range(-radius, radius + 1):
+					if abs(dx) + abs(dy) <= radius:
+						var cell := Vector2i(origin_pos.x + dx, origin_pos.y + dy)
+						if _grid.is_valid(cell):
+							cells.append(cell)
+		AbilityData.TargetShape.CONE:
+			# Direction from caster to the clicked adjacent cell
+			var dir := _cardinal_direction(caster_pos, origin_pos)
+			var root := caster_pos + dir          # cell adjacent to caster
+			var apex := root + dir                 # one step further
+			var perp := Vector2i(dir.y, dir.x)    # perpendicular axis
+			var candidates: Array[Vector2i] = [root, apex - perp, apex, apex + perp]
+			for c in candidates:
+				if _grid.is_valid(c):
+					cells.append(c)
+		AbilityData.TargetShape.LINE:
+			var dir := _cardinal_direction(caster_pos, origin_pos)
+			var cur := caster_pos + dir
+			var steps: int = 0
+			var limit: int = ability.tile_range if ability.tile_range != -1 else 999
+			while _grid.is_valid(cur) and steps < limit:
+				cells.append(cur)
+				if _grid.is_occupied(cur) and not ability.passthrough:
+					break  # blocked by a unit; stop unless passthrough
+				cur = cur + dir
+				steps += 1
+	return cells
+
+## Filters a cell list to living units that match the ability's applicable_to.
+func _get_units_in_cells(cells: Array[Vector2i], applicable_to: AbilityData.ApplicableTo) -> Array[Unit3D]:
+	var result: Array[Unit3D] = []
+	for cell in cells:
+		var obj: Object = _grid.get_unit_at(cell)
+		if not obj is Unit3D:
+			continue
+		var unit := obj as Unit3D
+		if not unit.is_alive:
+			continue
+		var is_player: bool = unit.data.is_player_unit
+		match applicable_to:
+			AbilityData.ApplicableTo.ALLY:
+				if is_player:
+					result.append(unit)
+			AbilityData.ApplicableTo.ENEMY:
+				if not is_player:
+					result.append(unit)
+			AbilityData.ApplicableTo.ANY:
+				result.append(unit)
+	return result
 
 ## --- End Player Turn ---
 
@@ -633,6 +853,8 @@ func _update_status() -> void:
 				PlayerMode.ABILITY_TARGET_MODE:
 					var aname: String = _pending_ability.ability_name if _pending_ability else "Ability"
 					_status_label.text = "%s — click a purple target  |  ESC cancel" % aname
+				PlayerMode.TRAVEL_DESTINATION:
+					_status_label.text = "REPOSITION — click a blue tile  |  ESC cancel"
 		CombatState.QTE_RUNNING:
 			_status_label.text = "QTE — press SPACE or click to strike!"
 		CombatState.ENEMY_TURN:
