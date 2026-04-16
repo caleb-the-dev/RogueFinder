@@ -762,8 +762,8 @@ func _cardinal_direction(from: Vector2i, to: Vector2i) -> Vector2i:
 ##         distance-2 cells are blocked (by a unit sitting directly between them and origin).
 ##         Diagonal distance-2 cells are never blocked — no clean intermediate exists.
 ## ARC:    3-wide row at distance 1 — no passthrough logic (arc always hits all 3).
-## CONE:   T-shape — stem at depth 1, crossbar at depth 2. Without passthrough, a unit
-##         at the stem blocks the entire crossbar.
+## CONE:   stem (1) → 3-wide crossbar (2) → 5-wide back row (3). Without passthrough,
+##         a unit at the stem blocks depth 2 and 3.
 ## LINE:   straight ray up to tile_range; stops at first unit unless passthrough.
 func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: AbilityData) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
@@ -795,16 +795,20 @@ func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: Abili
 				if _grid.is_valid(c):
 					cells.append(c)
 		AbilityData.TargetShape.CONE:
-			# T-shape: stem (d1) always hits. Crossbar (d2 row) blocked by a unit at d1
-			# unless passthrough is true — e.g. fire_breath can burn through one target.
+			# Expanding shape: stem (d1), 3-wide crossbar (d2), 5-wide back row (d3).
+			# Without passthrough, a unit at d1 blocks d2 and d3.
 			var dir: Vector2i  = _cardinal_direction(caster_pos, origin_pos)
 			var perp: Vector2i = Vector2i(dir.y, dir.x)
 			var d1: Vector2i   = caster_pos + dir
 			var d2: Vector2i   = d1 + dir
+			var d3: Vector2i   = d2 + dir
 			if _grid.is_valid(d1):
 				cells.append(d1)
 			if ability.passthrough or not _grid.is_occupied(d1):
 				for c: Vector2i in [d2 - perp, d2, d2 + perp]:
+					if _grid.is_valid(c):
+						cells.append(c)
+				for c: Vector2i in [d3 - perp * 2, d3 - perp, d3, d3 + perp, d3 + perp * 2]:
 					if _grid.is_valid(c):
 						cells.append(c)
 		AbilityData.TargetShape.LINE:
