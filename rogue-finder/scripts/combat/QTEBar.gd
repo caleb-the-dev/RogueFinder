@@ -57,11 +57,13 @@ var _dir_input_window: float     = 1.5   ## seconds per directional beat; set by
 
 ## --- Click-targets QTE state ---
 
-var _ct_mode:    bool            = false   ## true while click-targets QTE is active
-var _ct_window:  float           = 1.8     ## seconds each target is live; set by difficulty
-var _ct_nodes:   Array[ColorRect] = []     ## one ColorRect per spawned target
-var _ct_centers: Array[Vector2]  = []      ## screen-space centre for each target
-var _ct_active:  Array[bool]     = []      ## false once a target has been resolved
+var _ct_mode:       bool             = false   ## true while click-targets QTE is active
+var _ct_window:     float            = 1.8     ## seconds each target is live; set by difficulty
+var _ct_nodes:      Array[ColorRect] = []      ## one ColorRect per spawned target
+var _ct_bar_nodes:  Array[ColorRect] = []      ## depleting timer bar above each target
+var _ct_bar_tweens: Array[Tween]     = []      ## tween driving each bar; killed on resolve
+var _ct_centers:    Array[Vector2]   = []      ## screen-space centre for each target
+var _ct_active:     Array[bool]      = []      ## false once a target has been resolved
 
 ## --- Power meter state ---
 
@@ -665,9 +667,11 @@ func _on_cursor_expired() -> void:
 func _start_click_targets_qte(energy_cost: int, shape: AbilityData.TargetShape,
 		origin: Vector2) -> void:
 	_ct_mode    = true
-	_ct_nodes   = []
-	_ct_centers = []
-	_ct_active  = []
+	_ct_nodes      = []
+	_ct_bar_nodes  = []
+	_ct_bar_tweens = []
+	_ct_centers    = []
+	_ct_active     = []
 	_beat_results = []
 	_current_beat = 0   ## reused here as "resolved beat count"
 	_resolved     = false
@@ -716,6 +720,17 @@ func _spawn_click_target(origin: Vector2) -> void:
 	_ct_centers.append(center)
 	_ct_active.append(true)
 
+	## Depleting timer bar — sits above the circle, same blue as directional timing fill
+	var bar := ColorRect.new()
+	bar.color    = Color(0.20, 0.70, 1.0)
+	bar.size     = Vector2(CT_RADIUS * 2.0, 4.0)
+	bar.position = center + Vector2(-CT_RADIUS, -(CT_RADIUS + 6.0))
+	add_child(bar)
+	var bar_tween: Tween = create_tween()
+	bar_tween.tween_property(bar, "size:x", 0.0, _ct_window)
+	_ct_bar_nodes.append(bar)
+	_ct_bar_tweens.append(bar_tween)
+
 	## Timeout timer for this specific target
 	get_tree().create_timer(_ct_window).timeout.connect(
 		_on_ct_timeout.bind(idx)
@@ -748,6 +763,12 @@ func _resolve_ct_beat(idx: int, result: float) -> void:
 		return   ## guard against double-resolve
 	_ct_active[idx] = false
 
+	## Stop the timer bar tween and hide the bar immediately on resolve
+	if idx < _ct_bar_tweens.size():
+		_ct_bar_tweens[idx].kill()
+	if idx < _ct_bar_nodes.size():
+		_ct_bar_nodes[idx].visible = false
+
 	## Visual feedback: green flash on hit, dim red on miss
 	var node: ColorRect = _ct_nodes[idx]
 	node.color = Color.GREEN if result >= 1.0 else Color(0.5, 0.1, 0.1)
@@ -773,7 +794,12 @@ func _cleanup_ct_nodes() -> void:
 	for node: ColorRect in _ct_nodes:
 		if is_instance_valid(node):
 			node.queue_free()
+	for bar: ColorRect in _ct_bar_nodes:
+		if is_instance_valid(bar):
+			bar.queue_free()
 	_ct_nodes.clear()
+	_ct_bar_nodes.clear()
+	_ct_bar_tweens.clear()
 	_ct_centers.clear()
 	_ct_active.clear()
 
