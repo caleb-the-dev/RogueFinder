@@ -12,6 +12,15 @@ extends Node3D
 
 const ENEMY_TURN_DELAY: float = 0.65
 
+## Abbreviations used in floating combat text for stat buff/debuff effects.
+const STAT_ABBREV: Dictionary = {
+	AbilityData.Attribute.STRENGTH:  "STR",
+	AbilityData.Attribute.DEXTERITY: "DEX",
+	AbilityData.Attribute.COGNITION: "COG",
+	AbilityData.Attribute.VITALITY:  "VIT",
+	AbilityData.Attribute.WILLPOWER: "WIL",
+}
+
 ## Display names for stat buffs and debuffs — [buff_name, debuff_name] per attribute.
 const STAT_STATUS_NAMES: Dictionary = {
 	AbilityData.Attribute.STRENGTH:  ["Empowered",  "Weakened"],
@@ -453,7 +462,10 @@ func _initiate_aoe_action(attacker: Unit3D, origin_world: Vector3) -> void:
 	_update_status()
 	attacker.play_attack_anim(origin_world)
 	await get_tree().create_timer(0.09).timeout
-	_qte_bar.start_qte()
+	var _eff_type: EffectData.EffectType = EffectData.EffectType.HARM
+	if not _pending_ability.effects.is_empty():
+		_eff_type = _pending_ability.effects[0].effect_type
+	_qte_bar.start_qte(_pending_ability.energy_cost, _pending_ability.target_shape, _eff_type)
 
 ## Consume the equipped item (sets consumable to "" so the button greys out).
 func _on_consumable_selected() -> void:
@@ -477,9 +489,12 @@ func _initiate_action(attacker: Unit3D, target: Unit3D) -> void:
 	_update_status()
 	attacker.play_attack_anim(target.global_position)
 	await get_tree().create_timer(0.09).timeout
-	_qte_bar.start_qte()
+	var _eff_type: EffectData.EffectType = EffectData.EffectType.HARM
+	if not _pending_ability.effects.is_empty():
+		_eff_type = _pending_ability.effects[0].effect_type
+	_qte_bar.start_qte(_pending_ability.energy_cost, _pending_ability.target_shape, _eff_type)
 
-func _on_qte_resolved(accuracy: float) -> void:
+func _on_qte_resolved(multiplier: float) -> void:
 	if not _pending_ability:
 		push_error("CombatManager3D: _on_qte_resolved called with no _pending_ability")
 		state = CombatState.PLAYER_TURN
@@ -514,9 +529,9 @@ func _on_qte_resolved(accuracy: float) -> void:
 		elif has_aoe:
 			var cells := _get_shape_cells(_selected_unit.grid_pos, _aoe_origin, _pending_ability)
 			for unit: Unit3D in _get_units_in_cells(cells, _pending_ability.applicable_to):
-				_apply_effects(_pending_ability, _selected_unit, unit, accuracy, _aoe_origin)
+				_apply_effects(_pending_ability, _selected_unit, unit, multiplier, _aoe_origin)
 		else:
-			_apply_effects(_pending_ability, _selected_unit, _attack_target, accuracy)
+			_apply_effects(_pending_ability, _selected_unit, _attack_target, multiplier)
 
 		_camera_rig.trigger_shake()
 
@@ -539,26 +554,27 @@ func _on_qte_resolved(accuracy: float) -> void:
 ## Resolves every effect in ability.effects against target using the shared accuracy float.
 ## accuracy comes from the QTE result (0.0–1.0); all effects share the same roll.
 ## blast_origin is the aimed AoE cell — passed through to FORCE/RADIAL displacement.
-func _apply_effects(ability: AbilityData, caster: Unit3D, target: Unit3D, accuracy: float,
+func _apply_effects(ability: AbilityData, caster: Unit3D, target: Unit3D, multiplier: float,
 		blast_origin: Vector2i = Vector2i(-1, -1)) -> void:
-	var attr_val: int = _get_attribute_value(caster, ability.attribute)
 	for effect: EffectData in ability.effects:
 		match effect.effect_type:
 			EffectData.EffectType.HARM:
-				var dmg: int = maxi(1, roundi(accuracy * float(effect.base_value + attr_val)))
+				var stat_delta: float = clampf(
+					float(caster.data.attack) / float(target.data.defense), 0.5, 2.0)
+				var dmg: int = maxi(1, roundi(float(effect.base_value) * stat_delta * multiplier))
 				target.take_damage(dmg)
 			EffectData.EffectType.MEND:
-				var heal: int = maxi(1, roundi(accuracy * float(effect.base_value + attr_val)))
+				var heal: int = maxi(1, roundi(float(effect.base_value) * 1.0 * multiplier))
 				target.heal(heal)
 			EffectData.EffectType.BUFF:
-				# accuracy < 0.3 = whiff; flat value otherwise
-				if accuracy >= 0.3:
-					_apply_stat_delta(target, effect.target_stat, effect.base_value)
+				var delta: int = maxi(1, roundi(float(effect.base_value) * 1.0 * multiplier))
+				_apply_stat_delta(target, effect.target_stat, delta)
 			EffectData.EffectType.DEBUFF:
-				if accuracy >= 0.3:
-					_apply_stat_delta(target, effect.target_stat, -effect.base_value)
+				var delta: int = maxi(1, roundi(float(effect.base_value) * 1.0 * multiplier))
+				_apply_stat_delta(target, effect.target_stat, -delta)
 			EffectData.EffectType.FORCE:
-				if accuracy >= 0.3:
+				# multiplier ≤ 0.25 is the failure zone — no displacement on a miss
+				if multiplier > 0.25:
 					_apply_force(caster, target, effect, blast_origin)
 			EffectData.EffectType.TRAVEL:
 				# Handled before _apply_effects is called — see _on_qte_resolved
@@ -593,6 +609,13 @@ func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
 	# Record the named status effect so the UI can display it
 	var name_pair: Array = STAT_STATUS_NAMES.get(stat, ["Buffed", "Debuffed"])
 	unit.add_stat_effect(name_pair[0] if delta > 0 else name_pair[1], stat, delta)
+
+	# Floating combat text — green for buff, orange for debuff
+	var abbrev: String = STAT_ABBREV.get(stat, "?")
+	if delta > 0:
+		unit.show_floating_text("+%s" % abbrev, Color(0.18, 1.0, 0.38))
+	else:
+		unit.show_floating_text("-%s" % abbrev, Color(1.0, 0.55, 0.0))
 
 ## --- FORCE Effect ---
 
@@ -914,14 +937,14 @@ func _process_enemy_actions() -> void:
 		## Enemy uses its first ability (index 0) for the attack, falling back to "strike"
 		var enemy_ability_id: String = enemy.data.abilities[0] if enemy.data.abilities[0] != "" else "strike"
 		var enemy_ability: AbilityData = AbilityLibrary.get_ability(enemy_ability_id)
-		## Enemy accuracy simulated by qte_resolution stat
-		var accuracy: float = enemy.data.qte_resolution
+		## Enemy accuracy simulated by mapping qte_resolution to a multiplier tier
+		var multiplier: float = _qte_resolution_to_multiplier(enemy.data.qte_resolution)
 
 		# Lunge, then deal damage at the moment of impact
 		enemy.play_attack_anim(target.global_position)
 		await get_tree().create_timer(0.10).timeout
 
-		_apply_effects(enemy_ability, enemy, target, accuracy)
+		_apply_effects(enemy_ability, enemy, target, multiplier)
 		_camera_rig.trigger_shake()
 		# Refresh condensed bar if the attacked unit is currently shown
 		if _info_bar_unit == target:
@@ -974,6 +997,14 @@ func _calculate_damage(atk: int, def: int, accuracy: float) -> int:
 	return maxi(1, roundi(float(atk) * stat_mult * acc_mult))
 
 ## --- Helpers ---
+
+## Maps enemy qte_resolution stat to the nearest multiplier tier.
+## Mirrors the zone thresholds the player QTE bar uses.
+func _qte_resolution_to_multiplier(qte_res: float) -> float:
+	if qte_res >= 0.85: return 1.25
+	if qte_res >= 0.60: return 1.0
+	if qte_res >= 0.30: return 0.75
+	return 0.25
 
 ## Returns true if the unit has not yet acted AND can afford at least one slotted ability.
 func _unit_can_still_act(unit: Unit3D) -> bool:

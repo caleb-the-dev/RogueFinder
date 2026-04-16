@@ -122,6 +122,7 @@ func setup(unit_data: CombatantData, pos: Vector2i) -> void:
 
 func take_damage(amount: int) -> void:
 	current_hp = maxi(0, current_hp - amount)
+	show_floating_text("-%d" % amount, Color(1.0, 0.22, 0.18))
 	if current_hp == 0 and is_alive:
 		is_alive = false
 		_refresh_visuals()
@@ -133,6 +134,7 @@ func take_damage(amount: int) -> void:
 
 func heal(amount: int) -> void:
 	current_hp = mini(current_hp + amount, data.hp_max)
+	show_floating_text("+%d" % amount, Color(0.18, 1.0, 0.38))
 	_refresh_visuals()
 
 func spend_energy(amount: int) -> bool:
@@ -228,6 +230,26 @@ func _apply_base_color() -> void:
 		_body_mat.albedo_color = _base_color
 
 ## --- Animations ---
+
+## Spawns a floating Label3D above the unit that rises and fades out. Fire-and-forget.
+## Small random X offset prevents stacking when multiple effects land simultaneously.
+func show_floating_text(text: String, color: Color) -> void:
+	var lbl := Label3D.new()
+	lbl.text          = text
+	lbl.font_size     = 36
+	lbl.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.no_depth_test = true
+	lbl.modulate      = color
+	lbl.position      = Vector3(randf_range(-0.3, 0.3), BOX_SIZE.y + 1.1, 0.0)
+	add_child(lbl)
+
+	var tw: Tween = create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(lbl, "position:y", lbl.position.y + 1.5, 1.5)
+	tw.tween_property(lbl, "modulate:a", 0.0, 1.5)
+	await tw.finished
+	if is_instance_valid(lbl):
+		lbl.queue_free()
 
 ## Lunge 35% toward target, then return. Fire-and-forget.
 func play_attack_anim(target_world: Vector3) -> void:

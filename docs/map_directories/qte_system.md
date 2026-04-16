@@ -1,14 +1,14 @@
 # System: QTE System
 
-> Last updated: 2026-04-14 (Session 2 — Stage 1.5)
+> Last updated: 2026-04-16 (Session 8 — QTE Slice 1: 4-zone bar, multi-beat, multiplier output)
 
 ---
 
 ## Purpose
 
-The QTE (Quick Time Event) system is a **standalone skill-check overlay**. It renders a sliding cursor bar over the game as a CanvasLayer and emits an accuracy float (0.0–1.0) when the player hits Space/click or the cursor expires.
+The QTE (Quick Time Event) system is a **standalone skill-check overlay**. It renders a sliding cursor bar over the game as a CanvasLayer and emits a multiplier float (0.25 / 0.75 / 1.0 / 1.25) when all beats complete.
 
-This accuracy value drives the damage formula in CombatManager. The system is completely self-contained — it neither knows nor cares what called it.
+This multiplier drives the damage/heal/stat formula in CombatManager. The system is completely self-contained — it neither knows nor cares what called it.
 
 Enemy "QTE" is simulated by CombatManager directly using the unit's `qte_resolution` stat — the QTEBar is not shown for enemy turns.
 
@@ -20,13 +20,13 @@ Enemy "QTE" is simulated by CombatManager directly using the unit's `qte_resolut
 |------|-------|------|
 | `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | Sliding bar QTE, CanvasLayer layer 10 |
 
-`.tscn` is minimal. All UI nodes (bar background, sweet-spot panel, cursor, feedback label) are built in `_build_ui()`.
+`.tscn` is minimal. All UI nodes are built in `_build_ui()`.
 
 ---
 
 ## Dependencies
 
-None. QTEBar has **no runtime dependencies** on other game systems. It is purely input-in → accuracy-out.
+None. QTEBar has **no runtime dependencies** on other game systems. It is purely input-in → multiplier-out.
 
 ---
 
@@ -34,7 +34,9 @@ None. QTEBar has **no runtime dependencies** on other game systems. It is purely
 
 | Signal | Arguments | When |
 |--------|-----------|------|
-| `qte_resolved` | `accuracy: float` | Player presses action key, or cursor reaches the end without input |
+| `qte_resolved` | `multiplier: float` | All beats complete and final feedback has been displayed |
+
+`multiplier` is one of: `1.25` (perfect), `1.0` (good), `0.75` (weak), `0.25` (miss/failure).
 
 CombatManager subscribes to this signal before calling `start_qte()`.
 
@@ -44,93 +46,121 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `start_qte` | `() -> void` | Makes the bar visible and starts the cursor animation coroutine |
+| `start_qte` | `(energy_cost: int, shape: AbilityData.TargetShape, effect_type: EffectData.EffectType) -> void` | Sets difficulty, beat count, then starts the first slider beat |
 
-All other methods are internal.
-
----
-
-## Bar Layout
-
-```
-[===========================|=======|==========================]
-         dead zone        sweet spot        dead zone
-         (0.0–0.35)       (0.35–0.65)       (0.65–1.0)
-
-                            ↑ cursor slides left → right
-```
-
-| Constant | Value | Meaning |
-|----------|-------|---------|
-| `BAR_WIDTH` | 480.0 px | Total bar width |
-| `CURSOR_WIDTH` | 10.0 px | Visual cursor width |
-| `SWEET_SPOT_START` | 0.35 | Normalized start of sweet spot |
-| `SWEET_SPOT_END` | 0.65 | Normalized end of sweet spot |
-| `CURSOR_DURATION` | 1.8 s | Time for cursor to travel full bar |
+`effect_type` is the hook for future QTE type routing (see Visual Cue Convention). All types currently fall through to the slider.
 
 ---
 
-## Accuracy Formula
+## Dynamic Difficulty
 
-```
-pos = cursor normalized position (0.0 = left, 1.0 = right)
-center = 0.5
+`energy_cost` sets the difficulty tier once per `start_qte()` call:
 
-if pos in [SWEET_SPOT_START, SWEET_SPOT_END]:
-    accuracy = 1.0 - abs(pos - center) * 2.0
-    # → 1.0 at dead center (0.5), 0.5 at sweet-spot edges
-else:
-    accuracy = 0.2   # missed sweet spot — glancing blow
-```
-
-**Result range:** 0.2 (miss) to 1.0 (perfect center hit).
-
-On cursor expiry (no input), `accuracy = 0.0` is passed — a complete miss.
+| Tier | Energy cost | Sweet-spot half-width | Cursor duration |
+|------|-------------|-----------------------|----------------|
+| Low | 1–2 | 0.20 (40 % of bar) | 2.2 s |
+| Medium | 3–4 | 0.12 (24 % of bar) | 1.6 s |
+| High | 5+ | 0.07 (14 % of bar) | 1.1 s |
 
 ---
 
-## Input
+## 4-Zone Bar Layout
 
-The QTE listens for:
-- `Space` keypress
-- Left mouse button click
+```
+[=red===|===orange=|==green=|=GOLD=|=green==|===orange=|===red===]
+         ←── sweet spot (ss_half × 2 wide) ──→
+```
 
-Input is only consumed when the bar is visible (`visible == true`). After registering a hit, input is blocked until the feedback animation completes and the bar hides itself.
+All zones are symmetric around bar center (0.5). `dist = |cursor_pos − 0.5|`.
+
+| Zone | Condition | Multiplier | Colour |
+|------|-----------|-----------|--------|
+| Gold (perfect) | `dist < ss_half × 0.30` | **1.25** | Gold `#FFD900` |
+| Green (major) | `ss_half×0.30 ≤ dist < ss_half×0.70` | **1.0** | Green `#2EC038` |
+| Orange (minor) | `ss_half×0.70 ≤ dist ≤ ss_half` | **0.75** | Orange `#E68019` |
+| Red (failure) | `dist > ss_half` | **0.25** | Dark red background |
+
+Zone ColorRects are children of `_bar_bg`. `_rebuild_zones()` repositions them whenever difficulty changes.
+
+---
+
+## Multi-Beat Sequencing
+
+Beat count is determined by `target_shape` at `start_qte()`:
+
+| Shape | Beat count |
+|-------|-----------|
+| SELF | 1 |
+| SINGLE | 1 |
+| ARC | 1 |
+| CONE | 2 |
+| LINE | 3 |
+| RADIAL | 4 |
+
+When `beat_count > 1`, the instruction label shows **"Beat N / M"**.
+
+Between beats: the per-beat result label flashes for **0.3 s** ("PERFECT" / "GOOD" / "WEAK" / "MISS"), then the next slider starts. After the final beat, the multiplier feedback label is shown for **0.85 s** before the bar hides and `qte_resolved` fires.
+
+---
+
+## Multiplier Aggregation
+
+After all beats complete, per-beat results are averaged and mapped to the nearest tier:
+
+| Average | Tier |
+|---------|------|
+| ≥ 1.2 | 1.25 (perfect) |
+| ≥ 0.9 | 1.0 (good) |
+| ≥ 0.6 | 0.75 (weak) |
+| < 0.6 | 0.25 (miss) |
+
+Example: a 4-beat RADIAL ability needs all-gold hits to reach 1.25× — one red drops the average below 1.2.
+
+---
+
+## Visual Cue Convention (Future QTE Types)
+
+| QTE Type | Mechanic | Visual |
+|----------|----------|--------|
+| Slider (current) | Press input to stop cursor | 4-zone gold/green/orange/red bar |
+| Timer QTE (QTE-2/3) | Press input within a window per beat | Depleting timer bar per beat |
+| Power meter (QTE-4, TRAVEL) | Hold/release to set power level | Same 4-color zone scheme on meter target zone |
 
 ---
 
 ## Flow
 
 ```
-start_qte()
-  → show bar
-  → _animate_cursor() [coroutine]
-      → slides cursor from 0 → 1 over CURSOR_DURATION seconds
-      → if player hits input: _register_hit() → _finish_qte(accuracy)
-      → if cursor expires:    _on_cursor_expired() → _finish_qte(0.0)
-
-_finish_qte(accuracy)
-  → _show_feedback(accuracy)   # brief color flash + label
-  → await 0.45s
-  → hide bar
-  → emit qte_resolved(accuracy)
+start_qte(energy_cost, shape, effect_type)
+  → _set_difficulty()         sets _ss_half, _cursor_duration, rebuilds zones
+  → _beat_count_for_shape()
+  → _start_next_beat()        [loops _beat_count times]
+      → _animate_cursor()     slides cursor 0→1 over _cursor_duration
+          → player input  → _register_hit() → _get_beat_result()
+          → cursor expires → _on_cursor_expired() → result = 0.25
+      → _process_beat_result(result)
+          → more beats? flash 0.3 s, loop
+          → last beat?  _aggregate_multiplier() → _show_final_feedback()
+              → await 0.85 s → hide bar → emit qte_resolved(multiplier)
 ```
 
 ---
 
-## Feedback Display
+## Enemy Simulation
 
-| Accuracy | Label text | Color |
-|----------|-----------|-------|
-| ≥ 0.8 | "PERFECT!" | Green |
-| ≥ 0.5 | "GOOD" | Yellow |
-| > 0.0 | "OK" | Orange |
-| 0.0 | "MISS" | Red |
+CombatManager3D maps `enemy.data.qte_resolution` to a multiplier tier without showing QTEBar:
+
+| qte_resolution range | Multiplier |
+|---------------------|-----------|
+| 0.85–1.0 | 1.25 |
+| 0.60–0.85 | 1.0 |
+| 0.30–0.60 | 0.75 |
+| 0.0–0.30 | 0.25 |
 
 ---
 
 ## Notes
 
 - The bar is always present in the scene tree (built by CombatManager3D in `_setup_ui()`), hidden until `start_qte()` is called.
-- CombatManager enters `QTE_RUNNING` state before calling `start_qte()` to block all other input during the QTE.
-- The `qte_resolved` signal fires **after** the feedback animation, not immediately on input — this is intentional so the player sees their result before the attack resolves.
+- CombatManager enters `QTE_RUNNING` state before calling `start_qte()` to block all other input.
+- `qte_resolved` fires **after** all feedback animations — intentional so the player sees their result before effects resolve.
