@@ -3,34 +3,51 @@ extends CanvasLayer
 
 ## --- QTE Bar ---
 ## Sliding-bar quick time event with multi-beat sequencing and dynamic difficulty.
+## Also hosts the directional-sequence QTE for BUFF / DEBUFF effects.
 ## All child nodes are built in _ready() so the .tscn stays minimal.
 ##
-## Visual cue convention for all QTE types (this file + future QTE-2/3/4):
-##   Slider QTE (this):      4-zone colored bar (gold / green / orange / red background)
+## Visual cue convention for all QTE types:
+##   Slider QTE (HARM / MEND / FORCE / TRAVEL): 4-zone colored bar (gold / green / orange / red)
+##   Directional QTE (BUFF / DEBUFF):            arrow sequence + shrinking timing bar per beat
 ##   Timer QTEs (QTE-2/3):   depleting timer bar per beat showing the input window
 ##   Power meter (QTE-4):    same 4-color zone scheme on the meter target zone
 
 signal qte_resolved(multiplier: float)
 
-const BAR_WIDTH: float    = 480.0
-const CURSOR_WIDTH: float = 10.0
+const BAR_WIDTH: float        = 480.0
+const CURSOR_WIDTH: float     = 10.0
+const TIMING_BAR_WIDTH: float = 400.0   ## width of the directional timing bar
 
 ## Difficulty tiers — set once per start_qte() call from energy_cost:
-##   Low   (1–2): 2.2 s cursor, sweet-spot half-width = 0.20 (40 % of bar)
-##   Medium(3–4): 1.6 s cursor, sweet-spot half-width = 0.12 (24 % of bar)
-##   High  (5+):  1.1 s cursor, sweet-spot half-width = 0.07 (14 % of bar)
+##   Low   (1–2): 2.2 s cursor / 2.0 s dir window, sweet-spot half-width = 0.20
+##   Medium(3–4): 1.6 s cursor / 1.5 s dir window, sweet-spot half-width = 0.12
+##   High  (5+):  1.1 s cursor / 1.0 s dir window, sweet-spot half-width = 0.07
+
+## --- Slider state ---
 
 var _cursor_pos: float      = 0.0
 var _tween: Tween           = null
 var _resolved: bool         = false
-var _ss_half: float         = 0.20   ## current sweet-spot half-width (normalised)
-var _cursor_duration: float = 2.2    ## current cursor travel time in seconds
+var _ss_half: float         = 0.20
+var _cursor_duration: float = 2.2
 
-var _beat_count: int            = 1    ## total beats for this QTE
-var _current_beat: int          = 0    ## 0-indexed beat in progress
-var _beat_results: Array[float] = []   ## per-beat multiplier results
+## --- Multi-beat state (shared) ---
 
-## Node refs — assigned in _build_ui()
+var _beat_count: int            = 1
+var _current_beat: int          = 0
+var _beat_results: Array[float] = []
+
+## --- Directional-sequence state ---
+
+var _directional_mode: bool      = false
+var _dir_sequence: Array[String] = []
+var _dir_resolved: bool          = false
+var _dir_shrink_tween: Tween     = null
+var _dir_input_window: float     = 1.5   ## seconds per directional beat; set by _set_difficulty
+
+## --- Node refs — assigned in _build_ui() ---
+
+## Slider nodes
 var _bar_bg:            ColorRect = null
 var _cursor:            ColorRect = null
 var _instruction_label: Label     = null
@@ -42,6 +59,11 @@ var _zone_orange_r: ColorRect = null
 var _zone_green_l:  ColorRect = null
 var _zone_green_r:  ColorRect = null
 var _zone_gold:     ColorRect = null
+
+## Directional nodes
+var _arrow_label:  Label     = null   ## large centred arrow character
+var _timing_bg:    ColorRect = null   ## full-width timing bar background
+var _timing_fill:  ColorRect = null   ## fill that shrinks to zero as the window expires
 
 func _ready() -> void:
 	_build_ui()
@@ -57,7 +79,7 @@ func _build_ui() -> void:
 	overlay.size     = Vector2(1280.0, 720.0)
 	add_child(overlay)
 
-	# Instruction / beat-counter text
+	# Instruction / beat-counter text (shared by both QTE types)
 	_instruction_label = Label.new()
 	_instruction_label.position             = Vector2(370.0, 282.0)
 	_instruction_label.size                 = Vector2(540.0, 32.0)
@@ -65,7 +87,7 @@ func _build_ui() -> void:
 	_instruction_label.add_theme_font_size_override("font_size", 18)
 	add_child(_instruction_label)
 
-	# Bar background — dark red; serves as the failure-zone colour
+	# Bar background — dark red; serves as the failure-zone colour (slider only)
 	_bar_bg          = ColorRect.new()
 	_bar_bg.color    = Color(0.35, 0.08, 0.08)
 	_bar_bg.position = Vector2(400.0, 324.0)
@@ -101,7 +123,7 @@ func _build_ui() -> void:
 	_cursor.size     = Vector2(CURSOR_WIDTH, 48.0)
 	_bar_bg.add_child(_cursor)
 
-	# Result / feedback text
+	# Result / feedback text (shared — appears below bar or below timing bar)
 	_result_label                          = Label.new()
 	_result_label.position                 = Vector2(370.0, 386.0)
 	_result_label.size                     = Vector2(540.0, 44.0)
@@ -109,6 +131,31 @@ func _build_ui() -> void:
 	_result_label.add_theme_font_size_override("font_size", 26)
 	_result_label.visible                  = false
 	add_child(_result_label)
+
+	# --- Directional QTE nodes ---
+
+	# Large arrow character centred on screen above the timing bar
+	_arrow_label = Label.new()
+	_arrow_label.position             = Vector2(490.0, 240.0)
+	_arrow_label.size                 = Vector2(300.0, 120.0)
+	_arrow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_arrow_label.add_theme_font_size_override("font_size", 96)
+	_arrow_label.visible              = false
+	add_child(_arrow_label)
+
+	# Timing bar — thin depleting bar showing how long the player has to input
+	_timing_bg          = ColorRect.new()
+	_timing_bg.color    = Color(0.25, 0.25, 0.25)
+	_timing_bg.position = Vector2(440.0, 370.0)
+	_timing_bg.size     = Vector2(TIMING_BAR_WIDTH, 16.0)
+	_timing_bg.visible  = false
+	add_child(_timing_bg)
+
+	_timing_fill         = ColorRect.new()
+	_timing_fill.color   = Color(0.20, 0.70, 1.0)   # bright blue fill
+	_timing_fill.position = Vector2.ZERO
+	_timing_fill.size    = Vector2(TIMING_BAR_WIDTH, 16.0)
+	_timing_bg.add_child(_timing_fill)
 
 	_rebuild_zones()
 
@@ -130,10 +177,9 @@ func _rebuild_zones() -> void:
 	_zone_gold.size       = Vector2(half_gold * 2.0, 48.0)
 
 	# Green: centre 70 % of sweet spot  →  half_green = ss_w × 0.35
-	# Green fills the band between half_gold and half_green from center on each side.
 	var half_green: float    = ss_w * 0.35
 	var green_l_start: float = center_px - half_green
-	var green_l_end: float   = gold_start                  # = center_px - half_gold
+	var green_l_end: float   = gold_start
 	_zone_green_l.position   = Vector2(green_l_start, 0.0)
 	_zone_green_l.size       = Vector2(green_l_end - green_l_start, 48.0)
 
@@ -153,15 +199,22 @@ func _rebuild_zones() -> void:
 
 ## Entry point called by CombatManager3D before entering QTE_RUNNING state.
 ##
-## effect_type is the hook for future QTE routing:
-##   All types currently fall through to the slider (QTE-2/3/4 will add match arms here).
+## effect_type routes to the appropriate QTE style:
+##   BUFF / DEBUFF → directional arrow sequence
+##   all others    → 4-zone sliding bar
 func start_qte(energy_cost: int, shape: AbilityData.TargetShape,
 		effect_type: EffectData.EffectType) -> void:
 	match effect_type:
+		EffectData.EffectType.BUFF, EffectData.EffectType.DEBUFF:
+			_start_directional_qte(energy_cost, shape)
 		_:
 			_start_slider_qte(energy_cost, shape)
 
+## --- Slider QTE ---
+
 func _start_slider_qte(energy_cost: int, shape: AbilityData.TargetShape) -> void:
+	_directional_mode  = false
+	_bar_bg.visible    = true   # restore after any prior directional run
 	_set_difficulty(energy_cost)
 	_beat_count   = _beat_count_for_shape(shape)
 	_current_beat = 0
@@ -171,18 +224,77 @@ func _start_slider_qte(energy_cost: int, shape: AbilityData.TargetShape) -> void
 	visible = true
 	_start_next_beat()
 
+## --- Directional Sequence QTE ---
+
+func _start_directional_qte(energy_cost: int, shape: AbilityData.TargetShape) -> void:
+	_set_difficulty(energy_cost)
+	_beat_count   = _beat_count_for_shape(shape)
+	_current_beat = 0
+	_beat_results = []
+	_resolved     = false     # not used by directional, but keep clean
+	_directional_mode = true
+
+	_dir_sequence = _generate_dir_sequence(_beat_count)
+
+	# Hide the slider bar; show the directional arrow overlay
+	_bar_bg.visible       = false
+	_result_label.visible = false
+	visible = true
+	_start_dir_beat()
+
+## Generates a randomised direction sequence of length `count` from
+## [UP, DOWN, LEFT, RIGHT] with no two consecutive identical directions.
+func _generate_dir_sequence(count: int) -> Array[String]:
+	var dirs := ["UP", "DOWN", "LEFT", "RIGHT"]
+	var seq: Array[String] = []
+	var last: String = ""
+	for _i: int in range(count):
+		# Retry until we pick a direction that differs from the previous one.
+		# With 4 choices and only 1 excluded, expected retries ≈ 1.33.
+		var pick: String = last
+		while pick == last:
+			pick = dirs[randi() % dirs.size()]
+		seq.append(pick)
+		last = pick
+	return seq
+
+## Starts a single directional beat: shows the arrow, starts the timing bar.
+func _start_dir_beat() -> void:
+	_dir_resolved          = false
+	_result_label.visible  = false
+	_arrow_label.modulate  = Color.WHITE   # clear flash tint from previous beat
+
+	var dir: String = _dir_sequence[_current_beat]
+	_arrow_label.text    = _dir_arrow_char(dir)
+	_arrow_label.visible = true
+
+	var beat_prefix: String = ""
+	if _beat_count > 1:
+		beat_prefix = "Beat %d / %d  —  " % [_current_beat + 1, _beat_count]
+	_instruction_label.text = beat_prefix + "Press ↑ ↓ ← → or WASD!"
+
+	# Reset timing bar to full width and animate depletion
+	_timing_fill.size.x = TIMING_BAR_WIDTH
+	_timing_bg.visible  = true
+	_dir_shrink_tween   = create_tween()
+	_dir_shrink_tween.tween_property(_timing_fill, "size:x", 0.0, _dir_input_window)
+	_dir_shrink_tween.tween_callback(_on_dir_input_expired)
+
 ## --- Difficulty ---
 
 func _set_difficulty(energy_cost: int) -> void:
 	if energy_cost <= 2:
-		_cursor_duration = 2.2
-		_ss_half = 0.20
+		_cursor_duration  = 2.2
+		_ss_half          = 0.20
+		_dir_input_window = 2.0
 	elif energy_cost <= 4:
-		_cursor_duration = 1.6
-		_ss_half = 0.12
+		_cursor_duration  = 1.6
+		_ss_half          = 0.12
+		_dir_input_window = 1.5
 	else:
-		_cursor_duration = 1.1
-		_ss_half = 0.07
+		_cursor_duration  = 1.1
+		_ss_half          = 0.07
+		_dir_input_window = 1.0
 	_rebuild_zones()
 
 ## --- Beat Count ---
@@ -194,7 +306,7 @@ func _beat_count_for_shape(shape: AbilityData.TargetShape) -> int:
 		AbilityData.TargetShape.RADIAL: return 4
 		_:                              return 1  # SELF, SINGLE, ARC
 
-## --- Beat Flow ---
+## --- Slider Beat Flow ---
 
 func _start_next_beat() -> void:
 	_resolved          = false
@@ -210,7 +322,7 @@ func _start_next_beat() -> void:
 
 	_animate_cursor()
 
-## --- Zone Result ---
+## --- Zone Result (slider) ---
 
 ## Returns the multiplier for a cursor position using the current _ss_half.
 ## Mirrored as _beat_result() in tests/test_qte_foundation.gd.
@@ -224,7 +336,7 @@ func _get_beat_result(pos: float) -> float:
 		return 1.0    # green — major
 	return 1.25       # gold — perfect
 
-## --- Animation ---
+## --- Slider Animation ---
 
 func _animate_cursor() -> void:
 	_tween = create_tween()
@@ -240,6 +352,11 @@ func _set_cursor(value: float) -> void:
 func _input(event: InputEvent) -> void:
 	if not visible or _resolved:
 		return
+	# Route to directional handler before SPACE / click check so arrow keys
+	# don't accidentally fall through when the directional QTE is active.
+	if _directional_mode:
+		_handle_dir_input(event)
+		return
 	var pressed: bool = false
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE:
 		pressed = true
@@ -249,7 +366,55 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		_register_hit()
 
-## --- Resolution ---
+## Handles a key press during a directional beat.
+## Only arrow keys and WASD are valid — other keys are silently ignored.
+func _handle_dir_input(event: InputEvent) -> void:
+	if _dir_resolved:
+		return
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var dir: String = _keycode_to_dir(event.keycode)
+	if dir == "":
+		return   # irrelevant key — do not consume or resolve
+	get_viewport().set_input_as_handled()
+	_dir_resolved = true
+	if _dir_shrink_tween:
+		_dir_shrink_tween.kill()
+	var expected: String = _dir_sequence[_current_beat]
+	var correct: bool = dir == expected
+	_flash_arrow_feedback(correct)
+	_process_beat_result(1.25 if correct else 0.25)
+
+## Maps arrow keys and WASD to direction strings. Returns "" for unrecognised keys.
+func _keycode_to_dir(keycode: Key) -> String:
+	match keycode:
+		KEY_UP,    KEY_W: return "UP"
+		KEY_DOWN,  KEY_S: return "DOWN"
+		KEY_LEFT,  KEY_A: return "LEFT"
+		KEY_RIGHT, KEY_D: return "RIGHT"
+	return ""
+
+## Called when the input window expires before the player pressed anything.
+func _on_dir_input_expired() -> void:
+	if not _dir_resolved:
+		_dir_resolved = true
+		_flash_arrow_feedback(false)
+		_process_beat_result(0.25)
+
+## Tints the arrow label green (hit) or red (miss/timeout) for visual feedback.
+func _flash_arrow_feedback(correct: bool) -> void:
+	_arrow_label.modulate = Color.GREEN if correct else Color.RED
+
+## Returns the Unicode arrow character for a direction string.
+func _dir_arrow_char(dir: String) -> String:
+	match dir:
+		"UP":    return "↑"
+		"DOWN":  return "↓"
+		"LEFT":  return "←"
+		"RIGHT": return "→"
+	return "?"
+
+## --- Slider Resolution ---
 
 func _register_hit() -> void:
 	_resolved = true
@@ -262,26 +427,46 @@ func _on_cursor_expired() -> void:
 		_resolved = true
 		_process_beat_result(0.25)  # expired = failure zone
 
+## --- Shared Beat Resolution ---
+
 func _process_beat_result(result: float) -> void:
 	_beat_results.append(result)
 	_current_beat += 1
 
 	if _current_beat < _beat_count:
-		# More beats remain: flash result for 0.3 s then start the next slider
+		# More beats remain: flash result for 0.3 s then start the next beat
 		_show_beat_feedback(result)
 		await get_tree().create_timer(0.3).timeout
-		_start_next_beat()
+		if _directional_mode:
+			_start_dir_beat()
+		else:
+			_start_next_beat()
 	else:
 		# All beats done: aggregate, show final feedback, emit
 		var multiplier: float = _aggregate_multiplier()
 		_show_final_feedback(multiplier)
 		await get_tree().create_timer(0.85).timeout
 		visible = false
+		# Restore slider-safe state for the next QTE call
+		if _directional_mode:
+			_directional_mode  = false
+			_bar_bg.visible    = true
+			_arrow_label.visible = false
+			_timing_bg.visible   = false
 		qte_resolved.emit(multiplier)
 
 ## Brief between-beat label (cleared at start of the next beat).
 func _show_beat_feedback(result: float) -> void:
 	_result_label.visible = true
+	if _directional_mode:
+		# Directional is binary — either you hit the right key or you didn't.
+		if result >= 1.0:
+			_result_label.text     = "HIT!"
+			_result_label.modulate = Color.GREEN
+		else:
+			_result_label.text     = "MISS"
+			_result_label.modulate = Color.RED
+		return
 	if result >= 1.25:
 		_result_label.text     = "PERFECT"
 		_result_label.modulate = Color(1.0, 0.85, 0.0)
@@ -297,7 +482,25 @@ func _show_beat_feedback(result: float) -> void:
 
 ## Final result label shown after all beats complete (stays for 0.85 s).
 func _show_final_feedback(multiplier: float) -> void:
+	# Hide input elements so only the verdict text is visible
+	if _directional_mode:
+		_arrow_label.visible = false
+		_timing_bg.visible   = false
 	_result_label.visible = true
+	if _directional_mode:
+		if multiplier >= 1.25:
+			_result_label.text     = "ALL CORRECT!"
+			_result_label.modulate = Color(1.0, 0.85, 0.0)
+		elif multiplier >= 1.0:
+			_result_label.text     = "MOSTLY RIGHT"
+			_result_label.modulate = Color.GREEN
+		elif multiplier >= 0.75:
+			_result_label.text     = "CLOSE..."
+			_result_label.modulate = Color.ORANGE
+		else:
+			_result_label.text     = "MISS!"
+			_result_label.modulate = Color.RED
+		return
 	if multiplier >= 1.25:
 		_result_label.text     = "PERFECT!"
 		_result_label.modulate = Color(1.0, 0.85, 0.0)
