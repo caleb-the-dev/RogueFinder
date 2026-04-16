@@ -219,9 +219,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 
 	if event is InputEventMouseMotion and mode == PlayerMode.ABILITY_TARGET_MODE \
-			and _pending_ability and (_pending_ability.target_shape == AbilityData.TargetShape.CONE \
-			or _pending_ability.target_shape == AbilityData.TargetShape.ARC):
-		_handle_cone_hover()
+			and _pending_ability and _pending_ability.target_shape in [
+				AbilityData.TargetShape.CONE,
+				AbilityData.TargetShape.ARC,
+				AbilityData.TargetShape.RADIAL,
+			]:
+		_handle_shape_hover()
 		# not marked as handled — camera controller still needs motion events
 
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -690,12 +693,11 @@ func _try_travel_destination(cell: Vector2i) -> void:
 	_update_status()
 	_check_auto_end_turn()
 
-## --- Cone Hover Preview ---
+## --- AoE Shape Hover Preview ---
 
-## Called on every mouse-motion event while a CONE ability is being aimed.
-## Highlights the full 3-cell arc for the direction under the cursor, falling back
-## to showing the 4 cardinal root cells when the cursor is not over a direction cell.
-func _handle_cone_hover() -> void:
+## Called on every mouse-motion event while a CONE, ARC, or RADIAL ability is being aimed.
+## Replaces the static aim-range highlight with a live preview of which cells will be hit.
+func _handle_shape_hover() -> void:
 	var camera: Camera3D = _camera_rig.get_camera()
 	if not camera or not _selected_unit:
 		return
@@ -705,30 +707,44 @@ func _handle_cone_hover() -> void:
 	_hovered_cell = cell
 
 	var caster_pos: Vector2i = _selected_unit.grid_pos
-	var cardinals: Array[Vector2i] = [
-		Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
-	]
-
 	_grid.clear_highlights()
 	_grid.set_highlight(caster_pos, "selected")
 
-	# Is the cursor sitting on one of the 4 direction roots?
-	var over_root: bool = false
-	for dir: Vector2i in cardinals:
-		if caster_pos + dir == cell:
-			over_root = true
-			break
-
-	if over_root:
-		# Expand to full 3-cell arc preview for this direction
-		for c: Vector2i in _get_shape_cells(caster_pos, cell, _pending_ability):
-			_grid.set_highlight(c, "ability_target")
+	if _pending_ability.target_shape == AbilityData.TargetShape.RADIAL:
+		# If cursor is inside the valid aim range, show the blast footprint there.
+		# Otherwise fall back to drawing the full aim range so the player knows where to click.
+		var dist: int = abs(cell.x - caster_pos.x) + abs(cell.y - caster_pos.y)
+		var limit: int = _pending_ability.tile_range
+		if _grid.is_valid(cell) and (limit == -1 or dist <= limit):
+			for c: Vector2i in _get_shape_cells(caster_pos, cell, _pending_ability):
+				_grid.set_highlight(c, "ability_target")
+		else:
+			# Restore the plain aim-range highlight when cursor is out of range
+			for row in range(Grid3D.ROWS):
+				for col in range(Grid3D.COLS):
+					var aim := Vector2i(col, row)
+					var d: int = abs(aim.x - caster_pos.x) + abs(aim.y - caster_pos.y)
+					if limit == -1 or d <= limit:
+						_grid.set_highlight(aim, "ability_target")
 	else:
-		# Show just the 4 direction roots as clickable hints
+		# CONE / ARC: show full shape when over a direction root; 4 roots otherwise.
+		var cardinals: Array[Vector2i] = [
+			Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
+		]
+		var over_root: bool = false
 		for dir: Vector2i in cardinals:
-			var root: Vector2i = caster_pos + dir
-			if _grid.is_valid(root):
-				_grid.set_highlight(root, "ability_target")
+			if caster_pos + dir == cell:
+				over_root = true
+				break
+
+		if over_root:
+			for c: Vector2i in _get_shape_cells(caster_pos, cell, _pending_ability):
+				_grid.set_highlight(c, "ability_target")
+		else:
+			for dir: Vector2i in cardinals:
+				var root: Vector2i = caster_pos + dir
+				if _grid.is_valid(root):
+					_grid.set_highlight(root, "ability_target")
 
 ## --- AoE Shape Helpers ---
 
