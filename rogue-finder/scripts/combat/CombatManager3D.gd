@@ -12,6 +12,15 @@ extends Node3D
 
 const ENEMY_TURN_DELAY: float = 0.65
 
+## Abbreviations used in floating combat text for stat buff/debuff effects.
+const STAT_ABBREV: Dictionary = {
+	AbilityData.Attribute.STRENGTH:  "STR",
+	AbilityData.Attribute.DEXTERITY: "DEX",
+	AbilityData.Attribute.COGNITION: "COG",
+	AbilityData.Attribute.VITALITY:  "VIT",
+	AbilityData.Attribute.WILLPOWER: "WIL",
+}
+
 ## Display names for stat buffs and debuffs — [buff_name, debuff_name] per attribute.
 const STAT_STATUS_NAMES: Dictionary = {
 	AbilityData.Attribute.STRENGTH:  ["Empowered",  "Weakened"],
@@ -600,6 +609,13 @@ func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
 	# Record the named status effect so the UI can display it
 	var name_pair: Array = STAT_STATUS_NAMES.get(stat, ["Buffed", "Debuffed"])
 	unit.add_stat_effect(name_pair[0] if delta > 0 else name_pair[1], stat, delta)
+
+	# Floating combat text — green for buff, orange for debuff
+	var abbrev: String = STAT_ABBREV.get(stat, "?")
+	if delta > 0:
+		unit.show_floating_text("+%s" % abbrev, Color(0.18, 1.0, 0.38))
+	else:
+		unit.show_floating_text("-%s" % abbrev, Color(1.0, 0.55, 0.0))
 
 ## --- FORCE Effect ---
 
