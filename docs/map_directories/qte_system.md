@@ -1,6 +1,6 @@
 # System: QTE System
 
-> Last updated: 2026-04-16 (Session 8 — QTE Slice 1: 4-zone bar, multi-beat, multiplier output)
+> Last updated: 2026-04-16 (Session 9 — QTE Slice 2: directional sequence for BUFF/DEBUFF)
 
 ---
 
@@ -18,7 +18,7 @@ Enemy "QTE" is simulated by CombatManager directly using the unit's `qte_resolut
 
 | File | Scene | Role |
 |------|-------|------|
-| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | Sliding bar QTE, CanvasLayer layer 10 |
+| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | Sliding bar QTE + directional sequence QTE, CanvasLayer layer 10 |
 
 `.tscn` is minimal. All UI nodes are built in `_build_ui()`.
 
@@ -46,9 +46,11 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `start_qte` | `(energy_cost: int, shape: AbilityData.TargetShape, effect_type: EffectData.EffectType) -> void` | Sets difficulty, beat count, then starts the first slider beat |
+| `start_qte` | `(energy_cost: int, shape: AbilityData.TargetShape, effect_type: EffectData.EffectType) -> void` | Routes to the correct QTE style, sets difficulty, then starts the first beat |
 
-`effect_type` is the hook for future QTE type routing (see Visual Cue Convention). All types currently fall through to the slider.
+`effect_type` routing:
+- `BUFF` / `DEBUFF` → directional arrow sequence (`_start_directional_qte`)
+- all others → 4-zone sliding bar (`_start_slider_qte`)
 
 ---
 
@@ -56,11 +58,11 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 `energy_cost` sets the difficulty tier once per `start_qte()` call:
 
-| Tier | Energy cost | Sweet-spot half-width | Cursor duration |
-|------|-------------|-----------------------|----------------|
-| Low | 1–2 | 0.20 (40 % of bar) | 2.2 s |
-| Medium | 3–4 | 0.12 (24 % of bar) | 1.6 s |
-| High | 5+ | 0.07 (14 % of bar) | 1.1 s |
+| Tier | Energy cost | Sweet-spot half-width | Cursor duration | Dir input window |
+|------|-------------|-----------------------|-----------------|-----------------|
+| Low | 1–2 | 0.20 (40 % of bar) | 2.2 s | 2.0 s |
+| Medium | 3–4 | 0.12 (24 % of bar) | 1.6 s | 1.5 s |
+| High | 5+ | 0.07 (14 % of bar) | 1.1 s | 1.0 s |
 
 ---
 
@@ -118,30 +120,50 @@ Example: a 4-beat RADIAL ability needs all-gold hits to reach 1.25× — one red
 
 ---
 
-## Visual Cue Convention (Future QTE Types)
+## Visual Cue Convention
 
-| QTE Type | Mechanic | Visual |
-|----------|----------|--------|
-| Slider (current) | Press input to stop cursor | 4-zone gold/green/orange/red bar |
-| Timer QTE (QTE-2/3) | Press input within a window per beat | Depleting timer bar per beat |
-| Power meter (QTE-4, TRAVEL) | Hold/release to set power level | Same 4-color zone scheme on meter target zone |
+| QTE Type | Mechanic | Effect types | Visual |
+|----------|----------|--------------|--------|
+| Slider (current) | Press input to stop cursor | HARM, MEND, FORCE, TRAVEL | 4-zone gold/green/orange/red bar |
+| Directional sequence (current) | Press arrow keys in order | BUFF, DEBUFF | Arrow char + shrinking timing bar |
+| Timer QTE (QTE-2/3) | Press input within a window per beat | TBD | Depleting timer bar per beat |
+| Power meter (QTE-4, TRAVEL) | Hold/release to set power level | TBD | Same 4-color zone scheme on meter |
 
 ---
 
 ## Flow
 
+**Slider (HARM / MEND / FORCE / TRAVEL):**
 ```
 start_qte(energy_cost, shape, effect_type)
-  → _set_difficulty()         sets _ss_half, _cursor_duration, rebuilds zones
-  → _beat_count_for_shape()
-  → _start_next_beat()        [loops _beat_count times]
-      → _animate_cursor()     slides cursor 0→1 over _cursor_duration
-          → player input  → _register_hit() → _get_beat_result()
-          → cursor expires → _on_cursor_expired() → result = 0.25
-      → _process_beat_result(result)
-          → more beats? flash 0.3 s, loop
-          → last beat?  _aggregate_multiplier() → _show_final_feedback()
-              → await 0.85 s → hide bar → emit qte_resolved(multiplier)
+  → _start_slider_qte()
+      → _set_difficulty()         sets _ss_half, _cursor_duration, _dir_input_window
+      → _beat_count_for_shape()
+      → _start_next_beat()        [loops _beat_count times]
+          → _animate_cursor()     slides cursor 0→1 over _cursor_duration
+              → player input  → _register_hit() → _get_beat_result()
+              → cursor expires → _on_cursor_expired() → result = 0.25
+          → _process_beat_result(result)
+              → more beats? flash 0.3 s, _start_next_beat()
+              → last beat?  _aggregate_multiplier() → _show_final_feedback()
+                  → await 0.85 s → hide bar → emit qte_resolved(multiplier)
+```
+
+**Directional sequence (BUFF / DEBUFF):**
+```
+start_qte(energy_cost, shape, effect_type)
+  → _start_directional_qte()
+      → _set_difficulty()         sets _dir_input_window
+      → _beat_count_for_shape()
+      → _generate_dir_sequence()  random non-repeating list of "UP"/"DOWN"/"LEFT"/"RIGHT"
+      → _start_dir_beat()         [loops _beat_count times]
+          → shows arrow char + starts shrinking timing bar (_dir_input_window s)
+          → _handle_dir_input()   correct key → 1.25; wrong key → 0.25
+          → _on_dir_input_expired() → 0.25 (timeout)
+          → _process_beat_result(result)
+              → more beats? flash 0.3 s, _start_dir_beat()
+              → last beat?  _aggregate_multiplier() → _show_final_feedback()
+                  → await 0.85 s → hide bar → emit qte_resolved(multiplier)
 ```
 
 ---
