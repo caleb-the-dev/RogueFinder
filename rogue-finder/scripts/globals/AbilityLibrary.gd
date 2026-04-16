@@ -184,6 +184,18 @@ const ABILITIES: Dictionary = {
 			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
 		],
 	},
+	"fire_breath": {
+		"name":          "Fire Breath",
+		"attribute":     AbilityData.Attribute.COGNITION,
+		"target":        AbilityData.TargetShape.CONE,
+		"applicable_to": AbilityData.ApplicableTo.ENEMY,
+		"range":         1,
+		"cost":          4,
+		"description":   "Exhale a torrent of flame — scorches all enemies in an expanding triangle up to 3 tiles deep.",
+		"effects": [
+			{ "type": EffectData.EffectType.HARM, "base_value": 5, "pool": EffectData.PoolType.HP },
+		],
+	},
 	"piercing_shot": {
 		"name":          "Piercing Shot",
 		"attribute":     AbilityData.Attribute.DEXTERITY,

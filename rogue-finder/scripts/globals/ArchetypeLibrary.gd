@@ -80,7 +80,7 @@ const ARCHETYPES: Dictionary = {
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Baker", "Scholar", "Merchant"],
-		"abilities":      ["acid_splash", "smoke_bomb", "healing_draught", ""],
+		"abilities":      ["acid_splash", "smoke_bomb", "healing_draught", "fire_breath"],
 		"consumable":     "Healing Potion",
 		"str_range":      [0, 1],
 		"dex_range":      [1, 3],
