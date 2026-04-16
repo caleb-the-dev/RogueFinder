@@ -308,7 +308,7 @@ func _start_slider_qte(energy_cost: int, shape: AbilityData.TargetShape) -> void
 	_directional_mode  = false
 	_bar_bg.visible    = true   # restore after any prior directional run
 	_set_difficulty(energy_cost)
-	_beat_count   = _beat_count_for_shape(shape)
+	_beat_count   = _slider_beat_count_for_shape(shape)
 	_current_beat = 0
 	_beat_results = []
 	_resolved     = false
@@ -486,7 +486,8 @@ func _set_difficulty(energy_cost: int) -> void:
 
 ## --- Beat Count ---
 
-## Beat counts scale with AoE area: base 3 for single-cell shapes, ×area factor for larger ones.
+## Beat counts for click-targets (FORCE) and directional (BUFF/DEBUFF) QTEs.
+## Scales with AoE area: base 3 for single-cell shapes, ×area factor for larger ones.
 ##   SELF / SINGLE / ARC → 3   CONE → 6   LINE → 9   RADIAL → 12
 func _beat_count_for_shape(shape: AbilityData.TargetShape) -> int:
 	match shape:
@@ -494,6 +495,15 @@ func _beat_count_for_shape(shape: AbilityData.TargetShape) -> int:
 		AbilityData.TargetShape.LINE:   return 9
 		AbilityData.TargetShape.RADIAL: return 12
 		_:                              return 3  # SELF, SINGLE, ARC
+
+## Beat counts for the slider QTE (HARM / MEND) — classic 1–4 scale.
+##   SELF / SINGLE / ARC → 1   CONE → 2   LINE → 3   RADIAL → 4
+func _slider_beat_count_for_shape(shape: AbilityData.TargetShape) -> int:
+	match shape:
+		AbilityData.TargetShape.CONE:   return 2
+		AbilityData.TargetShape.LINE:   return 3
+		AbilityData.TargetShape.RADIAL: return 4
+		_:                              return 1  # SELF, SINGLE, ARC
 
 ## --- Slider Beat Flow ---
 

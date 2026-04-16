@@ -92,16 +92,25 @@ Zone ColorRects are children of `_bar_bg`. `_rebuild_zones()` repositions them w
 
 ## Multi-Beat Sequencing
 
-Beat count is determined by `target_shape` at `start_qte()`:
+Beat count depends on **QTE style**:
+
+**Slider (HARM / MEND)** — classic 1–4 scale:
 
 | Shape | Beat count |
 |-------|-----------|
-| SELF | 1 |
-| SINGLE | 1 |
-| ARC | 1 |
+| SELF / SINGLE / ARC | 1 |
 | CONE | 2 |
 | LINE | 3 |
 | RADIAL | 4 |
+
+**Click-targets (FORCE) and Directional (BUFF / DEBUFF)** — base-3 × area scale:
+
+| Shape | Beat count |
+|-------|-----------|
+| SELF / SINGLE / ARC | 3 |
+| CONE | 6 |
+| LINE | 9 |
+| RADIAL | 12 |
 
 When `beat_count > 1`, the instruction label shows **"Beat N / M"**.
 

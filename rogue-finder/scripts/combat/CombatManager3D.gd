@@ -465,7 +465,12 @@ func _initiate_aoe_action(attacker: Unit3D, origin_world: Vector3) -> void:
 	var _eff_type: EffectData.EffectType = EffectData.EffectType.HARM
 	if not _pending_ability.effects.is_empty():
 		_eff_type = _pending_ability.effects[0].effect_type
-	_qte_bar.start_qte(_pending_ability.energy_cost, _pending_ability.target_shape, _eff_type)
+	## For AoE FORCE abilities (e.g. windblast), project the aimed cell into screen space
+	## so click-targets scatter around the actual blast centre rather than the origin corner.
+	var _screen_pos: Vector2 = Vector2.ZERO
+	if _eff_type == EffectData.EffectType.FORCE:
+		_screen_pos = _camera_rig.get_camera().unproject_position(origin_world)
+	_qte_bar.start_qte(_pending_ability.energy_cost, _pending_ability.target_shape, _eff_type, _screen_pos)
 
 ## Consume the equipped item (sets consumable to "" so the button greys out).
 func _on_consumable_selected() -> void:
