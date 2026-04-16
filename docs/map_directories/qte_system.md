@@ -1,6 +1,6 @@
 # System: QTE System
 
-> Last updated: 2026-04-16 (Session 9 — QTE Slice 2: directional sequence for BUFF/DEBUFF)
+> Last updated: 2026-04-16 (Session 10 — QTE Slice 3: power meter for TRAVEL)
 
 ---
 
@@ -18,7 +18,7 @@ Enemy "QTE" is simulated by CombatManager directly using the unit's `qte_resolut
 
 | File | Scene | Role |
 |------|-------|------|
-| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | Sliding bar QTE + directional sequence QTE, CanvasLayer layer 10 |
+| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | Slider QTE + directional sequence QTE + power meter QTE, CanvasLayer layer 10 |
 
 `.tscn` is minimal. All UI nodes are built in `_build_ui()`.
 
@@ -50,6 +50,7 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 `effect_type` routing:
 - `BUFF` / `DEBUFF` → directional arrow sequence (`_start_directional_qte`)
+- `TRAVEL` → hold-release power meter (`_start_power_meter_qte`)
 - all others → 4-zone sliding bar (`_start_slider_qte`)
 
 ---
@@ -58,11 +59,13 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 `energy_cost` sets the difficulty tier once per `start_qte()` call:
 
-| Tier | Energy cost | Sweet-spot half-width | Cursor duration | Dir input window |
-|------|-------------|-----------------------|-----------------|-----------------|
-| Low | 1–2 | 0.20 (40 % of bar) | 2.2 s | 2.0 s |
-| Medium | 3–4 | 0.12 (24 % of bar) | 1.6 s | 1.5 s |
-| High | 5+ | 0.07 (14 % of bar) | 1.1 s | 1.0 s |
+| Tier | Energy cost | Slider ss_half | Cursor duration | Dir input window | PM zone centre | PM zone half-width |
+|------|-------------|----------------|-----------------|------------------|----------------|-------------------|
+| Low | 1–2 | 0.20 (40 %) | 2.2 s | 2.0 s | 65 % | 18 % |
+| Medium | 3–4 | 0.12 (24 %) | 1.6 s | 1.5 s | 72 % | 12 % |
+| High | 5+ | 0.07 (14 %) | 1.1 s | 1.0 s | 78 % |  7 % |
+
+Power meter fill rate = `1.0 / cursor_duration` (same speed scale as the slider timing).
 
 ---
 
@@ -124,16 +127,16 @@ Example: a 4-beat RADIAL ability needs all-gold hits to reach 1.25× — one red
 
 | QTE Type | Mechanic | Effect types | Visual |
 |----------|----------|--------------|--------|
-| Slider (current) | Press input to stop cursor | HARM, MEND, FORCE, TRAVEL | 4-zone gold/green/orange/red bar |
+| Slider (current) | Press input to stop cursor | HARM, MEND, FORCE | 4-zone gold/green/orange/red horizontal bar |
 | Directional sequence (current) | Press arrow keys in order | BUFF, DEBUFF | Arrow char + shrinking timing bar |
-| Timer QTE (QTE-2/3) | Press input within a window per beat | TBD | Depleting timer bar per beat |
-| Power meter (QTE-4, TRAVEL) | Hold/release to set power level | TBD | Same 4-color zone scheme on meter |
+| Power meter (current) | Hold input to fill; release in zone | TRAVEL | Vertical bar with 4-zone coloured band; white cursor line |
+| Timer QTE (future) | Press input within a window per beat | TBD | Depleting timer bar per beat |
 
 ---
 
 ## Flow
 
-**Slider (HARM / MEND / FORCE / TRAVEL):**
+**Slider (HARM / MEND / FORCE):**
 ```
 start_qte(energy_cost, shape, effect_type)
   → _start_slider_qte()
@@ -147,6 +150,24 @@ start_qte(energy_cost, shape, effect_type)
               → more beats? flash 0.3 s, _start_next_beat()
               → last beat?  _aggregate_multiplier() → _show_final_feedback()
                   → await 0.85 s → hide bar → emit qte_resolved(multiplier)
+```
+
+**Power meter (TRAVEL):**
+```
+start_qte(energy_cost, shape, effect_type=TRAVEL)
+  → _start_power_meter_qte(energy_cost)
+      → _set_difficulty()         sets _cursor_duration (used as fill time)
+      → _set_pm_difficulty()      sets _pm_zone_center, _pm_zone_half
+      → _rebuild_pm_zones()       positions gold/green/orange bands on vertical bar
+      → shows bar; _pm_fill_pos = 0, cursor at bottom
+      → _process(delta)           fills meter while Space/LMB held; reverses at 100 %
+      → player releases input → _get_pm_result(_pm_fill_pos) → _process_beat_result()
+          → _show_final_feedback()   hides bar, shows verdict for 0.85 s
+          → hide CanvasLayer → emit qte_resolved(multiplier)
+
+CombatManager3D receives qte_resolved(multiplier):
+  → multiplier == 0.25 → FAILED label 1.5 s → IDLE (energy spent, no reposition)
+  → multiplier > 0.25  → TRAVEL_DESTINATION mode (player picks destination tile)
 ```
 
 **Directional sequence (BUFF / DEBUFF):**

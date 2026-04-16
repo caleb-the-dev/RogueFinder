@@ -18,6 +18,12 @@ const BAR_WIDTH: float        = 480.0
 const CURSOR_WIDTH: float     = 10.0
 const TIMING_BAR_WIDTH: float = 400.0   ## width of the directional timing bar
 
+## Power meter bar dimensions — vertical bar centred on screen
+const PM_BAR_WIDTH:  float = 60.0
+const PM_BAR_HEIGHT: float = 400.0
+const PM_BAR_X:      float = 610.0   ## (1280 / 2) − 30 = horizontal centre
+const PM_BAR_Y:      float = 160.0   ## (720  / 2) − 200 = vertical centre
+
 ## Difficulty tiers — set once per start_qte() call from energy_cost:
 ##   Low   (1–2): 2.2 s cursor / 2.0 s dir window, sweet-spot half-width = 0.20
 ##   Medium(3–4): 1.6 s cursor / 1.5 s dir window, sweet-spot half-width = 0.12
@@ -45,6 +51,17 @@ var _dir_resolved: bool          = false
 var _dir_shrink_tween: Tween     = null
 var _dir_input_window: float     = 1.5   ## seconds per directional beat; set by _set_difficulty
 
+## --- Power meter state ---
+
+var _pm_mode:        bool  = false   ## true while power meter QTE is active
+var _pm_active:      bool  = false   ## true while player can still release to score
+var _pm_fill_pos:    float = 0.0     ## normalized fill level [0, 1]
+var _pm_dir:         int   = 1       ## 1 = filling; −1 = draining (reverses at 100 %)
+var _pm_held:        bool  = false   ## true while Space or LMB is held
+var _pm_zone_center: float = 0.65    ## normalized zone centre; set by _set_pm_difficulty()
+var _pm_zone_half:   float = 0.18    ## zone half-width; set by _set_pm_difficulty()
+var _pm_fill_rate:   float = 0.5     ## fill units per second; derived from _cursor_duration
+
 ## --- Node refs — assigned in _build_ui() ---
 
 ## Slider nodes
@@ -65,6 +82,15 @@ var _arrow_label:  Label     = null   ## large centred arrow character
 var _timing_bg:    ColorRect = null   ## full-width timing bar background
 var _timing_fill:  ColorRect = null   ## fill that shrinks to zero as the window expires
 
+## Power meter nodes
+var _pm_bar_bg:        ColorRect = null   ## vertical bar background (failure-zone dark red)
+var _pm_cursor:        ColorRect = null   ## horizontal white cursor line
+var _pm_zone_orange_t: ColorRect = null   ## orange band — upper
+var _pm_zone_orange_b: ColorRect = null   ## orange band — lower
+var _pm_zone_green_t:  ColorRect = null   ## green band  — upper
+var _pm_zone_green_b:  ColorRect = null   ## green band  — lower
+var _pm_zone_gold_pm:  ColorRect = null   ## gold  band  — centre
+
 func _ready() -> void:
 	_build_ui()
 	visible = false
@@ -78,6 +104,44 @@ func _build_ui() -> void:
 	overlay.position = Vector2.ZERO
 	overlay.size     = Vector2(1280.0, 720.0)
 	add_child(overlay)
+
+	# --- Power meter QTE nodes (added before labels so bar renders behind text) ---
+
+	# Vertical bar background — dark red (failure-zone colour)
+	_pm_bar_bg          = ColorRect.new()
+	_pm_bar_bg.color    = Color(0.35, 0.08, 0.08)
+	_pm_bar_bg.position = Vector2(PM_BAR_X, PM_BAR_Y)
+	_pm_bar_bg.size     = Vector2(PM_BAR_WIDTH, PM_BAR_HEIGHT)
+	_pm_bar_bg.visible  = false
+	add_child(_pm_bar_bg)
+
+	# Zone bands — children of _pm_bar_bg; repositioned by _rebuild_pm_zones()
+	_pm_zone_orange_t       = ColorRect.new()
+	_pm_zone_orange_t.color = Color(0.90, 0.50, 0.10, 0.80)
+	_pm_bar_bg.add_child(_pm_zone_orange_t)
+
+	_pm_zone_orange_b       = ColorRect.new()
+	_pm_zone_orange_b.color = Color(0.90, 0.50, 0.10, 0.80)
+	_pm_bar_bg.add_child(_pm_zone_orange_b)
+
+	_pm_zone_green_t        = ColorRect.new()
+	_pm_zone_green_t.color  = Color(0.18, 0.75, 0.22, 0.80)
+	_pm_bar_bg.add_child(_pm_zone_green_t)
+
+	_pm_zone_green_b        = ColorRect.new()
+	_pm_zone_green_b.color  = Color(0.18, 0.75, 0.22, 0.80)
+	_pm_bar_bg.add_child(_pm_zone_green_b)
+
+	_pm_zone_gold_pm        = ColorRect.new()
+	_pm_zone_gold_pm.color  = Color(1.0, 0.85, 0.0, 0.90)
+	_pm_bar_bg.add_child(_pm_zone_gold_pm)
+
+	# Cursor — white horizontal line rendered on top of zone colours
+	_pm_cursor          = ColorRect.new()
+	_pm_cursor.color    = Color(1.0, 1.0, 1.0)
+	_pm_cursor.position = Vector2(0.0, PM_BAR_HEIGHT - 4.0)   # starts at bottom
+	_pm_cursor.size     = Vector2(PM_BAR_WIDTH, 4.0)
+	_pm_bar_bg.add_child(_pm_cursor)
 
 	# Instruction / beat-counter text (shared by both QTE types)
 	_instruction_label = Label.new()
@@ -207,6 +271,8 @@ func start_qte(energy_cost: int, shape: AbilityData.TargetShape,
 	match effect_type:
 		EffectData.EffectType.BUFF, EffectData.EffectType.DEBUFF:
 			_start_directional_qte(energy_cost, shape)
+		EffectData.EffectType.TRAVEL:
+			_start_power_meter_qte(energy_cost)
 		_:
 			_start_slider_qte(energy_cost, shape)
 
@@ -223,6 +289,101 @@ func _start_slider_qte(energy_cost: int, shape: AbilityData.TargetShape) -> void
 	_result_label.visible = false
 	visible = true
 	_start_next_beat()
+
+## --- Power Meter QTE ---
+
+## Entry point for TRAVEL effect type.
+## Hold Space / LMB to raise the meter; it drains back after hitting 100 %.
+## Release inside the coloured zone to score; outside = miss (0.25).
+## Always 1 beat — TRAVEL is always SELF shape.
+func _start_power_meter_qte(energy_cost: int) -> void:
+	_pm_mode      = true
+	_pm_active    = true
+	_pm_fill_pos  = 0.0
+	_pm_dir       = 1
+	_pm_held      = false
+	_beat_count   = 1
+	_current_beat = 0
+	_beat_results = []
+	_resolved     = false
+
+	# Cursor duration doubles as the fill time (seconds to go 0→1)
+	_set_difficulty(energy_cost)
+	_pm_fill_rate = 1.0 / _cursor_duration
+
+	_set_pm_difficulty(energy_cost)
+	_rebuild_pm_zones()
+
+	# Hide horizontal slider; show vertical bar
+	_bar_bg.visible            = false
+	_result_label.visible      = false
+	_pm_bar_bg.visible         = true
+	_pm_cursor.position.y      = PM_BAR_HEIGHT - 4.0   # cursor starts at bottom
+
+	_instruction_label.text = "Hold SPACE or click — release in the zone!"
+	visible = true
+
+## Sets the zone centre and half-width based on energy cost difficulty tier.
+##   Low   (1–2): wide zone,   centre 65 %, half-width 18 %
+##   Medium(3–4): medium zone, centre 72 %, half-width 12 %
+##   High  (5+):  narrow zone, centre 78 %, half-width  7 %
+func _set_pm_difficulty(energy_cost: int) -> void:
+	if energy_cost <= 2:
+		_pm_zone_center = 0.65
+		_pm_zone_half   = 0.18
+	elif energy_cost <= 4:
+		_pm_zone_center = 0.72
+		_pm_zone_half   = 0.12
+	else:
+		_pm_zone_center = 0.78
+		_pm_zone_half   = 0.07
+
+## Repositions the five zone ColorRects on the vertical bar.
+## Fill position 0 = bottom of bar, 1 = top.
+## In screen space y increases downward, so value v → y = (1 − v) × PM_BAR_HEIGHT.
+func _rebuild_pm_zones() -> void:
+	var h: float       = PM_BAR_HEIGHT
+	var w: float       = PM_BAR_WIDTH
+	# centre_y: y pixels from bar top where zone centre sits
+	var centre_y: float = (1.0 - _pm_zone_center) * h
+	var half_px:  float = _pm_zone_half * h
+
+	var zone_top: float = centre_y - half_px
+	var zone_bot: float = centre_y + half_px
+
+	# Gold — centre 30 % of zone half
+	var gold_half: float = half_px * 0.30
+	var gold_top: float  = centre_y - gold_half
+	var gold_bot: float  = centre_y + gold_half
+	_pm_zone_gold_pm.position = Vector2(0.0, gold_top)
+	_pm_zone_gold_pm.size     = Vector2(w, gold_bot - gold_top)
+
+	# Green — 30 %–70 % of zone half (flanking gold on each side)
+	var green_half: float = half_px * 0.70
+	var green_top: float  = centre_y - green_half
+	var green_bot: float  = centre_y + green_half
+	_pm_zone_green_t.position = Vector2(0.0, green_top)
+	_pm_zone_green_t.size     = Vector2(w, gold_top - green_top)
+	_pm_zone_green_b.position = Vector2(0.0, gold_bot)
+	_pm_zone_green_b.size     = Vector2(w, green_bot - gold_bot)
+
+	# Orange — outer 30 % of zone (zone edge to green edge on each side)
+	_pm_zone_orange_t.position = Vector2(0.0, zone_top)
+	_pm_zone_orange_t.size     = Vector2(w, green_top - zone_top)
+	_pm_zone_orange_b.position = Vector2(0.0, green_bot)
+	_pm_zone_orange_b.size     = Vector2(w, zone_bot - green_bot)
+
+## Returns the multiplier for a power meter release at the given fill level [0, 1].
+## Same 4-zone thresholds as the slider, measured from _pm_zone_center.
+func _get_pm_result(fill: float) -> float:
+	var dist: float = abs(fill - _pm_zone_center)
+	if dist > _pm_zone_half:
+		return 0.25   # red   — outside zone
+	if dist >= _pm_zone_half * 0.70:
+		return 0.75   # orange — outer rim
+	if dist >= _pm_zone_half * 0.30:
+		return 1.0    # green  — inner rim
+	return 1.25       # gold   — centre
 
 ## --- Directional Sequence QTE ---
 
@@ -350,12 +511,19 @@ func _set_cursor(value: float) -> void:
 ## --- Input ---
 
 func _input(event: InputEvent) -> void:
-	if not visible or _resolved:
+	if not visible:
 		return
 	# Route to directional handler before SPACE / click check so arrow keys
 	# don't accidentally fall through when the directional QTE is active.
 	if _directional_mode:
 		_handle_dir_input(event)
+		return
+	# Route to power meter handler; _pm_active gates input after release.
+	if _pm_mode:
+		if _pm_active:
+			_handle_pm_input(event)
+		return
+	if _resolved:
 		return
 	var pressed: bool = false
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE:
@@ -405,6 +573,43 @@ func _on_dir_input_expired() -> void:
 func _flash_arrow_feedback(correct: bool) -> void:
 	_arrow_label.modulate = Color.GREEN if correct else Color.RED
 
+## Handles hold / release events for the power meter QTE.
+## Pressing Space or LMB starts filling; releasing scores and resolves the beat.
+func _handle_pm_input(event: InputEvent) -> void:
+	if event is InputEventKey and not event.echo:
+		if event.keycode == KEY_SPACE:
+			get_viewport().set_input_as_handled()
+			if event.pressed:
+				_pm_held = true
+			else:
+				_pm_held   = false
+				_pm_active = false
+				_process_beat_result(_get_pm_result(_pm_fill_pos))
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		get_viewport().set_input_as_handled()
+		if event.pressed:
+			_pm_held = true
+		else:
+			_pm_held   = false
+			_pm_active = false
+			_process_beat_result(_get_pm_result(_pm_fill_pos))
+
+## Advances the power meter fill each frame while the player holds the input.
+## Reverses direction when fill hits 100 % and clamps at 0 % if fully drained.
+func _process(delta: float) -> void:
+	if not _pm_mode or not _pm_active or not _pm_held:
+		return
+	_pm_fill_pos += _pm_fill_rate * float(_pm_dir) * delta
+	if _pm_dir == 1 and _pm_fill_pos >= 1.0:
+		_pm_fill_pos = 1.0
+		_pm_dir      = -1   # start draining
+	elif _pm_dir == -1 and _pm_fill_pos <= 0.0:
+		_pm_fill_pos = 0.0  # clamp at bottom; player gets a miss on release
+
+	# Move cursor: value 0 = bottom (y ≈ PM_BAR_HEIGHT), value 1 = top (y ≈ 0)
+	var cursor_y: float = (1.0 - _pm_fill_pos) * PM_BAR_HEIGHT - 2.0
+	_pm_cursor.position.y = clampf(cursor_y, 0.0, PM_BAR_HEIGHT - 4.0)
+
 ## Returns the Unicode arrow character for a direction string.
 func _dir_arrow_char(dir: String) -> String:
 	match dir:
@@ -449,10 +654,15 @@ func _process_beat_result(result: float) -> void:
 		visible = false
 		# Restore slider-safe state for the next QTE call
 		if _directional_mode:
-			_directional_mode  = false
-			_bar_bg.visible    = true
+			_directional_mode    = false
+			_bar_bg.visible      = true
 			_arrow_label.visible = false
 			_timing_bg.visible   = false
+		elif _pm_mode:
+			_pm_mode           = false
+			_pm_active         = false
+			_pm_bar_bg.visible = false
+			_bar_bg.visible    = true
 		qte_resolved.emit(multiplier)
 
 ## Brief between-beat label (cleared at start of the next beat).
@@ -486,6 +696,8 @@ func _show_final_feedback(multiplier: float) -> void:
 	if _directional_mode:
 		_arrow_label.visible = false
 		_timing_bg.visible   = false
+	elif _pm_mode:
+		_pm_bar_bg.visible = false   # remove meter; show only verdict label
 	_result_label.visible = true
 	if _directional_mode:
 		if multiplier >= 1.25:
