@@ -252,6 +252,19 @@ const ABILITIES: Dictionary = {
 			{ "type": EffectData.EffectType.FORCE, "base_value": 2, "force": EffectData.ForceType.PULL },
 		],
 	},
+	## --- Shove: SINGLE + ENEMY + FORCE/PUSH (melee push — close-range knockback) ---
+	"shove": {
+		"name":          "Shove",
+		"attribute":     AbilityData.Attribute.STRENGTH,
+		"target":        AbilityData.TargetShape.SINGLE,
+		"applicable_to": AbilityData.ApplicableTo.ENEMY,
+		"range":         1,
+		"cost":          3,
+		"description":   "Put your shoulder into it — slam an adjacent enemy back 2 tiles.",
+		"effects": [
+			{ "type": EffectData.EffectType.FORCE, "base_value": 2, "force": EffectData.ForceType.PUSH },
+		],
+	},
 	## --- Windblast: RADIAL + ENEMY + FORCE/RADIAL (push all outward from center) ---
 	"windblast": {
 		"name":          "Windblast",

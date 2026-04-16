@@ -103,7 +103,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 |----|-------|-----|-----|-----|-----|-----|-------|-----------|
 | `RogueFinder` | Custom | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 | strike, guard, fireball, sweep |
 | `archer_bandit` | Rogue | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 | quick_shot, disengage, piercing_shot, gust |
-| `grunt` | Barbarian | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 | heavy_strike, charge, -, - |
+| `grunt` | Barbarian | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 | heavy_strike, charge, shove, - |
 | `alchemist` | Wizard | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 | heal_burst, smoke_bomb, healing_draught, fire_breath |
 | `elite_guard` | Warrior | 3–5 | 1–3 | 1–2 | 2–4 | 3–5 | 7–10 | shield_bash, yank, windblast, sweep |
 
@@ -243,6 +243,7 @@ One QTE fires per ability. The resulting `accuracy: float` (0.0–1.0) is shared
 | `charge` | Charge | STR | 2 | 3 | Self | Any | TRAVEL 3 LINE |
 | `gust` | Gust | DEX | 2 | 3 | Single | Any | FORCE PUSH 2 |
 | `yank` | Yank | STR | 2 | 3 | Single | Any | FORCE PULL 2 |
+| `shove` | Shove | STR | 3 | 1 | Single | Enemy | FORCE PUSH 2 |
 | `windblast` | Windblast | COG | 3 | 3 | Radial | Enemy | FORCE RADIAL 2 |
 
 ### Public API
@@ -277,6 +278,7 @@ static func get_ability(ability_id: String) -> AbilityData
 
 | Date | Change |
 |---|---|
+| 2026-04-16 | Added `shove` ability (STR, SINGLE, FORCE PUSH 2, cost 3); equipped to grunt slot 3 |
 | 2026-04-15 | Added `ARC(5)` to TargetShape — 3-wide adjacent arc for sweep-style abilities |
 | 2026-04-15 | Reshaped `CONE` to expanding T: stem(1) + crossbar(3) + back row(5) |
 | 2026-04-15 | Added `ForceType` enum to EffectData (PUSH/PULL/LEFT/RIGHT/RADIAL) + `force_type` field |

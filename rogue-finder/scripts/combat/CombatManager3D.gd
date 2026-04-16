@@ -492,7 +492,13 @@ func _initiate_action(attacker: Unit3D, target: Unit3D) -> void:
 	var _eff_type: EffectData.EffectType = EffectData.EffectType.HARM
 	if not _pending_ability.effects.is_empty():
 		_eff_type = _pending_ability.effects[0].effect_type
-	_qte_bar.start_qte(_pending_ability.energy_cost, _pending_ability.target_shape, _eff_type)
+	## For FORCE abilities, pass the target's screen position so the click-targets
+	## QTE can scatter circles around the target unit's visual location.
+	var _screen_pos: Vector2 = Vector2.ZERO
+	if _eff_type == EffectData.EffectType.FORCE:
+		_screen_pos = _camera_rig.get_camera().unproject_position(target.global_position)
+	_qte_bar.start_qte(_pending_ability.energy_cost, _pending_ability.target_shape,
+			_eff_type, _screen_pos)
 
 func _on_qte_resolved(multiplier: float) -> void:
 	if not _pending_ability:

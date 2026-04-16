@@ -1,12 +1,12 @@
 # System: QTE System
 
-> Last updated: 2026-04-16 (Session 10 — QTE Slice 3: power meter for TRAVEL)
+> Last updated: 2026-04-16 (Session 11 — QTE-4: click-targets for FORCE)
 
 ---
 
 ## Purpose
 
-The QTE (Quick Time Event) system is a **standalone skill-check overlay**. It renders a sliding cursor bar over the game as a CanvasLayer and emits a multiplier float (0.25 / 0.75 / 1.0 / 1.25) when all beats complete.
+The QTE (Quick Time Event) system is a **standalone skill-check overlay**. It renders a skill-check UI over the game as a CanvasLayer and emits a multiplier float (0.25 / 0.75 / 1.0 / 1.25) when all beats complete.
 
 This multiplier drives the damage/heal/stat formula in CombatManager. The system is completely self-contained — it neither knows nor cares what called it.
 
@@ -18,7 +18,7 @@ Enemy "QTE" is simulated by CombatManager directly using the unit's `qte_resolut
 
 | File | Scene | Role |
 |------|-------|------|
-| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | Slider QTE + directional sequence QTE + power meter QTE, CanvasLayer layer 10 |
+| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | Slider QTE + directional sequence QTE + power meter QTE + click-targets QTE, CanvasLayer layer 10 |
 
 `.tscn` is minimal. All UI nodes are built in `_build_ui()`.
 
@@ -46,11 +46,12 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `start_qte` | `(energy_cost: int, shape: AbilityData.TargetShape, effect_type: EffectData.EffectType) -> void` | Routes to the correct QTE style, sets difficulty, then starts the first beat |
+| `start_qte` | `(energy_cost: int, shape: AbilityData.TargetShape, effect_type: EffectData.EffectType, target_screen_pos: Vector2 = Vector2.ZERO) -> void` | Routes to the correct QTE style, sets difficulty, then starts the first beat |
 
 `effect_type` routing:
 - `BUFF` / `DEBUFF` → directional arrow sequence (`_start_directional_qte`)
 - `TRAVEL` → hold-release power meter (`_start_power_meter_qte`)
+- `FORCE` → rapid click-targets (`_start_click_targets_qte`); `target_screen_pos` required
 - all others → 4-zone sliding bar (`_start_slider_qte`)
 
 ---
@@ -59,11 +60,11 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 `energy_cost` sets the difficulty tier once per `start_qte()` call:
 
-| Tier | Energy cost | Slider ss_half | Cursor duration | Dir input window | PM zone centre | PM zone half-width |
-|------|-------------|----------------|-----------------|------------------|----------------|-------------------|
-| Low | 1–2 | 0.20 (40 %) | 2.2 s | 2.0 s | 65 % | 18 % |
-| Medium | 3–4 | 0.12 (24 %) | 1.6 s | 1.5 s | 72 % | 12 % |
-| High | 5+ | 0.07 (14 %) | 1.1 s | 1.0 s | 78 % |  7 % |
+| Tier | Energy cost | Slider ss_half | Cursor duration | Dir input window | PM zone centre | PM zone half-width | CT window |
+|------|-------------|----------------|-----------------|------------------|----------------|-------------------|-----------|
+| Low | 1–2 | 0.20 (40 %) | 2.2 s | 2.0 s | 65 % | 18 % | 1.8 s |
+| Medium | 3–4 | 0.12 (24 %) | 1.6 s | 1.5 s | 72 % | 12 % | 1.3 s |
+| High | 5+ | 0.07 (14 %) | 1.1 s | 1.0 s | 78 % |  7 % | 0.9 s |
 
 Power meter fill rate = `1.0 / cursor_duration` (same speed scale as the slider timing).
 
@@ -127,9 +128,10 @@ Example: a 4-beat RADIAL ability needs all-gold hits to reach 1.25× — one red
 
 | QTE Type | Mechanic | Effect types | Visual |
 |----------|----------|--------------|--------|
-| Slider (current) | Press input to stop cursor | HARM, MEND, FORCE | 4-zone gold/green/orange/red horizontal bar |
+| Slider (current) | Press input to stop cursor | HARM, MEND | 4-zone gold/green/orange/red horizontal bar |
 | Directional sequence (current) | Press arrow keys in order | BUFF, DEBUFF | Arrow char + shrinking timing bar |
 | Power meter (current) | Hold input to fill; release in zone | TRAVEL | Vertical bar with 4-zone coloured band; white cursor line |
+| Click-targets (current) | Click circular targets within window | FORCE | Orange circles scattered within 80 px of target; green flash on hit |
 | Timer QTE (future) | Press input within a window per beat | TBD | Depleting timer bar per beat |
 
 ---
@@ -168,6 +170,28 @@ start_qte(energy_cost, shape, effect_type=TRAVEL)
 CombatManager3D receives qte_resolved(multiplier):
   → multiplier == 0.25 → FAILED label 1.5 s → IDLE (energy spent, no reposition)
   → multiplier > 0.25  → TRAVEL_DESTINATION mode (player picks destination tile)
+```
+
+**Click-targets (FORCE):**
+```
+start_qte(energy_cost, shape, effect_type=FORCE, target_screen_pos)
+  → _start_click_targets_qte(energy_cost, shape, target_screen_pos)
+      → sets _ct_window from difficulty tier (1.8 / 1.3 / 0.9 s)
+      → _beat_count_for_shape()
+      → for each beat: create_timer(i × 0.3 s) → _spawn_click_target(origin)
+          → spawns ColorRect at random offset ≤ 80 px from origin
+          → starts _ct_window timer → _on_ct_timeout(idx) → miss (0.25)
+      → _handle_ct_input():
+          LMB click within CT_RADIUS (12 px) → _resolve_ct_beat(idx, 1.25)
+          click outside → no action
+      → _resolve_ct_beat(idx, result):
+          flashes node green/red, records result, increments _current_beat
+          when all beats done → _aggregate_multiplier() → _show_final_feedback()
+              → await 0.85 s → hide bar → emit qte_resolved(multiplier)
+
+CombatManager3D receives qte_resolved(multiplier):
+  → multiplier < 0.3 → FAILED label 1.5 s → IDLE (energy spent, no knockback)
+  → multiplier ≥ 0.3 → _apply_force() executes knockback
 ```
 
 **Directional sequence (BUFF / DEBUFF):**
