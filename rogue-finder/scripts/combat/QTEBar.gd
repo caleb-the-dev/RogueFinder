@@ -57,13 +57,14 @@ var _dir_input_window: float     = 1.5   ## seconds per directional beat; set by
 
 ## --- Click-targets QTE state ---
 
-var _ct_mode:       bool             = false   ## true while click-targets QTE is active
-var _ct_window:     float            = 1.8     ## seconds each target is live; set by difficulty
-var _ct_nodes:      Array[ColorRect] = []      ## one ColorRect per spawned target
-var _ct_bar_nodes:  Array[ColorRect] = []      ## depleting timer bar above each target
-var _ct_bar_tweens: Array[Tween]     = []      ## tween driving each bar; killed on resolve
-var _ct_centers:    Array[Vector2]   = []      ## screen-space centre for each target
-var _ct_active:     Array[bool]      = []      ## false once a target has been resolved
+var _ct_mode:       bool             = false        ## true while click-targets QTE is active
+var _ct_window:     float            = 1.8          ## seconds each target is live; set by difficulty
+var _ct_origin:     Vector2          = Vector2.ZERO ## screen-space origin passed from CombatManager
+var _ct_nodes:      Array[ColorRect] = []           ## one ColorRect per spawned target
+var _ct_bar_nodes:  Array[ColorRect] = []           ## depleting timer bar above each target
+var _ct_bar_tweens: Array[Tween]     = []           ## tween driving each bar; killed on resolve
+var _ct_centers:    Array[Vector2]   = []           ## screen-space centre for each target
+var _ct_active:     Array[bool]      = []           ## false once a target has been resolved
 
 ## --- Power meter state ---
 
@@ -482,12 +483,14 @@ func _set_difficulty(energy_cost: int) -> void:
 
 ## --- Beat Count ---
 
+## Beat counts scale with AoE area: base 3 for single-cell shapes, ×area factor for larger ones.
+##   SELF / SINGLE / ARC → 3   CONE → 6   LINE → 9   RADIAL → 12
 func _beat_count_for_shape(shape: AbilityData.TargetShape) -> int:
 	match shape:
-		AbilityData.TargetShape.CONE:   return 2
-		AbilityData.TargetShape.LINE:   return 3
-		AbilityData.TargetShape.RADIAL: return 4
-		_:                              return 1  # SELF, SINGLE, ARC
+		AbilityData.TargetShape.CONE:   return 6
+		AbilityData.TargetShape.LINE:   return 9
+		AbilityData.TargetShape.RADIAL: return 12
+		_:                              return 3  # SELF, SINGLE, ARC
 
 ## --- Slider Beat Flow ---
 
@@ -667,6 +670,7 @@ func _on_cursor_expired() -> void:
 func _start_click_targets_qte(energy_cost: int, shape: AbilityData.TargetShape,
 		origin: Vector2) -> void:
 	_ct_mode    = true
+	_ct_origin     = origin
 	_ct_nodes      = []
 	_ct_bar_nodes  = []
 	_ct_bar_tweens = []
@@ -692,11 +696,8 @@ func _start_click_targets_qte(energy_cost: int, shape: AbilityData.TargetShape,
 	_instruction_label.text = "Click the targets!"
 	visible = true
 
-	## Stagger target spawns 0.3 s apart
-	for i in range(_beat_count):
-		get_tree().create_timer(float(i) * 0.3).timeout.connect(
-			_spawn_click_target.bind(origin)
-		)
+	## Spawn targets one at a time — next appears only after the previous resolves
+	_spawn_click_target(origin)
 
 ## Spawns one circular target at a random position within CT_SCATTER_RANGE of origin.
 ## Called after the stagger delay. The array index equals the pre-append size.
@@ -788,6 +789,9 @@ func _resolve_ct_beat(idx: int, result: float) -> void:
 		_bar_bg.visible = true
 		_cleanup_ct_nodes()
 		qte_resolved.emit(multiplier)
+	else:
+		## More beats remain — spawn the next target immediately
+		_spawn_click_target(_ct_origin)
 
 ## Frees all spawned target nodes and clears tracking arrays.
 func _cleanup_ct_nodes() -> void:

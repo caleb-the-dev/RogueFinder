@@ -35,12 +35,13 @@ func _beat_result(pos: float, ss_half: float) -> float:
 	return 1.25
 
 ## --- Mirrors QTEBar._beat_count_for_shape() ---
+## Base 3 for single-cell shapes; ×area factor for larger ones.
 func _beat_count(shape: AbilityData.TargetShape) -> int:
 	match shape:
-		AbilityData.TargetShape.CONE:   return 2
-		AbilityData.TargetShape.LINE:   return 3
-		AbilityData.TargetShape.RADIAL: return 4
-		_:                              return 1
+		AbilityData.TargetShape.CONE:   return 6
+		AbilityData.TargetShape.LINE:   return 9
+		AbilityData.TargetShape.RADIAL: return 12
+		_:                              return 3
 
 ## --- Mirrors QTEBar._aggregate_multiplier() ---
 func _aggregate(results: Array[float]) -> float:
@@ -130,12 +131,12 @@ func _test_beat_result_high_tier() -> void:
 ## ============================================================
 
 func _test_beat_count_per_shape() -> void:
-	assert(_beat_count(AbilityData.TargetShape.SELF)   == 1, "SELF → 1 beat")
-	assert(_beat_count(AbilityData.TargetShape.SINGLE) == 1, "SINGLE → 1 beat")
-	assert(_beat_count(AbilityData.TargetShape.ARC)    == 1, "ARC → 1 beat")
-	assert(_beat_count(AbilityData.TargetShape.CONE)   == 2, "CONE → 2 beats")
-	assert(_beat_count(AbilityData.TargetShape.LINE)   == 3, "LINE → 3 beats")
-	assert(_beat_count(AbilityData.TargetShape.RADIAL) == 4, "RADIAL → 4 beats")
+	assert(_beat_count(AbilityData.TargetShape.SELF)   == 3,  "SELF → 3 beats")
+	assert(_beat_count(AbilityData.TargetShape.SINGLE) == 3,  "SINGLE → 3 beats")
+	assert(_beat_count(AbilityData.TargetShape.ARC)    == 3,  "ARC → 3 beats")
+	assert(_beat_count(AbilityData.TargetShape.CONE)   == 6,  "CONE → 6 beats")
+	assert(_beat_count(AbilityData.TargetShape.LINE)   == 9,  "LINE → 9 beats")
+	assert(_beat_count(AbilityData.TargetShape.RADIAL) == 12, "RADIAL → 12 beats")
 
 ## ============================================================
 ## Multiplier aggregation

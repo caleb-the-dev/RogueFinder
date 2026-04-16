@@ -132,46 +132,52 @@ func _test_timeout_is_miss() -> void:
 ## ============================================================
 
 func _test_aggregation_all_hit() -> void:
-	## SINGLE shape (1 beat): all gold
-	assert(_aggregate([1.25]) == 1.25, "1 hit → 1.25")
+	## SINGLE / ARC / SELF shape (3 beats): all gold
+	assert(_aggregate([1.25, 1.25, 1.25]) == 1.25, "3 hits (SINGLE/ARC) → 1.25")
 
-	## CONE shape (2 beats)
-	assert(_aggregate([1.25, 1.25]) == 1.25, "2 hits → 1.25")
+	## CONE shape (6 beats)
+	assert(_aggregate([1.25, 1.25, 1.25, 1.25, 1.25, 1.25]) == 1.25, "6 hits (CONE) → 1.25")
 
-	## LINE shape (3 beats)
-	assert(_aggregate([1.25, 1.25, 1.25]) == 1.25, "3 hits → 1.25")
-
-	## RADIAL shape (4 beats)
-	assert(_aggregate([1.25, 1.25, 1.25, 1.25]) == 1.25, "4 hits → 1.25")
+	## RADIAL shape (12 beats) — spot-check with full run
+	var twelve_hits: Array[float] = []
+	for _i in range(12): twelve_hits.append(1.25)
+	assert(_aggregate(twelve_hits) == 1.25, "12 hits (RADIAL) → 1.25")
 
 ## ============================================================
 ## Beat aggregation — mixed hit/miss
 ## ============================================================
 
 func _test_aggregation_mixed() -> void:
-	## 3 hits, 1 miss (4-beat RADIAL) → avg = (1.25×3 + 0.25) / 4 = 1.0
-	assert(_aggregate([1.25, 1.25, 1.25, 0.25]) == 1.0,
-		"3 hits + 1 miss (4-beat) → avg=1.0 → 1.0")
-
-	## 2 hits, 1 miss (3-beat LINE) → avg = (1.25 + 1.25 + 0.25) / 3 ≈ 0.917 → 1.0
+	## SINGLE (3 beats): 2 hits + 1 miss → avg = (1.25+1.25+0.25)/3 ≈ 0.917 → 1.0
 	assert(_aggregate([1.25, 1.25, 0.25]) == 1.0,
-		"2 hits + 1 miss (3-beat) → avg≈0.917 → 1.0")
+		"2/3 hits (SINGLE) → avg≈0.917 → 1.0")
 
-	## 1 hit, 1 miss (2-beat CONE) → avg = (1.25 + 0.25) / 2 = 0.75
-	assert(_aggregate([1.25, 0.25]) == 0.75,
-		"1 hit + 1 miss (2-beat) → avg=0.75 → 0.75")
+	## SINGLE (3 beats): 1 hit + 2 misses → avg = (1.25+0.25+0.25)/3 ≈ 0.583 → 0.25
+	assert(_aggregate([1.25, 0.25, 0.25]) == 0.25,
+		"1/3 hits (SINGLE) → avg≈0.583 → 0.25")
 
-	## All miss (2-beat) → avg = 0.25
-	assert(_aggregate([0.25, 0.25]) == 0.25,
-		"2 misses → avg=0.25 → 0.25")
+	## RADIAL (12 beats): 9 hits + 3 misses → avg = (9×1.25 + 3×0.25)/12 = 1.0
+	var nine_hits_three_miss: Array[float] = []
+	for _i in range(9):  nine_hits_three_miss.append(1.25)
+	for _i in range(3):  nine_hits_three_miss.append(0.25)
+	assert(_aggregate(nine_hits_three_miss) == 1.0,
+		"9/12 hits (RADIAL) → avg=1.0 → 1.0")
+
+	## RADIAL (12 beats): all miss
+	var twelve_miss: Array[float] = []
+	for _i in range(12): twelve_miss.append(0.25)
+	assert(_aggregate(twelve_miss) == 0.25,
+		"0/12 hits (RADIAL) → 0.25")
 
 ## ============================================================
 ## Beat aggregation — all miss
 ## ============================================================
 
 func _test_aggregation_all_miss() -> void:
-	assert(_aggregate([0.25]) == 0.25, "1 miss → 0.25")
-	assert(_aggregate([0.25, 0.25, 0.25, 0.25]) == 0.25, "4 misses → 0.25")
+	assert(_aggregate([0.25, 0.25, 0.25]) == 0.25, "3 misses (SINGLE) → 0.25")
+	var twelve_miss: Array[float] = []
+	for _i in range(12): twelve_miss.append(0.25)
+	assert(_aggregate(twelve_miss) == 0.25, "12 misses (RADIAL) → 0.25")
 	assert(_aggregate([]) == 0.25, "empty (guard) → 0.25")
 
 ## ============================================================
