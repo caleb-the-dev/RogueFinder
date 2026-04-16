@@ -12,6 +12,15 @@ extends Node3D
 
 const ENEMY_TURN_DELAY: float = 0.65
 
+## Display names for stat buffs and debuffs — [buff_name, debuff_name] per attribute.
+const STAT_STATUS_NAMES: Dictionary = {
+	AbilityData.Attribute.STRENGTH:  ["Empowered",  "Weakened"],
+	AbilityData.Attribute.DEXTERITY: ["Hasted",     "Slowed"],
+	AbilityData.Attribute.COGNITION: ["Focused",    "Muddled"],
+	AbilityData.Attribute.VITALITY:  ["Fortified",  "Vulnerable"],
+	AbilityData.Attribute.WILLPOWER: ["Resolute",   "Demoralized"],
+}
+
 enum CombatState { PLAYER_TURN, QTE_RUNNING, ENEMY_TURN, WIN, LOSE }
 enum PlayerMode  { IDLE, STRIDE_MODE, ABILITY_TARGET_MODE, TRAVEL_DESTINATION }
 
@@ -25,6 +34,7 @@ var _attack_target:  Unit3D             = null
 var _pending_ability: AbilityData       = null   ## set when ability chosen from menu
 var _aoe_origin:     Vector2i           = Vector2i(-1, -1)  ## aimed cell for AoE abilities
 var _travel_effect:  EffectData         = null   ## stored while awaiting destination pick
+var _hovered_cell:   Vector2i           = Vector2i(-1, -1)  ## last cell under mouse (cone preview)
 
 var _grid:           Grid3D             = null
 var _camera_rig:     CameraController   = null
@@ -212,6 +222,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				_update_status()
 				get_viewport().set_input_as_handled()
 
+	if event is InputEventMouseMotion and mode == PlayerMode.ABILITY_TARGET_MODE \
+			and _pending_ability and _pending_ability.target_shape == AbilityData.TargetShape.CONE:
+		_handle_cone_hover()
+		# not marked as handled — camera controller still needs motion events
+
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.double_click:
 			_handle_double_click()
@@ -297,6 +312,7 @@ func _deselect() -> void:
 	_pending_ability = null
 	_aoe_origin      = Vector2i(-1, -1)
 	_travel_effect   = null
+	_hovered_cell    = Vector2i(-1, -1)
 	mode = PlayerMode.IDLE
 	_update_status()
 
@@ -578,6 +594,10 @@ func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
 		AbilityData.Attribute.WILLPOWER:
 			unit.data.willpower = clampi(unit.data.willpower + delta, 0, 5)
 
+	# Record the named status effect so the UI can display it
+	var name_pair: Array = STAT_STATUS_NAMES.get(stat, ["Buffed", "Debuffed"])
+	unit.add_stat_effect(name_pair[0] if delta > 0 else name_pair[1], stat, delta)
+
 ## --- TRAVEL Effect ---
 
 ## Highlights valid destination tiles for a TRAVEL effect.
@@ -636,6 +656,46 @@ func _try_travel_destination(cell: Vector2i) -> void:
 	_update_status()
 	_check_auto_end_turn()
 
+## --- Cone Hover Preview ---
+
+## Called on every mouse-motion event while a CONE ability is being aimed.
+## Highlights the full 3-cell arc for the direction under the cursor, falling back
+## to showing the 4 cardinal root cells when the cursor is not over a direction cell.
+func _handle_cone_hover() -> void:
+	var camera: Camera3D = _camera_rig.get_camera()
+	if not camera or not _selected_unit:
+		return
+	var cell: Vector2i = _grid.get_clicked_cell(camera, get_viewport())
+	if cell == _hovered_cell:
+		return
+	_hovered_cell = cell
+
+	var caster_pos: Vector2i = _selected_unit.grid_pos
+	var cardinals: Array[Vector2i] = [
+		Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
+	]
+
+	_grid.clear_highlights()
+	_grid.set_highlight(caster_pos, "selected")
+
+	# Is the cursor sitting on one of the 4 direction roots?
+	var over_root: bool = false
+	for dir: Vector2i in cardinals:
+		if caster_pos + dir == cell:
+			over_root = true
+			break
+
+	if over_root:
+		# Expand to full 3-cell arc preview for this direction
+		for c: Vector2i in _get_shape_cells(caster_pos, cell, _pending_ability):
+			_grid.set_highlight(c, "ability_target")
+	else:
+		# Show just the 4 direction roots as clickable hints
+		for dir: Vector2i in cardinals:
+			var root: Vector2i = caster_pos + dir
+			if _grid.is_valid(root):
+				_grid.set_highlight(root, "ability_target")
+
 ## --- AoE Shape Helpers ---
 
 ## Returns the cardinal direction from `from` to `to`, snapping to the dominant axis.
@@ -664,13 +724,13 @@ func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: Abili
 						if _grid.is_valid(cell):
 							cells.append(cell)
 		AbilityData.TargetShape.CONE:
-			# Direction from caster to the clicked adjacent cell
-			var dir := _cardinal_direction(caster_pos, origin_pos)
-			var root := caster_pos + dir          # cell adjacent to caster
-			var apex := root + dir                 # one step further
-			var perp := Vector2i(dir.y, dir.x)    # perpendicular axis
-			var candidates: Array[Vector2i] = [root, apex - perp, apex, apex + perp]
-			for c in candidates:
+			# 3-cell arc at distance 1: left-of-root, root, right-of-root.
+			# Wider end is nearest the caster — like an upside-down T / sweep arc.
+			var dir: Vector2i  = _cardinal_direction(caster_pos, origin_pos)
+			var root: Vector2i = caster_pos + dir
+			var perp: Vector2i = Vector2i(dir.y, dir.x)   # perpendicular axis
+			var candidates: Array[Vector2i] = [root - perp, root, root + perp]
+			for c: Vector2i in candidates:
 				if _grid.is_valid(c):
 					cells.append(c)
 		AbilityData.TargetShape.LINE:
