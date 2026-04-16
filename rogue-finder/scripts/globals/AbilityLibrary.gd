@@ -24,6 +24,7 @@ extends RefCounted
 ##     "pool"       : EffectData.PoolType    (HARM / MEND only)
 ##     "stat"       : AbilityData.Attribute  (BUFF / DEBUFF only)
 ##     "move"       : EffectData.MoveType    (TRAVEL only)
+##     "force"      : EffectData.ForceType   (FORCE only)
 
 const ABILITIES: Dictionary = {
 	"strike": {
@@ -172,6 +173,124 @@ const ABILITIES: Dictionary = {
 			{ "type": EffectData.EffectType.BUFF, "base_value": 2, "stat": AbilityData.Attribute.VITALITY },
 		],
 	},
+	"sweep": {
+		"name":          "Sweep",
+		"attribute":     AbilityData.Attribute.STRENGTH,
+		"target":        AbilityData.TargetShape.ARC,
+		"applicable_to": AbilityData.ApplicableTo.ENEMY,
+		"range":         1,
+		"cost":          3,
+		"description":   "Drag your weapon in a wide arc — hits every enemy in a 3-wide arc directly in front of you.",
+		"effects": [
+			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
+		],
+	},
+	## --- Fireball: RADIAL + ANY + HARM (hurts allies and enemies; passthrough=false) ---
+	"fireball": {
+		"name":          "Fireball",
+		"attribute":     AbilityData.Attribute.COGNITION,
+		"target":        AbilityData.TargetShape.RADIAL,
+		"applicable_to": AbilityData.ApplicableTo.ANY,
+		"range":         4,
+		"passthrough":   false,
+		"cost":          5,
+		"description":   "Hurl a sphere of roiling fire — scorches everything in the blast, allies included. Inner units shield those behind them.",
+		"effects": [
+			{ "type": EffectData.EffectType.HARM, "base_value": 6, "pool": EffectData.PoolType.HP },
+		],
+	},
+	## --- Heal Burst: RADIAL + ALLY + MEND ---
+	"heal_burst": {
+		"name":          "Heal Burst",
+		"attribute":     AbilityData.Attribute.WILLPOWER,
+		"target":        AbilityData.TargetShape.RADIAL,
+		"applicable_to": AbilityData.ApplicableTo.ALLY,
+		"range":         2,
+		"passthrough":   true,
+		"cost":          4,
+		"description":   "Release a wave of restorative energy — heals all allies caught in the pulse.",
+		"effects": [
+			{ "type": EffectData.EffectType.MEND, "base_value": 5, "pool": EffectData.PoolType.HP },
+		],
+	},
+	## --- Charge: SELF + TRAVEL/LINE (dash in a straight line) ---
+	"charge": {
+		"name":          "Charge",
+		"attribute":     AbilityData.Attribute.STRENGTH,
+		"target":        AbilityData.TargetShape.SELF,
+		"applicable_to": AbilityData.ApplicableTo.ANY,
+		"range":         3,
+		"cost":          2,
+		"description":   "Burst forward in a straight line — close the gap in one powerful rush.",
+		"effects": [
+			{ "type": EffectData.EffectType.TRAVEL, "base_value": 3, "move": EffectData.MoveType.LINE },
+		],
+	},
+	## --- Gust: SINGLE + ANY + FORCE/PUSH ---
+	"gust": {
+		"name":          "Gust",
+		"attribute":     AbilityData.Attribute.DEXTERITY,
+		"target":        AbilityData.TargetShape.SINGLE,
+		"applicable_to": AbilityData.ApplicableTo.ANY,
+		"range":         3,
+		"cost":          2,
+		"description":   "Blast a target with a focused burst of wind — knock them 2 tiles directly away.",
+		"effects": [
+			{ "type": EffectData.EffectType.FORCE, "base_value": 2, "force": EffectData.ForceType.PUSH },
+		],
+	},
+	## --- Yank: SINGLE + ANY + FORCE/PULL ---
+	"yank": {
+		"name":          "Yank",
+		"attribute":     AbilityData.Attribute.STRENGTH,
+		"target":        AbilityData.TargetShape.SINGLE,
+		"applicable_to": AbilityData.ApplicableTo.ANY,
+		"range":         3,
+		"cost":          2,
+		"description":   "Grab and haul a target 2 tiles toward you — close range on a retreating foe.",
+		"effects": [
+			{ "type": EffectData.EffectType.FORCE, "base_value": 2, "force": EffectData.ForceType.PULL },
+		],
+	},
+	## --- Windblast: RADIAL + ENEMY + FORCE/RADIAL (push all outward from center) ---
+	"windblast": {
+		"name":          "Windblast",
+		"attribute":     AbilityData.Attribute.COGNITION,
+		"target":        AbilityData.TargetShape.RADIAL,
+		"applicable_to": AbilityData.ApplicableTo.ENEMY,
+		"range":         3,
+		"passthrough":   true,
+		"cost":          3,
+		"description":   "Unleash a radial burst of force — blasts every enemy outward from the point of impact.",
+		"effects": [
+			{ "type": EffectData.EffectType.FORCE, "base_value": 2, "force": EffectData.ForceType.RADIAL },
+		],
+	},
+	"fire_breath": {
+		"name":          "Fire Breath",
+		"attribute":     AbilityData.Attribute.COGNITION,
+		"target":        AbilityData.TargetShape.CONE,
+		"applicable_to": AbilityData.ApplicableTo.ENEMY,
+		"range":         1,
+		"cost":          4,
+		"description":   "Exhale a torrent of flame — scorches all enemies in an expanding triangle up to 3 tiles deep.",
+		"effects": [
+			{ "type": EffectData.EffectType.HARM, "base_value": 5, "pool": EffectData.PoolType.HP },
+		],
+	},
+	"piercing_shot": {
+		"name":          "Piercing Shot",
+		"attribute":     AbilityData.Attribute.DEXTERITY,
+		"target":        AbilityData.TargetShape.LINE,
+		"applicable_to": AbilityData.ApplicableTo.ENEMY,
+		"range":         6,
+		"passthrough":   true,
+		"cost":          3,
+		"description":   "Draw and loose with full force — the bolt punches through every enemy in a straight line.",
+		"effects": [
+			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
+		],
+	},
 }
 
 ## Cached Godot icon — loaded once on first ability lookup.
@@ -218,6 +337,8 @@ static func get_ability(ability_id: String) -> AbilityData:
 			e.target_stat = effect_def["stat"]
 		if effect_def.has("move"):
 			e.movement_type = effect_def["move"]
+		if effect_def.has("force"):
+			e.force_type = effect_def["force"]
 		a.effects.append(e)
 
 	return a

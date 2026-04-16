@@ -25,9 +25,10 @@ enum Attribute {
 enum TargetShape {
 	SELF   = 0,  ## auto-targets the caster; no highlight step
 	SINGLE = 1,  ## player picks one valid unit within range
-	CONE   = 2,  ## T-shape: 1 cell adjacent to caster + 3 cells forming the top of the T
+	CONE   = 2,  ## expanding triangle: 1 cell at depth 1, 2 at depth 2, 3 at depth 3 (fire-breath)
 	LINE   = 3,  ## straight line extending from the caster in a chosen direction
 	RADIAL = 4,  ## diamond AoE — 5 wide × 5 tall
+	ARC    = 5,  ## 3-wide adjacent arc — left, center, right of the chosen direction
 }
 
 ## ======================================================
@@ -51,7 +52,9 @@ enum ApplicableTo {
 @export var applicable_to: ApplicableTo = ApplicableTo.ENEMY
 ## 0–10 tiles; -1 = whole map
 @export var tile_range:    int          = 1
-## Only meaningful for LINE, CONE, RADIAL — effect continues past first collision if true
+## CONE: if false, a unit at depth-1 blocks the depth-2 crossbar.
+## RADIAL: if false, a unit at distance-1 blocks distance-2 cells behind it.
+## LINE: if false, effect stops at the first occupied cell.
 @export var passthrough:   bool         = false
 @export var energy_cost:   int          = 0
 @export var effects:       Array[EffectData] = []

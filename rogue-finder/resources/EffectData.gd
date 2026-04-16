@@ -29,6 +29,14 @@ enum MoveType {
 	LINE = 1,  ## straight-line only (TRAVEL only)
 }
 
+enum ForceType {
+	PUSH   = 0,  ## away from caster along the caster→target axis
+	PULL   = 1,  ## toward caster along the target→caster axis
+	LEFT   = 2,  ## 90° left of the caster→target axis
+	RIGHT  = 3,  ## 90° right of the caster→target axis
+	RADIAL = 4,  ## away from the blast origin cell (used with RADIAL shape)
+}
+
 ## ======================================================
 ## --- Fields ---
 ## ======================================================
@@ -41,3 +49,5 @@ enum MoveType {
 @export var target_stat:   int        = 0
 ## TRAVEL only — movement constraint
 @export var movement_type: MoveType   = MoveType.FREE
+## FORCE only — direction of displacement
+@export var force_type:    ForceType  = ForceType.PUSH

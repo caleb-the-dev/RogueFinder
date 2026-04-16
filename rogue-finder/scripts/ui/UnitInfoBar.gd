@@ -7,11 +7,11 @@ extends CanvasLayer
 ## Displays: portrait, name/class, HP bar, energy bar.
 ## Layer 4: above world, below StatPanel (layer 8) and QTE (layer 10).
 
-const PANEL_W: float   = 460.0
-const PANEL_H: float   = 76.0
+const PANEL_W: float     = 460.0
+const PANEL_H: float     = 96.0   # extended to fit status row
 const PORTRAIT_SZ: float = 56.0
-const BAR_W: float     = 280.0
-const BAR_H: float     = 9.0
+const BAR_W: float       = 280.0
+const BAR_H: float       = 9.0
 
 var _panel: ColorRect        = null
 var _portrait: TextureRect   = null
@@ -23,6 +23,7 @@ var _hp_text: Label          = null
 var _en_bg: ColorRect        = null
 var _en_fill: ColorRect      = null
 var _en_text: Label          = null
+var _status_rtl: RichTextLabel = null
 
 func _ready() -> void:
 	layer = 4
@@ -39,9 +40,9 @@ func _build_ui() -> void:
 	_panel.size     = Vector2(PANEL_W, PANEL_H)
 	add_child(_panel)
 
-	# Portrait (left side)
+	# Portrait (left side) — fixed y so it doesn't shift when PANEL_H changes
 	_portrait = TextureRect.new()
-	_portrait.position     = Vector2(8.0, (PANEL_H - PORTRAIT_SZ) * 0.5)
+	_portrait.position     = Vector2(8.0, 10.0)
 	_portrait.size         = Vector2(PORTRAIT_SZ, PORTRAIT_SZ)
 	_portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -80,6 +81,17 @@ func _build_ui() -> void:
 	_en_bg   = _make_bar_bg(bar_x + 22.0, 60.0)
 	_en_fill = _make_bar_fill(bar_x + 22.0, 60.0, Color(0.22, 0.55, 1.0))
 	_en_text = _make_bar_text(num_x + 22.0, 58.0)
+
+	# Status effects row — BBCode colored chips below the bars
+	_status_rtl = RichTextLabel.new()
+	_status_rtl.bbcode_enabled           = true
+	_status_rtl.fit_content              = true
+	_status_rtl.scroll_active            = false
+	_status_rtl.position                 = Vector2(bar_x, 76.0)
+	_status_rtl.custom_minimum_size      = Vector2(PANEL_W - bar_x - 8.0, 14.0)
+	_status_rtl.size                     = Vector2(PANEL_W - bar_x - 8.0, 14.0)
+	_status_rtl.add_theme_font_size_override("normal_font_size", 10)
+	_panel.add_child(_status_rtl)
 
 ## --- Helper builders ---
 
@@ -162,3 +174,19 @@ func _refresh_bars(unit: Unit3D) -> void:
 		_hp_fill.color = Color(1.0, 0.80, 0.12)
 	else:
 		_hp_fill.color = Color(0.95, 0.22, 0.18)
+
+	_refresh_status(unit)
+
+func _refresh_status(unit: Unit3D) -> void:
+	if not _status_rtl:
+		return
+	if unit.stat_effects.is_empty():
+		_status_rtl.text = ""
+		return
+	var parts: PackedStringArray = []
+	for e: Dictionary in unit.stat_effects:
+		if e["delta"] > 0:
+			parts.append("[color=#44ee66]▲ %s[/color]" % e["display_name"])
+		else:
+			parts.append("[color=#ff5533]▼ %s[/color]" % e["display_name"])
+	_status_rtl.text = "  ".join(parts)

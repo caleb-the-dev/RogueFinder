@@ -18,6 +18,10 @@ var has_moved: bool     = false
 var has_acted: bool     = false
 var is_alive: bool      = true
 
+## Applied stat effects — populated by CombatManager3D._apply_stat_delta().
+## Each entry: { "display_name": String, "stat": int, "delta": int }
+var stat_effects: Array[Dictionary] = []
+
 const BOX_SIZE: Vector3     = Vector3(0.7, 1.6, 0.7)
 const BOX_HALF_HEIGHT: float = 0.8   # BOX_SIZE.y / 2 — keeps feet at y = 0
 
@@ -27,6 +31,8 @@ var _label: Label3D                 = null
 var _hp_bar: Label3D                = null
 var _body_mat: StandardMaterial3D   = null  # kept for hit-flash restore
 var _base_color: Color              = Color.WHITE
+var _buff_indicator: Label3D        = null  # ▲ shown when unit has active buffs
+var _debuff_indicator: Label3D      = null  # ▼ shown when unit has active debuffs
 
 func _ready() -> void:
 	_build_visuals()
@@ -80,6 +86,27 @@ func _build_visuals() -> void:
 	_hp_bar.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
 	_hp_bar.no_depth_test = true
 	add_child(_hp_bar)
+
+	# --- Buff / debuff indicators (small arrows above the name label) ---
+	_buff_indicator = Label3D.new()
+	_buff_indicator.position      = Vector3(-0.22, BOX_SIZE.y + 0.85, 0.0)
+	_buff_indicator.font_size     = 16
+	_buff_indicator.text          = "▲"
+	_buff_indicator.modulate      = Color(0.30, 1.00, 0.45)   # green
+	_buff_indicator.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
+	_buff_indicator.no_depth_test = true
+	_buff_indicator.visible       = false
+	add_child(_buff_indicator)
+
+	_debuff_indicator = Label3D.new()
+	_debuff_indicator.position      = Vector3(0.22, BOX_SIZE.y + 0.85, 0.0)
+	_debuff_indicator.font_size     = 16
+	_debuff_indicator.text          = "▼"
+	_debuff_indicator.modulate      = Color(1.00, 0.32, 0.22)  # red-orange
+	_debuff_indicator.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
+	_debuff_indicator.no_depth_test = true
+	_debuff_indicator.visible       = false
+	add_child(_debuff_indicator)
 
 ## --- Public API ---
 
@@ -136,6 +163,25 @@ func move_to(new_pos: Vector2i) -> void:
 	grid_pos  = new_pos
 	has_moved = true
 	unit_moved.emit(self, new_pos)
+
+## Records an applied buff or debuff and refreshes the visual indicators.
+## Called by CombatManager3D._apply_stat_delta() after the stat change lands.
+func add_stat_effect(display_name: String, stat: int, delta: int) -> void:
+	stat_effects.append({"display_name": display_name, "stat": stat, "delta": delta})
+	_refresh_effect_indicators()
+
+func _refresh_effect_indicators() -> void:
+	var has_buff: bool   = false
+	var has_debuff: bool = false
+	for e: Dictionary in stat_effects:
+		if e["delta"] > 0:
+			has_buff = true
+		else:
+			has_debuff = true
+	if _buff_indicator:
+		_buff_indicator.visible = has_buff
+	if _debuff_indicator:
+		_debuff_indicator.visible = has_debuff
 
 ## --- Visual Helpers ---
 

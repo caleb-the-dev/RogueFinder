@@ -147,6 +147,16 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 		var ab: String = d.abilities[i] if i < d.abilities.size() else ""
 		lines.append("%d. %s" % [i + 1, _slot(ab)])
 
+	# -- Status Effects --
+	if not unit.stat_effects.is_empty():
+		lines.append("")
+		lines.append("[b]── Status Effects ──[/b]")
+		for e: Dictionary in unit.stat_effects:
+			var arrow: String = "▲" if e["delta"] > 0 else "▼"
+			lines.append("%s  [b]%s[/b]  (%+d %s)" % [
+				arrow, e["display_name"], e["delta"], _stat_abbr(e["stat"])
+			])
+
 	return "\n".join(lines)
 
 func _slot(val: String) -> String:
@@ -154,3 +164,12 @@ func _slot(val: String) -> String:
 
 func _or(val: String) -> String:
 	return val if val != "" else "(none)"
+
+func _stat_abbr(stat: int) -> String:
+	match stat:
+		AbilityData.Attribute.STRENGTH:  return "STR"
+		AbilityData.Attribute.DEXTERITY: return "DEX"
+		AbilityData.Attribute.COGNITION: return "COG"
+		AbilityData.Attribute.VITALITY:  return "VIT"
+		AbilityData.Attribute.WILLPOWER: return "WIL"
+		_: return "???"
