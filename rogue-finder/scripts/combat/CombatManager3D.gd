@@ -511,7 +511,7 @@ func _on_qte_resolved(accuracy: float) -> void:
 		elif has_aoe:
 			var cells := _get_shape_cells(_selected_unit.grid_pos, _aoe_origin, _pending_ability)
 			for unit: Unit3D in _get_units_in_cells(cells, _pending_ability.applicable_to):
-				_apply_effects(_pending_ability, _selected_unit, unit, accuracy)
+				_apply_effects(_pending_ability, _selected_unit, unit, accuracy, _aoe_origin)
 		else:
 			_apply_effects(_pending_ability, _selected_unit, _attack_target, accuracy)
 
@@ -535,7 +535,9 @@ func _on_qte_resolved(accuracy: float) -> void:
 
 ## Resolves every effect in ability.effects against target using the shared accuracy float.
 ## accuracy comes from the QTE result (0.0–1.0); all effects share the same roll.
-func _apply_effects(ability: AbilityData, caster: Unit3D, target: Unit3D, accuracy: float) -> void:
+## blast_origin is the aimed AoE cell — passed through to FORCE/RADIAL displacement.
+func _apply_effects(ability: AbilityData, caster: Unit3D, target: Unit3D, accuracy: float,
+		blast_origin: Vector2i = Vector2i(-1, -1)) -> void:
 	var attr_val: int = _get_attribute_value(caster, ability.attribute)
 	for effect: EffectData in ability.effects:
 		match effect.effect_type:
@@ -553,10 +555,10 @@ func _apply_effects(ability: AbilityData, caster: Unit3D, target: Unit3D, accura
 				if accuracy >= 0.3:
 					_apply_stat_delta(target, effect.target_stat, -effect.base_value)
 			EffectData.EffectType.FORCE:
-				# TODO: push target N tiles; deal collision damage
-				pass
+				if accuracy >= 0.3:
+					_apply_force(caster, target, effect, blast_origin)
 			EffectData.EffectType.TRAVEL:
-				# TODO: move caster to a valid destination tile
+				# Handled before _apply_effects is called — see _on_qte_resolved
 				pass
 
 ## Returns the raw attribute int value from a unit's CombatantData.
@@ -588,6 +590,47 @@ func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
 	# Record the named status effect so the UI can display it
 	var name_pair: Array = STAT_STATUS_NAMES.get(stat, ["Buffed", "Debuffed"])
 	unit.add_stat_effect(name_pair[0] if delta > 0 else name_pair[1], stat, delta)
+
+## --- FORCE Effect ---
+
+## Displaces `target` up to effect.base_value tiles in the direction determined by
+## effect.force_type. Stops at the grid edge or the first occupied cell.
+## blast_origin is the AoE aim cell; used by RADIAL to push targets away from center.
+func _apply_force(caster: Unit3D, target: Unit3D, effect: EffectData, blast_origin: Vector2i) -> void:
+	var dir: Vector2i
+	match effect.force_type:
+		EffectData.ForceType.PUSH:
+			dir = _cardinal_direction(caster.grid_pos, target.grid_pos)
+		EffectData.ForceType.PULL:
+			dir = _cardinal_direction(target.grid_pos, caster.grid_pos)
+		EffectData.ForceType.LEFT:
+			var base: Vector2i = _cardinal_direction(caster.grid_pos, target.grid_pos)
+			dir = Vector2i(-base.y, base.x)   # rotate 90° left
+		EffectData.ForceType.RIGHT:
+			var base: Vector2i = _cardinal_direction(caster.grid_pos, target.grid_pos)
+			dir = Vector2i(base.y, -base.x)   # rotate 90° right
+		EffectData.ForceType.RADIAL:
+			# Push away from blast center; fall back to caster if no origin stored
+			var origin: Vector2i = blast_origin if blast_origin != Vector2i(-1, -1) \
+				else caster.grid_pos
+			dir = _cardinal_direction(origin, target.grid_pos)
+
+	# Slide target along dir, stopping at grid edge or first occupied cell
+	var dest: Vector2i = target.grid_pos
+	for _i in range(effect.base_value):
+		var nxt: Vector2i = dest + dir
+		if not _grid.is_valid(nxt) or _grid.is_occupied(nxt):
+			break
+		dest = nxt
+
+	if dest == target.grid_pos:
+		return  # nowhere to move
+
+	_grid.clear_occupied(target.grid_pos)
+	target.move_to(dest)           # updates grid_pos + emits unit_moved
+	_grid.set_occupied(dest, target)
+	var tw: Tween = create_tween()
+	tw.tween_property(target, "global_position", _grid.grid_to_world(dest), 0.20)
 
 ## --- TRAVEL Effect ---
 
@@ -699,11 +742,12 @@ func _cardinal_direction(from: Vector2i, to: Vector2i) -> Vector2i:
 		return Vector2i(0, sign(diff.y))
 
 ## Returns every grid cell covered by the ability's shape, given caster and aim positions.
-## RADIAL: all cells within Manhattan ≤ 2 of origin (fixed blast radius).
-## ARC:    3-wide row at distance 1 — left, center, right of the aimed direction.
-## CONE:   expanding triangle — 1 cell at depth 1, 2 at depth 2, 3 at depth 3.
-## LINE:   straight ray from caster through origin, up to tile_range; stops at first
-##         occupied cell unless ability.passthrough is true.
+## RADIAL: diamond ≤ 2 Manhattan from origin. Without passthrough, distance-2 cells blocked
+##         by occupied distance-1 cells in the same direction.
+## ARC:    3-wide row at distance 1 — no passthrough logic (arc always hits all 3).
+## CONE:   T-shape — stem at depth 1, crossbar at depth 2. Without passthrough, a unit
+##         at the stem blocks the entire crossbar.
+## LINE:   straight ray up to tile_range; stops at first unit unless passthrough.
 func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: AbilityData) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	match ability.target_shape:
@@ -711,29 +755,47 @@ func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: Abili
 			var radius: int = 2  # fixed by design spec ("5 wide × 5 tall" diamond)
 			for dx in range(-radius, radius + 1):
 				for dy in range(-radius, radius + 1):
-					if abs(dx) + abs(dy) <= radius:
-						var cell := Vector2i(origin_pos.x + dx, origin_pos.y + dy)
-						if _grid.is_valid(cell):
-							cells.append(cell)
+					if abs(dx) + abs(dy) > radius:
+						continue
+					var cell := Vector2i(origin_pos.x + dx, origin_pos.y + dy)
+					if not _grid.is_valid(cell):
+						continue
+					# Without passthrough, distance-2 cells blocked by occupied distance-1 neighbors
+					if not ability.passthrough and abs(dx) + abs(dy) == 2:
+						var blocked: bool = false
+						if dx != 0 and dy != 0:
+							# Diagonal cell — either adjacent cardinal intermediate can block it
+							var mid1 := Vector2i(origin_pos.x + sign(dx), origin_pos.y)
+							var mid2 := Vector2i(origin_pos.x, origin_pos.y + sign(dy))
+							blocked = _grid.is_occupied(mid1) or _grid.is_occupied(mid2)
+						else:
+							# Cardinal cell — single intermediate
+							var mid := Vector2i(origin_pos.x + sign(dx), origin_pos.y + sign(dy))
+							blocked = _grid.is_occupied(mid)
+						if blocked:
+							continue
+					cells.append(cell)
 		AbilityData.TargetShape.ARC:
 			# 3-cell sweep: left-of-root, root, right-of-root — all at distance 1.
 			var dir: Vector2i  = _cardinal_direction(caster_pos, origin_pos)
 			var root: Vector2i = caster_pos + dir
-			var perp: Vector2i = Vector2i(dir.y, dir.x)   # perpendicular axis
-			var candidates: Array[Vector2i] = [root - perp, root, root + perp]
-			for c: Vector2i in candidates:
+			var perp: Vector2i = Vector2i(dir.y, dir.x)
+			for c: Vector2i in [root - perp, root, root + perp]:
 				if _grid.is_valid(c):
 					cells.append(c)
 		AbilityData.TargetShape.CONE:
-			# T-shape: stem at depth 1, full 3-wide crossbar at depth 2.
+			# T-shape: stem (d1) always hits. Crossbar (d2 row) blocked by a unit at d1
+			# unless passthrough is true — e.g. fire_breath can burn through one target.
 			var dir: Vector2i  = _cardinal_direction(caster_pos, origin_pos)
 			var perp: Vector2i = Vector2i(dir.y, dir.x)
 			var d1: Vector2i   = caster_pos + dir
 			var d2: Vector2i   = d1 + dir
-			var candidates: Array[Vector2i] = [d1, d2 - perp, d2, d2 + perp]
-			for c: Vector2i in candidates:
-				if _grid.is_valid(c):
-					cells.append(c)
+			if _grid.is_valid(d1):
+				cells.append(d1)
+			if ability.passthrough or not _grid.is_occupied(d1):
+				for c: Vector2i in [d2 - perp, d2, d2 + perp]:
+					if _grid.is_valid(c):
+						cells.append(c)
 		AbilityData.TargetShape.LINE:
 			var dir := _cardinal_direction(caster_pos, origin_pos)
 			var cur := caster_pos + dir

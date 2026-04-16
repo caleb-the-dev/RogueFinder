@@ -52,7 +52,9 @@ enum ApplicableTo {
 @export var applicable_to: ApplicableTo = ApplicableTo.ENEMY
 ## 0–10 tiles; -1 = whole map
 @export var tile_range:    int          = 1
-## Only meaningful for LINE, CONE, RADIAL — effect continues past first collision if true
+## CONE: if false, a unit at depth-1 blocks the depth-2 crossbar.
+## RADIAL: if false, a unit at distance-1 blocks distance-2 cells behind it.
+## LINE: if false, effect stops at the first occupied cell.
 @export var passthrough:   bool         = false
 @export var energy_cost:   int          = 0
 @export var effects:       Array[EffectData] = []
