@@ -27,6 +27,9 @@ const PM_BAR_Y:      float = 160.0   ## (720  / 2) − 200 = vertical centre
 ## Click-targets QTE constants
 const CT_RADIUS:        float = 12.0   ## hit-detection radius (24 px diameter circle)
 const CT_SCATTER_RANGE: float = 80.0   ## max distance from origin that targets scatter
+## Safe-spawn margins — targets always clamped inside this rect so nothing goes off-screen.
+## Accounts for the circle radius (12) + timer bar height above (18) + padding.
+const CT_MARGIN: float = 60.0          ## minimum distance from any screen edge
 
 ## Difficulty tiers — set once per start_qte() call from energy_cost:
 ##   Low   (1–2): 2.2 s cursor / 2.0 s dir window, sweet-spot half-width = 0.20
@@ -706,10 +709,12 @@ func _spawn_click_target(origin: Vector2) -> void:
 		return
 	var idx: int = _ct_nodes.size()
 
-	## Random position within CT_SCATTER_RANGE radius
+	## Random position within CT_SCATTER_RANGE radius, clamped to safe screen bounds
 	var angle: float = randf() * TAU
 	var dist:  float = randf() * CT_SCATTER_RANGE
 	var center: Vector2 = origin + Vector2(cos(angle), sin(angle)) * dist
+	center.x = clampf(center.x, CT_MARGIN, 1280.0 - CT_MARGIN)
+	center.y = clampf(center.y, CT_MARGIN, 720.0  - CT_MARGIN)
 
 	var node := ColorRect.new()
 	node.color    = Color(0.95, 0.55, 0.10)   ## orange — visible against dark overlay
