@@ -3,52 +3,53 @@
 
 ## Working Title
 **Roguefinder** *(name subject to change)*
-The concept originated as a **roguelite adaptation of Pathfinder 2e (PF2e)** — borrowing its action economy, mechanical depth, and fantasy tone and translating them into a roguelite structure with a creature-collector party system.
+The concept originated as a **roguelite adaptation of Pathfinder 2e (PF2e)** — borrowing its mechanical depth, and fantasy tone and translating them into a roguelite structure with a creature-collector party system.
 
 ---
 
 ## Genre & Platform
 - **Genre:** Tactical Turn-Based RPG Roguelite / Creature Collector
-- **Platform:** PC
+- **Platform:** PC - Steam
 - **Key References:** Into the Breach (grid combat), Slay the Spire (roguelite structure), Gordian Quest (node map), Pokémon (creature collector/party framing), XCOM (escalating threat pressure)
 
 ---
 
 ## Core Fantasy
-The player takes on the role of a **divine agent** — a mortal character chosen by a deity — who leads a mixed party of humanoids and creatures through a dangerous, conflict-ridden fantasy world. The player is both a participant in combat and the strategic director of their party. Think: you are the trainer, but you also fight alongside your party.
+The player takes on the role of a **divine agent** called the RogueFinder — a mortal character chosen by a deity — who leads a mixed party of humanoids and creatures through a dangerous, conflict-ridden fantasy world. The player is both a participant in combat and the strategic director of their party. Think: you are the "trainer", but you also fight alongside your party.
 
 ---
 
 ## Setting & Tone
 - **World:** Medieval fantasy
-- **Tone:** Grounded and mundane at the surface, with an underlying current of cosmic stakes
+- **Tone:** Grounded and mundane at the surface, with an underlying current of cosmic stakes.
 - **Central Threat:** An existential evil entity that threatens to destroy the world — present and challengeable from the start of each run, but confronted on the player's terms
-- **Day-to-Day Reality:** Most of the player's time is spent dealing with ordinary worldly conflicts — local disputes, faction skirmishes, survival challenges — not the final threat
+- **Day-to-Day Reality:** Most of the player's time is spent dealing with ordinary worldly conflicts around the map — local disputes, faction skirmishes, survival challenges — not the final threat
 
 ---
 
 ## Core Gameplay Loop
 **Traverse map → Encounter (fight / recruit / interact) → Adjust party build → Repeat**
 
-- The player moves through a procedurally generated node map
+- The player moves through a procedurally generated node map surrounding the city of "Badurga"
 - Encounters include combat, recruitment opportunities, vendors, story beats, and environmental interactions
-- Between encounters the player manages party composition, gear, and strategy
+- Between encounters the player manages party build, gear, and strategy
+- The player's party levels up from xp gained from defeating enemies, completing quests, or successfully completing events. Max level is 20, and all party members share the same level.
 - The run ends when the player chooses to face the existential threat — or loses a combat
 
 ---
 
 ## Run Structure
 - Runs are **open-ended** with a **player-determined endpoint**
-- The final boss is accessible from the start but the player decides when they're ready
-- Progress through the run involves completing **randomly generated mundane quests and missions**
+- There are 3 rounds of bosses, each accessible on the map from the start but the player decides when they're ready to confront
+- Progress through the run involves completing **randomly generated mundane quests and missions** and exploring nodes around the map
 - **Time pressure:** The longer the player takes, the more powerful the final threat becomes (XCOM-style escalation) — every node visited costs time, creating a tension between preparation and urgency
-- A full run = explore and grow → decide you're ready → face the final threat
+- A full run = explore and grow → decide you're ready → face the current boss threat (repeat x3)
 
 ---
 
 ## Death & Progression (Roguelite Loop)
-- **Permadeath** applies to the player character within a run
-- On death, the player is **reincarnated by the deity** and returned to the world at a point in time after their previous run — narratively justifying the reset
+- **Permadeath** applies to any party member that's hp reaches 0. The player's character dies during combat but the rest of the party is still victorious, they return afterwards with 1hp
+- On a total-party-death, the player is **reincarnated by the deity** and returned to the world at a point in time after their previous run — narratively justifying the reset
 - **Meta-progression** exists: certain upgrades, unlocks, or knowledge persist between runs
 - This is a **roguelite**, not a roguelike — each run builds on the last in meaningful ways
 
@@ -59,9 +60,9 @@ The NPC party system is the heart of the game. Think of it like Pokémon: your r
 
 ### Recruitment
 - NPCs are **recruited through diplomacy/coercion or caught** in the world
-- Party members are unique named entities with their own visuals, background, class, and equipment
+- Party members are unique named entities with their own visuals, background, and class
 - Examples of recruitable types: Bandit, Blood Sorcerer, Griffin, Dragon
-- Each NPC can be renamed by the player
+- Each NPC can be renamed by the player after they join the party
 
 ### Party Size & Management
 - Players maintain a **bench** of recruited members
@@ -69,6 +70,8 @@ The NPC party system is the heart of the game. Think of it like Pokémon: your r
 - **Party composition can only be changed at the city** — not before individual encounters
 - This makes city visits meaningful strategic checkpoints, not just shops
 - Mid-run, the player must commit to their active 3 until they return to the city
+- NPCs that join the party while exploring can immediately join the party, sending one active party member back to the city
+- NPCs that perma-die during combat cause an open party slot after combat, and word can be sent for a new party member from the city to rejoin. (Costs time from the boss timer)
 
 ### Party Synergies
 - Synergies between party members are a **core build consideration**
@@ -81,16 +84,17 @@ The NPC party system is the heart of the game. Think of it like Pokémon: your r
 ### Character Structure (applies to player character and all NPCs)
 Each character has:
 - **A Class** — defines ability progression and role
-- **A Background** — light flavor and a single starting feat/ability (DOS2-style); does not branch event outcomes or gate content
+- **A Background** — light flavor and a single starting feat/ability (DOS2-style); occassionally might branch event outcomes or gate content, but not frequently
 - **4 Equipment Slots:** Weapon, Armor, Consumable, Accessory
 - **A Level** (max level 20)
+- **Ability Pool** - A pool of available abilities to be slotted into any 1 of the 4 ability slots.
+- **Feats** are dynamic stat/effect modifiers, similar to relics in Slay the Spire — they change how a character functions, not just their numbers
 
 ### Leveling & Abilities
-- Every **even level** → unlock a new **class action**, added to the character's available action pool
-- Every **odd level** → earn a **feat** (from class or background); feats may also grant new actions
-- Characters start with **1 class action** in their pool and grow their options over the run
+- Every **even level** → unlock a new **class ability**, added to the character's available action pool
+- Every **odd level** → earn a **feat** (from class or background);
+- Characters start with 1 action from their class and 1 action from their background in their pool and grow their options over the run
 - Actions can also be sourced from **items**, especially weapons — expanding the pool beyond class and feats
-- **Feats** are dynamic stat/effect modifiers, similar to relics in Slay the Spire — they change how a character functions, not just their numbers
 
 ### Equipment
 - Gear is a primary driver of power and build identity
@@ -102,13 +106,13 @@ Each character has:
 ## Combat
 
 ### Format
-- **3v3** — 3 player units vs. up to 3 enemies
+- **3v3** — 3 player units vs. 3 enemies
 - Player character is always one of the 3 active combat slots
 - All 3 player units are **fully controlled by the player** — no autobattle for allies
 - Primary win condition: defeat all enemies; other win condition types not ruled out
 
 ### Grid & Positioning
-- Combat takes place on a **tight grid map** (Into the Breach-style)
+- Combat takes place on a **tight grid map** 10x10 (Into the Breach-style)
 - Positioning, knockback, and terrain effects are **central** to combat — not just movement range
 - Spatial decision-making is a primary combat puzzle
 
@@ -133,12 +137,12 @@ Each unit has **3 fixed action slots** per turn:
 
 1. **Stride** — always available; move based on the character's speed stat. Free every turn, no cost.
 2. **Consumable** — use the equipped consumable item if one is equipped. Free every turn, but depletes the item on use. Does not need to be filled to enter combat.
-3. **Active Action** — one action chosen from the character's slotted action pool (see below). Costs **Energy**.
+3. **Abilities** — one of four abilities chosen from the character's slotted ability pool (see below). Costs **Energy**.
 
-This structure keeps turns lean and decisions focused. The interesting choice each turn is *which* Active Action to use and whether the Energy cost is worth it right now.
+This structure keeps turns lean and decisions focused. The interesting choice each turn is *which* ability to use and whether the Energy cost is worth it right now.
 
-### Action Slots & Energy
-Between combats, each character has a pool of available actions earned through leveling, feats, and items. The player slots **up to 4 actions** from this pool before entering combat — these are the options available as their Active Action each turn.
+### Ability Slots & Energy
+Between combats, each character has a pool of available abilities earned through leveling, feats, and items. The player slots **up to 4 abilities** from this pool before entering combat — these are the options available each turn.
 
 **Energy** is a per-character resource that governs Active Action use:
 - Each character has a maximum Energy pool determined by a stat (TBD name)
@@ -147,25 +151,50 @@ Between combats, each character has a pool of available actions earned through l
 - Managing Energy across a fight — spending aggressively vs. pacing for regeneration — is a core tactical layer
 
 ### Quick Time Events (QTEs)
-Every Active Action is resolved through a **Quick Time Event**. QTEs inject real-time player skill into turn-based combat, making every action feel earned.
+Every Action is resolved through a **Quick Time Event**. QTEs inject real-time player skill into turn-based combat, making every action feel earned and providing a high-ceiling for mechanical mastery.
 
-**How QTEs work:**
-- Each action has a defined number of QTE prompts (e.g. Fireball = 5 prompts, Dual Strike = 10 prompts)
-- Each prompt is a discrete skill check. Reference model: the **Gears of War reload mechanic** — a tick slides across a bar and the player must tap at the right moment to register a hit
-- Prompt count and individual difficulty are tuned per action — a fast multi-hit action has more prompts that are individually easier; a slow powerful action has fewer prompts with tighter timing windows
-- Prompts resolve in sequence; the action fires after all prompts complete regardless of how many the player hit
+#### 1. The Dynamic Difficulty Matrix
+The difficulty and structure of a QTE are derived from the action’s **Energy Cost** and its **Targeting Shape**.
 
-**How outcomes are calculated:**
-The final effectiveness of an action is determined by two factors: **completion rate** (how many prompts the player hit) and the **Attack vs. Defense stat delta** between attacker and target.
+* **Difficulty (Energy Anchor):** The **Energy Cost** of an action determines the speed of the QTE and the precision required. High-energy actions have faster sliders, smaller success windows, and tighter timers. Low-energy actions are more forgiving.
+* **Succession (Targeting Anchor):** The **Targeting Shape** determines the number of "beats" or prompts in a sequence.
+    * **Self / Single:** 1 Beat
+    * **Cone:** 2 Beats
+    * **Line:** 3 Beats
+    * **Radial:** 4 Beats
 
-- All prompts hit + Attack equals Defense → **1.0x effectiveness** (baseline)
-- All prompts hit + Attack significantly exceeds Defense → up to **2.0x effectiveness**
-- All prompts hit + Defense significantly exceeds Attack → reduced effectiveness (e.g. **0.5x**)
-- Half prompts hit + Attack equals Defense → **0.5x effectiveness**
-- The stat delta sets the ceiling and floor for the outcome range; player skill determines where within that range the result lands
-- Even a 0% completion rate still resolves the action at minimum effectiveness — the action always fires, skill only affects how well
+#### 2. QTE Styles by Effect Tag
+To ensure mechanical variety, the style of the mini-game changes based on the primary **Effect Tag** of the action:
+* **Harm/Mend (HP/Energy Gain or Loss):** — A timing-based slider (Gears of War style)
+* **Force (Displacement):** — Rapid-target clicking (dots) on the targeted unit(s) ("Osu" or "Whack-a-Mole" effect)
+* **Buff / Debuff (Stats):** — A directional input string (helldivers 2 stratagems)
+* **Travel (Movement):** — A meter that must be held and released at a specific threshold (Common mechanic for the powerbar in golf games)
 
-**Design intent:** QTEs mean player execution matters on every action, not just at the build screen. A skilled player can punch above their stat weight; a less skilled player needs stronger builds to compensate. Stats and skill are both always relevant.
+#### 3. How Outcomes are Calculated
+The final effectiveness is the product of the **QTE Skill Multiplier** and the **Stat Delta Result**.
+
+**QTE Skill Multiplier:**
+* **Total Success (All beats hit):** **1.25x** (Critical - provides a reward beyond the stat-line).
+* **Major Success (High completion):** **1.0x** (Standard - the action performs as advertised).
+* **Minor Success (Low completion):** **0.75x** (Glancing - the action is dampened).
+* **Failure (0 hits):** **0.25x** (Whiff - the absolute minimum impact).
+
+**The Stat Delta**
+The Stat Delta acts as the Dynamic Baseline. It scales based on the ratio of Attacker Stat to Defender Stat.
+- At Parity (1:1): Delta = 1.0x.
+- At Advantage (2:1): Delta = 2.0x (Hard Cap).
+- At Disadvantage (1:2): Delta = 0.5x (Hard Floor).
+
+
+**The Final Formula:**
+`Final Effect = (Base Power * Stat Delta) * QTE Multiplier`
+
+**Examples of the Interplay:**
+* **Skill compensates for Stats:** 100% QTE Success (1.25x) + Weak Stats (0.5x delta) = **0.625x** effectiveness (A "Perfect" hit makes a weak attack viable).
+* **Stats compensate for Skill:** 0% QTE Success (0.25x) + Overpowering Stats (2.0x delta) = **0.5x** effectiveness (The creature is so strong it still hurts even when you mess up).
+* **The Sweet Spot:** 100% QTE Success (1.25x) + Strong Stats (2.0x delta) = **2.5x** effectiveness (This is how players "melt" bosses).
+
+**Design intent:** The stat delta sets the baseline potential (the "Floor" and "Ceiling"), while player execution determines exactly where the result lands. This ensures that skilled players can "punch up" against stronger foes, while less mechanically-inclined players can rely on superior party builds and stat growth to overcome challenges.
 
 ### Enemy AI & QTE Resolution
 - Enemy NPCs act autonomously — no player input during enemy turns
@@ -310,35 +339,6 @@ The final effectiveness of an action is determined by two factors: **completion 
 - QTE visual design and prompt variety (how many distinct prompt types exist beyond the sliding tick)
 - Energy stat names and exact regeneration formula
 - Faction names, aesthetics, and goal details
-
----
-
-## Prototyping Notes
-*A living log of what has been tested and what remains unvalidated.*
-
-### Validated (GMS2 Autobattler Prototype)
-- Grid-based combat feel is fun and readable
-- Autobattle loop is satisfying to watch
-- Build engine concept (random loot, class actions) works and received positive feedback
-- 3v3 combat format feels right; 4 units was manageable but 3 is preferred for turn-based
-
-### Not Yet Validated
-- Whether QTEs feel exciting rather than intrusive within turn-based combat
-- Whether the Energy economy creates interesting turn-to-turn decisions
-- Whether the fixed Stride + Consumable + 1 Active Action structure feels focused or too restrictive
-- Whether full player control of all 3 units is too slow or feels empowering
-- Whether city-only party swapping creates meaningful tension or frustration
-- Whether the bulletin board successfully conveys a sense of living world history
-- Whether faction reputation across runs creates genuine investment
-- Whether creature collector / recruitment creates meaningful attachment
-- Whether the roguelite map structure layers well onto the combat system
-
-### Playtesting Findings
-- **Terminal sim (Python):** Built and functional but not an effective playtest vehicle — tracking board state and available actions in text format is too cognitively demanding to accurately simulate combat feel
-- **Recommendation:** Use in-person tabletop (dry-erase board, physical tokens) for design validation before investing in a Godot build
-
-### Planned Next Step
-- Build Stage 1 combat in Godot: real grid, Energy economy, 3-slot action structure (Stride / Consumable / Active), QTE resolution prototype, full player control of all 3 units
 
 ---
 
