@@ -26,7 +26,7 @@ const PM_BAR_Y:      float = 160.0   ## (720  / 2) − 200 = vertical centre
 
 ## Click-targets QTE constants
 const CT_RADIUS:        float = 12.0   ## hit-detection radius (24 px diameter circle)
-const CT_SCATTER_RANGE: float = 80.0   ## max distance from origin that targets scatter
+const CT_SCATTER_RANGE: float = 240.0  ## max distance from origin that targets scatter
 ## Safe-spawn margins — targets always clamped inside this rect so nothing goes off-screen.
 ## Accounts for the circle radius (12) + timer bar height above (18) + padding.
 const CT_MARGIN: float = 60.0          ## minimum distance from any screen edge
@@ -162,8 +162,9 @@ func _build_ui() -> void:
 	_pm_bar_bg.add_child(_pm_cursor)
 
 	# Instruction / beat-counter text (shared by both QTE types)
+	# Positioned above the arrow label so it never overlaps the directional arrow.
 	_instruction_label = Label.new()
-	_instruction_label.position             = Vector2(370.0, 282.0)
+	_instruction_label.position             = Vector2(370.0, 200.0)
 	_instruction_label.size                 = Vector2(540.0, 32.0)
 	_instruction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_instruction_label.add_theme_font_size_override("font_size", 18)

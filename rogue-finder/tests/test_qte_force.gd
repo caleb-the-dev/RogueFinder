@@ -20,7 +20,7 @@ func _initialize() -> void:
 ## --- Mirrors ---
 
 const CT_RADIUS:        float = 12.0
-const CT_SCATTER_RANGE: float = 80.0
+const CT_SCATTER_RANGE: float = 240.0
 
 ## Mirrors QTEBar click-window difficulty selection.
 func _ct_window(energy_cost: int) -> float:
