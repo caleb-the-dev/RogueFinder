@@ -166,9 +166,9 @@ func _on_ability_hover(index: int) -> void:
 	if ability_id == "":
 		return
 	var ability: AbilityData = AbilityLibrary.get_ability(ability_id)
-	var tags_str: String     = ", ".join(ability.tags) if not ability.tags.is_empty() else ""
+	var shape_str: String = AbilityData.TargetShape.keys()[ability.target_shape].capitalize()
 	var text: String = "%s  [%s]  %dE\n%s" % [
-		ability.ability_name, tags_str, ability.energy_cost, ability.description
+		ability.ability_name, shape_str, ability.energy_cost, ability.description
 	]
 	_show_tooltip(text, _ability_buttons[index].position + Vector2(BTN_SIZE * 0.5, -TOOLTIP_H - 6.0))
 
