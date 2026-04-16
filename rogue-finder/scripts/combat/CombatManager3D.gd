@@ -207,6 +207,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_SPACE:
 				_request_end_player_turn()
 				get_viewport().set_input_as_handled()
+			KEY_T:
+				GameState.testing_mode = not GameState.testing_mode
+				_update_status()
+				get_viewport().set_input_as_handled()
 
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.double_click:
@@ -220,6 +224,13 @@ func _handle_left_click() -> void:
 		return
 	var cell: Vector2i = _grid.get_clicked_cell(camera, get_viewport())
 	if cell == Vector2i(-1, -1):
+		return
+
+	# Testing mode: clicking any unit opens its full stat panel; game actions are suspended.
+	if GameState.testing_mode:
+		var obj: Object = _grid.get_unit_at(cell)
+		if obj is Unit3D:
+			_stat_panel.show_for(obj as Unit3D)
 		return
 
 	match mode:
@@ -842,6 +853,9 @@ func _unit_can_still_act(unit: Unit3D) -> bool:
 
 func _update_status() -> void:
 	if not _status_label:
+		return
+	if GameState.testing_mode:
+		_status_label.text = "[TEST MODE — T to exit]  click any unit to inspect stats"
 		return
 	match state:
 		CombatState.PLAYER_TURN:

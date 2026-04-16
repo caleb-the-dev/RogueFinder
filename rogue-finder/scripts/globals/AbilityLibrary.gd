@@ -172,6 +172,31 @@ const ABILITIES: Dictionary = {
 			{ "type": EffectData.EffectType.BUFF, "base_value": 2, "stat": AbilityData.Attribute.VITALITY },
 		],
 	},
+	"sweep": {
+		"name":          "Sweep",
+		"attribute":     AbilityData.Attribute.STRENGTH,
+		"target":        AbilityData.TargetShape.CONE,
+		"applicable_to": AbilityData.ApplicableTo.ENEMY,
+		"range":         1,
+		"cost":          3,
+		"description":   "Drag your weapon in a wide arc — hits every enemy in a T-shaped cone in front of you.",
+		"effects": [
+			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
+		],
+	},
+	"piercing_shot": {
+		"name":          "Piercing Shot",
+		"attribute":     AbilityData.Attribute.DEXTERITY,
+		"target":        AbilityData.TargetShape.LINE,
+		"applicable_to": AbilityData.ApplicableTo.ENEMY,
+		"range":         6,
+		"passthrough":   true,
+		"cost":          3,
+		"description":   "Draw and loose with full force — the bolt punches through every enemy in a straight line.",
+		"effects": [
+			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
+		],
+	},
 }
 
 ## Cached Godot icon — loaded once on first ability lookup.
