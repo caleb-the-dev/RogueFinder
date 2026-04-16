@@ -64,7 +64,7 @@ const ARCHETYPES: Dictionary = {
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Crook", "Soldier"],
-		"abilities":      ["heavy_strike", "charge", "", ""],
+		"abilities":      ["heavy_strike", "charge", "shove", ""],
 		"consumable":     "",
 		"str_range":      [2, 4],
 		"dex_range":      [1, 2],

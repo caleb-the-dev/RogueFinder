@@ -24,6 +24,13 @@ const PM_BAR_HEIGHT: float = 400.0
 const PM_BAR_X:      float = 610.0   ## (1280 / 2) − 30 = horizontal centre
 const PM_BAR_Y:      float = 160.0   ## (720  / 2) − 200 = vertical centre
 
+## Click-targets QTE constants
+const CT_RADIUS:        float = 12.0   ## hit-detection radius (24 px diameter circle)
+const CT_SCATTER_RANGE: float = 240.0  ## max distance from origin that targets scatter
+## Safe-spawn margins — targets always clamped inside this rect so nothing goes off-screen.
+## Accounts for the circle radius (12) + timer bar height above (18) + padding.
+const CT_MARGIN: float = 60.0          ## minimum distance from any screen edge
+
 ## Difficulty tiers — set once per start_qte() call from energy_cost:
 ##   Low   (1–2): 2.2 s cursor / 2.0 s dir window, sweet-spot half-width = 0.20
 ##   Medium(3–4): 1.6 s cursor / 1.5 s dir window, sweet-spot half-width = 0.12
@@ -50,6 +57,17 @@ var _dir_sequence: Array[String] = []
 var _dir_resolved: bool          = false
 var _dir_shrink_tween: Tween     = null
 var _dir_input_window: float     = 1.5   ## seconds per directional beat; set by _set_difficulty
+
+## --- Click-targets QTE state ---
+
+var _ct_mode:       bool             = false        ## true while click-targets QTE is active
+var _ct_window:     float            = 1.8          ## seconds each target is live; set by difficulty
+var _ct_origin:     Vector2          = Vector2.ZERO ## screen-space origin passed from CombatManager
+var _ct_nodes:      Array[ColorRect] = []           ## one ColorRect per spawned target
+var _ct_bar_nodes:  Array[ColorRect] = []           ## depleting timer bar above each target
+var _ct_bar_tweens: Array[Tween]     = []           ## tween driving each bar; killed on resolve
+var _ct_centers:    Array[Vector2]   = []           ## screen-space centre for each target
+var _ct_active:     Array[bool]      = []           ## false once a target has been resolved
 
 ## --- Power meter state ---
 
@@ -144,8 +162,9 @@ func _build_ui() -> void:
 	_pm_bar_bg.add_child(_pm_cursor)
 
 	# Instruction / beat-counter text (shared by both QTE types)
+	# Positioned above the arrow label so it never overlaps the directional arrow.
 	_instruction_label = Label.new()
-	_instruction_label.position             = Vector2(370.0, 282.0)
+	_instruction_label.position             = Vector2(370.0, 200.0)
 	_instruction_label.size                 = Vector2(540.0, 32.0)
 	_instruction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_instruction_label.add_theme_font_size_override("font_size", 18)
@@ -265,14 +284,22 @@ func _rebuild_zones() -> void:
 ##
 ## effect_type routes to the appropriate QTE style:
 ##   BUFF / DEBUFF → directional arrow sequence
+##   TRAVEL        → hold-release power meter
+##   FORCE         → rapid click-targets (target_screen_pos required)
 ##   all others    → 4-zone sliding bar
+##
+## target_screen_pos: only used by FORCE; the unproject_position() of the target unit.
+## Pass Vector2.ZERO for all other effect types.
 func start_qte(energy_cost: int, shape: AbilityData.TargetShape,
-		effect_type: EffectData.EffectType) -> void:
+		effect_type: EffectData.EffectType,
+		target_screen_pos: Vector2 = Vector2.ZERO) -> void:
 	match effect_type:
 		EffectData.EffectType.BUFF, EffectData.EffectType.DEBUFF:
 			_start_directional_qte(energy_cost, shape)
 		EffectData.EffectType.TRAVEL:
 			_start_power_meter_qte(energy_cost)
+		EffectData.EffectType.FORCE:
+			_start_click_targets_qte(energy_cost, shape, target_screen_pos)
 		_:
 			_start_slider_qte(energy_cost, shape)
 
@@ -282,7 +309,7 @@ func _start_slider_qte(energy_cost: int, shape: AbilityData.TargetShape) -> void
 	_directional_mode  = false
 	_bar_bg.visible    = true   # restore after any prior directional run
 	_set_difficulty(energy_cost)
-	_beat_count   = _beat_count_for_shape(shape)
+	_beat_count   = _slider_beat_count_for_shape(shape)
 	_current_beat = 0
 	_beat_results = []
 	_resolved     = false
@@ -460,7 +487,19 @@ func _set_difficulty(energy_cost: int) -> void:
 
 ## --- Beat Count ---
 
+## Beat counts for click-targets (FORCE) and directional (BUFF/DEBUFF) QTEs.
+## Scales with AoE area: base 3 for single-cell shapes, ×area factor for larger ones.
+##   SELF / SINGLE / ARC → 3   CONE → 6   LINE → 9   RADIAL → 12
 func _beat_count_for_shape(shape: AbilityData.TargetShape) -> int:
+	match shape:
+		AbilityData.TargetShape.CONE:   return 6
+		AbilityData.TargetShape.LINE:   return 9
+		AbilityData.TargetShape.RADIAL: return 12
+		_:                              return 3  # SELF, SINGLE, ARC
+
+## Beat counts for the slider QTE (HARM / MEND) — classic 1–4 scale.
+##   SELF / SINGLE / ARC → 1   CONE → 2   LINE → 3   RADIAL → 4
+func _slider_beat_count_for_shape(shape: AbilityData.TargetShape) -> int:
 	match shape:
 		AbilityData.TargetShape.CONE:   return 2
 		AbilityData.TargetShape.LINE:   return 3
@@ -522,6 +561,10 @@ func _input(event: InputEvent) -> void:
 	if _pm_mode:
 		if _pm_active:
 			_handle_pm_input(event)
+		return
+	# Route to click-targets handler for FORCE QTE.
+	if _ct_mode:
+		_handle_ct_input(event)
 		return
 	if _resolved:
 		return
@@ -631,6 +674,161 @@ func _on_cursor_expired() -> void:
 	if not _resolved:
 		_resolved = true
 		_process_beat_result(0.25)  # expired = failure zone
+
+## --- Click-Targets QTE (FORCE) ---
+
+## Entry point for FORCE effect type.
+## Spawns beat_count circular targets staggered 0.3 s apart within CT_SCATTER_RANGE
+## of origin. Each target is live for _ct_window seconds; click within CT_RADIUS = hit,
+## timeout = miss. Aggregates after all beats resolve.
+func _start_click_targets_qte(energy_cost: int, shape: AbilityData.TargetShape,
+		origin: Vector2) -> void:
+	_ct_mode    = true
+	_ct_origin     = origin
+	_ct_nodes      = []
+	_ct_bar_nodes  = []
+	_ct_bar_tweens = []
+	_ct_centers    = []
+	_ct_active     = []
+	_beat_results = []
+	_current_beat = 0   ## reused here as "resolved beat count"
+	_resolved     = false
+
+	## Window per target from difficulty tier
+	if energy_cost <= 2:
+		_ct_window = 1.8
+	elif energy_cost <= 4:
+		_ct_window = 1.3
+	else:
+		_ct_window = 0.9
+
+	_beat_count = _beat_count_for_shape(shape)
+
+	## Hide slider bar; targets render directly on the CanvasLayer
+	_bar_bg.visible       = false
+	_result_label.visible = false
+	_instruction_label.text = "Click the targets!"
+	visible = true
+
+	## Spawn targets one at a time — next appears only after the previous resolves
+	_spawn_click_target(origin)
+
+## Spawns one circular target at a random position within CT_SCATTER_RANGE of origin.
+## Called after the stagger delay. The array index equals the pre-append size.
+func _spawn_click_target(origin: Vector2) -> void:
+	if not _ct_mode:
+		return
+	var idx: int = _ct_nodes.size()
+
+	## Random position within CT_SCATTER_RANGE radius, clamped to safe screen bounds
+	var angle: float = randf() * TAU
+	var dist:  float = randf() * CT_SCATTER_RANGE
+	var center: Vector2 = origin + Vector2(cos(angle), sin(angle)) * dist
+	center.x = clampf(center.x, CT_MARGIN, 1280.0 - CT_MARGIN)
+	center.y = clampf(center.y, CT_MARGIN, 720.0  - CT_MARGIN)
+
+	var node := ColorRect.new()
+	node.color    = Color(0.95, 0.55, 0.10)   ## orange — visible against dark overlay
+	node.size     = Vector2(CT_RADIUS * 2.0, CT_RADIUS * 2.0)
+	node.position = center - Vector2(CT_RADIUS, CT_RADIUS)   ## align centre to `center`
+	add_child(node)
+
+	_ct_nodes.append(node)
+	_ct_centers.append(center)
+	_ct_active.append(true)
+
+	## Depleting timer bar — sits above the circle, same blue as directional timing fill
+	var bar := ColorRect.new()
+	bar.color    = Color(0.20, 0.70, 1.0)
+	bar.size     = Vector2(CT_RADIUS * 2.0, 4.0)
+	bar.position = center + Vector2(-CT_RADIUS, -(CT_RADIUS + 6.0))
+	add_child(bar)
+	var bar_tween: Tween = create_tween()
+	bar_tween.tween_property(bar, "size:x", 0.0, _ct_window)
+	_ct_bar_nodes.append(bar)
+	_ct_bar_tweens.append(bar_tween)
+
+	## Timeout timer for this specific target
+	get_tree().create_timer(_ct_window).timeout.connect(
+		_on_ct_timeout.bind(idx)
+	)
+
+## Fires when a target's live window expires before the player clicked it.
+func _on_ct_timeout(idx: int) -> void:
+	if idx >= _ct_active.size() or not _ct_active[idx]:
+		return   ## already resolved by a click
+	_resolve_ct_beat(idx, 0.25)   ## timeout = miss
+
+## Checks whether a mouse click hit any active target and resolves the nearest one.
+## A click that misses all active targets counts as a failure for the current beat.
+func _handle_ct_input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton and event.pressed
+			and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	var click_pos: Vector2 = event.position
+	for i in range(_ct_centers.size()):
+		if not _ct_active[i]:
+			continue
+		if click_pos.distance_to(_ct_centers[i]) <= CT_RADIUS:
+			get_viewport().set_input_as_handled()
+			_resolve_ct_beat(i, 1.25)   ## within radius = perfect hit
+			return   ## one click resolves at most one target
+	## Click landed outside every active target — penalise the current beat
+	for i in range(_ct_active.size()):
+		if _ct_active[i]:
+			get_viewport().set_input_as_handled()
+			_resolve_ct_beat(i, 0.25)   ## misclick = miss
+			return
+
+## Resolves a single click-target beat: flashes the node, records the result,
+## and aggregates when all beats are done.
+func _resolve_ct_beat(idx: int, result: float) -> void:
+	if idx >= _ct_active.size() or not _ct_active[idx]:
+		return   ## guard against double-resolve
+	_ct_active[idx] = false
+
+	## Stop the timer bar tween and hide the bar immediately on resolve
+	if idx < _ct_bar_tweens.size():
+		_ct_bar_tweens[idx].kill()
+	if idx < _ct_bar_nodes.size():
+		_ct_bar_nodes[idx].visible = false
+
+	## Visual feedback: green flash on hit, dim red on miss
+	var node: ColorRect = _ct_nodes[idx]
+	node.color = Color.GREEN if result >= 1.0 else Color(0.5, 0.1, 0.1)
+	create_tween().tween_property(node, "modulate:a", 0.0, 0.2)
+
+	_beat_results.append(result)
+	_current_beat += 1
+
+	if _current_beat >= _beat_count:
+		## All beats resolved — aggregate and emit
+		var multiplier: float = _aggregate_multiplier()
+		_instruction_label.visible = false
+		_show_final_feedback(multiplier)
+		await get_tree().create_timer(0.85).timeout
+		visible = false
+		_ct_mode = false
+		_bar_bg.visible = true
+		_cleanup_ct_nodes()
+		qte_resolved.emit(multiplier)
+	else:
+		## More beats remain — spawn the next target immediately
+		_spawn_click_target(_ct_origin)
+
+## Frees all spawned target nodes and clears tracking arrays.
+func _cleanup_ct_nodes() -> void:
+	for node: ColorRect in _ct_nodes:
+		if is_instance_valid(node):
+			node.queue_free()
+	for bar: ColorRect in _ct_bar_nodes:
+		if is_instance_valid(bar):
+			bar.queue_free()
+	_ct_nodes.clear()
+	_ct_bar_nodes.clear()
+	_ct_bar_tweens.clear()
+	_ct_centers.clear()
+	_ct_active.clear()
 
 ## --- Shared Beat Resolution ---
 

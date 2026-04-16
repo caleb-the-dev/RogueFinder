@@ -10,6 +10,7 @@ func _initialize() -> void:
 	_test_beat_result_medium_tier()
 	_test_beat_result_high_tier()
 	_test_beat_count_per_shape()
+	_test_slider_beat_count_per_shape()
 	_test_multiplier_aggregation()
 	_test_stat_delta_formula()
 	print("All QTE foundation tests PASSED.")
@@ -34,8 +35,18 @@ func _beat_result(pos: float, ss_half: float) -> float:
 		return 1.0
 	return 1.25
 
-## --- Mirrors QTEBar._beat_count_for_shape() ---
+## --- Mirrors QTEBar._beat_count_for_shape() (click-targets / directional) ---
+## Base 3 for single-cell shapes; ×area factor for larger ones.
 func _beat_count(shape: AbilityData.TargetShape) -> int:
+	match shape:
+		AbilityData.TargetShape.CONE:   return 6
+		AbilityData.TargetShape.LINE:   return 9
+		AbilityData.TargetShape.RADIAL: return 12
+		_:                              return 3
+
+## --- Mirrors QTEBar._slider_beat_count_for_shape() (slider / HARM / MEND) ---
+## Classic 1–4 scale.
+func _slider_beat_count(shape: AbilityData.TargetShape) -> int:
 	match shape:
 		AbilityData.TargetShape.CONE:   return 2
 		AbilityData.TargetShape.LINE:   return 3
@@ -130,12 +141,24 @@ func _test_beat_result_high_tier() -> void:
 ## ============================================================
 
 func _test_beat_count_per_shape() -> void:
-	assert(_beat_count(AbilityData.TargetShape.SELF)   == 1, "SELF → 1 beat")
-	assert(_beat_count(AbilityData.TargetShape.SINGLE) == 1, "SINGLE → 1 beat")
-	assert(_beat_count(AbilityData.TargetShape.ARC)    == 1, "ARC → 1 beat")
-	assert(_beat_count(AbilityData.TargetShape.CONE)   == 2, "CONE → 2 beats")
-	assert(_beat_count(AbilityData.TargetShape.LINE)   == 3, "LINE → 3 beats")
-	assert(_beat_count(AbilityData.TargetShape.RADIAL) == 4, "RADIAL → 4 beats")
+	assert(_beat_count(AbilityData.TargetShape.SELF)   == 3,  "SELF → 3 beats")
+	assert(_beat_count(AbilityData.TargetShape.SINGLE) == 3,  "SINGLE → 3 beats")
+	assert(_beat_count(AbilityData.TargetShape.ARC)    == 3,  "ARC → 3 beats")
+	assert(_beat_count(AbilityData.TargetShape.CONE)   == 6,  "CONE → 6 beats")
+	assert(_beat_count(AbilityData.TargetShape.LINE)   == 9,  "LINE → 9 beats")
+	assert(_beat_count(AbilityData.TargetShape.RADIAL) == 12, "RADIAL → 12 beats")
+
+## ============================================================
+## Slider beat count per shape (HARM / MEND — classic 1–4)
+## ============================================================
+
+func _test_slider_beat_count_per_shape() -> void:
+	assert(_slider_beat_count(AbilityData.TargetShape.SELF)   == 1, "SELF → 1 slider beat")
+	assert(_slider_beat_count(AbilityData.TargetShape.SINGLE) == 1, "SINGLE → 1 slider beat")
+	assert(_slider_beat_count(AbilityData.TargetShape.ARC)    == 1, "ARC → 1 slider beat")
+	assert(_slider_beat_count(AbilityData.TargetShape.CONE)   == 2, "CONE → 2 slider beats")
+	assert(_slider_beat_count(AbilityData.TargetShape.LINE)   == 3, "LINE → 3 slider beats")
+	assert(_slider_beat_count(AbilityData.TargetShape.RADIAL) == 4, "RADIAL → 4 slider beats")
 
 ## ============================================================
 ## Multiplier aggregation
