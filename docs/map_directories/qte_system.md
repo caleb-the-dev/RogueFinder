@@ -1,6 +1,6 @@
 # System: QTE System
 
-> Last updated: 2026-04-16 (Session 11 — QTE-4: click-targets for FORCE)
+> Last updated: 2026-04-16 (Session 11 — official QTE names; QTE-4 Target for FORCE)
 
 ---
 
@@ -18,9 +18,20 @@ Enemy "QTE" is simulated by CombatManager directly using the unit's `qte_resolut
 
 | File | Scene | Role |
 |------|-------|------|
-| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | Slider QTE + directional sequence QTE + power meter QTE + click-targets QTE, CanvasLayer layer 10 |
+| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | All four QTE styles, CanvasLayer layer 10 |
 
 `.tscn` is minimal. All UI nodes are built in `_build_ui()`.
+
+---
+
+## Official QTE Names
+
+| Name | Nickname | Effect types | Description |
+|------|----------|--------------|-------------|
+| **Slide** | "the Gears of War one" | HARM, MEND | Stop a sliding cursor in the coloured zone |
+| **Hold** | "the fishing one" | TRAVEL | Hold to fill a meter; release in the zone |
+| **Target** | "the osu! one" | FORCE | Click circular targets before they expire |
+| **Directional** | — | BUFF, DEBUFF | Press arrow keys in the shown sequence |
 
 ---
 
@@ -49,10 +60,10 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 | `start_qte` | `(energy_cost: int, shape: AbilityData.TargetShape, effect_type: EffectData.EffectType, target_screen_pos: Vector2 = Vector2.ZERO) -> void` | Routes to the correct QTE style, sets difficulty, then starts the first beat |
 
 `effect_type` routing:
-- `BUFF` / `DEBUFF` → directional arrow sequence (`_start_directional_qte`)
-- `TRAVEL` → hold-release power meter (`_start_power_meter_qte`)
-- `FORCE` → rapid click-targets (`_start_click_targets_qte`); `target_screen_pos` required
-- all others → 4-zone sliding bar (`_start_slider_qte`)
+- `BUFF` / `DEBUFF` → **Directional** (`_start_directional_qte`)
+- `TRAVEL` → **Hold** (`_start_power_meter_qte`)
+- `FORCE` → **Target** (`_start_click_targets_qte`); `target_screen_pos` required
+- all others → **Slide** (`_start_slider_qte`)
 
 ---
 
@@ -60,17 +71,17 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 `energy_cost` sets the difficulty tier once per `start_qte()` call:
 
-| Tier | Energy cost | Slider ss_half | Cursor duration | Dir input window | PM zone centre | PM zone half-width | CT window |
-|------|-------------|----------------|-----------------|------------------|----------------|-------------------|-----------|
+| Tier | Energy cost | Slide ss_half | Cursor duration | Dir input window | Hold zone centre | Hold zone half-width | Target window |
+|------|-------------|---------------|-----------------|------------------|------------------|----------------------|---------------|
 | Low | 1–2 | 0.20 (40 %) | 2.2 s | 2.0 s | 65 % | 18 % | 1.8 s |
 | Medium | 3–4 | 0.12 (24 %) | 1.6 s | 1.5 s | 72 % | 12 % | 1.3 s |
 | High | 5+ | 0.07 (14 %) | 1.1 s | 1.0 s | 78 % |  7 % | 0.9 s |
 
-Power meter fill rate = `1.0 / cursor_duration` (same speed scale as the slider timing).
+Hold fill rate = `1.0 / cursor_duration` (same speed scale as the Slide timing).
 
 ---
 
-## 4-Zone Bar Layout
+## 4-Zone Bar Layout (Slide and Hold)
 
 ```
 [=red===|===orange=|==green=|=GOLD=|=green==|===orange=|===red===]
@@ -94,7 +105,7 @@ Zone ColorRects are children of `_bar_bg`. `_rebuild_zones()` repositions them w
 
 Beat count depends on **QTE style**:
 
-**Slider (HARM / MEND)** — classic 1–4 scale:
+**Slide (HARM / MEND)** — classic 1–4 scale:
 
 | Shape | Beat count |
 |-------|-----------|
@@ -103,7 +114,7 @@ Beat count depends on **QTE style**:
 | LINE | 3 |
 | RADIAL | 4 |
 
-**Click-targets (FORCE) and Directional (BUFF / DEBUFF)** — base-3 × area scale:
+**Target (FORCE) and Directional (BUFF / DEBUFF)** — base-3 × area scale:
 
 | Shape | Beat count |
 |-------|-----------|
@@ -114,7 +125,7 @@ Beat count depends on **QTE style**:
 
 When `beat_count > 1`, the instruction label shows **"Beat N / M"**.
 
-Between beats: the per-beat result label flashes for **0.3 s** ("PERFECT" / "GOOD" / "WEAK" / "MISS"), then the next slider starts. After the final beat, the multiplier feedback label is shown for **0.85 s** before the bar hides and `qte_resolved` fires.
+Between beats: the per-beat result label flashes for **0.3 s** ("PERFECT" / "GOOD" / "WEAK" / "MISS"), then the next beat starts. After the final beat, the multiplier feedback label is shown for **0.85 s** before the bar hides and `qte_resolved` fires.
 
 ---
 
@@ -129,32 +140,18 @@ After all beats complete, per-beat results are averaged and mapped to the neares
 | ≥ 0.6 | 0.75 (weak) |
 | < 0.6 | 0.25 (miss) |
 
-Example: a 4-beat RADIAL ability needs all-gold hits to reach 1.25× — one red drops the average below 1.2.
-
----
-
-## Visual Cue Convention
-
-| QTE Type | Mechanic | Effect types | Visual |
-|----------|----------|--------------|--------|
-| Slider (current) | Press input to stop cursor | HARM, MEND | 4-zone gold/green/orange/red horizontal bar |
-| Directional sequence (current) | Press arrow keys in order | BUFF, DEBUFF | Arrow char + shrinking timing bar |
-| Power meter (current) | Hold input to fill; release in zone | TRAVEL | Vertical bar with 4-zone coloured band; white cursor line |
-| Click-targets (current) | Click circular targets within window | FORCE | Orange circles scattered within 80 px of target; green flash on hit |
-| Timer QTE (future) | Press input within a window per beat | TBD | Depleting timer bar per beat |
-
 ---
 
 ## Flow
 
-**Slider (HARM / MEND / FORCE):**
+**Slide (HARM / MEND):**
 ```
 start_qte(energy_cost, shape, effect_type)
   → _start_slider_qte()
-      → _set_difficulty()         sets _ss_half, _cursor_duration, _dir_input_window
-      → _beat_count_for_shape()
-      → _start_next_beat()        [loops _beat_count times]
-          → _animate_cursor()     slides cursor 0→1 over _cursor_duration
+      → _set_difficulty()              sets _ss_half, _cursor_duration
+      → _slider_beat_count_for_shape() 1/2/3/4 beats
+      → _start_next_beat()             [loops _beat_count times]
+          → _animate_cursor()          slides cursor 0→1 over _cursor_duration
               → player input  → _register_hit() → _get_beat_result()
               → cursor expires → _on_cursor_expired() → result = 0.25
           → _process_beat_result(result)
@@ -163,7 +160,7 @@ start_qte(energy_cost, shape, effect_type)
                   → await 0.85 s → hide bar → emit qte_resolved(multiplier)
 ```
 
-**Power meter (TRAVEL):**
+**Hold (TRAVEL):**
 ```
 start_qte(energy_cost, shape, effect_type=TRAVEL)
   → _start_power_meter_qte(energy_cost)
@@ -181,34 +178,35 @@ CombatManager3D receives qte_resolved(multiplier):
   → multiplier > 0.25  → TRAVEL_DESTINATION mode (player picks destination tile)
 ```
 
-**Click-targets (FORCE):**
+**Target (FORCE):**
 ```
 start_qte(energy_cost, shape, effect_type=FORCE, target_screen_pos)
   → _start_click_targets_qte(energy_cost, shape, target_screen_pos)
       → sets _ct_window from difficulty tier (1.8 / 1.3 / 0.9 s)
-      → _beat_count_for_shape()
-      → for each beat: create_timer(i × 0.3 s) → _spawn_click_target(origin)
-          → spawns ColorRect at random offset ≤ 80 px from origin
-          → starts _ct_window timer → _on_ct_timeout(idx) → miss (0.25)
+      → _beat_count_for_shape()    3/6/9/12 beats
+      → _spawn_click_target(origin)  one at a time; next spawns after previous resolves
+          → ColorRect at random offset ≤ 240 px from origin (clamped to safe screen bounds)
+          → depleting blue timer bar above the circle
+          → _ct_window timer → _on_ct_timeout(idx) → miss (0.25)
       → _handle_ct_input():
-          LMB click within CT_RADIUS (12 px) → _resolve_ct_beat(idx, 1.25)
-          click outside → no action
+          LMB within CT_RADIUS (12 px) → _resolve_ct_beat(idx, 1.25)  hit
+          LMB outside all targets      → _resolve_ct_beat(idx, 0.25)  misclick = miss
       → _resolve_ct_beat(idx, result):
-          flashes node green/red, records result, increments _current_beat
+          flashes node green/red, records result, spawns next target or aggregates
           when all beats done → _aggregate_multiplier() → _show_final_feedback()
               → await 0.85 s → hide bar → emit qte_resolved(multiplier)
 
 CombatManager3D receives qte_resolved(multiplier):
-  → multiplier < 0.3 → FAILED label 1.5 s → IDLE (energy spent, no knockback)
-  → multiplier ≥ 0.3 → _apply_force() executes knockback
+  → multiplier ≤ 0.25 → FAILED label 1.5 s → IDLE (energy spent, no knockback)
+  → multiplier > 0.25 → _apply_force() executes knockback
 ```
 
-**Directional sequence (BUFF / DEBUFF):**
+**Directional (BUFF / DEBUFF):**
 ```
 start_qte(energy_cost, shape, effect_type)
   → _start_directional_qte()
       → _set_difficulty()         sets _dir_input_window
-      → _beat_count_for_shape()
+      → _beat_count_for_shape()   3/6/9/12 beats
       → _generate_dir_sequence()  random non-repeating list of "UP"/"DOWN"/"LEFT"/"RIGHT"
       → _start_dir_beat()         [loops _beat_count times]
           → shows arrow char + starts shrinking timing bar (_dir_input_window s)
@@ -240,3 +238,4 @@ CombatManager3D maps `enemy.data.qte_resolution` to a multiplier tier without sh
 - The bar is always present in the scene tree (built by CombatManager3D in `_setup_ui()`), hidden until `start_qte()` is called.
 - CombatManager enters `QTE_RUNNING` state before calling `start_qte()` to block all other input.
 - `qte_resolved` fires **after** all feedback animations — intentional so the player sees their result before effects resolve.
+- Internal function names use the old terms (`_start_slider_qte`, `_start_power_meter_qte`, `_start_click_targets_qte`) — the official names above are the design vocabulary.
