@@ -725,18 +725,12 @@ func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: Abili
 				if _grid.is_valid(c):
 					cells.append(c)
 		AbilityData.TargetShape.CONE:
-			# Expanding triangle (fire-breath): aimed at the root (depth 1).
-			# depth 1: 1 cell  |  depth 2: 2 cells (±perp)  |  depth 3: 3 cells (-perp, center, +perp)
+			# T-shape: stem at depth 1, full 3-wide crossbar at depth 2.
 			var dir: Vector2i  = _cardinal_direction(caster_pos, origin_pos)
 			var perp: Vector2i = Vector2i(dir.y, dir.x)
 			var d1: Vector2i   = caster_pos + dir
 			var d2: Vector2i   = d1 + dir
-			var d3: Vector2i   = d2 + dir
-			var candidates: Array[Vector2i] = [
-				d1,
-				d2 - perp, d2 + perp,
-				d3 - perp, d3, d3 + perp,
-			]
+			var candidates: Array[Vector2i] = [d1, d2 - perp, d2, d2 + perp]
 			for c: Vector2i in candidates:
 				if _grid.is_valid(c):
 					cells.append(c)
