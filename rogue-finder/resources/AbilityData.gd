@@ -25,9 +25,10 @@ enum Attribute {
 enum TargetShape {
 	SELF   = 0,  ## auto-targets the caster; no highlight step
 	SINGLE = 1,  ## player picks one valid unit within range
-	CONE   = 2,  ## T-shape: 1 cell adjacent to caster + 3 cells forming the top of the T
+	CONE   = 2,  ## expanding triangle: 1 cell at depth 1, 2 at depth 2, 3 at depth 3 (fire-breath)
 	LINE   = 3,  ## straight line extending from the caster in a chosen direction
 	RADIAL = 4,  ## diamond AoE — 5 wide × 5 tall
+	ARC    = 5,  ## 3-wide adjacent arc — left, center, right of the chosen direction
 }
 
 ## ======================================================

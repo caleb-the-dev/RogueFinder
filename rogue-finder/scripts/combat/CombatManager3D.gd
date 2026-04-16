@@ -217,13 +217,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_SPACE:
 				_request_end_player_turn()
 				get_viewport().set_input_as_handled()
-			KEY_T:
-				GameState.testing_mode = not GameState.testing_mode
-				_update_status()
-				get_viewport().set_input_as_handled()
 
 	if event is InputEventMouseMotion and mode == PlayerMode.ABILITY_TARGET_MODE \
-			and _pending_ability and _pending_ability.target_shape == AbilityData.TargetShape.CONE:
+			and _pending_ability and (_pending_ability.target_shape == AbilityData.TargetShape.CONE \
+			or _pending_ability.target_shape == AbilityData.TargetShape.ARC):
 		_handle_cone_hover()
 		# not marked as handled — camera controller still needs motion events
 
@@ -239,13 +236,6 @@ func _handle_left_click() -> void:
 		return
 	var cell: Vector2i = _grid.get_clicked_cell(camera, get_viewport())
 	if cell == Vector2i(-1, -1):
-		return
-
-	# Testing mode: clicking any unit opens its full stat panel; game actions are suspended.
-	if GameState.testing_mode:
-		var obj: Object = _grid.get_unit_at(cell)
-		if obj is Unit3D:
-			_stat_panel.show_for(obj as Unit3D)
 		return
 
 	match mode:
@@ -398,8 +388,9 @@ func _on_ability_selected(ability_id: String) -> void:
 					if dist <= _pending_ability.tile_range:
 						_grid.set_highlight(cell, "ability_target")
 
-		AbilityData.TargetShape.CONE:
-			# Player picks one of the 4 cardinal adjacent cells to set direction
+		AbilityData.TargetShape.CONE, AbilityData.TargetShape.ARC:
+			# Player picks one of the 4 cardinal adjacent cells to set direction.
+			# CONE expands to a triangle; ARC hits the 3-wide row at distance 1.
 			var cardinals: Array[Vector2i] = [
 				Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)
 			]
@@ -443,7 +434,7 @@ func _try_ability_target(cell: Vector2i) -> void:
 			if not target.is_alive:
 				return
 			_initiate_action(_selected_unit, target)
-		AbilityData.TargetShape.RADIAL, AbilityData.TargetShape.CONE, AbilityData.TargetShape.LINE:
+		AbilityData.TargetShape.RADIAL, AbilityData.TargetShape.CONE, AbilityData.TargetShape.LINE, AbilityData.TargetShape.ARC:
 			# Store the aimed origin cell; the QTE result will resolve the full shape
 			_aoe_origin = cell
 			_initiate_aoe_action(_selected_unit, _grid.grid_to_world(cell))
@@ -709,7 +700,8 @@ func _cardinal_direction(from: Vector2i, to: Vector2i) -> Vector2i:
 
 ## Returns every grid cell covered by the ability's shape, given caster and aim positions.
 ## RADIAL: all cells within Manhattan ≤ 2 of origin (fixed blast radius).
-## CONE:   T-shape — root adjacent to caster + 3-wide row one step further.
+## ARC:    3-wide row at distance 1 — left, center, right of the aimed direction.
+## CONE:   expanding triangle — 1 cell at depth 1, 2 at depth 2, 3 at depth 3.
 ## LINE:   straight ray from caster through origin, up to tile_range; stops at first
 ##         occupied cell unless ability.passthrough is true.
 func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: AbilityData) -> Array[Vector2i]:
@@ -723,13 +715,28 @@ func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: Abili
 						var cell := Vector2i(origin_pos.x + dx, origin_pos.y + dy)
 						if _grid.is_valid(cell):
 							cells.append(cell)
-		AbilityData.TargetShape.CONE:
-			# 3-cell arc at distance 1: left-of-root, root, right-of-root.
-			# Wider end is nearest the caster — like an upside-down T / sweep arc.
+		AbilityData.TargetShape.ARC:
+			# 3-cell sweep: left-of-root, root, right-of-root — all at distance 1.
 			var dir: Vector2i  = _cardinal_direction(caster_pos, origin_pos)
 			var root: Vector2i = caster_pos + dir
 			var perp: Vector2i = Vector2i(dir.y, dir.x)   # perpendicular axis
 			var candidates: Array[Vector2i] = [root - perp, root, root + perp]
+			for c: Vector2i in candidates:
+				if _grid.is_valid(c):
+					cells.append(c)
+		AbilityData.TargetShape.CONE:
+			# Expanding triangle (fire-breath): aimed at the root (depth 1).
+			# depth 1: 1 cell  |  depth 2: 2 cells (±perp)  |  depth 3: 3 cells (-perp, center, +perp)
+			var dir: Vector2i  = _cardinal_direction(caster_pos, origin_pos)
+			var perp: Vector2i = Vector2i(dir.y, dir.x)
+			var d1: Vector2i   = caster_pos + dir
+			var d2: Vector2i   = d1 + dir
+			var d3: Vector2i   = d2 + dir
+			var candidates: Array[Vector2i] = [
+				d1,
+				d2 - perp, d2 + perp,
+				d3 - perp, d3, d3 + perp,
+			]
 			for c: Vector2i in candidates:
 				if _grid.is_valid(c):
 					cells.append(c)
@@ -913,9 +920,6 @@ func _unit_can_still_act(unit: Unit3D) -> bool:
 
 func _update_status() -> void:
 	if not _status_label:
-		return
-	if GameState.testing_mode:
-		_status_label.text = "[TEST MODE — T to exit]  click any unit to inspect stats"
 		return
 	match state:
 		CombatState.PLAYER_TURN:

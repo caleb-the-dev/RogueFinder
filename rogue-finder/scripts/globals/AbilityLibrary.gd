@@ -175,11 +175,11 @@ const ABILITIES: Dictionary = {
 	"sweep": {
 		"name":          "Sweep",
 		"attribute":     AbilityData.Attribute.STRENGTH,
-		"target":        AbilityData.TargetShape.CONE,
+		"target":        AbilityData.TargetShape.ARC,
 		"applicable_to": AbilityData.ApplicableTo.ENEMY,
 		"range":         1,
 		"cost":          3,
-		"description":   "Drag your weapon in a wide arc — hits every enemy in a T-shaped cone in front of you.",
+		"description":   "Drag your weapon in a wide arc — hits every enemy in a 3-wide arc directly in front of you.",
 		"effects": [
 			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
 		],
