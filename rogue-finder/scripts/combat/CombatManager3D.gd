@@ -516,13 +516,27 @@ func _on_qte_resolved(multiplier: float) -> void:
 		_selected_unit.has_acted = true
 
 		if travel_eff != null:
-			# Enter destination-pick mode; effect resolves when the player clicks a tile
-			_travel_effect  = travel_eff
 			_pending_ability = null
 			_attack_target   = null
 			_aoe_origin      = Vector2i(-1, -1)
-			state = CombatState.PLAYER_TURN
-			mode  = PlayerMode.TRAVEL_DESTINATION
+			state            = CombatState.PLAYER_TURN
+
+			if multiplier == 0.25:
+				# QTE failed — skip destination pick; energy was already spent above
+				mode = PlayerMode.IDLE
+				_status_label.text = "TRAVEL FAILED — repositioning lost"
+				await get_tree().create_timer(1.5).timeout
+				if _selected_unit and _selected_unit.is_alive:
+					_select_unit(_selected_unit)
+				else:
+					_deselect()
+				_update_status()
+				_check_auto_end_turn()
+				return
+
+			# Enter destination-pick mode; effect resolves when the player clicks a tile
+			_travel_effect = travel_eff
+			mode           = PlayerMode.TRAVEL_DESTINATION
 			_highlight_travel_destinations(_selected_unit, _travel_effect)
 			_update_status()
 			return
