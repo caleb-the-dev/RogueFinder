@@ -235,7 +235,6 @@ func _start_directional_qte(energy_cost: int, shape: AbilityData.TargetShape) ->
 	_directional_mode = true
 
 	_dir_sequence = _generate_dir_sequence(_beat_count)
-	_dir_beat_index = 0
 
 	# Hide the slider bar; show the directional arrow overlay
 	_bar_bg.visible       = false
