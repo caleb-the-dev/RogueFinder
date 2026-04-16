@@ -1,6 +1,6 @@
 # System: Unit System
 
-> Last updated: 2026-04-15 (Session 7 — stat_effects tracking, buff/debuff billboard indicators, add_stat_effect API)
+> Last updated: 2026-04-16 (Session 8 — floating combat text: show_floating_text() on take_damage, heal, and stat delta)
 
 ---
 
@@ -86,6 +86,7 @@ CombatManager subscribes to both signals on every unit.
 |--------|-----------|---------|
 | `set_selected` | `(selected: bool) -> void` | Shows/hides the yellow selection ring |
 | `play_attack_anim` | `(target_world: Vector3) -> void` | Lunge coroutine — call with `await` if you need to wait for impact |
+| `show_floating_text` | `(text: String, color: Color) -> void` | Spawns a rising, fading Label3D above the unit; fire-and-forget |
 | `get_sprite_dir` | `(camera_forward: Vector3) -> int` | Returns 0–7 for 8-directional sprite selection (future use) |
 
 ---
@@ -121,6 +122,12 @@ CombatManager subscribes to both signals on every unit.
 - > 66% HP: green `#3EFF59`
 - 33–66% HP: yellow `#FFD926`
 - < 33% HP: red `#FF3F38`
+
+### Floating Combat Text
+`show_floating_text(text, color)` — fire-and-forget coroutine. Spawns a billboard `Label3D` with a small random X jitter, tweens it up 1.5 world units and fades alpha to 0 over 1.5s, then frees itself. Called automatically by:
+- `take_damage()` → `-{amount}` in red
+- `heal()` → `+{amount}` in green
+- `CombatManager3D._apply_stat_delta()` → `+STR`/`-DEX` etc. in green (buff) or orange (debuff)
 
 ### Hit Flash
 `_play_hit_flash()` — fire-and-forget coroutine inside `take_damage()`:
