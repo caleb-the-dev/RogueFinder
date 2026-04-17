@@ -135,10 +135,10 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 
 	# -- Equipment --
 	lines.append("[b]── Equipment ──[/b]")
-	lines.append("[b]Weapon:[/b]     %s" % _slot(d.weapon))
-	lines.append("[b]Armor:[/b]      %s" % _slot(d.armor))
+	lines.append("[b]Weapon:[/b]     %s" % (d.weapon.equipment_name    if d.weapon    else "(empty)"))
+	lines.append("[b]Armor:[/b]      %s" % (d.armor.equipment_name     if d.armor     else "(empty)"))
 	lines.append("[b]Consumable:[/b] %s" % _slot(d.consumable))
-	lines.append("[b]Accessory:[/b]  %s" % _slot(d.accessory))
+	lines.append("[b]Accessory:[/b]  %s" % (d.accessory.equipment_name if d.accessory else "(empty)"))
 	lines.append("")
 
 	# -- Abilities --
