@@ -13,6 +13,7 @@ func _ready() -> void:
 	test_get_unit_at_returns_null_for_wall()
 	test_get_move_range_excludes_wall_cells()
 	test_apply_force_stops_at_wall_via_is_occupied()
+	test_force_traversal_hazard_damage()
 	test_hazard_damage_unit_on_hazard()
 	test_hazard_damage_unit_not_on_hazard()
 	print("=== All grid_environment tests passed ===")
@@ -94,8 +95,6 @@ func test_apply_force_stops_at_wall_via_is_occupied() -> void:
 	var g    := _make_grid()
 	var wall := Vector2i(7, 5)
 	g.build_walls([wall])
-	# Simulate the _apply_force loop: starting at (5,5), moving right (+1,0), 3 tiles.
-	# Wall is at (7,5). Should stop dest at (6,5).
 	var dest := Vector2i(5, 5)
 	var dir  := Vector2i(1, 0)
 	for _i in range(3):
@@ -106,6 +105,43 @@ func test_apply_force_stops_at_wall_via_is_occupied() -> void:
 	assert(dest == Vector2i(6, 5),
 		"FORCE displacement should stop before wall at (7,5); expected dest (6,5), got %s" % str(dest))
 	print("  PASS test_apply_force_stops_at_wall_via_is_occupied")
+
+## Tests that every hazard cell in a FORCE path deals 2 HP, not just the landing cell.
+## Path: (5,5) → (6,5)[hazard] → (7,5)[landing]. Unit should take 2 HP from (6,5).
+func test_force_traversal_hazard_damage() -> void:
+	var g      := _make_grid()
+	var hazard := Vector2i(6, 5)  # intermediate cell — not the landing cell
+	g.set_cell_type(hazard, Grid3D.CellType.HAZARD)
+
+	var unit := Unit3D.new()
+	add_child(unit)
+	var d := _make_combatant_data(20)
+	unit.setup(d, Vector2i(5, 5))
+
+	# Inline the _apply_force path + traversal damage logic
+	var dest := Vector2i(5, 5)
+	var dir  := Vector2i(1, 0)
+	var path: Array[Vector2i] = []
+	for _i in range(3):
+		var nxt: Vector2i = dest + dir
+		if not g.is_valid(nxt) or g.is_occupied(nxt):
+			break
+		dest = nxt
+		path.append(dest)
+
+	var hp_before: int = unit.current_hp
+	for cell in path:
+		if g.is_hazard(cell):
+			unit.take_damage(2)
+			if not unit.is_alive:
+				break
+
+	assert(unit.current_hp == hp_before - 2,
+		"Unit force-traversed through hazard at (6,5) should lose 2 HP; expected %d, got %d" \
+		% [hp_before - 2, unit.current_hp])
+	assert(dest == Vector2i(7, 5),
+		"Unit should land at (7,5), got %s" % str(dest))
+	print("  PASS test_force_traversal_hazard_damage")
 
 func test_hazard_damage_unit_on_hazard() -> void:
 	var g       := _make_grid()

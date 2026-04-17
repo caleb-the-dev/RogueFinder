@@ -686,13 +686,16 @@ func _apply_force(caster: Unit3D, target: Unit3D, effect: EffectData, blast_orig
 				else caster.grid_pos
 			dir = _cardinal_direction(origin, target.grid_pos)
 
-	# Slide target along dir, stopping at grid edge or first occupied cell
+	# Slide target along dir, stopping at grid edge or first occupied cell.
+	# Track every cell in the path so traversal hazards can be applied.
 	var dest: Vector2i = target.grid_pos
+	var path: Array[Vector2i] = []
 	for _i in range(effect.base_value):
 		var nxt: Vector2i = dest + dir
 		if not _grid.is_valid(nxt) or _grid.is_occupied(nxt):
 			break
 		dest = nxt
+		path.append(dest)
 
 	if dest == target.grid_pos:
 		return  # nowhere to move
@@ -700,7 +703,14 @@ func _apply_force(caster: Unit3D, target: Unit3D, effect: EffectData, blast_orig
 	_grid.clear_occupied(target.grid_pos)
 	target.move_to(dest)           # updates grid_pos + emits unit_moved
 	_grid.set_occupied(dest, target)
-	_check_hazard_damage(target)
+	# Damage for every hazard cell in the path (includes traversed cells and landing cell)
+	for cell in path:
+		if _grid.is_hazard(cell):
+			target.take_damage(2)
+			_camera_rig.trigger_shake()
+			if not target.is_alive:
+				break
+	_check_win_lose()
 	var tw: Tween = create_tween()
 	tw.tween_property(target, "global_position", _grid.grid_to_world(dest), 0.20)
 
