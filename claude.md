@@ -172,6 +172,13 @@ After implementing any significant logic change or new system, Claude must updat
 - Structural or design decisions made during implementation
 If a change affects multiple systems (e.g., a new signal crosses two systems), update **both** bucket files and the index in `map.md` if a new system was added.
 
+### Session Wrap-Up Skill (`/wrapup`)
+The project ships a `/wrapup` skill at `.claude/plugins/wrapup/SKILL.md`. When the user invokes `/wrapup` (or says "wrap up", "close out", "done for today", etc.), this skill takes over and:
+1. Commits any uncommitted work, pushes the feature branch, and merges to main
+2. Reads every `.gd` file changed this session and exhaustively updates all relevant map directory files — signals, public API, dependencies, gotchas, recent-changes rows, and `map.md` index/session log
+
+The skill is the authoritative end-of-session workflow. Do not do wrap-up work ad-hoc outside of it.
+
 ## Teaching Mode
 - Ask user for permission before triggering anything from the superpowers plugin.
 
