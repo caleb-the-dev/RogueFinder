@@ -32,6 +32,8 @@
 | [Stat Panel](#stat-panel) | [hud_system.md](hud_system.md) | ✅ Active (double-click examine) | Presentation |
 | [Unit Info Bar](#unit-info-bar) | [hud_system.md](hud_system.md) | ✅ Active (single-click strip) | Presentation |
 | [Action Menu](#action-menu) | [hud_system.md](hud_system.md) | ✅ Active | Presentation |
+| [End Combat Screen](#end-combat-screen) | [hud_system.md](hud_system.md) | ✅ Active | Presentation |
+| [Reward Generator](#reward-generator) | [hud_system.md](hud_system.md) | ✅ Active | Global |
 | [Combatant Data Model](#combatant-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active (3D) | Data |
 | [Ability Data Model](#ability-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Ability Library](#ability-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
@@ -54,8 +56,16 @@ CombatManager3D
   ├── CameraController (built by CM3D; shake on hit)
   ├── UnitInfoBar      (condensed strip; shown on single-click)
   ├── StatPanel        (full examine window; shown on double-click)
-  ├── ActionMenu       (radial pop-up; signals ability_selected, consumable_selected)
-  └── ArchetypeLibrary (creates CombatantData for each unit at scene load)
+  ├── ActionMenu         (radial pop-up; signals ability_selected, consumable_selected)
+  ├── EndCombatScreen    (victory/defeat overlay; shown by _end_combat())
+  └── ArchetypeLibrary   (creates CombatantData for each unit at scene load)
+
+EndCombatScreen
+  └── RewardGenerator  (shuffled pool of EquipmentLibrary + ConsumableLibrary items)
+
+RewardGenerator
+  ├── EquipmentLibrary (all_equipment())
+  └── ConsumableLibrary (CONSUMABLES dict)
 
 Unit3D
   └── CombatantData    (stat source — replaces UnitData for 3D)
@@ -106,6 +116,12 @@ CanvasLayer overlay (layer 8) opened on double-click of any unit. Shows the comp
 
 ### Unit Info Bar
 Condensed CanvasLayer strip (layer 4). Shown on single-click of any unit. Displays name, class, HP bar, energy bar, ATK/DEF/SPD. Hidden on deselect and combat end.
+
+### End Combat Screen
+CanvasLayer overlay (layer 15) shown when combat ends. Victory shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)`. Defeat shows "DEFEAT" + "Try Again". Reward pick logs to console and calls `GameState.add_to_inventory()` stub. Both paths reload `CombatScene3D.tscn`. Lives in `scripts/ui/EndCombatScreen.gd`.
+
+### Reward Generator
+Static utility (`scripts/globals/RewardGenerator.gd`). Combines all `EquipmentLibrary` and `ConsumableLibrary` items into one pool, Fisher-Yates shuffles, and returns `count` distinct Dicts (`id`, `name`, `description`, `item_type`).
 
 ### Action Menu
 CanvasLayer (layer 12) pop-up shown when a player unit is selected. D-pad layout: 4 ability buttons + 1 consumable center button. Projects the unit's 3D position to screen space. Emits `ability_selected(ability_id)` and `consumable_selected()`. Buttons grey out based on energy and `has_acted` state.
@@ -179,6 +195,7 @@ res://
 │   │   └── Grid.gd              ← legacy 2D
 │   ├── ui/
 │   │   ├── ActionMenu.gd        ← radial action pop-up (player unit selection)
+│   │   ├── EndCombatScreen.gd   ← victory/defeat overlay (layer 15)
 │   │   ├── StatPanel.gd         ← full examine window (double-click)
 │   │   ├── UnitInfoBar.gd       ← condensed strip (single-click)
 │   │   └── HUD.gd               ← legacy 2D only
@@ -187,6 +204,7 @@ res://
 │       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
 │       ├── ConsumableLibrary.gd ← consumable factory (healing_potion, power_tonic)
 │       ├── EquipmentLibrary.gd  ← equipment catalog (6 items, 2 per slot)
+│       ├── RewardGenerator.gd   ← shuffled reward pool (equipment + consumables)
 │       └── GameState.gd
 └── resources/
     ├── AbilityData.gd           ← ability resource (TargetShape/ApplicableTo/Attribute enums)
@@ -210,3 +228,4 @@ res://
 | 2026-04-16 | Data, Combat | ConsumableData + ConsumableLibrary; consumable effect wired in CombatManager3D |
 | 2026-04-17 | Grid, Combat | Wall + hazard environment tiles: CellType enum, build_walls(), hazard on-entry and traversal damage, FORCE path tracking, COLOR_MOVE_HAZARD amber highlight, wall color polish |
 | 2026-04-16 | Data | EquipmentData + EquipmentLibrary (6 items); CombatantData slots typed; all derived stats include equipment bonuses |
+| 2026-04-17 | UI, Globals | EndCombatScreen (layer 15) + RewardGenerator; win/lose overlay replaces status label text |

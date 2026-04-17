@@ -76,6 +76,37 @@ Hover shows a tooltip with ability name, tags, energy cost, and description.
 
 ---
 
+## EndCombatScreen
+
+**Layer 15.** Shown when combat ends (victory or defeat). Full-screen semi-transparent overlay. Built in code; no scene file.
+
+### Public API
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `show_victory` | `(reward_items: Array) -> void` | Displays VICTORY header + 3 reward buttons |
+| `show_defeat` | `() -> void` | Displays DEFEAT header + "Try Again" button |
+
+Victory flow: 3 buttons (item name + description). Clicking one logs the choice, calls `GameState.add_to_inventory()` if available, hides unchosen buttons, reveals "Onward..." which reloads `CombatScene3D.tscn`.
+
+Defeat flow: single "Try Again" button → reloads `CombatScene3D.tscn`.
+
+Reward items come from `RewardGenerator.roll(3)` — plain Dicts with keys `id`, `name`, `description`, `item_type`.
+
+---
+
+## RewardGenerator
+
+Static utility class (`scripts/globals/RewardGenerator.gd`). Builds a shuffled pool from all `EquipmentLibrary` items + all `ConsumableLibrary` items and returns `count` distinct entries as plain Dictionaries.
+
+### Public API
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `roll` | `(count: int) -> Array` | Returns `count` random distinct reward Dicts |
+
+---
+
 ## Legacy HUD.gd
 
 `scripts/ui/HUD.gd` and `scenes/ui/HUD.tscn` are kept for `CombatManager.gd` (2D). Do not delete until the 2D prototype is retired.

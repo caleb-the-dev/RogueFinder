@@ -52,8 +52,9 @@ var _stat_panel:     StatPanel          = null
 var _info_bar:       UnitInfoBar        = null
 var _action_menu:    ActionMenu         = null
 var _info_bar_unit:  Unit3D             = null
-var _confirm_panel:  ColorRect          = null
-var _status_label:   Label              = null
+var _confirm_panel:    ColorRect          = null
+var _status_label:     Label              = null
+var _end_combat_screen: EndCombatScreen   = null
 
 ## --- Initialization ---
 
@@ -212,6 +213,9 @@ func _setup_ui() -> void:
 	no_btn.pressed.connect(func() -> void: _confirm_panel.visible = false)
 	_confirm_panel.add_child(no_btn)
 
+	_end_combat_screen = EndCombatScreen.new()
+	add_child(_end_combat_screen)
+
 ## --- Input ---
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -232,6 +236,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 			KEY_SPACE:
 				_request_end_player_turn()
+				get_viewport().set_input_as_handled()
+			KEY_K:
+				# Debug: instant-kill all enemies to test the victory screen
+				for u in _enemy_units:
+					if u.is_alive:
+						u.take_damage(9999)
 				get_viewport().set_input_as_handled()
 
 	if event is InputEventMouseMotion and mode == PlayerMode.ABILITY_TARGET_MODE \
@@ -1228,8 +1238,13 @@ func _end_combat(player_won: bool) -> void:
 	state = CombatState.WIN if player_won else CombatState.LOSE
 	_stat_panel.hide_panel()
 	_info_bar.hide_bar()
+	_action_menu.close()
 	_info_bar_unit = null
 	_update_status()
+	if player_won:
+		_end_combat_screen.show_victory(RewardGenerator.roll(3))
+	else:
+		_end_combat_screen.show_defeat()
 
 ## --- Damage Formula ---
 ## Result scales with stat delta (+/-20 pts = 2x / 0.5x) and QTE accuracy.
@@ -1282,7 +1297,5 @@ func _update_status() -> void:
 			_status_label.text = "QTE — press SPACE or click to strike!"
 		CombatState.ENEMY_TURN:
 			_status_label.text = "ENEMY TURN..."
-		CombatState.WIN:
-			_status_label.text = "** VICTORY! ** — all enemies defeated"
-		CombatState.LOSE:
-			_status_label.text = "** DEFEAT... ** — all allies fallen"
+		CombatState.WIN, CombatState.LOSE:
+			_status_label.text = ""
