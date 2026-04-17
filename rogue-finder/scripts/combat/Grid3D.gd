@@ -21,6 +21,8 @@ const COLOR_ATTACK:       Color = Color(0.85, 0.22, 0.22, 0.85)
 const COLOR_SELECTED:     Color = Color(0.90, 0.78, 0.10, 0.90)
 const COLOR_ABILITY_TARGET: Color = Color(0.65, 0.20, 0.90, 0.85)  # purple
 const COLOR_HAZARD:       Color = Color(0.85, 0.40, 0.05, 1.0)
+const COLOR_MOVE_HAZARD:  Color = Color(0.90, 0.52, 0.05, 0.88)   # amber — reachable but dangerous
+const COLOR_WALL:         Color = Color(0.52, 0.50, 0.46, 1.0)    # warm stone — visible against dark grid
 
 # highlighted_cells: Vector2i -> "move" | "attack" | "selected"
 var highlighted_cells: Dictionary = {}
@@ -110,7 +112,7 @@ func build_walls(cells: Array[Vector2i]) -> void:
 		_cell_types[cell] = CellType.WALL
 		var idx: int = cell.y * COLS + cell.x
 		if idx < _cell_materials.size():
-			_cell_materials[idx].albedo_color = Color(0.15, 0.15, 0.15, 1.0)
+			_cell_materials[idx].albedo_color = Color(0.14, 0.13, 0.11, 1.0)
 		var box_mesh := MeshInstance3D.new()
 		var box := BoxMesh.new()
 		box.size = Vector3(0.7, 1.6, 0.7)
@@ -118,7 +120,7 @@ func build_walls(cells: Array[Vector2i]) -> void:
 		box_mesh.position = Vector3(float(cell.x) * CELL_SIZE, 0.8, float(cell.y) * CELL_SIZE)
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.albedo_color = Color(0.15, 0.15, 0.15, 1.0)
+		mat.albedo_color = COLOR_WALL
 		box_mesh.material_override = mat
 		add_child(box_mesh)
 
@@ -162,7 +164,7 @@ func _refresh_cell_color(pos: Vector2i) -> void:
 		return
 	var mat: StandardMaterial3D = _cell_materials[idx]
 	match highlighted_cells.get(pos, ""):
-		"move":           mat.albedo_color = COLOR_MOVE
+		"move":           mat.albedo_color = COLOR_MOVE_HAZARD if is_hazard(pos) else COLOR_MOVE
 		"attack":         mat.albedo_color = COLOR_ATTACK
 		"selected":       mat.albedo_color = COLOR_SELECTED
 		"ability_target": mat.albedo_color = COLOR_ABILITY_TARGET

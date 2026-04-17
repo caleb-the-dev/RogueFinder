@@ -337,6 +337,7 @@ func _try_move(cell: Vector2i) -> void:
 	_grid.clear_occupied(old_pos)
 	_selected_unit.move_to(cell)
 	_grid.set_occupied(cell, _selected_unit)
+	_check_hazard_damage(_selected_unit)
 
 	# Tween to new world position
 	var tw: Tween = create_tween()
@@ -699,6 +700,7 @@ func _apply_force(caster: Unit3D, target: Unit3D, effect: EffectData, blast_orig
 	_grid.clear_occupied(target.grid_pos)
 	target.move_to(dest)           # updates grid_pos + emits unit_moved
 	_grid.set_occupied(dest, target)
+	_check_hazard_damage(target)
 	var tw: Tween = create_tween()
 	tw.tween_property(target, "global_position", _grid.grid_to_world(dest), 0.20)
 
@@ -750,6 +752,7 @@ func _try_travel_destination(cell: Vector2i) -> void:
 	_grid.clear_occupied(old_pos)
 	_selected_unit.move_to(cell)
 	_grid.set_occupied(cell, _selected_unit)
+	_check_hazard_damage(_selected_unit)
 	var tw: Tween = create_tween()
 	tw.tween_property(_selected_unit, "global_position", _grid.grid_to_world(cell), 0.18)
 
@@ -1020,6 +1023,10 @@ func _process_enemy_actions() -> void:
 				var tw: Tween = create_tween()
 				tw.tween_property(enemy, "global_position", _grid.grid_to_world(best_cell), 0.22)
 				await tw.finished  # must complete before lunge anim starts on same property
+				_check_hazard_damage(enemy)
+				if not enemy.is_alive:
+					await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
+					continue
 
 		# --- 4. Ability selection ---
 		var post_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
