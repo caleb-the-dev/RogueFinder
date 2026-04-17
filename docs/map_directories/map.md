@@ -35,6 +35,8 @@
 | [Combatant Data Model](#combatant-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active (3D) | Data |
 | [Ability Data Model](#ability-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Ability Library](#ability-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
+| [Consumable Data Model](#consumable-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
+| [Consumable Library](#consumable-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
 | [Game State](#game-state) | [game_state.md](game_state.md) | 🔲 Stub | Global |
 
@@ -57,7 +59,8 @@ Unit3D
   └── CombatantData    (stat source — replaces UnitData for 3D)
 
 ActionMenu
-  └── AbilityLibrary   (looked up to build ability buttons)
+  ├── AbilityLibrary      (looked up to build ability buttons)
+  └── ConsumableLibrary   (looked up to build consumable button label + tooltip)
 
 StatPanel
   └── CombatantData    (reads all fields for display)
@@ -107,6 +110,12 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, an
 
 ### Ability Library
 `AbilityLibrary` (static class) defines 12 abilities and provides `get_ability(id) -> AbilityData`. Returns a safe stub for unknown IDs. Future CSV import will replace the inline dictionary without changing the API.
+
+### Consumable Data Model
+`ConsumableData` (Resource) stores id, name, effect_type, base_value, target_stat, and description for a single consumable. Only MEND, BUFF, and DEBUFF are valid effect types — consumables never HARM, FORCE, or TRAVEL.
+
+### Consumable Library
+`ConsumableLibrary` (static class) defines consumables and provides `get_consumable(id) -> ConsumableData`. Never returns null. Currently defines `healing_potion` (MEND 15 HP) and `power_tonic` (BUFF STR +2).
 
 ### Unit Data Resource (Legacy)
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
@@ -162,11 +171,13 @@ res://
 │   └── globals/
 │       ├── AbilityLibrary.gd    ← ability factory (12 abilities)
 │       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
+│       ├── ConsumableLibrary.gd ← consumable factory (healing_potion, power_tonic)
 │       └── GameState.gd
 └── resources/
     ├── AbilityData.gd           ← ability resource (TargetShape/ApplicableTo/Attribute enums)
     ├── EffectData.gd            ← effect sub-resource (EffectType/PoolType/MoveType enums)
     ├── CombatantData.gd         ← active data resource (3D)
+    ├── ConsumableData.gd        ← consumable item resource
     └── UnitData.gd              ← legacy data resource (2D only)
 ```
 
@@ -180,3 +191,4 @@ res://
 | 2026-04-14 | Combat, Camera, Grid, Unit | Stage 1.5: 3D refactor — CameraController, Unit3D, Grid3D, CombatManager3D |
 | 2026-04-14 | Data, UI | Combatant data model, ArchetypeLibrary, UnitInfoBar, StatPanel, ActionMenu |
 | 2026-04-15 | Data, Combat | AbilityData/EffectData model, 12 abilities wired; CombatManager3D applies effects |
+| 2026-04-16 | Data, Combat | ConsumableData + ConsumableLibrary; consumable effect wired in CombatManager3D |

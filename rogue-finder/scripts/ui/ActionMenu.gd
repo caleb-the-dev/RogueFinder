@@ -141,8 +141,9 @@ func _refresh_ability_button(btn: Button, index: int, unit: Unit3D) -> void:
 	btn.modulate = Color.WHITE if can_use else Color(0.5, 0.5, 0.5, 0.7)
 
 func _refresh_consumable_button(unit: Unit3D) -> void:
-	var has_item: bool       = unit.data.consumable != ""
-	_consumable_btn.text     = unit.data.consumable if has_item else "—"
+	var has_item: bool = unit.data.consumable != ""
+	_consumable_btn.text = ConsumableLibrary.get_consumable(unit.data.consumable).consumable_name \
+		if has_item else "—"
 	_consumable_btn.disabled = not has_item
 	_consumable_btn.modulate = Color.WHITE if has_item else Color(0.5, 0.5, 0.5, 0.7)
 
@@ -175,8 +176,9 @@ func _on_ability_hover(index: int) -> void:
 func _on_consumable_hover() -> void:
 	if not _current_unit or _current_unit.data.consumable == "":
 		return
+	var con: ConsumableData = ConsumableLibrary.get_consumable(_current_unit.data.consumable)
 	_show_tooltip(
-		_current_unit.data.consumable + "\n(Consumable — use to activate effect)",
+		"%s\n%s" % [con.consumable_name, con.description],
 		_consumable_btn.position + Vector2(CON_SIZE * 0.5, -TOOLTIP_H - 6.0)
 	)
 

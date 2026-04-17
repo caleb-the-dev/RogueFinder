@@ -60,6 +60,7 @@ extends Resource
 
 @export var weapon:     String = ""
 @export var armor:      String = ""
+## consumable_id into ConsumableLibrary; "" = none
 @export var consumable: String = ""
 @export var accessory:  String = ""
 

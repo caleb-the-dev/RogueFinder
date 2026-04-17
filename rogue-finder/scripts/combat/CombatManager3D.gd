@@ -472,12 +472,24 @@ func _initiate_aoe_action(attacker: Unit3D, origin_world: Vector3) -> void:
 		_screen_pos = _camera_rig.get_camera().unproject_position(origin_world)
 	_qte_bar.start_qte(_pending_ability.energy_cost, _pending_ability.target_shape, _eff_type, _screen_pos)
 
-## Consume the equipped item (sets consumable to "" so the button greys out).
+## Apply the consumable effect immediately (no QTE), then clear the slot.
 func _on_consumable_selected() -> void:
 	if not _selected_unit:
 		return
+	var con_id: String = _selected_unit.data.consumable
+	if con_id == "":
+		return
+
+	var con: ConsumableData = ConsumableLibrary.get_consumable(con_id)
+	match con.effect_type:
+		EffectData.EffectType.MEND:
+			_selected_unit.heal(con.base_value)
+		EffectData.EffectType.BUFF:
+			_apply_stat_delta(_selected_unit, con.target_stat, con.base_value)
+		EffectData.EffectType.DEBUFF:
+			_apply_stat_delta(_selected_unit, con.target_stat, -con.base_value)
+
 	_selected_unit.data.consumable = ""
-	# Refresh info bar and re-open menu so consumable button updates immediately
 	_info_bar.refresh(_selected_unit)
 	_action_menu.open_for(_selected_unit, _camera_rig.get_camera())
 
