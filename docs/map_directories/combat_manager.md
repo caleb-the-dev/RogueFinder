@@ -203,7 +203,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 - **`_pending_ability` and `_aoe_origin`** — stored between `_on_ability_selected()` and `_on_qte_resolved()`. Both cleared after resolution.
 - **Energy deducted before effects resolve** — spent in `_on_qte_resolved()` before `_apply_effects()`. A QTE miss still costs energy.
 - **TRAVEL breaks the single-pass flow** — detected in `_on_qte_resolved()` before `_apply_effects()`; enters `TRAVEL_DESTINATION` PlayerMode rather than awaiting inside `_apply_effects()`.
-- **`_apply_force` uses `target.move_to()`** — this sets `has_moved = true` on displaced units. Intentional — forced movement counts as their stride.
+- **`_apply_force` uses `target.move_to()`** — forced displacement moves the unit but does NOT consume `remaining_move`. Forced movement is involuntary and does not affect the stride budget.
 - **Hazard damage has two triggers** — `_check_hazard_damage()` fires on voluntary movement entry (stride, TRAVEL) and at start-of-turn. FORCE traversal damage is different: `_apply_force()` iterates the full path and calls `unit.take_damage(2)` + `_check_win_lose()` directly for each hazard cell crossed — it does NOT call `_check_hazard_damage()`.
 - **`_calculate_damage()` is dead code** — safe to delete when convenient.
 - **Stat changes not reset at combat end** — future task: snapshot base stats at `Unit3D.setup()` and restore post-combat.
@@ -214,6 +214,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-17 | Pathfinding + movement reservation: `_try_move()` now uses `Grid3D.find_path()` for cell-by-cell tween traversal (~0.12s per cell); hazard damage fires on each cell entered. Unit3D `has_moved` replaced by `remaining_move: int` (initialized to `data.speed` on `setup()`/`reset_turn()`); stride can be used multiple times per turn until budget reaches 0. `_select_unit()` and enemy stride both pass `unit.remaining_move` to `get_move_range()`. Enemy stride updated to use same cell-by-cell traversal. |
 | 2026-04-17 | Hazard polish: on-entry damage fires for player stride, TRAVEL, and enemy stride; `_apply_force()` now tracks full path and applies 2 HP per hazard cell traversed (not just landing cell); enemy killed by stride hazard damage skips ability execution; win/lose guard added after player hazard loop in `_run_enemy_turn()` |
 | 2026-04-17 | Added wall/hazard environment tiles: `_setup_environment_tiles()`, `_check_hazard_damage()`, player hazard damage at start of player turn, enemy hazard damage before each enemy acts |
 | 2026-04-17 | Rewrote `_process_enemy_actions()`: target selection, consumable use (50% at <50% HP), greedy Manhattan stride, per-enemy ability filtering (energy + range + applicable_to), AoE origin selection via `_pick_best_aoe_origin()` |

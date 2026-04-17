@@ -302,7 +302,7 @@ func _select_unit(unit: Unit3D) -> void:
 	_grid.clear_highlights()
 	_grid.set_highlight(unit.grid_pos, "selected")
 	if unit.can_stride():
-		for cell in _grid.get_move_range(unit.grid_pos, unit.data.speed):
+		for cell in _grid.get_move_range(unit.grid_pos, unit.remaining_move):
 			_grid.set_highlight(cell, "move")
 	mode = PlayerMode.STRIDE_MODE if unit.can_stride() else PlayerMode.IDLE
 	# Open (or refresh) the radial menu for this unit
@@ -329,25 +329,38 @@ func _try_move(cell: Vector2i) -> void:
 	if not _selected_unit:
 		return
 	if _grid.highlighted_cells.get(cell, "") != "move":
-		# Clicking a non-move cell: try selecting a different unit instead
 		_try_select_unit(cell)
 		return
 
-	var old_pos: Vector2i = _selected_unit.grid_pos
-	_grid.clear_occupied(old_pos)
-	_selected_unit.move_to(cell)
-	_grid.set_occupied(cell, _selected_unit)
-	_check_hazard_damage(_selected_unit)
+	var unit: Unit3D = _selected_unit
+	var old_pos: Vector2i = unit.grid_pos
 
-	# Tween to new world position
-	var tw: Tween = create_tween()
-	tw.tween_property(_selected_unit, "global_position", _grid.grid_to_world(cell), 0.18)
-
-	# Refresh highlights and stat panel (HP/energy are unchanged by movement,
-	# but position in stat display updates on next explicit selection)
+	# Lock input immediately so overlapping clicks during the animation are safe
 	_grid.clear_highlights()
-	_grid.set_highlight(cell, "selected")
 	mode = PlayerMode.IDLE
+	_update_status()
+
+	_grid.clear_occupied(old_pos)
+	var path: Array[Vector2i] = _grid.find_path(old_pos, cell, unit)
+
+	if path.is_empty():
+		_grid.set_occupied(old_pos, unit)
+		_grid.set_highlight(old_pos, "selected")
+		return
+
+	for step_cell in path:
+		var tw: Tween = create_tween()
+		tw.tween_property(unit, "global_position", _grid.grid_to_world(step_cell), 0.12)
+		await tw.finished
+		unit.grid_pos = step_cell
+		_check_hazard_damage(unit)
+		if not unit.is_alive:
+			break
+
+	if unit.is_alive:
+		_grid.set_occupied(unit.grid_pos, unit)
+		unit.remaining_move -= path.size()
+		_grid.set_highlight(unit.grid_pos, "selected")
 	_update_status()
 
 ## Called when the player picks an ability from the ActionMenu.
@@ -1016,8 +1029,8 @@ func _process_enemy_actions() -> void:
 				enemy.show_action_text(con.consumable_name)
 
 		# --- 3. Movement (Stride) — greedy Manhattan minimization ---
-		if not enemy.has_moved:
-			var move_cells: Array[Vector2i] = _grid.get_move_range(enemy.grid_pos, enemy.data.speed)
+		if enemy.remaining_move > 0:
+			var move_cells: Array[Vector2i] = _grid.get_move_range(enemy.grid_pos, enemy.remaining_move)
 			var best_cell: Vector2i = enemy.grid_pos
 			var best_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
 					+ abs(enemy.grid_pos.y - target.grid_pos.y)
@@ -1028,15 +1041,24 @@ func _process_enemy_actions() -> void:
 					best_cell = cell
 			if best_cell != enemy.grid_pos:
 				_grid.clear_occupied(enemy.grid_pos)
-				enemy.move_to(best_cell)
-				_grid.set_occupied(best_cell, enemy)
-				var tw: Tween = create_tween()
-				tw.tween_property(enemy, "global_position", _grid.grid_to_world(best_cell), 0.22)
-				await tw.finished  # must complete before lunge anim starts on same property
-				_check_hazard_damage(enemy)
-				if not enemy.is_alive:
-					await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
-					continue
+				var path: Array[Vector2i] = _grid.find_path(enemy.grid_pos, best_cell, enemy)
+				if path.is_empty():
+					_grid.set_occupied(enemy.grid_pos, enemy)
+				else:
+					for step_cell in path:
+						var tw: Tween = create_tween()
+						tw.tween_property(enemy, "global_position", _grid.grid_to_world(step_cell), 0.12)
+						await tw.finished
+						enemy.grid_pos = step_cell
+						_check_hazard_damage(enemy)
+						if not enemy.is_alive:
+							break
+					if enemy.is_alive:
+						_grid.set_occupied(enemy.grid_pos, enemy)
+						enemy.remaining_move -= path.size()
+					if not enemy.is_alive:
+						await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
+						continue
 
 		# --- 4. Ability selection ---
 		var post_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \

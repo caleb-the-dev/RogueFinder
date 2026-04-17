@@ -1,6 +1,6 @@
 # System: Grid System
 
-> Last updated: 2026-04-17 (Session 10 — wall/hazard tiles; traversal damage; wall color; COLOR_MOVE_HAZARD amber; hazard-on-entry damage)
+> Last updated: 2026-04-17 (Session 11 — BFS pathfinding via find_path(); movement reservation with remaining_move)
 
 ---
 
@@ -100,6 +100,7 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 | Method | Signature | Purpose |
 |--------|-----------|---------|
 | `get_move_range` | `(origin: Vector2i, speed: int) -> Array[Vector2i]` | Returns reachable cells using diagonal cost formula: `max(dx,dy) + min(dx,dy)*0.5 ≤ speed`; excludes occupied cells |
+| `find_path` | `(from: Vector2i, to: Vector2i, ignore_unit: Object = null) -> Array[Vector2i]` | BFS pathfinding; returns ordered path from `from` (exclusive) to `to` (inclusive), routing around walls and occupied cells. `ignore_unit` is excluded from occupancy checks so the moving unit doesn't block itself. Returns empty array if no path exists. Uses 8-directional neighbors (matching diagonal movement support in `get_move_range`). |
 
 ### Highlighting
 

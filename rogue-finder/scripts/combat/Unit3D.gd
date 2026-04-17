@@ -14,7 +14,7 @@ signal unit_moved(unit: Unit3D, new_pos: Vector2i)
 var current_hp: int     = 0
 var current_energy: int = 0
 var grid_pos: Vector2i  = Vector2i.ZERO
-var has_moved: bool     = false
+var remaining_move: int = 0
 var has_acted: bool     = false
 var is_alive: bool      = true
 
@@ -116,7 +116,7 @@ func setup(unit_data: CombatantData, pos: Vector2i) -> void:
 	current_energy = data.energy_max
 	grid_pos       = pos
 	is_alive       = true
-	has_moved      = false
+	remaining_move = data.speed
 	has_acted      = false
 	_refresh_visuals()
 
@@ -147,12 +147,12 @@ func regen_energy() -> void:
 	current_energy = mini(current_energy + data.energy_regen, data.energy_max)
 
 func reset_turn() -> void:
-	has_moved = false
-	has_acted = false
+	remaining_move = data.speed
+	has_acted      = false
 	_refresh_visuals()
 
 func can_stride() -> bool:
-	return is_alive and not has_moved
+	return is_alive and remaining_move > 0
 
 func can_act(energy_cost: int = 3) -> bool:
 	return is_alive and not has_acted and current_energy >= energy_cost
@@ -162,8 +162,7 @@ func set_selected(selected: bool) -> void:
 		_selection_ring.visible = selected
 
 func move_to(new_pos: Vector2i) -> void:
-	grid_pos  = new_pos
-	has_moved = true
+	grid_pos = new_pos
 	unit_moved.emit(self, new_pos)
 
 ## Records an applied buff or debuff and refreshes the visual indicators.
