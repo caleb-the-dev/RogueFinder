@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-15 (Session 7 — ARC shape added; CONE reshaped; ForceType enum; 6 new abilities; archetype ability assignments updated)
+> Last updated: 2026-04-16 (Session 8 — ConsumableData + ConsumableLibrary added; ArchetypeLibrary consumable fields changed from display names to IDs; _on_consumable_selected() wired with live effects)
 
 ---
 
@@ -17,7 +17,9 @@
 | File | Role |
 |------|------|
 | `resources/CombatantData.gd` | Resource: identity, attributes, equipment, ability pool. Derived stats are computed properties. |
+| `resources/ConsumableData.gd` | Resource: one consumable item — id, name, effect_type, base_value, target_stat, description. |
 | `scripts/globals/ArchetypeLibrary.gd` | Static factory: archetype definitions + `create()` method. |
+| `scripts/globals/ConsumableLibrary.gd` | Static factory: consumable definitions + `get_consumable()` method. |
 
 ---
 
@@ -72,7 +74,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 
 ### Equipment Slots
 `weapon`, `armor`, `accessory` — currently empty strings (item system TBD).
-`consumable` — display name of equipped consumable (e.g. `"Healing Potion"`). Set to `""` when used in combat.
+`consumable` — consumable ID into `ConsumableLibrary` (e.g. `"healing_potion"`). Set to `""` when used in combat.
 
 ### Ability Pool
 `abilities: Array[String]` — exactly 4 slots. Stores ability IDs (e.g. `"strike"`). Empty string = unfilled slot. Looked up via `AbilityLibrary.get_ability()` at runtime.
@@ -99,13 +101,13 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 
 ### Defined Archetypes
 
-| ID | Class | STR | DEX | COG | WIL | VIT | Armor | Abilities |
-|----|-------|-----|-----|-----|-----|-----|-------|-----------|
-| `RogueFinder` | Custom | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 | strike, guard, fireball, sweep |
-| `archer_bandit` | Rogue | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 | quick_shot, disengage, piercing_shot, gust |
-| `grunt` | Barbarian | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 | heavy_strike, charge, shove, - |
-| `alchemist` | Wizard | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 | heal_burst, smoke_bomb, healing_draught, fire_breath |
-| `elite_guard` | Warrior | 3–5 | 1–3 | 1–2 | 2–4 | 3–5 | 7–10 | shield_bash, yank, windblast, sweep |
+| ID | Class | STR | DEX | COG | WIL | VIT | Armor | Abilities | Consumable |
+|----|-------|-----|-----|-----|-----|-----|-------|-----------|------------|
+| `RogueFinder` | Custom | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 | strike, guard, fireball, sweep | `power_tonic` |
+| `archer_bandit` | Rogue | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 | quick_shot, disengage, piercing_shot, gust | — |
+| `grunt` | Barbarian | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 | heavy_strike, charge, shove, - | — |
+| `alchemist` | Wizard | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 | heal_burst, smoke_bomb, healing_draught, fire_breath | `healing_potion` |
+| `elite_guard` | Warrior | 3–5 | 1–3 | 1–2 | 2–4 | 3–5 | 7–10 | shield_bash, yank, windblast, sweep | — |
 
 ### Public API
 
@@ -255,6 +257,53 @@ static func get_ability(ability_id: String) -> AbilityData
 
 ---
 
+## ConsumableData
+
+`resources/ConsumableData.gd` — Resource subclass. One instance per consumable item. Created by `ConsumableLibrary.get_consumable()`.
+
+### Fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `consumable_id` | `String` | Snake_case key |
+| `consumable_name` | `String` | Display name |
+| `effect_type` | `EffectData.EffectType` | MEND, BUFF, or DEBUFF only |
+| `base_value` | `int` | Flat HP healed (MEND) or stat delta (BUFF/DEBUFF) |
+| `target_stat` | `int` | `AbilityData.Attribute` int — BUFF/DEBUFF only |
+| `description` | `String` | Tooltip text |
+
+---
+
+## ConsumableLibrary
+
+`scripts/globals/ConsumableLibrary.gd` — static class, same pattern as `AbilityLibrary`.
+
+### Defined Consumables
+
+| ID | Name | Effect | Value |
+|----|------|--------|-------|
+| `healing_potion` | Healing Potion | MEND HP | 15 |
+| `power_tonic` | Power Tonic | BUFF STR | +2 |
+
+### Public API
+
+```gdscript
+## Returns a populated ConsumableData. Never returns null — falls back to a stub for unknown IDs.
+static func get_consumable(consumable_id: String) -> ConsumableData
+```
+
+### Effect Resolution
+
+Consumables apply immediately when used — no QTE, no energy cost.
+
+| Effect Type | Resolution |
+|-------------|------------|
+| MEND | `unit.heal(base_value)` — flat heal, no stat scaling |
+| BUFF | `_apply_stat_delta(unit, target_stat, +base_value)` |
+| DEBUFF | `_apply_stat_delta(unit, target_stat, -base_value)` |
+
+---
+
 ## Where NOT to Look
 
 - **Effect math is NOT here** — `EffectData` defines shape; all resolution math lives in `CombatManager3D._apply_effects()` and `_apply_force()`.
@@ -278,6 +327,9 @@ static func get_ability(ability_id: String) -> AbilityData
 
 | Date | Change |
 |---|---|
+| 2026-04-16 | Added ConsumableData resource + ConsumableLibrary (healing_potion MEND 15, power_tonic BUFF STR+2) |
+| 2026-04-16 | ArchetypeLibrary consumable values changed from display strings to ConsumableLibrary IDs |
+| 2026-04-16 | CombatManager3D._on_consumable_selected() now applies MEND/BUFF/DEBUFF effects immediately |
 | 2026-04-16 | Added `shove` ability (STR, SINGLE, FORCE PUSH 2, cost 3); equipped to grunt slot 3 |
 | 2026-04-15 | Added `ARC(5)` to TargetShape — 3-wide adjacent arc for sweep-style abilities |
 | 2026-04-15 | Reshaped `CONE` to expanding T: stem(1) + crossbar(3) + back row(5) |
