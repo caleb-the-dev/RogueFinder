@@ -1,6 +1,6 @@
 # System: Grid System
 
-> Last updated: 2026-04-17 (Session 10 — wall/hazard cell types; build_walls(); _refresh_cell_color hazard restore)
+> Last updated: 2026-04-17 (Session 10 — wall/hazard tiles; traversal damage; wall color; COLOR_MOVE_HAZARD amber; hazard-on-entry damage)
 
 ---
 
@@ -52,8 +52,8 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 | Value | Int | Meaning |
 |-------|-----|---------|
 | `NORMAL` | 0 | Default walkable cell |
-| `WALL` | 1 | Impassable; `is_occupied()` returns true; renders a dark gray box mesh |
-| `HAZARD` | 2 | Walkable but deals 2 damage at start of each turn; renders as orange floor |
+| `WALL` | 1 | Impassable; `is_occupied()` returns true; renders a warm stone-colored box mesh |
+| `HAZARD` | 2 | Walkable; deals 2 damage on entry **and** at start of each turn; renders as orange floor |
 
 ---
 
@@ -123,19 +123,19 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 
 ## Highlight Color Reference
 
-| Mode | Color |
-|------|-------|
-| Base (player side) | Dark blue-gray |
-| Base (enemy side) | Dark red-gray |
-| WALL | Dark gray `Color(0.15, 0.15, 0.15)` — also used for wall box mesh |
-| HAZARD | Orange `Color(0.85, 0.40, 0.05)` — restored by `_refresh_cell_color` on highlight clear |
-| `"move"` | Cyan `#00cccc` |
-| `"attack"` | Red `#cc2200` |
-| `"select"` | Yellow `#cccc00` |
+| Mode / Type | Constant | Color |
+|-------------|----------|-------|
+| Base (default) | `COLOR_DEFAULT` | Dark blue-gray `Color(0.22, 0.22, 0.26)` |
+| WALL box mesh | `COLOR_WALL` | Warm stone `Color(0.52, 0.50, 0.46)` — contrasts clearly against dark grid |
+| WALL floor tile | — | Near-black `Color(0.14, 0.13, 0.11)` — darker than default to ground the wall visually |
+| HAZARD floor | `COLOR_HAZARD` | Orange `Color(0.85, 0.40, 0.05)` — restored by `_refresh_cell_color` on highlight clear |
+| `"move"` on normal cell | `COLOR_MOVE` | Cyan `Color(0.18, 0.45, 0.90, 0.85)` |
+| `"move"` on hazard cell | `COLOR_MOVE_HAZARD` | Amber `Color(0.90, 0.52, 0.05, 0.88)` — signals "reachable but dangerous" |
+| `"attack"` | `COLOR_ATTACK` | Red `Color(0.85, 0.22, 0.22, 0.85)` |
+| `"selected"` | `COLOR_SELECTED` | Yellow `Color(0.90, 0.78, 0.10, 0.90)` |
+| `"ability_target"` | `COLOR_ABILITY_TARGET` | Purple `Color(0.65, 0.20, 0.90, 0.85)` |
 
-Player side = col 0–2; enemy side = col 3–5 (visual distinction only, not enforced by Grid).
-
-**Hazard color persistence:** `_refresh_cell_color()` restores `COLOR_HAZARD` (not `COLOR_DEFAULT`) for hazard cells, so orange survives `clear_highlights()` calls.
+**Hazard color persistence:** `_refresh_cell_color()` uses `COLOR_HAZARD if is_hazard(pos) else COLOR_DEFAULT` in the default branch, so orange survives `clear_highlights()` calls. During move selection, hazard cells show amber (`COLOR_MOVE_HAZARD`) instead of cyan so the danger is visible while choosing a destination.
 
 ---
 

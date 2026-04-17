@@ -1,6 +1,6 @@
 # System: Combat Manager
 
-> Last updated: 2026-04-15 (Session 7 — AoE shapes, TRAVEL/FORCE implementation, stat effects, hover previews)
+> Last updated: 2026-04-17 (Session 10 — wall/hazard tiles, hazard on-entry + traversal damage, wall color polish)
 
 ---
 
@@ -129,7 +129,7 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_on_qte_resolved(accuracy)` | Detects TRAVEL → enters TRAVEL_DESTINATION; detects AoE → `_get_shape_cells` + `_get_units_in_cells` + `_apply_effects`; single → `_apply_effects` |
 | `_apply_effects(ability, caster, target, accuracy, blast_origin)` | Loops `ability.effects`; dispatches by EffectType. `blast_origin` passed from `_aoe_origin` for FORCE/RADIAL direction. |
 | `_apply_stat_delta(unit, stat, delta)` | Modifies `unit.data.<stat>`, clamps [0,5], calls `unit.add_stat_effect()` to record named status |
-| `_apply_force(caster, target, effect, blast_origin)` | Slides target along computed direction for `base_value` tiles; stops at wall/unit. Direction from `effect.force_type` (PUSH/PULL/LEFT/RIGHT/RADIAL). |
+| `_apply_force(caster, target, effect, blast_origin)` | Slides target along computed direction for `base_value` tiles; stops at wall/unit. Tracks full path; applies 2 HP hazard damage for **every** hazard cell traversed (including landing cell). Direction from `effect.force_type` (PUSH/PULL/LEFT/RIGHT/RADIAL). |
 | `_get_shape_cells(caster_pos, origin_pos, ability)` | Returns all cells in the ability's AoE footprint, respecting `passthrough` for CONE and RADIAL |
 | `_get_units_in_cells(cells, applicable_to)` | Filters cell list to living units matching ALLY/ENEMY/ANY |
 | `_handle_shape_hover()` | On mouse motion in ABILITY_TARGET_MODE: updates highlights live for CONE, ARC, RADIAL. RADIAL shows blast footprint at hovered cell; CONE/ARC shows directional shape at direction root. |
@@ -139,7 +139,7 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_check_auto_end_turn()` | After each action: auto-ends turn when no player can still act |
 | `_run_enemy_turn()` | Iterates enemy units via `_process_enemy_actions()`; regens energy + resets turns + **hazard damage for player units**; returns to PLAYER_TURN |
 | `_process_enemy_actions()` | Full enemy AI loop: **hazard damage check** → target selection → consumable use → stride → ability selection → execute. 0.65s delay between enemies. |
-| `_check_hazard_damage(unit)` | If unit is on a HAZARD cell and alive: `unit.take_damage(2)` + camera shake + `_check_win_lose()` |
+| `_check_hazard_damage(unit)` | If unit is on a HAZARD cell and alive: `unit.take_damage(2)` + camera shake + `_check_win_lose()`. Called at: start of player turn (all player units), start of each enemy's action, and on entry after any voluntary move (stride, TRAVEL). FORCE traversal damage is handled separately inside `_apply_force()` via path iteration. |
 | `_setup_environment_tiles()` | Calls `_grid.build_walls()` and `_grid.set_cell_type()` for the hardcoded placeholder layout. Called from `_ready()` after `_setup_grid()`. |
 | `_pick_best_aoe_origin(enemy, ability)` | For AoE abilities: finds the origin cell that maximizes living player units hit (random tiebreak). RADIAL scans all cells in range; CONE/ARC/LINE try 4 cardinal roots. |
 | `_check_win_lose()` | All-dead check on either side; transitions to WIN/LOSE |
@@ -204,6 +204,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 - **Energy deducted before effects resolve** — spent in `_on_qte_resolved()` before `_apply_effects()`. A QTE miss still costs energy.
 - **TRAVEL breaks the single-pass flow** — detected in `_on_qte_resolved()` before `_apply_effects()`; enters `TRAVEL_DESTINATION` PlayerMode rather than awaiting inside `_apply_effects()`.
 - **`_apply_force` uses `target.move_to()`** — this sets `has_moved = true` on displaced units. Intentional — forced movement counts as their stride.
+- **Hazard damage has two triggers** — `_check_hazard_damage()` fires on voluntary movement entry (stride, TRAVEL) and at start-of-turn. FORCE traversal damage is different: `_apply_force()` iterates the full path and calls `unit.take_damage(2)` + `_check_win_lose()` directly for each hazard cell crossed — it does NOT call `_check_hazard_damage()`.
 - **`_calculate_damage()` is dead code** — safe to delete when convenient.
 - **Stat changes not reset at combat end** — future task: snapshot base stats at `Unit3D.setup()` and restore post-combat.
 
@@ -213,6 +214,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-17 | Hazard polish: on-entry damage fires for player stride, TRAVEL, and enemy stride; `_apply_force()` now tracks full path and applies 2 HP per hazard cell traversed (not just landing cell); enemy killed by stride hazard damage skips ability execution; win/lose guard added after player hazard loop in `_run_enemy_turn()` |
 | 2026-04-17 | Added wall/hazard environment tiles: `_setup_environment_tiles()`, `_check_hazard_damage()`, player hazard damage at start of player turn, enemy hazard damage before each enemy acts |
 | 2026-04-17 | Rewrote `_process_enemy_actions()`: target selection, consumable use (50% at <50% HP), greedy Manhattan stride, per-enemy ability filtering (energy + range + applicable_to), AoE origin selection via `_pick_best_aoe_origin()` |
 | 2026-04-17 | Added `_pick_best_aoe_origin()`: scans RADIAL range or 4 cardinal roots; counts living player units per candidate; random tiebreak. AoE targeting uses caster-perspective applicable_to (ENEMY=players, ALLY=enemies, ANY=all) |
