@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-15 |
+| last_updated | 2026-04-16 |
 | last_groomed | 2026-04-15 |
-| sessions_since_groom | 0 |
+| sessions_since_groom | 2 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -37,6 +37,8 @@
 | [Ability Library](#ability-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Consumable Data Model](#consumable-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Consumable Library](#consumable-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
+| [Equipment Data Model](#equipment-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
+| [Equipment Library](#equipment-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
 | [Game State](#game-state) | [game_state.md](game_state.md) | 🔲 Stub | Global |
 
@@ -67,6 +69,12 @@ StatPanel
 
 ArchetypeLibrary
   └── CombatantData    (creates instances)
+
+EquipmentLibrary
+  └── EquipmentData    (creates instances)
+
+CombatantData
+  └── EquipmentData    (weapon / armor / accessory slots)
 
 GameState              (autoload stub — not yet wired to anything)
 ```
@@ -116,6 +124,12 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, an
 
 ### Consumable Library
 `ConsumableLibrary` (static class) defines consumables and provides `get_consumable(id) -> ConsumableData`. Never returns null. Currently defines `healing_potion` (MEND 15 HP) and `power_tonic` (BUFF STR +2).
+
+### Equipment Data Model
+`EquipmentData` (Resource) stores id, name, slot (WEAPON/ARMOR/ACCESSORY enum), `stat_bonuses` dict (attribute name → int delta), and description. `get_bonus(stat_name)` returns 0 for absent keys, never errors.
+
+### Equipment Library
+`EquipmentLibrary` (static class) defines 6 placeholder items (2 per slot) and provides `get_equipment(id) -> EquipmentData` (never null) and `all_equipment() -> Array[EquipmentData]` for reward pools. No archetype starts with equipment — gear comes from rewards.
 
 ### Unit Data Resource (Legacy)
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
@@ -172,12 +186,14 @@ res://
 │       ├── AbilityLibrary.gd    ← ability factory (12 abilities)
 │       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
 │       ├── ConsumableLibrary.gd ← consumable factory (healing_potion, power_tonic)
+│       ├── EquipmentLibrary.gd  ← equipment catalog (6 items, 2 per slot)
 │       └── GameState.gd
 └── resources/
     ├── AbilityData.gd           ← ability resource (TargetShape/ApplicableTo/Attribute enums)
     ├── EffectData.gd            ← effect sub-resource (EffectType/PoolType/MoveType enums)
     ├── CombatantData.gd         ← active data resource (3D)
     ├── ConsumableData.gd        ← consumable item resource
+    ├── EquipmentData.gd         ← equipment item resource (Slot enum, stat_bonuses, get_bonus())
     └── UnitData.gd              ← legacy data resource (2D only)
 ```
 
@@ -192,3 +208,4 @@ res://
 | 2026-04-14 | Data, UI | Combatant data model, ArchetypeLibrary, UnitInfoBar, StatPanel, ActionMenu |
 | 2026-04-15 | Data, Combat | AbilityData/EffectData model, 12 abilities wired; CombatManager3D applies effects |
 | 2026-04-16 | Data, Combat | ConsumableData + ConsumableLibrary; consumable effect wired in CombatManager3D |
+| 2026-04-16 | Data | EquipmentData + EquipmentLibrary (6 items); CombatantData slots typed; all derived stats include equipment bonuses |

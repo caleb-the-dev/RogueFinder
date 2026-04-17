@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-16 (Session 8 — ConsumableData + ConsumableLibrary added; ArchetypeLibrary consumable fields changed from display names to IDs; _on_consumable_selected() wired with live effects)
+> Last updated: 2026-04-16 (Session 9 — EquipmentData + EquipmentLibrary added; CombatantData equipment slots typed as EquipmentData; all derived stats include equipment bonuses via _equip_bonus())
 
 ---
 
