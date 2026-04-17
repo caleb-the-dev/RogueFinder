@@ -13,11 +13,14 @@ const ROWS: int        = 10
 const CELL_SIZE: float = 2.0
 const CELL_GAP: float  = 0.08  # gap between tiles for readability
 
+enum CellType { NORMAL = 0, WALL = 1, HAZARD = 2 }
+
 const COLOR_DEFAULT:      Color = Color(0.22, 0.22, 0.26, 1.0)
 const COLOR_MOVE:         Color = Color(0.18, 0.45, 0.90, 0.85)
 const COLOR_ATTACK:       Color = Color(0.85, 0.22, 0.22, 0.85)
 const COLOR_SELECTED:     Color = Color(0.90, 0.78, 0.10, 0.90)
 const COLOR_ABILITY_TARGET: Color = Color(0.65, 0.20, 0.90, 0.85)  # purple
+const COLOR_HAZARD:       Color = Color(0.85, 0.40, 0.05, 1.0)
 
 # highlighted_cells: Vector2i -> "move" | "attack" | "selected"
 var highlighted_cells: Dictionary = {}
@@ -27,6 +30,9 @@ var _cell_materials: Array[StandardMaterial3D] = []
 
 # Occupancy map: Vector2i -> Unit3D (stored as Object to avoid circular typing)
 var _occupied: Dictionary = {}
+
+# Cell type map: Vector2i -> CellType (absent = NORMAL)
+var _cell_types: Dictionary = {}
 
 func _ready() -> void:
 	_build_floor()
@@ -69,7 +75,7 @@ func is_valid(pos: Vector2i) -> bool:
 ## --- Occupancy ---
 
 func is_occupied(pos: Vector2i) -> bool:
-	return _occupied.has(pos)
+	return _occupied.has(pos) or is_wall(pos)
 
 func get_unit_at(pos: Vector2i) -> Object:
 	return _occupied.get(pos, null)
@@ -79,6 +85,42 @@ func set_occupied(pos: Vector2i, unit: Object) -> void:
 
 func clear_occupied(pos: Vector2i) -> void:
 	_occupied.erase(pos)
+
+## --- Cell Types ---
+
+func set_cell_type(cell: Vector2i, type: CellType) -> void:
+	_cell_types[cell] = type
+	if type == CellType.HAZARD:
+		var idx: int = cell.y * COLS + cell.x
+		if idx < _cell_materials.size():
+			_cell_materials[idx].albedo_color = COLOR_HAZARD
+
+func get_cell_type(cell: Vector2i) -> CellType:
+	return _cell_types.get(cell, CellType.NORMAL)
+
+func is_wall(cell: Vector2i) -> bool:
+	return _cell_types.get(cell, CellType.NORMAL) == CellType.WALL
+
+func is_hazard(cell: Vector2i) -> bool:
+	return _cell_types.get(cell, CellType.NORMAL) == CellType.HAZARD
+
+## Registers wall cells: sets type, darkens the floor tile, and spawns a box mesh obstacle.
+func build_walls(cells: Array[Vector2i]) -> void:
+	for cell in cells:
+		_cell_types[cell] = CellType.WALL
+		var idx: int = cell.y * COLS + cell.x
+		if idx < _cell_materials.size():
+			_cell_materials[idx].albedo_color = Color(0.15, 0.15, 0.15, 1.0)
+		var box_mesh := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.7, 1.6, 0.7)
+		box_mesh.mesh     = box
+		box_mesh.position = Vector3(float(cell.x) * CELL_SIZE, 0.8, float(cell.y) * CELL_SIZE)
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.albedo_color = Color(0.15, 0.15, 0.15, 1.0)
+		box_mesh.material_override = mat
+		add_child(box_mesh)
 
 ## --- Movement Range ---
 
@@ -124,7 +166,7 @@ func _refresh_cell_color(pos: Vector2i) -> void:
 		"attack":         mat.albedo_color = COLOR_ATTACK
 		"selected":       mat.albedo_color = COLOR_SELECTED
 		"ability_target": mat.albedo_color = COLOR_ABILITY_TARGET
-		_:                mat.albedo_color = COLOR_DEFAULT
+		_:                mat.albedo_color = COLOR_HAZARD if is_hazard(pos) else COLOR_DEFAULT
 
 ## --- Mouse Raycast ---
 

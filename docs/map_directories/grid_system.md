@@ -1,6 +1,6 @@
 # System: Grid System
 
-> Last updated: 2026-04-14 (Session 4 — 10×10 default; diagonal movement cost)
+> Last updated: 2026-04-17 (Session 10 — wall/hazard cell types; build_walls(); _refresh_cell_color hazard restore)
 
 ---
 
@@ -47,6 +47,14 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 | `CELL_SIZE` | 2.0 | 80 | World units (3D) / pixels (2D) per cell |
 | `CELL_GAP` | 0.08 | — | Visual gap between tiles in 3D |
 
+## Enum: CellType (3D only)
+
+| Value | Int | Meaning |
+|-------|-----|---------|
+| `NORMAL` | 0 | Default walkable cell |
+| `WALL` | 1 | Impassable; `is_occupied()` returns true; renders a dark gray box mesh |
+| `HAZARD` | 2 | Walkable but deals 2 damage at start of each turn; renders as orange floor |
+
 ---
 
 ## Signals Emitted
@@ -72,10 +80,20 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 | Method | Signature | Purpose |
 |--------|-----------|---------|
 | `is_valid` | `(pos: Vector2i) -> bool` | Cell is within grid bounds |
-| `is_occupied` | `(pos: Vector2i) -> bool` | Cell has a unit registered |
-| `get_unit_at` | `(pos: Vector2i) -> Object` | Returns unit or `null` |
+| `is_occupied` | `(pos: Vector2i) -> bool` | Cell has a unit registered **or is a wall** |
+| `get_unit_at` | `(pos: Vector2i) -> Object` | Returns unit or `null` (walls return null — not in `_occupied`) |
 | `set_occupied` | `(pos: Vector2i, unit: Object) -> void` | Registers a unit in the dict |
 | `clear_occupied` | `(pos: Vector2i) -> void` | Removes unit registration |
+
+### Cell Types (3D only)
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `set_cell_type` | `(cell: Vector2i, type: CellType) -> void` | Sets type; HAZARD also updates floor tile color to orange |
+| `get_cell_type` | `(cell: Vector2i) -> CellType` | Returns type; absent key = NORMAL |
+| `is_wall` | `(cell: Vector2i) -> bool` | True for WALL cells |
+| `is_hazard` | `(cell: Vector2i) -> bool` | True for HAZARD cells |
+| `build_walls` | `(cells: Array[Vector2i]) -> void` | Bulk register walls: sets type, darkens floor, spawns box mesh obstacles |
 
 ### Movement
 
@@ -97,6 +115,7 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 | Field | Type | Purpose |
 |-------|------|---------|
 | `_occupied` | `Dictionary` | `Vector2i → Object (Unit3D)` — occupancy map |
+| `_cell_types` | `Dictionary` | `Vector2i → CellType` — absent key = NORMAL |
 | `_cell_materials` | `Array[StandardMaterial3D]` | One material per cell (COLS × ROWS), mutated for highlights |
 | `highlighted_cells` | `Dictionary` | `Vector2i → String (mode)` — tracks which cells are highlighted |
 
@@ -108,11 +127,15 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 |------|-------|
 | Base (player side) | Dark blue-gray |
 | Base (enemy side) | Dark red-gray |
+| WALL | Dark gray `Color(0.15, 0.15, 0.15)` — also used for wall box mesh |
+| HAZARD | Orange `Color(0.85, 0.40, 0.05)` — restored by `_refresh_cell_color` on highlight clear |
 | `"move"` | Cyan `#00cccc` |
 | `"attack"` | Red `#cc2200` |
 | `"select"` | Yellow `#cccc00` |
 
 Player side = col 0–2; enemy side = col 3–5 (visual distinction only, not enforced by Grid).
+
+**Hazard color persistence:** `_refresh_cell_color()` restores `COLOR_HAZARD` (not `COLOR_DEFAULT`) for hazard cells, so orange survives `clear_highlights()` calls.
 
 ---
 
