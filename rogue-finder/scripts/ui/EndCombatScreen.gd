@@ -9,7 +9,6 @@ extends CanvasLayer
 const SCENE_PATH := "res://scenes/combat/CombatScene3D.tscn"
 
 var _reward_buttons: Array[Button] = []
-var _onward_button:  Button        = null
 
 func _init() -> void:
 	layer = 15
@@ -71,25 +70,12 @@ func _build_victory_layout(items: Array) -> void:
 		bg.add_child(btn)
 		_reward_buttons.append(btn)
 
-	# "Onward..." — hidden until a reward is picked
-	_onward_button = Button.new()
-	_onward_button.text     = "Onward..."
-	_onward_button.custom_minimum_size = Vector2(200.0, 50.0)
-	_onward_button.position = Vector2((1152.0 - 200.0) / 2.0, btn_y + button_h + 40.0)
-	_onward_button.add_theme_font_size_override("font_size", 20)
-	_onward_button.visible  = false
-	_onward_button.pressed.connect(_reload_combat)
-	bg.add_child(_onward_button)
 
-func _on_reward_chosen(item: Dictionary, chosen_index: int) -> void:
+func _on_reward_chosen(item: Dictionary, _chosen_index: int) -> void:
 	print("Reward chosen: ", item["name"])
 	if GameState.has_method("add_to_inventory"):
 		GameState.add_to_inventory(item)
-	# Hide unchosen buttons, show "Onward..."
-	for i in range(_reward_buttons.size()):
-		if i != chosen_index:
-			_reward_buttons[i].visible = false
-	_onward_button.visible = true
+	_reload_combat()
 
 ## --- Defeat Layout ---
 
