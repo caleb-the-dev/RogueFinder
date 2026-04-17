@@ -121,7 +121,7 @@ func _setup_units() -> void:
 	# --- Enemy units ---
 	# character_name="" + is_player=false → empty; Unit3D shows archetype label above head.
 	var enemy_archetypes: Array[String] = ["archer_bandit", "grunt", "alchemist", "elite_guard"]
-	var enemy_positions: Array[Vector2i] = [Vector2i(8, 3), Vector2i(8, 5), Vector2i(9, 4)]
+	var enemy_positions: Array[Vector2i] = [Vector2i(6, 3), Vector2i(6, 5), Vector2i(7, 4)]
 	for pos in enemy_positions:
 		var arch: String = enemy_archetypes[randi() % enemy_archetypes.size()]
 		var cd: CombatantData = ArchetypeLibrary.create(arch, "", false)
@@ -985,6 +985,7 @@ func _process_enemy_actions() -> void:
 					EffectData.EffectType.DEBUFF:
 						_apply_stat_delta(enemy, con.target_stat, -con.base_value)
 				enemy.data.consumable = ""
+				enemy.show_action_text(con.consumable_name)
 
 		# --- 3. Movement (Stride) — greedy Manhattan minimization ---
 		if not enemy.has_moved:
@@ -1002,7 +1003,8 @@ func _process_enemy_actions() -> void:
 				enemy.move_to(best_cell)
 				_grid.set_occupied(best_cell, enemy)
 				var tw: Tween = create_tween()
-				tw.tween_property(enemy, "global_position", _grid.grid_to_world(best_cell), 0.18)
+				tw.tween_property(enemy, "global_position", _grid.grid_to_world(best_cell), 0.22)
+				await tw.finished  # must complete before lunge anim starts on same property
 
 		# --- 4. Ability selection ---
 		var post_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
