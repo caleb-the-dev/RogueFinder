@@ -1,6 +1,6 @@
 # System: Unit System
 
-> Last updated: 2026-04-16 (Session 8 — floating combat text: show_floating_text() on take_damage, heal, and stat delta)
+> Last updated: 2026-04-17 (Session 9 — show_action_text() for enemy ability/consumable display)
 
 ---
 
@@ -87,6 +87,7 @@ CombatManager subscribes to both signals on every unit.
 | `set_selected` | `(selected: bool) -> void` | Shows/hides the yellow selection ring |
 | `play_attack_anim` | `(target_world: Vector3) -> void` | Lunge coroutine — call with `await` if you need to wait for impact |
 | `show_floating_text` | `(text: String, color: Color) -> void` | Spawns a rising, fading Label3D above the unit; fire-and-forget |
+| `show_action_text` | `(ability_name: String) -> void` | Spawns a slow-rising cyan Label3D for enemy ability/consumable names; fire-and-forget |
 | `get_sprite_dir` | `(camera_forward: Vector3) -> int` | Returns 0–7 for 8-directional sprite selection (future use) |
 
 ---
@@ -122,6 +123,9 @@ CombatManager subscribes to both signals on every unit.
 - > 66% HP: green `#3EFF59`
 - 33–66% HP: yellow `#FFD926`
 - < 33% HP: red `#FF3F38`
+
+### Action Text (enemy-only)
+`show_action_text(ability_name)` — fire-and-forget coroutine. Light cyan billboard Label3D at Y+1.9, rises 0.4 units and fades over 2.5s. Called by CombatManager3D after consumable use and before each enemy ability lunge.
 
 ### Floating Combat Text
 `show_floating_text(text, color)` — fire-and-forget coroutine. Spawns a billboard `Label3D` with a small random X jitter, tweens it up 1.5 world units and fades alpha to 0 over 1.5s, then frees itself. Called automatically by:
