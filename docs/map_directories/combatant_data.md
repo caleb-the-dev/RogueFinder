@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-16 (Session 8 — ConsumableData + ConsumableLibrary added; ArchetypeLibrary consumable fields changed from display names to IDs; _on_consumable_selected() wired with live effects)
+> Last updated: 2026-04-16 (Session 9 — EquipmentData + EquipmentLibrary added; CombatantData equipment slots typed as EquipmentData; all derived stats include equipment bonuses via _equip_bonus())
 
 ---
 
@@ -17,8 +17,10 @@
 | File | Role |
 |------|------|
 | `resources/CombatantData.gd` | Resource: identity, attributes, equipment, ability pool. Derived stats are computed properties. |
+| `resources/EquipmentData.gd` | Resource: one equipment item — id, name, slot enum, stat_bonuses dict, description. |
 | `resources/ConsumableData.gd` | Resource: one consumable item — id, name, effect_type, base_value, target_stat, description. |
 | `scripts/globals/ArchetypeLibrary.gd` | Static factory: archetype definitions + `create()` method. |
+| `scripts/globals/EquipmentLibrary.gd` | Static catalog: 6 placeholder items + `get_equipment()` / `all_equipment()` methods. |
 | `scripts/globals/ConsumableLibrary.gd` | Static factory: consumable definitions + `get_consumable()` method. |
 
 ---
@@ -73,7 +75,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `vitality` | `hp_max` (10 × VIT) and `energy_max` (5 + VIT) |
 
 ### Equipment Slots
-`weapon`, `armor`, `accessory` — currently empty strings (item system TBD).
+`weapon`, `armor`, `accessory` — typed `EquipmentData` (nullable; `null` = unequipped). Stat bonuses are applied to derived stats via `_equip_bonus()`. Gear comes from rewards — no archetype starts with equipment.
 `consumable` — consumable ID into `ConsumableLibrary` (e.g. `"healing_potion"`). Set to `""` when used in combat.
 
 ### Ability Pool
@@ -86,14 +88,16 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 
 ## Derived Stats (computed properties on CombatantData)
 
+All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which sums the matching key from all three slots (weapon + armor + accessory).
+
 | Property | Formula |
 |----------|---------|
-| `hp_max` | `10 * vitality` |
-| `energy_max` | `5 + vitality` |
-| `energy_regen` | `2 + willpower` |
-| `speed` | `2 + dexterity` |
-| `attack` | `5 + strength` |
-| `defense` | alias → `armor_defense` |
+| `hp_max` | `10 * vitality + equip("vitality")` |
+| `energy_max` | `5 + vitality + equip("vitality")` |
+| `energy_regen` | `2 + willpower + equip("willpower")` |
+| `speed` | `2 + dexterity + equip("dexterity")` |
+| `attack` | `5 + strength + equip("strength")` |
+| `defense` | `armor_defense + equip("armor_defense")` |
 
 ---
 
@@ -122,7 +126,9 @@ static func create(archetype_id: String, character_name: String = "",
 
 | Dependent | On |
 |-----------|----|
-| `CombatantData` | Nothing (leaf node) |
+| `EquipmentData` | Nothing (leaf node) |
+| `CombatantData` | `EquipmentData` |
+| `EquipmentLibrary` | `EquipmentData` |
 | `ArchetypeLibrary` | `CombatantData` |
 | `Unit3D` | `CombatantData` (via `@export var data`) |
 | `StatPanel` | `CombatantData`, `Unit3D` |
@@ -323,10 +329,38 @@ Consumables apply immediately when used — no QTE, no energy cost.
 
 ---
 
+## EquipmentLibrary
+
+`scripts/globals/EquipmentLibrary.gd` — static class, same pattern as `AbilityLibrary` / `ConsumableLibrary`.
+
+### Defined Items (6)
+
+| ID | Name | Slot | Bonuses | Description |
+|----|------|------|---------|-------------|
+| `leather_armor` | Leather Armor | ARMOR | armor_defense +1 | Light protection. |
+| `chain_mail` | Chain Mail | ARMOR | armor_defense +2, dexterity -1 | Heavier. Slower. |
+| `short_sword` | Short Sword | WEAPON | strength +1 | A simple blade. |
+| `hunters_bow` | Hunter's Bow | WEAPON | dexterity +1 | Better range. |
+| `iron_ring` | Iron Ring | ACCESSORY | vitality +1 | Adds constitution. |
+| `lucky_charm` | Lucky Charm | ACCESSORY | willpower +1 | Luck of the draw. |
+
+### Public API
+
+```gdscript
+## Returns a populated EquipmentData. Never returns null — falls back to a stub for unknown IDs.
+static func get_equipment(id: String) -> EquipmentData
+## Returns all 6 defined items. Use for reward pools.
+static func all_equipment() -> Array[EquipmentData]
+```
+
+---
+
 ## Recent Changes
 
 | Date | Change |
 |---|---|
+| 2026-04-16 | Added EquipmentData resource + EquipmentLibrary (6 placeholder items, 2 per slot) |
+| 2026-04-16 | CombatantData equipment slots changed from String to EquipmentData (nullable); derived stats now include equipment bonuses via _equip_bonus() |
 | 2026-04-16 | Added ConsumableData resource + ConsumableLibrary (healing_potion MEND 15, power_tonic BUFF STR+2) |
 | 2026-04-16 | ArchetypeLibrary consumable values changed from display strings to ConsumableLibrary IDs |
 | 2026-04-16 | CombatManager3D._on_consumable_selected() now applies MEND/BUFF/DEBUFF effects immediately |
