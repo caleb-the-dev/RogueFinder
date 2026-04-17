@@ -1032,6 +1032,8 @@ func _process_enemy_actions() -> void:
 		var multiplier: float = _qte_resolution_to_multiplier(enemy.data.qte_resolution)
 		enemy.spend_energy(chosen.energy_cost)
 
+		enemy.show_action_text(chosen.ability_name)
+
 		match chosen.target_shape:
 			AbilityData.TargetShape.SELF:
 				enemy.play_attack_anim(enemy.global_position)

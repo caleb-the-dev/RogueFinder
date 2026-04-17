@@ -251,6 +251,26 @@ func show_floating_text(text: String, color: Color) -> void:
 	if is_instance_valid(lbl):
 		lbl.queue_free()
 
+## Shows the ability name centered above the unit for ~2.5 s — enemy-only, fire-and-forget.
+## Stays roughly in place (slow rise) so it reads clearly without obscuring HP/damage text.
+func show_action_text(ability_name: String) -> void:
+	var lbl := Label3D.new()
+	lbl.text          = ability_name
+	lbl.font_size     = 34
+	lbl.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.no_depth_test = true
+	lbl.modulate      = Color(0.45, 0.95, 1.0)   # light cyan — distinct from damage (red) and buffs (green)
+	lbl.position      = Vector3(0.0, BOX_SIZE.y + 1.9, 0.0)
+	add_child(lbl)
+
+	var tw: Tween = create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(lbl, "position:y", lbl.position.y + 0.4, 2.5)
+	tw.tween_property(lbl, "modulate:a", 0.0, 2.5)
+	await tw.finished
+	if is_instance_valid(lbl):
+		lbl.queue_free()
+
 ## Lunge 35% toward target, then return. Fire-and-forget.
 func play_attack_anim(target_world: Vector3) -> void:
 	var start: Vector3 = global_position
