@@ -276,7 +276,7 @@ func _initiate_attack(attacker: Unit, target: Unit) -> void:
 	state = CombatState.QTE_RUNNING
 	grid.clear_highlights()
 	attacker.set_selected(false)
-	qte_bar.start_qte()
+	qte_bar.start_qte(ATTACK_ENERGY_COST, AbilityData.TargetShape.SINGLE, EffectData.EffectType.HARM)
 
 func _on_qte_resolved(accuracy: float) -> void:
 	var attacker := _pending_attacker

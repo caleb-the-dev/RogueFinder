@@ -121,7 +121,7 @@ func _setup_units() -> void:
 	# --- Enemy units ---
 	# character_name="" + is_player=false → empty; Unit3D shows archetype label above head.
 	var enemy_archetypes: Array[String] = ["archer_bandit", "grunt", "alchemist", "elite_guard"]
-	var enemy_positions: Array[Vector2i] = [Vector2i(8, 3), Vector2i(8, 5), Vector2i(9, 4)]
+	var enemy_positions: Array[Vector2i] = [Vector2i(6, 3), Vector2i(6, 5), Vector2i(7, 4)]
 	for pos in enemy_positions:
 		var arch: String = enemy_archetypes[randi() % enemy_archetypes.size()]
 		var cd: CombatantData = ArchetypeLibrary.create(arch, "", false)
@@ -962,35 +962,179 @@ func _process_enemy_actions() -> void:
 	for enemy in _enemy_units:
 		if not enemy.is_alive:
 			continue
-		# Collect living player targets
+
+		# --- 1. Target selection ---
 		var targets: Array[Unit3D] = []
 		for pu in _player_units:
 			if pu.is_alive:
 				targets.append(pu)
 		if targets.is_empty():
 			break
-
 		var target: Unit3D = targets[randi() % targets.size()]
-		## Enemy uses its first ability (index 0) for the attack, falling back to "strike"
-		var enemy_ability_id: String = enemy.data.abilities[0] if enemy.data.abilities[0] != "" else "strike"
-		var enemy_ability: AbilityData = AbilityLibrary.get_ability(enemy_ability_id)
-		## Enemy accuracy simulated by mapping qte_resolution to a multiplier tier
+
+		# --- 2. Consumable use (50% chance when HP < 50%) ---
+		if enemy.data.consumable != "":
+			var hp_pct: float = float(enemy.current_hp) / float(enemy.data.hp_max)
+			if hp_pct < 0.5 and randi() % 2 == 0:
+				var con: ConsumableData = ConsumableLibrary.get_consumable(enemy.data.consumable)
+				match con.effect_type:
+					EffectData.EffectType.MEND:
+						enemy.heal(con.base_value)
+					EffectData.EffectType.BUFF:
+						_apply_stat_delta(enemy, con.target_stat, con.base_value)
+					EffectData.EffectType.DEBUFF:
+						_apply_stat_delta(enemy, con.target_stat, -con.base_value)
+				enemy.data.consumable = ""
+				enemy.show_action_text(con.consumable_name)
+
+		# --- 3. Movement (Stride) — greedy Manhattan minimization ---
+		if not enemy.has_moved:
+			var move_cells: Array[Vector2i] = _grid.get_move_range(enemy.grid_pos, enemy.data.speed)
+			var best_cell: Vector2i = enemy.grid_pos
+			var best_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
+					+ abs(enemy.grid_pos.y - target.grid_pos.y)
+			for cell in move_cells:
+				var dist: int = abs(cell.x - target.grid_pos.x) + abs(cell.y - target.grid_pos.y)
+				if dist < best_dist:
+					best_dist = dist
+					best_cell = cell
+			if best_cell != enemy.grid_pos:
+				_grid.clear_occupied(enemy.grid_pos)
+				enemy.move_to(best_cell)
+				_grid.set_occupied(best_cell, enemy)
+				var tw: Tween = create_tween()
+				tw.tween_property(enemy, "global_position", _grid.grid_to_world(best_cell), 0.22)
+				await tw.finished  # must complete before lunge anim starts on same property
+
+		# --- 4. Ability selection ---
+		var post_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
+				+ abs(enemy.grid_pos.y - target.grid_pos.y)
+		var affordable: Array[AbilityData] = []
+		for ability_id: String in enemy.data.abilities:
+			if ability_id == "":
+				continue
+			var ab: AbilityData = AbilityLibrary.get_ability(ability_id)
+			if enemy.current_energy < ab.energy_cost:
+				continue
+			if ab.applicable_to != AbilityData.ApplicableTo.ENEMY \
+					and ab.applicable_to != AbilityData.ApplicableTo.ANY:
+				continue
+			# SELF shape always reaches the caster — skip distance gate
+			if ab.target_shape != AbilityData.TargetShape.SELF \
+					and ab.tile_range != -1 and post_dist > ab.tile_range:
+				continue
+			affordable.append(ab)
+
+		if affordable.is_empty():
+			await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
+			continue
+
+		# --- 5. Execute ability ---
+		var chosen: AbilityData = affordable[randi() % affordable.size()]
 		var multiplier: float = _qte_resolution_to_multiplier(enemy.data.qte_resolution)
+		enemy.spend_energy(chosen.energy_cost)
 
-		# Lunge, then deal damage at the moment of impact
-		enemy.play_attack_anim(target.global_position)
-		await get_tree().create_timer(0.10).timeout
+		enemy.show_action_text(chosen.ability_name)
 
-		_apply_effects(enemy_ability, enemy, target, multiplier)
+		match chosen.target_shape:
+			AbilityData.TargetShape.SELF:
+				enemy.play_attack_anim(enemy.global_position)
+				await get_tree().create_timer(0.10).timeout
+				_apply_effects(chosen, enemy, enemy, multiplier)
+
+			AbilityData.TargetShape.SINGLE:
+				enemy.play_attack_anim(target.global_position)
+				await get_tree().create_timer(0.10).timeout
+				_apply_effects(chosen, enemy, target, multiplier)
+
+			_:  # AoE: RADIAL, CONE, ARC, LINE
+				var best_origin: Vector2i = _pick_best_aoe_origin(enemy, chosen)
+				var origin_world: Vector3 = _grid.grid_to_world(best_origin)
+				enemy.play_attack_anim(origin_world)
+				await get_tree().create_timer(0.10).timeout
+				var cells: Array[Vector2i] = _get_shape_cells(enemy.grid_pos, best_origin, chosen)
+				## applicable_to is from the caster's perspective:
+				## ENEMY = hits the opposing side (player units); ANY = hits all; ALLY = hits own side
+				for cell in cells:
+					var obj: Object = _grid.get_unit_at(cell)
+					if not obj is Unit3D:
+						continue
+					var hit_unit := obj as Unit3D
+					if not hit_unit.is_alive:
+						continue
+					var should_hit: bool = false
+					match chosen.applicable_to:
+						AbilityData.ApplicableTo.ENEMY:
+							should_hit = hit_unit.data.is_player_unit
+						AbilityData.ApplicableTo.ANY:
+							should_hit = true
+						AbilityData.ApplicableTo.ALLY:
+							should_hit = not hit_unit.data.is_player_unit
+					if should_hit:
+						_apply_effects(chosen, enemy, hit_unit, multiplier, best_origin)
+
 		_camera_rig.trigger_shake()
-		# Refresh condensed bar if the attacked unit is currently shown
-		if _info_bar_unit == target:
-			_info_bar.refresh(target)
+		if _info_bar_unit != null:
+			_info_bar.refresh(_info_bar_unit)
 
 		if state == CombatState.WIN or state == CombatState.LOSE:
 			return
 
 		await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
+
+## Picks the AoE origin cell that maximizes living player units hit (random tiebreak).
+## For RADIAL, scans all cells within tile_range of the caster.
+## For CONE/ARC/LINE, tests the 4 cardinal roots adjacent to the caster.
+func _pick_best_aoe_origin(enemy: Unit3D, ability: AbilityData) -> Vector2i:
+	var candidates: Array[Vector2i] = []
+	var caster_pos: Vector2i = enemy.grid_pos
+
+	match ability.target_shape:
+		AbilityData.TargetShape.RADIAL:
+			var limit: int = ability.tile_range if ability.tile_range != -1 else 999
+			for row in range(Grid3D.ROWS):
+				for col in range(Grid3D.COLS):
+					var cell := Vector2i(col, row)
+					var dist: int = abs(cell.x - caster_pos.x) + abs(cell.y - caster_pos.y)
+					if dist <= limit:
+						candidates.append(cell)
+		_:  # CONE, ARC, LINE — try each of the 4 cardinal roots
+			for dir: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var cell := caster_pos + dir
+				if _grid.is_valid(cell):
+					candidates.append(cell)
+
+	if candidates.is_empty():
+		return caster_pos
+
+	var best: Array[Vector2i] = []
+	var best_count: int = -1
+	for cand in candidates:
+		var cells: Array[Vector2i] = _get_shape_cells(caster_pos, cand, ability)
+		var count: int = 0
+		for cell in cells:
+			var obj: Object = _grid.get_unit_at(cell)
+			if obj is Unit3D:
+				var u := obj as Unit3D
+				if not u.is_alive:
+					continue
+				# Count from the caster's perspective: ENEMY means the opposing side (players)
+				match ability.applicable_to:
+					AbilityData.ApplicableTo.ENEMY:
+						if u.data.is_player_unit:
+							count += 1
+					AbilityData.ApplicableTo.ANY:
+						count += 1
+					AbilityData.ApplicableTo.ALLY:
+						if not u.data.is_player_unit:
+							count += 1
+		if count > best_count:
+			best_count = count
+			best = [cand]
+		elif count == best_count:
+			best.append(cand)
+
+	return best[randi() % best.size()]
 
 ## --- Win / Lose ---
 

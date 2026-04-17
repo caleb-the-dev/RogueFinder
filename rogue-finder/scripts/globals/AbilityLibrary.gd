@@ -56,7 +56,7 @@ const ABILITIES: Dictionary = {
 		"attribute":     AbilityData.Attribute.DEXTERITY,
 		"target":        AbilityData.TargetShape.SINGLE,
 		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         4,
+		"range":         3,
 		"cost":          2,
 		"description":   "Draw and loose before the moment passes — deal damage to one enemy within 4 tiles.",
 		"effects": [
@@ -296,7 +296,7 @@ const ABILITIES: Dictionary = {
 		"attribute":     AbilityData.Attribute.DEXTERITY,
 		"target":        AbilityData.TargetShape.LINE,
 		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         6,
+		"range":         4,
 		"passthrough":   true,
 		"cost":          3,
 		"description":   "Draw and loose with full force — the bolt punches through every enemy in a straight line.",
