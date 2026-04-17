@@ -55,14 +55,16 @@ extends Resource
 @export_range(0, 5) var vitality:  int = 2  # Toughness; drives HP and energy pool
 
 ## ======================================================
-## --- Equipment Slots (placeholder strings — item system TBD) ---
+## --- Equipment Slots ---
+## weapon / armor / accessory: null = unequipped.
+## consumable: ID string into ConsumableLibrary; "" = none.
 ## ======================================================
 
-@export var weapon:     String = ""
-@export var armor:      String = ""
+@export var weapon:     EquipmentData = null
+@export var armor:      EquipmentData = null
 ## consumable_id into ConsumableLibrary; "" = none
 @export var consumable: String = ""
-@export var accessory:  String = ""
+@export var accessory:  EquipmentData = null
 
 ## ======================================================
 ## --- Ability Pool ---
@@ -87,34 +89,39 @@ extends Resource
 @export var armor_defense: int = 5
 
 ## ======================================================
-## Derived Stats — computed from core attributes
+## Derived Stats — computed from core attributes + all equipped items
 ## ======================================================
 
-## hp_max: 10 × vitality
+## Sums a stat bonus across all three equipment slots.
+func _equip_bonus(stat: String) -> int:
+	return (weapon.get_bonus(stat)    if weapon    else 0) \
+		 + (armor.get_bonus(stat)     if armor     else 0) \
+		 + (accessory.get_bonus(stat) if accessory else 0)
+
+## hp_max: 10 × vitality (vitality bonuses add linearly, not multiplicatively)
 var hp_max: int:
-	get: return 10 * vitality
+	get: return 10 * vitality + _equip_bonus("vitality")
 
 ## energy_max: 5 + vitality
 var energy_max: int:
-	get: return 5 + vitality
+	get: return 5 + vitality + _equip_bonus("vitality")
 
 ## energy_regen: energy restored at the start of each turn — 2 + willpower
 var energy_regen: int:
-	get: return 2 + willpower
+	get: return 2 + willpower + _equip_bonus("willpower")
 
 ## speed: movement range in grid cells (Manhattan distance) — 2 + dexterity
 ## Named "speed" to stay compatible with Grid3D / CombatManager3D references.
 var speed: int:
-	get: return 2 + dexterity
+	get: return 2 + dexterity + _equip_bonus("dexterity")
 
-## defense: shorthand alias to armor_defense for CombatManager compatibility.
+## defense: armor_defense + any armor_defense bonuses from equipped items.
 var defense: int:
-	get: return armor_defense
+	get: return armor_defense + _equip_bonus("armor_defense")
 
-## attack: base offensive power — 5 + strength.
-## Will be refined by the equipped weapon in a future update.
+## attack: 5 + strength + any strength bonuses from equipped items.
 var attack: int:
-	get: return 5 + strength
+	get: return 5 + strength + _equip_bonus("strength")
 
 ## unit_name: alias for character_name.
 ## Keeps HUD.gd and Unit3D.gd working without changes — they duck-type on this field.
