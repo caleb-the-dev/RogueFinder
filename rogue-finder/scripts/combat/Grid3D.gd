@@ -143,6 +143,48 @@ func get_move_range(origin: Vector2i, speed: int) -> Array[Vector2i]:
 				result.append(p)
 	return result
 
+## --- Pathfinding ---
+
+## BFS from `from` to `to`, routing around walls and occupied cells.
+## Returns an ordered array of cells (exclusive of `from`, inclusive of `to`).
+## `ignore_unit` is skipped in the occupancy check so the moving unit doesn't block itself.
+## Returns empty array if no path exists.
+func find_path(from: Vector2i, to: Vector2i, ignore_unit: Object = null) -> Array[Vector2i]:
+	if from == to:
+		return []
+	# Straight neighbors first so tie-breaking prefers cardinal movement
+	var dirs: Array[Vector2i] = [
+		Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
+		Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)
+	]
+	var visited: Dictionary = {}
+	var parent:  Dictionary = {}
+	var queue: Array[Vector2i] = [from]
+	visited[from] = true
+	while not queue.is_empty():
+		var current: Vector2i = queue.pop_front()
+		if current == to:
+			var path: Array[Vector2i] = []
+			var node: Vector2i = current
+			while node != from:
+				path.append(node)
+				node = parent[node]
+			path.reverse()
+			return path
+		for dir: Vector2i in dirs:
+			var next: Vector2i = current + dir
+			if not is_valid(next) or visited.has(next):
+				continue
+			if is_wall(next):
+				continue
+			var occupant: Object = _occupied.get(next, null)
+			if occupant != null and occupant != ignore_unit:
+				continue
+			visited[next] = true
+			parent[next]  = current
+			queue.append(next)
+	return []
+
 ## --- Highlight ---
 
 func set_highlight(pos: Vector2i, mode: String) -> void:
