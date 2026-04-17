@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-16 |
+| last_updated | 2026-04-17 |
 | last_groomed | 2026-04-15 |
-| sessions_since_groom | 2 |
+| sessions_since_groom | 4 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -87,7 +87,7 @@ GameState              (autoload stub — not yet wired to anything)
 The central turn state machine. Owns all other scene nodes (builds them in `_ready()`). Routes player input, runs enemy AI, drives the ability targeting flow, applies effects, and decides win/lose conditions. Lives in `CombatScene3D.tscn`.
 
 ### Grid System
-Tracks which cells are occupied, calculates move ranges, manages per-cell color highlights. Handles world↔grid coordinate math and mouse→cell raycasting.
+Tracks which cells are occupied, calculates move ranges, manages per-cell color highlights. Handles world↔grid coordinate math and mouse→cell raycasting. Owns the `CellType` enum (NORMAL / WALL / HAZARD) and environment tile construction (`build_walls()`).
 
 ### Unit System
 Stateful game object: HP, energy, turn flags (`has_moved`, `has_acted`). Renders as a colored box mesh in 3D. Emits `unit_died` and `unit_moved` signals. Plays lunge/flash animations.
@@ -157,7 +157,7 @@ Autoload singleton stub. Intended for run-wide data (party roster, items, map pr
 - `snake_case` vars/funcs, `PascalCase` class/node names, `ALL_CAPS` constants.
 
 ### Testing
-- Tests live in `/tests/`. Use `extends SceneTree`, `_initialize()`, plain `assert()`, `quit()`.
+- Tests live in `/tests/`. Use `extends Node`, `_ready()`, plain `assert()`.
 - Do NOT test: rendering, input, anything needing a live scene.
 - Run headless: `godot --headless --path rogue-finder --import` first, then `godot --headless --path rogue-finder --script tests/<file>.gd`.
 
@@ -208,4 +208,5 @@ res://
 | 2026-04-14 | Data, UI | Combatant data model, ArchetypeLibrary, UnitInfoBar, StatPanel, ActionMenu |
 | 2026-04-15 | Data, Combat | AbilityData/EffectData model, 12 abilities wired; CombatManager3D applies effects |
 | 2026-04-16 | Data, Combat | ConsumableData + ConsumableLibrary; consumable effect wired in CombatManager3D |
+| 2026-04-17 | Grid, Combat | Wall + hazard environment tiles: CellType enum, build_walls(), hazard on-entry and traversal damage, FORCE path tracking, COLOR_MOVE_HAZARD amber highlight, wall color polish |
 | 2026-04-16 | Data | EquipmentData + EquipmentLibrary (6 items); CombatantData slots typed; all derived stats include equipment bonuses |

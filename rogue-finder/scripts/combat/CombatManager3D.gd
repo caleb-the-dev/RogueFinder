@@ -61,6 +61,7 @@ func _ready() -> void:
 	_setup_environment()
 	_setup_camera()
 	_setup_grid()
+	_setup_environment_tiles()
 	_setup_units()
 	_setup_ui()
 	_update_status()
@@ -88,6 +89,12 @@ func _setup_camera() -> void:
 func _setup_grid() -> void:
 	_grid = Grid3D.new()
 	add_child(_grid)
+
+func _setup_environment_tiles() -> void:
+	# Placeholder layout — will be replaced by map/encounter data
+	_grid.build_walls([Vector2i(4, 3), Vector2i(4, 5), Vector2i(5, 4)])
+	_grid.set_cell_type(Vector2i(2, 7), Grid3D.CellType.HAZARD)
+	_grid.set_cell_type(Vector2i(7, 2), Grid3D.CellType.HAZARD)
 
 func _setup_units() -> void:
 	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
@@ -330,6 +337,7 @@ func _try_move(cell: Vector2i) -> void:
 	_grid.clear_occupied(old_pos)
 	_selected_unit.move_to(cell)
 	_grid.set_occupied(cell, _selected_unit)
+	_check_hazard_damage(_selected_unit)
 
 	# Tween to new world position
 	var tw: Tween = create_tween()
@@ -678,13 +686,16 @@ func _apply_force(caster: Unit3D, target: Unit3D, effect: EffectData, blast_orig
 				else caster.grid_pos
 			dir = _cardinal_direction(origin, target.grid_pos)
 
-	# Slide target along dir, stopping at grid edge or first occupied cell
+	# Slide target along dir, stopping at grid edge or first occupied cell.
+	# Track every cell in the path so traversal hazards can be applied.
 	var dest: Vector2i = target.grid_pos
+	var path: Array[Vector2i] = []
 	for _i in range(effect.base_value):
 		var nxt: Vector2i = dest + dir
 		if not _grid.is_valid(nxt) or _grid.is_occupied(nxt):
 			break
 		dest = nxt
+		path.append(dest)
 
 	if dest == target.grid_pos:
 		return  # nowhere to move
@@ -692,6 +703,14 @@ func _apply_force(caster: Unit3D, target: Unit3D, effect: EffectData, blast_orig
 	_grid.clear_occupied(target.grid_pos)
 	target.move_to(dest)           # updates grid_pos + emits unit_moved
 	_grid.set_occupied(dest, target)
+	# Damage for every hazard cell in the path (includes traversed cells and landing cell)
+	for cell in path:
+		if _grid.is_hazard(cell):
+			target.take_damage(2)
+			_camera_rig.trigger_shake()
+			if not target.is_alive:
+				break
+	_check_win_lose()
 	var tw: Tween = create_tween()
 	tw.tween_property(target, "global_position", _grid.grid_to_world(dest), 0.20)
 
@@ -743,6 +762,7 @@ func _try_travel_destination(cell: Vector2i) -> void:
 	_grid.clear_occupied(old_pos)
 	_selected_unit.move_to(cell)
 	_grid.set_occupied(cell, _selected_unit)
+	_check_hazard_damage(_selected_unit)
 	var tw: Tween = create_tween()
 	tw.tween_property(_selected_unit, "global_position", _grid.grid_to_world(cell), 0.18)
 
@@ -948,10 +968,14 @@ func _run_enemy_turn() -> void:
 	await _process_enemy_actions()
 	if state == CombatState.WIN or state == CombatState.LOSE:
 		return
-	# Regen energy and reset turn flags for every unit
+	# Regen energy and reset turn flags for every unit; hazard damage on player units here
+	# (this is the effective start-of-player-turn hook — no per-unit player turn callback exists)
 	for unit in _player_units:
 		unit.regen_energy()
 		unit.reset_turn()
+		_check_hazard_damage(unit)
+	if state == CombatState.WIN or state == CombatState.LOSE:
+		return
 	for unit in _enemy_units:
 		unit.regen_energy()
 		unit.reset_turn()
@@ -960,6 +984,10 @@ func _run_enemy_turn() -> void:
 
 func _process_enemy_actions() -> void:
 	for enemy in _enemy_units:
+		if not enemy.is_alive:
+			continue
+
+		_check_hazard_damage(enemy)
 		if not enemy.is_alive:
 			continue
 
@@ -1005,6 +1033,10 @@ func _process_enemy_actions() -> void:
 				var tw: Tween = create_tween()
 				tw.tween_property(enemy, "global_position", _grid.grid_to_world(best_cell), 0.22)
 				await tw.finished  # must complete before lunge anim starts on same property
+				_check_hazard_damage(enemy)
+				if not enemy.is_alive:
+					await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
+					continue
 
 		# --- 4. Ability selection ---
 		var post_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
@@ -1135,6 +1167,14 @@ func _pick_best_aoe_origin(enemy: Unit3D, ability: AbilityData) -> Vector2i:
 			best.append(cand)
 
 	return best[randi() % best.size()]
+
+## --- Hazard Damage ---
+
+func _check_hazard_damage(unit: Unit3D) -> void:
+	if _grid.is_hazard(unit.grid_pos) and unit.is_alive:
+		unit.take_damage(2)
+		_camera_rig.trigger_shake()
+		_check_win_lose()
 
 ## --- Win / Lose ---
 
