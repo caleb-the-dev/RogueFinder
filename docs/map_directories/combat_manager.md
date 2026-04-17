@@ -137,7 +137,9 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_try_travel_destination(cell)` | Moves unit to chosen cell, updates occupancy, tweens position |
 | `_request_end_player_turn()` | Space key: confirm dialog if any unit can still act |
 | `_check_auto_end_turn()` | After each action: auto-ends turn when no player can still act |
-| `_run_enemy_turn()` | Iterates enemy units; simulates QTE via `qte_resolution`; 0.65s delay between enemies |
+| `_run_enemy_turn()` | Iterates enemy units via `_process_enemy_actions()`; regens energy + resets turns; returns to PLAYER_TURN |
+| `_process_enemy_actions()` | Full enemy AI loop: target selection → consumable use → stride → ability selection → execute. 0.65s delay between enemies. |
+| `_pick_best_aoe_origin(enemy, ability)` | For AoE abilities: finds the origin cell that maximizes living player units hit (random tiebreak). RADIAL scans all cells in range; CONE/ARC/LINE try 4 cardinal roots. |
 | `_check_win_lose()` | All-dead check on either side; transitions to WIN/LOSE |
 | `_unit_can_still_act(unit)` | True if alive, has_acted=false, energy ≥ lowest affordable ability cost |
 
@@ -209,6 +211,8 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-17 | Rewrote `_process_enemy_actions()`: target selection, consumable use (50% at <50% HP), greedy Manhattan stride, per-enemy ability filtering (energy + range + applicable_to), AoE origin selection via `_pick_best_aoe_origin()` |
+| 2026-04-17 | Added `_pick_best_aoe_origin()`: scans RADIAL range or 4 cardinal roots; counts living player units per candidate; random tiebreak. AoE targeting uses caster-perspective applicable_to (ENEMY=players, ALLY=enemies, ANY=all) |
 | 2026-04-15 | Implemented all AoE TargetShapes (CONE/ARC/LINE/RADIAL) with per-shape `_get_shape_cells()` |
 | 2026-04-15 | Added TRAVEL_DESTINATION PlayerMode; `_highlight_travel_destinations` (FREE + LINE); `_try_travel_destination` |
 | 2026-04-15 | Implemented FORCE: `_apply_force()` with ForceType (PUSH/PULL/LEFT/RIGHT/RADIAL) |
