@@ -1,6 +1,6 @@
 # System: Unit System
 
-> Last updated: 2026-04-17 (Session 9 — show_action_text() for enemy ability/consumable display)
+> Last updated: 2026-04-17 (Session 11 — has_moved replaced by remaining_move; can_stride() gates on budget > 0)
 
 ---
 
@@ -8,7 +8,7 @@
 
 A Unit is a **stateful game object** representing one combatant. It owns:
 - HP and energy values (current and max)
-- Turn flags (`has_moved`, `has_acted`)
+- Turn state: `remaining_move` (tiles left this turn), `has_acted` (ability used)
 - Grid position
 - Its own visual representation (mesh, selection ring, labels, buff/debuff indicators)
 - Attack lunge and hit flash animations
@@ -65,7 +65,7 @@ CombatManager subscribes to both signals on every unit.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `can_stride` | `() -> bool` | `not has_moved and is_alive` |
+| `can_stride` | `() -> bool` | `remaining_move > 0 and is_alive` — can be called multiple times per turn until budget is exhausted |
 | `can_act` | `(energy_cost: int = 3) -> bool` | `not has_acted and current_energy >= energy_cost and is_alive` |
 
 ### State Mutations
@@ -76,8 +76,8 @@ CombatManager subscribes to both signals on every unit.
 | `heal` | `(amount: int) -> void` | Adds HP capped at `data.hp_max` |
 | `spend_energy` | `(amount: int) -> bool` | Deducts energy; returns `false` if insufficient |
 | `regen_energy` | `() -> void` | Adds `energy_regen` to `current_energy`, capped at `energy_max` |
-| `reset_turn` | `() -> void` | Clears `has_moved` and `has_acted`; refreshes visuals |
-| `move_to` | `(new_pos: Vector2i) -> void` | Updates `grid_pos`, sets `has_moved = true`, emits `unit_moved` |
+| `reset_turn` | `() -> void` | Restores `remaining_move` to `data.speed`, clears `has_acted`; refreshes visuals |
+| `move_to` | `(new_pos: Vector2i) -> void` | Updates `grid_pos`, emits `unit_moved`. Does NOT touch `remaining_move` — CombatManager deducts the path length directly after traversal |
 | `add_stat_effect` | `(display_name: String, stat: int, delta: int) -> void` | Appends to `stat_effects`; refreshes buff/debuff indicators |
 
 ### Visual
@@ -99,7 +99,7 @@ CombatManager subscribes to both signals on every unit.
 | `current_hp` | `int` | `data.hp_max` | Current hit points |
 | `current_energy` | `int` | `data.energy_max` | Current action energy |
 | `grid_pos` | `Vector2i` | from `setup()` | Current cell on the grid |
-| `has_moved` | `bool` | `false` | Stride used this turn |
+| `remaining_move` | `int` | `data.speed` | Tiles of movement budget remaining this turn; depleted by CombatManager after each stride |
 | `has_acted` | `bool` | `false` | Active action used this turn |
 | `is_alive` | `bool` | `true` | False after HP reaches 0 |
 | `stat_effects` | `Array[Dictionary]` | `[]` | Active buff/debuff records: `{display_name, stat, delta}` |
@@ -160,6 +160,7 @@ The buff ▲ and debuff ▼ billboard indicators are refreshed after every `add_
 ## Notes
 
 - `move_to()` does not validate against Grid — CombatManager must verify the cell is free before calling.
+- `move_to()` does NOT deduct `remaining_move`; CombatManager does that after the full path traversal completes.
 - `take_damage()` calls `_play_hit_flash()` as fire-and-forget — damage and `unit_died` signal are not delayed by the animation.
 - `stat_effects` is read by `UnitInfoBar._refresh_status()` and `StatPanel._format()` for display; Unit3D only writes to it.
-- `has_moved` is set to `true` by `move_to()` — both voluntary movement and FORCE displacement use this method, so forced movement consumes the unit's stride.
+- FORCE displacement calls `move_to()` but does not consume `remaining_move` — forced movement is involuntary and does not reduce the stride budget.
