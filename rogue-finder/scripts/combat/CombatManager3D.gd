@@ -237,6 +237,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_SPACE:
 				_request_end_player_turn()
 				get_viewport().set_input_as_handled()
+			KEY_K:
+				# Debug: instant-kill all enemies to test the victory screen
+				for u in _enemy_units:
+					if u.is_alive:
+						u.take_damage(9999)
+				get_viewport().set_input_as_handled()
 
 	if event is InputEventMouseMotion and mode == PlayerMode.ABILITY_TARGET_MODE \
 			and _pending_ability and _pending_ability.target_shape in [
