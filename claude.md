@@ -173,7 +173,7 @@ After implementing any significant logic change or new system, Claude must updat
 If a change affects multiple systems (e.g., a new signal crosses two systems), update **both** bucket files and the index in `map.md` if a new system was added.
 
 ### Session Wrap-Up Skill (`/wrapup`)
-A global `/wrapup` skill lives at `C:\Users\caleb\.claude\plugins\wrapup\SKILL.md`. When the user invokes `/wrapup` (or says "wrap up", "close out", "done for today", etc.), this skill takes over and:
+A global `/wrapup` skill lives at `C:\Users\caleb\.claude\skills\wrapup\SKILL.md`. When the user invokes `/wrapup` (or says "wrap up", "close out", "done for today", etc.), this skill takes over and:
 1. Commits any uncommitted work, pushes the feature branch, and merges to main
 2. Reads every `.gd` file changed this session and exhaustively updates all relevant map directory files — signals, public API, dependencies, gotchas, recent-changes rows, and `map.md` index/session log
 
