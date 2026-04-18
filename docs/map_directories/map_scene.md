@@ -55,6 +55,8 @@ Connection rules (see also "Edge Layout" section below for the no-crossing desig
 - Inner → middle: 3 stratified-random gateways (randomized each run)
 - Middle → outer: 3 stratified-random gateways (randomized each run)
 
+Before any random call in `_build_edge_data()`, the RNG is seeded from `GameState.map_seed`. On a fresh run `GameState.map_seed` is `0`, so MapManager generates a seed via `randi()` and stores it; on subsequent loads the saved seed is restored first. This makes the map topology identical across sessions for a given run.
+
 ---
 
 ## Adjacency Lookup
@@ -79,6 +81,8 @@ Built in `_build_adjacency()` after `_build_edge_data()`. Stored in `_adjacency:
 ## Player Marker
 
 A `Polygon2D` diamond (4 points ±10 px) in `Color(0.3, 0.6, 1.0)` (blue), centered 26 px above the current node. Stored as `_player_marker: Polygon2D`. On traversal it tweens to the new node position over 0.25 s (TRANS_QUAD, EASE_IN_OUT).
+
+Initial placement at scene load uses `GameState.player_node_id` (which may have been restored by `load_save()`), not the static `is_player_start` flag on the node dict. The `is_player_start` field is kept on node dicts for future run-reset logic but does not drive marker placement.
 
 ---
 
@@ -108,8 +112,16 @@ Visited nodes also receive a small `✓` Label child (stamp). The stamp is added
 
 `_move_player_to(node_id)`:
 - Calls `GameState.move_player(node_id)` (updates player position + visited list)
+- Calls `GameState.save()` (persists position + visited list + map seed to disk)
 - Tweens `_player_marker.position` to `node_map[node_id]["position"] + Vector2(0, -26)` over 0.25 s
 - Calls `_refresh_all_node_visuals()`
+
+`_ready()` order after save/load integration:
+1. `GameState.load_save()` — restore saved state (or no-op on fresh run)
+2. `_build_node_data()` — define all 28 nodes
+3. `_build_edge_data()` — seed RNG from `GameState.map_seed`, build deterministic edges
+4. `_build_adjacency()` — build undirected adjacency dict
+5. `_build_scene()` — render everything; marker placed at `GameState.player_node_id`
 
 ---
 
@@ -150,7 +162,7 @@ Pan and zoom use `_input()` (not `_unhandled_input`) so drag is captured even wh
 
 ## Edge Layout (no crossing edges)
 
-Inter-ring connections use **stratified random gateways** — randomized on every scene load:
+Inter-ring connections use **stratified random gateways** — topology is fixed per run (seeded from `GameState.map_seed`), so the same layout reloads identically across sessions:
 
 | Connection | Method |
 |---|---|
@@ -159,7 +171,7 @@ Inter-ring connections use **stratified random gateways** — randomized on ever
 | Inner → middle | 3 gateways: circle divided into 3 sectors, one random angle per sector, closest node in each ring connected |
 | Middle → outer | Same 3-gateway stratified approach |
 
-Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughly radial, preventing crossing between gateways. The stratified sampling prevents gateway clustering. The result is 2-3 bottleneck passages between each ring pair, different each run.
+Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughly radial, preventing crossing between gateways. The stratified sampling prevents gateway clustering. The result is 2-3 bottleneck passages between each ring pair, different each run but identical across saves within the same run.
 
 ## Entry Point
 
@@ -172,6 +184,9 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - **`hover_style` is not updated by `_refresh_all_node_visuals()`** — it is a snapshot duplicate of `normal_style` made at build time (`style.duplicate()`). When `_refresh_all_node_visuals()` darkens `normal_style.bg_color` for VISITED or LOCKED nodes, the hover stylebox still lightens from the original base color. This is acceptable for now but means hover tint does not respect the dimmed state. Fix by also updating `hover_style.bg_color` in `_refresh_all_node_visuals()` if that ever becomes an issue.
 - **`_input()` not `_unhandled_input()`** — intentional so pan drag is captured even when a press starts on a Button node. Do not change this without accounting for that.
 - **Node dict is mutated at runtime** — `nd["stamp_added"]` is set to `true` the first time a visited stamp is added. The dict is the same object in both `_node_data` and `_node_map`, so the mutation is shared.
+- **`stamp_added` is not persisted** — it's a runtime-only flag to prevent double-stamping within a session. On every scene load the flag starts `false`, and `_refresh_all_node_visuals()` re-adds stamps for all restored visited nodes correctly. Do not add `stamp_added` to the save file.
+- **MapManager holds no persistent state** — all run-wide data lives in `GameState`. On every scene load, `MapManager` fully rebuilds nodes, edges, adjacency, and the scene tree from scratch. Data survives because `GameState` is an autoload singleton (and is backed by `save.json`). Do not try to persist data inside `MapManager` fields directly.
+- **`seed()` is a global call** — `_build_edge_data()` calls Godot's global `seed()` function, which affects all subsequent uses of the global RNG. Currently no other system shares that RNG path, but if future code uses `randf()`/`randi()` anywhere after scene load it will be seeded by the map seed. Use `RandomNumberGenerator` instances if independent RNG streams are needed.
 
 ---
 
@@ -181,4 +196,3 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - Scene transitions on node click (launch encounter)
 - Procedural generation of the map layout
 - Fog of war
-- Save/load of map state

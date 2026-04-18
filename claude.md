@@ -17,8 +17,8 @@
 ## Current Build State
 
 - **Stage:** Stage 1.5 — 3D combat prototype + traversable world map
-- **Last session:** Session 8 (MapScene Feature 2) — 2026-04-18
-- **Working:** Full 3D combat loop; MapScene with traversal — click adjacent nodes to move, CURRENT/REACHABLE/VISITED/LOCKED node visual states, visited ✓ stamp, Badurga hover always readable; GameState tracks player_node_id + visited_nodes
+- **Last session:** Session 9 (Save/Load System) — 2026-04-18
+- **Working:** Full 3D combat loop; MapScene with traversal — click adjacent nodes to move, CURRENT/REACHABLE/VISITED/LOCKED node visual states, visited ✓ stamp, Badurga hover always readable; GameState tracks player_node_id + visited_nodes + map_seed; save/load via `user://save.json` (automatic on every move)
 - **Broken / deferred:** MapScene has no scene transitions (Feature 3 — launch combat from node); ability effects still placeholder; no per-ability QTEs
 - **Next task:** Feature 3 — scene transitions on node click, or per-ability QTEs (check backlog)
 
@@ -186,5 +186,10 @@ The skill is the authoritative end-of-session workflow. Do not do wrap-up work a
 ## Teaching Mode
 - Ask user for permission before triggering anything from the superpowers plugin.
 
-### Future Structure
-- Saving will eventually be a core feature of this game. Consider how this will affect systems as they are built.
+### Save System
+Save/load is live. The pattern: add a field to `GameState`, include it in `save()`'s data dict, read it back in `load_save()` (use `Array(..., TYPE_T, "", null)` for any typed arrays). The save file is `user://save.json`.
+
+**Every new feature that introduces persistent run state must extend the save system.** Ask: "does this data need to survive a session?" If yes, add it to GameState and wire it into `save()`/`load_save()` in the same PR. Do not defer save wiring to a later session.
+
+Currently saved: `player_node_id`, `visited_nodes`, `map_seed`.
+Not yet saved (Stage 2): party roster, inventory, faction reputation, combat state.
