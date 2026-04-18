@@ -132,7 +132,7 @@ Applied by `_refresh_all_node_visuals()`, called at end of `_build_scene()` and 
 | **VISITED** | in `GameState.visited_nodes` (and not current, not cleared) | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` | `✓` `Color(0.9, 0.95, 0.7)` |
 | **LOCKED** | none of the above | `base.darkened(0.15)` | default, 2 px | `(1,1,1,0.5)` | — |
 
-CLEARED nodes are non-traversable — clicks are ignored in `_on_node_clicked()`. CLEARED also suppresses hover (no tooltip, no scale animation). CLEARED takes priority over VISITED in `_refresh_all_node_visuals()` since a cleared node is always also visited.
+CLEARED nodes are traversable — the player can move through them freely. Hover behavior is the same as normal nodes (tooltip + scale animation). The only difference: `_enter_current_node()` returns early when `GameState.cleared_nodes.has(GameState.player_node_id)`, so landing on or re-clicking a cleared node never re-starts combat. CLEARED takes priority over VISITED in `_refresh_all_node_visuals()` since a cleared node is always also visited.
 
 Stamps are added once per session — `nd["stamp_added"]` and `nd["cleared_stamp_added"]` prevent duplicates.
 
@@ -143,10 +143,9 @@ Stamps are added once per session — `nd["stamp_added"]` and `nd["cleared_stamp
 `_on_node_clicked(node_id)` gates movement:
 
 1. Ignored if `_drag_moved` (click was part of a pan)
-2. Ignored if `GameState.cleared_nodes.has(node_id)` (encounter already completed — non-traversable)
-3. If `node_id == GameState.player_node_id` → calls `_enter_current_node()` (re-click to enter)
-4. Ignored if `not GameState.is_adjacent_to_player(node_id, _adjacency)` (not reachable)
-5. Otherwise calls `_move_player_to(node_id)` to traverse
+2. If `node_id == GameState.player_node_id` → calls `_enter_current_node()` (re-click to enter; no-ops if the node is cleared)
+3. Ignored if `not GameState.is_adjacent_to_player(node_id, _adjacency)` (not reachable)
+4. Otherwise calls `_move_player_to(node_id)` to traverse
 
 ### Scene Entry — `_enter_current_node()`
 
@@ -182,12 +181,12 @@ Uses a shared `_tooltip: ColorRect` (dark panel, `Color(0.10, 0.08, 0.06, 0.88)`
 
 | Event | Behavior |
 |---|---|
-| `mouse_entered` | Skip entirely if node is CLEARED or LOCKED; otherwise show `_tooltip` panel above the node (name + type header, one-line description); tween scale → `Vector2(1.25, 1.25)` over 0.12 s |
+| `mouse_entered` | Skip entirely if node is LOCKED; otherwise show `_tooltip` panel above the node (name + type header, one-line description); tween scale → `Vector2(1.25, 1.25)` over 0.12 s |
 | `mouse_exited` | Tween scale → `Vector2(1.0, 1.0)` over 0.10 s; hide `_tooltip` |
 | Hub hover enter | Same scale tween + tint `StyleBoxFlat.bg_color` to `Color(1.0, 0.85, 0.4)` over 0.12 s |
 | Hub hover exit | Tint returns to `Color(0.85, 0.65, 0.25)` over 0.10 s |
 
-CLEARED and LOCKED nodes feel inert — no scale animation, no label.
+LOCKED nodes feel inert — no scale animation, no label. CLEARED nodes behave like normal nodes for hover (tooltip + scale) — they are still traversable pass-through points.
 
 Hover label format: `"<node_label> [<Type>]"` (e.g. `"Ashwood Hollow [Combat]"`, `"Badurga [City]"`). Type string is capitalized via `.capitalize()`.
 
@@ -240,6 +239,8 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - **`_input()` not `_unhandled_input()`** — intentional so pan drag is captured even when a press starts on a Button node. Do not change this without accounting for that.
 - **Node dict is mutated at runtime** — `nd["stamp_added"]` is set to `true` the first time a visited stamp is added. The dict is the same object in both `_node_data` and `_node_map`, so the mutation is shared.
 - **`stamp_added` and `cleared_stamp_added` are not persisted** — they are runtime-only flags to prevent double-stamping within a session. On every scene load both flags start `false`, and `_refresh_all_node_visuals()` re-adds stamps for all restored visited/cleared nodes correctly. Do not add either to the save file.
+- **`_enter_current_node()` is the cleared-node guard, not `_on_node_clicked()`** — cleared nodes are fully traversable (you can click them, move to them). The guard that prevents combat re-entry lives at the top of `_enter_current_node()`. Do not add a click guard back to `_on_node_clicked()` — players need to be able to pass through cleared nodes.
+- **`current_combat_node_id` must be set before `change_scene_to_file()`** — it's a transient field that EndCombatScreen reads after the scene transition. Setting it after the call would have no effect since GameState survives transitions but the assignment order matters.
 - **MapManager holds no persistent state** — all run-wide data lives in `GameState`. On every scene load, `MapManager` fully rebuilds nodes, edges, adjacency, and the scene tree from scratch. Data survives because `GameState` is an autoload singleton (and is backed by `save.json`). Do not try to persist data inside `MapManager` fields directly.
 - **`seed()` is a global call** — `_build_edge_data()` calls Godot's global `seed()` function, which affects all subsequent uses of the global RNG. Currently no other system shares that RNG path, but if future code uses `randf()`/`randi()` anywhere after scene load it will be seeded by the map seed. Use `RandomNumberGenerator` instances if independent RNG streams are needed.
 - **`GameState.reset()` must be kept in sync with GameState fields** — the debug delete-save button calls `GameState.reset()` before reloading the scene. When new persistent fields are added to `GameState` in future features, also add them to `reset()` so the debug button continues to produce a truly clean state.
