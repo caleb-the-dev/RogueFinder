@@ -26,7 +26,7 @@ Defined in `_build_node_data()` as `Array[Dictionary]`. Each dictionary has:
 | `angle` | `float` | Placement angle in radians from center (used by gateway edge logic) |
 | `label` | `String` | Display name shown on hover — regenerated each load via seeded name pools (not saved to disk) |
 | `is_hub` | `bool` | `true` only for Badurga (center node) |
-| `is_player_start` | `bool` | `true` for exactly one node (`"node_o11"`, outer ring) |
+| `is_player_start` | `bool` | Vestigial flag — still set on `"node_o11"` but does not drive marker placement. Marker placement is driven by `GameState.player_node_id` (default `"badurga"`). |
 | `stamp_added` | `bool` | `true` after the visited ✓ stamp Label has been added as a button child |
 | `cleared_stamp_added` | `bool` | `true` after the cleared ✗ stamp Label has been added as a button child |
 | `node_type` | `String` | One of `"COMBAT"`, `"RECRUIT"`, `"VENDOR"`, `"EVENT"`, `"BOSS"`, `"CITY"` — set by `_assign_node_types()` at end of `_build_node_data()` |
@@ -104,11 +104,13 @@ Player start node (`node_o11`) is never BOSS — swap logic protects it during a
 | Background | `ColorRect` 1280×720, `Color(0.82, 0.74, 0.58)` (parchment) |
 | Edges | `Line2D` nodes, `Color(0.55, 0.42, 0.28)`, width 3 px |
 | Normal nodes | `Button` with `StyleBoxFlat` circle, color derived from `node_type`, size 32×32 |
+| BOSS node | `Button` size 44×44 (larger than normal); preceded in tree by glow `Polygon2D` |
 | Hub (Badurga) | `Button` with `StyleBoxFlat` circle, `Color(0.85, 0.65, 0.25)` (gold), size 56×56 |
 | Default node borders | 2 px, `Color(0.25, 0.18, 0.10)` |
 | BOSS node borders | Always 3 px, `Color(0.80, 0.15, 0.10)` bright red |
+| BOSS glow | `Polygon2D` 32-point circle, radius 34 px, `Color(0.95, 0.15, 0.05, 0.75)`. Looping tween pulses `modulate:a` between 0.1 and 1.0, 0.8 s per phase, TRANS_SINE. Added to `_map_container` **before** the button so it renders behind it. |
 | Type icons | `Label` child, font size 10, white, `MOUSE_FILTER_IGNORE` |
-| Layer order | ColorRect → Line2Ds → Buttons (+ icon Labels) → player marker → hover label |
+| Layer order | ColorRect → Line2Ds → BOSS glow Polygon2Ds → Buttons (+ icon Labels) → player marker → tooltip panel |
 
 ---
 
@@ -143,7 +145,7 @@ Stamps are added once per session — `nd["stamp_added"]` and `nd["cleared_stamp
 `_on_node_clicked(node_id)` gates movement:
 
 1. Ignored if `_drag_moved` (click was part of a pan)
-2. If `node_id == GameState.player_node_id` → calls `_enter_current_node()` (re-click to enter; no-ops if the node is cleared)
+2. If `node_id == GameState.player_node_id` → calls `_enter_current_node()` **only if `_node_prompt == null`** (re-click to enter current node; no-ops if a prompt is already showing or the node is cleared)
 3. Ignored if `not GameState.is_adjacent_to_player(node_id, _adjacency)` (not reachable)
 4. Otherwise calls `_move_player_to(node_id)` to traverse
 
@@ -155,16 +157,35 @@ Dispatches scene routing based on the current node's type:
 |---|---|
 | `COMBAT` or `BOSS` | Sets `GameState.current_combat_node_id = GameState.player_node_id`, then `change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")` |
 | `CITY` | No-op (Badurga interior deferred) |
-| `RECRUIT`, `VENDOR`, `EVENT` | Set `GameState.pending_node_type = node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
+| `RECRUIT`, `VENDOR`, `EVENT` | Sets `GameState.pending_node_type = node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
 
 `NodeStub` reads and clears `GameState.pending_node_type` in `_ready()` and shows a placeholder screen with a "← Return to Map" button.
 
 `_move_player_to(node_id)`:
+- Dismisses any open node prompt via `_dismiss_prompt()`
 - Calls `GameState.move_player(node_id)` (updates player position + visited list)
 - Calls `GameState.save()` (persists to disk)
 - Tweens `_player_marker.position` to `node_map[node_id]["position"] + Vector2(0, -26)` over 0.25 s
 - Calls `_refresh_all_node_visuals()`
-- For all types **except VENDOR and CITY**: `await tween.finished` then calls `_enter_current_node()` — the encounter starts automatically after the marker lands. VENDOR and CITY require a deliberate re-click.
+- `await tween.finished` — then:
+  - If `cleared_nodes.has(node_id)`: returns early (cleared nodes are pass-through)
+  - If node type is `COMBAT`, `BOSS`, or `EVENT`: calls `_enter_current_node()` immediately — **auto-starts the encounter**
+  - If node type is `VENDOR`, `RECRUIT`, or `CITY`: calls `_show_node_prompt(node_id)` — shows a yes/no panel asking the player to enter or keep moving
+
+### Node Prompt
+
+Shown for optional nodes (VENDOR, RECRUIT, CITY) after the marker lands. A `PanelContainer` anchored to the root MapManager (not `_map_container`) so it stays fixed on screen while the map pans. Positioned bottom-center after one `process_frame` await so the panel's computed size is available.
+
+| Field / Method | Description |
+|---|---|
+| `_node_prompt: Control` | Reference to the current prompt panel; `null` when no prompt is showing |
+| `_show_node_prompt(node_id)` | Builds and displays the panel: node name + type header, one-line description, "Enter" and "Keep Moving" buttons |
+| `_dismiss_prompt()` | `queue_free()`s the panel if valid; sets `_node_prompt = null` |
+| `_on_prompt_enter(node_id)` | Dismisses prompt then calls `_enter_current_node()` |
+| `_on_prompt_pass()` | Dismisses prompt; player stays at the node without entering |
+| `_desc_for_type(t)` | Returns a one-line string description for a given node type (used in both tooltip and prompt) |
+
+Panel style: dark background `Color(0.07, 0.05, 0.03, 0.94)`, 2-px border in the node's type color, rounded corners. Re-clicking the current node while a prompt is open does nothing (the `_on_node_clicked` guard checks `_node_prompt == null`).
 
 `_ready()` order after save/load integration:
 1. `GameState.load_save()` — restore saved state (or no-op on fresh run)
@@ -235,7 +256,7 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 
 ## Entry Point
 
-`MapScene.tscn` **is** the game entry point as of Feature 3. `main.tscn` instances `MapScene.tscn` directly. From the map, players enter encounters by moving to nodes (auto-starts) or clicking VENDOR/CITY nodes. After combat or a stub scene, `EndCombatScreen` and `NodeStub` both route back to `MapScene.tscn`.
+`MapScene.tscn` **is** the game entry point as of Feature 3. `main.tscn` instances `MapScene.tscn` directly. From the map, players enter encounters by moving to nodes: COMBAT, BOSS, and EVENT nodes auto-start after the marker lands; VENDOR, RECRUIT, and CITY nodes show a yes/no prompt. After combat or a stub scene, `EndCombatScreen` and `NodeStub` both route back to `MapScene.tscn`.
 
 ---
 
@@ -251,11 +272,22 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 - **`seed()` is a global call** — `_build_edge_data()` calls Godot's global `seed()` function, which affects all subsequent uses of the global RNG. Currently no other system shares that RNG path, but if future code uses `randf()`/`randi()` anywhere after scene load it will be seeded by the map seed. Use `RandomNumberGenerator` instances if independent RNG streams are needed.
 - **`GameState.reset()` must be kept in sync with GameState fields** — the debug delete-save button calls `GameState.reset()` before reloading the scene. When new persistent fields are added to `GameState` in future features, also add them to `reset()` so the debug button continues to produce a truly clean state.
 - **Type icons use `MOUSE_FILTER_IGNORE`** — the icon `Label` child of each button must have `mouse_filter = Control.MOUSE_FILTER_IGNORE` or it will intercept mouse events and prevent button presses from registering.
-- **RECRUIT is kept as a fallback in `_color_for_type` and `_icon_for_type`** — the type is no longer assigned to any node, but the match arms remain so old saves (pre-Feature 3) don't crash with an unmatched type. Safe to remove once all pre-Feature-3 save files are gone.
+- **RECRUIT is a valid outer-ring type** — one slot per run in the outer pool. `_color_for_type()` and `_icon_for_type()` both handle it. Treat it as optional (prompts the player) same as VENDOR.
 - **`node_types` is saved on first assignment** — `_assign_node_types()` calls `GameState.save()` after populating `node_types`. On reload, the saved dict is restored by `load_save()` and `_assign_node_types()` skips re-assignment entirely (non-empty dict check).
 - **Node labels are NOT saved** — names regenerate from `map_seed` on every load via `_assign_node_names()`. The three lore pools (`INNER_NAMES`, `MIDDLE_NAMES`, `OUTER_NAMES`) are static constants; the same seed always produces the same names. Do not add `node_names` to the save file.
 - **`map_seed` must be set before `_build_node_data()`** — moved from `_build_edge_data()` to `_ready()` so names and edges share the same seed. If you see node labels regenerating differently on reload, check that `map_seed` is being saved (it's saved when the player first moves via `GameState.save()`).
 - **1 BOSS per run, outer ring only** — `_assign_node_types()` picks exactly one BOSS node from the outer ring. The RECRUIT type still appears in the outer pool (1 slot) and color/icon definitions are present in `_color_for_type()`/`_icon_for_type()` — it is a valid type, just never assigned to inner or middle rings.
+
+---
+
+## Recent Changes
+
+| Date | Session | What changed |
+|---|---|---|
+| 2026-04-18 | S12 Feature 4 | `current_combat_node_id` transient field; `cleared_nodes` saved; CLEARED visual state (red ✗, darkened, 0.85 alpha); cleared nodes pass-through; `_enter_current_node()` guard at top; Onward... victory step |
+| 2026-04-18 | S13 Feature 5 | Procedural name pools (INNER 15 / MIDDLE 20 / OUTER 25); names regenerate from `map_seed` — not saved; outer ring reduced to exactly 1 BOSS + 1 RECRUIT + 7 COMBAT + 2 EVENT + 1 VENDOR; `_connect_gateways_v2()` replaces `_connect_gateways()` (≥90° intra-pair, ≥30° cross-pair); hub excludes inner IM gateway nodes; `map_seed` init moved to `_ready()` before builders |
+| 2026-04-18 | S13 UX | Player always starts at `"badurga"` (not `"node_o11"`); Boss node size 44×44 + pulsing red `Polygon2D` glow (looping tween); EVENT nodes auto-start (no prompt); VENDOR/RECRUIT/CITY show yes/no node prompt (`_show_node_prompt` / `_dismiss_prompt`); `_desc_for_type()` helper; tooltip upgraded from bare `Label` to `ColorRect` + `Label` panel |
+| 2026-04-18 | S13 EndCombatScreen | "Onward..." button removed — picking a reward immediately clears the node, saves, and returns to map |
 
 ---
 

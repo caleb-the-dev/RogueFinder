@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-18 |
 | last_groomed | 2026-04-15 |
-| sessions_since_groom | 10 |
+| sessions_since_groom | 11 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -95,7 +95,7 @@ NodeStub
 
 EndCombatScreen
   ├── RewardGenerator  (shuffled pool of EquipmentLibrary + ConsumableLibrary items)
-  └── GameState        (reads current_combat_node_id; appends to cleared_nodes; calls save() on Onward...)
+  └── GameState        (reads current_combat_node_id; appends to cleared_nodes; calls save() on reward selection)
 
 GameState              (autoload — map traversal + save/load live; all other data deferred)
 ```
@@ -129,7 +129,7 @@ CanvasLayer overlay (layer 8) opened on double-click of any unit. Shows the comp
 Condensed CanvasLayer strip (layer 4). Shown on single-click of any unit. Displays name, class, HP bar, energy bar, ATK/DEF/SPD. Hidden on deselect and combat end.
 
 ### End Combat Screen
-CanvasLayer overlay (layer 15) shown when combat ends. Victory shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)` — picking one disables all buttons and reveals an "Onward..." button; clicking Onward appends the node to `GameState.cleared_nodes`, saves, and returns to `MapScene.tscn`. Defeat shows "DEFEAT" + "Return to Map" button (node is NOT cleared). Lives in `scripts/ui/EndCombatScreen.gd`.
+CanvasLayer overlay (layer 15) shown when combat ends. Victory shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)` — picking one immediately appends the node to `GameState.cleared_nodes`, saves, and returns to `MapScene.tscn` (no "Onward..." step). Defeat shows "DEFEAT" + "Return to Map" button (node is NOT cleared). Lives in `scripts/ui/EndCombatScreen.gd`.
 
 ### Reward Generator
 Static utility (`scripts/globals/RewardGenerator.gd`). Combines all `EquipmentLibrary` and `ConsumableLibrary` items into one pool, Fisher-Yates shuffles, and returns `count` distinct Dicts (`id`, `name`, `description`, `item_type`).
@@ -260,3 +260,4 @@ res://
 | 2026-04-18 | MapManager, GameState, EndCombatScreen, main.tscn | Feature 3: node types, icons, scene routing — 6 node types with colors/icons/hover labels; BOSS extra border; _assign_node_types() deterministic per seed; re-click current node to enter; COMBAT/BOSS → CombatScene3D, others → NodeStub placeholder; game boots into MapScene; EndCombatScreen returns to map |
 | 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 4: scene transition polish + node tracking — current_combat_node_id transient field; cleared_nodes saved to disk; Onward... step on victory before returning to map; defeat button renamed "Return to Map"; CLEARED visual state (red ✗ stamp, darkened); cleared nodes traversable but _enter_current_node() no-ops on them |
 | 2026-04-18 | MapManager | Feature 5: procedural names, 1 BOSS, quadrant-aware bridges — three lore name pools (15/20/25) seeded per ring, names regenerate from map_seed (not saved); outer ring reduced to exactly 1 BOSS + RECRUIT slot added; _connect_gateways_v2() enforces ≥90° intra-pair gap and ≥30° cross-pair exclusion; hub connections exclude inner gateway nodes |
+| 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — player always starts at Badurga; Boss node 44×44 + pulsing red Polygon2D glow; EVENT nodes auto-start (no prompt); VENDOR/RECRUIT/CITY show bottom-center yes/no prompt (_show_node_prompt); _desc_for_type() helper; tooltip upgraded to ColorRect panel; EndCombatScreen "Onward..." button removed — reward selection immediately clears + saves + returns to map |
