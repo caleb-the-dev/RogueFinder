@@ -8,8 +8,8 @@ const SAVE_PATH := "user://save.json"
 
 ## --- Map Progress ---
 
-var player_node_id: String = "node_o11"
-var visited_nodes: Array[String] = ["node_o11"]
+var player_node_id: String = "badurga"
+var visited_nodes: Array[String] = ["badurga"]
 # Owned here so load_save() can restore it before MapManager seeds its RNG.
 var map_seed: int = 0  # 0 = not yet seeded
 var node_types: Dictionary = {}    # id -> String; populated by MapManager on first run, saved to disk
@@ -50,8 +50,8 @@ func load_save() -> bool:
 	var parsed = JSON.parse_string(file.get_as_text())
 	if not parsed is Dictionary:
 		return false
-	player_node_id = parsed.get("player_node_id", "node_o11")
-	var raw_visited: Array = parsed.get("visited_nodes", ["node_o11"])
+	player_node_id = parsed.get("player_node_id", "badurga")
+	var raw_visited: Array = parsed.get("visited_nodes", ["badurga"])
 	# JSON returns untyped Array; convert back to the typed form
 	visited_nodes = Array(raw_visited, TYPE_STRING, "", null)
 	map_seed = parsed.get("map_seed", 0)
@@ -68,8 +68,8 @@ func delete_save() -> void:
 # Resets all in-memory fields to fresh-run defaults. Call before reload_current_scene()
 # when wiping a save mid-session — load_save() does NOT reset fields on a missing file.
 func reset() -> void:
-	player_node_id = "node_o11"
-	visited_nodes = ["node_o11"]
+	player_node_id = "badurga"
+	visited_nodes = ["badurga"]
 	map_seed = 0
 	node_types = {}
 	pending_node_type = ""

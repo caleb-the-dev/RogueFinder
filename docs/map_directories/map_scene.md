@@ -24,9 +24,9 @@ Defined in `_build_node_data()` as `Array[Dictionary]`. Each dictionary has:
 | `id` | `String` | Unique key (e.g. `"badurga"`, `"node_i0"`, `"node_o11"`) |
 | `position` | `Vector2` | Screen position in a 1280×720 viewport |
 | `angle` | `float` | Placement angle in radians from center (used by gateway edge logic) |
-| `label` | `String` | Display name shown on hover (e.g. `"Ashwood Hollow"`) |
+| `label` | `String` | Display name shown on hover — regenerated each load via seeded name pools (not saved to disk) |
 | `is_hub` | `bool` | `true` only for Badurga (center node) |
-| `is_player_start` | `bool` | `true` for exactly one node (current: `"The Last Waypost"`, outer ring) |
+| `is_player_start` | `bool` | `true` for exactly one node (`"node_o11"`, outer ring) |
 | `stamp_added` | `bool` | `true` after the visited ✓ stamp Label has been added as a button child |
 | `cleared_stamp_added` | `bool` | `true` after the cleared ✗ stamp Label has been added as a button child |
 | `node_type` | `String` | One of `"COMBAT"`, `"RECRUIT"`, `"VENDOR"`, `"EVENT"`, `"BOSS"`, `"CITY"` — set by `_assign_node_types()` at end of `_build_node_data()` |
@@ -88,12 +88,12 @@ CITY is reserved exclusively for `"badurga"`. The icon is a small `Label` child 
 
 | Ring | Nodes | Distribution |
 |---|---|---|
-| Outer (12) | 12 | 2 BOSS, 6 COMBAT, 2 EVENT, 1 RECRUIT, 1 VENDOR |
-| Middle (9) | 9 | 4 COMBAT, 3 EVENT, 2 RECRUIT |
-| Inner (6) | 6 | 2 RECRUIT, 2 VENDOR, 2 EVENT |
+| Outer (12) | 12 | 1 BOSS, 7 COMBAT, 2 EVENT, 1 VENDOR, 1 RECRUIT |
+| Middle (9) | 9 | 5 COMBAT, 3 EVENT, 1 VENDOR |
+| Inner (6) | 6 | 2 VENDOR, 4 EVENT |
 | Center | 1 | CITY (always Badurga) |
 
-Player start node (`node_o11`) is never BOSS — swap logic protects it during assignment.
+Player start node (`node_o11`) is never BOSS — swap logic protects it during assignment. Exactly 1 BOSS per run, always in the outer ring.
 
 ---
 
@@ -168,10 +168,11 @@ Dispatches scene routing based on the current node's type:
 
 `_ready()` order after save/load integration:
 1. `GameState.load_save()` — restore saved state (or no-op on fresh run)
-2. `_build_node_data()` — define all 28 nodes; calls `_assign_node_types()` at the end
-3. `_build_edge_data()` — seed global RNG from `GameState.map_seed`, build deterministic edges
-4. `_build_adjacency()` — build undirected adjacency dict
-5. `_build_scene()` — render everything; marker placed at `GameState.player_node_id`
+2. Initialize `map_seed` if zero (fresh run): `GameState.map_seed = randi()` — must happen before node data so names and edge topology share the same seed
+3. `_build_node_data()` — define all 28 nodes with placeholder labels; calls `_assign_node_types()` at the end (which assigns seeded names + types)
+4. `_build_edge_data()` — seed global RNG from `GameState.map_seed`, build deterministic edges via `_connect_gateways_v2()`
+5. `_build_adjacency()` — build undirected adjacency dict
+6. `_build_scene()` — render everything; marker placed at `GameState.player_node_id`
 
 ---
 
@@ -216,16 +217,21 @@ Pan and zoom use `_input()` (not `_unhandled_input`) so drag is captured even wh
 
 ## Edge Layout (no crossing edges)
 
-Inter-ring connections use **stratified random gateways** — topology is fixed per run (seeded from `GameState.map_seed`), so the same layout reloads identically across sessions:
+Inter-ring connections use **quadrant-aware gateways** — topology is fixed per run (seeded from `GameState.map_seed`), so the same layout reloads identically across sessions:
 
 | Connection | Method |
 |---|---|
 | Within each ring | Closed chain of adjacent neighbors only — no chords |
-| Hub → inner | 2 randomly shuffled inner nodes |
-| Inner → middle | 3 gateways: circle divided into 3 sectors, one random angle per sector, closest node in each ring connected |
-| Middle → outer | Same 3-gateway stratified approach |
+| Hub → inner | 2 randomly shuffled inner nodes; hub-connected nodes are excluded from IM gateways |
+| Inner → middle | 3 gateways via `_connect_gateways_v2()`: circle divided into 3 sectors, one angle sampled per sector, enforcing ≥90° minimum between bridges |
+| Middle → outer | Same `_connect_gateways_v2()` call, plus ≥30° exclusion around each inner→middle angle |
 
-Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughly radial, preventing crossing between gateways. The stratified sampling prevents gateway clustering. The result is 2-3 bottleneck passages between each ring pair, different each run but identical across saves within the same run.
+**`_connect_gateways_v2()` rules:**
+- **Intra-pair gap (Rule A):** bridges within the same ring pair must be ≥`min_gap_deg` apart. Enforced by rejecting any candidate within that gap. After 5 failures in a sector, the gap relaxes by 10° increments.
+- **Cross-pair exclusion (Rule B):** bridges must be ≥30° away from any angle in the `excluded_angles` array (angles from the previous ring pair). Prevents straight outer→middle→inner corridors.
+- **Hub exclusion (Rule C):** inner nodes already used as IM gateway endpoints are excluded from hub connections so the hub is not a shortcut that bypasses middle-ring traversal.
+
+The result is 2-3 forced bottleneck passages between each ring pair, no straight cut-through corridors, and hub connections that always require at least one ring traversal.
 
 ## Entry Point
 
@@ -247,6 +253,9 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - **Type icons use `MOUSE_FILTER_IGNORE`** — the icon `Label` child of each button must have `mouse_filter = Control.MOUSE_FILTER_IGNORE` or it will intercept mouse events and prevent button presses from registering.
 - **RECRUIT is kept as a fallback in `_color_for_type` and `_icon_for_type`** — the type is no longer assigned to any node, but the match arms remain so old saves (pre-Feature 3) don't crash with an unmatched type. Safe to remove once all pre-Feature-3 save files are gone.
 - **`node_types` is saved on first assignment** — `_assign_node_types()` calls `GameState.save()` after populating `node_types`. On reload, the saved dict is restored by `load_save()` and `_assign_node_types()` skips re-assignment entirely (non-empty dict check).
+- **Node labels are NOT saved** — names regenerate from `map_seed` on every load via `_assign_node_names()`. The three lore pools (`INNER_NAMES`, `MIDDLE_NAMES`, `OUTER_NAMES`) are static constants; the same seed always produces the same names. Do not add `node_names` to the save file.
+- **`map_seed` must be set before `_build_node_data()`** — moved from `_build_edge_data()` to `_ready()` so names and edges share the same seed. If you see node labels regenerating differently on reload, check that `map_seed` is being saved (it's saved when the player first moves via `GameState.save()`).
+- **1 BOSS per run, outer ring only** — `_assign_node_types()` picks exactly one BOSS node from the outer ring. The RECRUIT type still appears in the outer pool (1 slot) and color/icon definitions are present in `_color_for_type()`/`_icon_for_type()` — it is a valid type, just never assigned to inner or middle rings.
 
 ---
 
@@ -254,5 +263,4 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 
 - City hub UI (Badurga interior)
 - Recruit / Vendor / Event scene content (NodeStub is placeholder)
-- Procedural generation of the map layout
 - Fog of war
