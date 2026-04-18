@@ -245,6 +245,13 @@ func _add_ui_chrome() -> void:
 	btn.pressed.connect(_on_debug_combat_pressed)
 	add_child(btn)
 
+	var del_btn := Button.new()
+	del_btn.text = "🗑 Delete Save (debug)"
+	del_btn.size = Vector2(200.0, 36.0)
+	del_btn.position = Vector2(VIEWPORT_SIZE.x - 172.0 - 212.0, 8.0)
+	del_btn.pressed.connect(_on_debug_delete_save_pressed)
+	add_child(del_btn)
+
 func _create_map_container() -> void:
 	_map_container = Node2D.new()
 	add_child(_map_container)
@@ -456,3 +463,7 @@ func _on_node_clicked(node_id: String) -> void:
 
 func _on_debug_combat_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+
+func _on_debug_delete_save_pressed() -> void:
+	GameState.delete_save()
+	get_tree().reload_current_scene()
