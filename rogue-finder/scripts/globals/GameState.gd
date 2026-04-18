@@ -14,6 +14,8 @@ var visited_nodes: Array[String] = ["node_o11"]
 var map_seed: int = 0  # 0 = not yet seeded
 var node_types: Dictionary = {}    # id -> String; populated by MapManager on first run, saved to disk
 var pending_node_type: String = "" # consumed by NodeStub on scene entry; NOT saved to disk
+var current_combat_node_id: String = "" # transient handoff to EndCombatScreen; NOT saved to disk
+var cleared_nodes: Array[String] = []  # nodes where player won and collected reward; saved to disk
 
 func move_player(node_id: String) -> void:
 	player_node_id = node_id
@@ -36,6 +38,7 @@ func save() -> void:
 		"visited_nodes": visited_nodes,
 		"map_seed": map_seed,
 		"node_types": node_types,
+		"cleared_nodes": cleared_nodes,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data, "\t"))
@@ -54,6 +57,8 @@ func load_save() -> bool:
 	map_seed = parsed.get("map_seed", 0)
 	# Dictionary values are already strings from JSON; no typed conversion needed
 	node_types = parsed.get("node_types", {})
+	var raw_cleared: Array = parsed.get("cleared_nodes", [])
+	cleared_nodes = Array(raw_cleared, TYPE_STRING, "", null)
 	return true
 
 func delete_save() -> void:
@@ -68,3 +73,5 @@ func reset() -> void:
 	map_seed = 0
 	node_types = {}
 	pending_node_type = ""
+	current_combat_node_id = ""
+	cleared_nodes = []
