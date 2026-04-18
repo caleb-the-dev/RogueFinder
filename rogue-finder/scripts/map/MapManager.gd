@@ -554,9 +554,6 @@ func _move_player_to(node_id: String) -> void:
 func _on_node_hover_enter(btn: Button) -> void:
 	var node_id: String   = btn.get_meta("node_id")
 	var node_type: String = btn.get_meta("node_type")
-	var is_cleared: bool  = GameState.cleared_nodes.has(node_id)
-	if is_cleared:
-		return
 	var is_locked: bool   = not GameState.is_visited(node_id) \
 		and not GameState.is_adjacent_to_player(node_id, _adjacency) \
 		and node_id != GameState.player_node_id
@@ -605,8 +602,6 @@ func _on_node_hover_exit(btn: Button) -> void:
 func _on_node_clicked(node_id: String) -> void:
 	if _drag_moved:
 		return
-	if GameState.cleared_nodes.has(node_id):
-		return
 	if node_id == GameState.player_node_id:
 		_enter_current_node()
 		return
@@ -615,6 +610,8 @@ func _on_node_clicked(node_id: String) -> void:
 	_move_player_to(node_id)
 
 func _enter_current_node() -> void:
+	if GameState.cleared_nodes.has(GameState.player_node_id):
+		return
 	var node_type: String = GameState.node_types.get(GameState.player_node_id, "COMBAT")
 	match node_type:
 		"COMBAT", "BOSS":
