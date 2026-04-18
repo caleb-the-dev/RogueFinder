@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-16 (Session 9 — EquipmentData + EquipmentLibrary added; CombatantData equipment slots typed as EquipmentData; all derived stats include equipment bonuses via _equip_bonus())
+> Last updated: 2026-04-18 (Session 13 grooming — ability count corrected to 22; archer_bandit/grunt/alchemist ability lists synced to code; quick_shot range 4 → 3)
 
 ---
 
@@ -108,9 +108,9 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 | ID | Class | STR | DEX | COG | WIL | VIT | Armor | Abilities | Consumable |
 |----|-------|-----|-----|-----|-----|-----|-------|-----------|------------|
 | `RogueFinder` | Custom | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 | strike, guard, fireball, sweep | `power_tonic` |
-| `archer_bandit` | Rogue | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 | quick_shot, disengage, piercing_shot, gust | — |
-| `grunt` | Barbarian | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 | heavy_strike, charge, shove, - | — |
-| `alchemist` | Wizard | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 | heal_burst, smoke_bomb, healing_draught, fire_breath | `healing_potion` |
+| `archer_bandit` | Rogue | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 | quick_shot, gust, acid_splash, piercing_shot | — |
+| `grunt` | Barbarian | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 | heavy_strike, shove, sweep, taunt | — |
+| `alchemist` | Wizard | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 | smoke_bomb, fire_breath, acid_splash, healing_draught | `healing_potion` |
 | `elite_guard` | Warrior | 3–5 | 1–3 | 1–2 | 2–4 | 3–5 | 7–10 | shield_bash, yank, windblast, sweep | — |
 
 ### Public API
@@ -227,13 +227,13 @@ One QTE fires per ability. The resulting `accuracy: float` (0.0–1.0) is shared
 
 `scripts/globals/AbilityLibrary.gd` — static class, mirrors `ArchetypeLibrary`.
 
-### Defined Abilities (20)
+### Defined Abilities (22)
 
 | ID | Name | Attr | Cost | Range | Shape | Targets | Effects |
 |----|------|------|------|-------|-------|---------|---------|
 | `strike` | Strike | STR | 2 | 1 | Single | Enemy | HARM 5 HP |
 | `heavy_strike` | Heavy Strike | STR | 4 | 1 | Single | Enemy | HARM 9 HP |
-| `quick_shot` | Quick Shot | DEX | 2 | 4 | Single | Enemy | HARM 4 HP |
+| `quick_shot` | Quick Shot | DEX | 2 | 3 | Single | Enemy | HARM 4 HP |
 | `disengage` | Disengage | DEX | 2 | 1 | Self | Any | TRAVEL 1 FREE |
 | `acid_splash` | Acid Splash | COG | 3 | 3 | Single | Enemy | HARM 3 HP + DEBUFF 1 DEX |
 | `smoke_bomb` | Smoke Bomb | COG | 2 | 2 | Radial | Any | DEBUFF 1 DEX |

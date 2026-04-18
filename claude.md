@@ -17,8 +17,8 @@
 ## Current Build State
 
 - **Stage:** Stage 1.5 — 3D combat prototype + traversable world map
-- **Last session:** Session 12 (Feature 4 — Scene Transition Polish + Node Tracking) — 2026-04-18
-- **Working:** Full 3D combat loop; MapScene as game entry point; 6 node types (COMBAT/BOSS/EVENT/VENDOR/CITY) with color-coded buttons, icon chars, and hover tooltip panels (name + type + description); moving to a node auto-starts the encounter after marker tween — except VENDOR and CITY which require re-click; COMBAT/BOSS → CombatScene3D; EVENT/VENDOR → NodeStub placeholder; NodeStub shows type name + "Return to Map" button; EndCombatScreen victory flow: pick reward → Onward... button → node marked cleared + save → return to map; EndCombatScreen defeat: "Return to Map" (no clear); cleared nodes show red ✗ stamp, are traversable but don't re-trigger combat; cleared_nodes saved to disk; GameState tracks node_types + cleared_nodes (saved), pending_node_type + current_combat_node_id (transient); delete-save debug button still present
+- **Last session:** Session 13 (Feature 5 + UX Polish) — 2026-04-18
+- **Working:** Full 3D combat loop; MapScene as game entry point; 6 node types (COMBAT/BOSS/EVENT/VENDOR/CITY/RECRUIT) with color-coded buttons, icon chars, and hover tooltip panels; procedural lore names seeded per run (15/20/25 pools, not saved — regenerate from map_seed); exactly 1 BOSS per run in outer ring with 44×44 size + pulsing red glow; COMBAT/BOSS/EVENT auto-start after marker lands; VENDOR/RECRUIT/CITY show yes/no node prompt; COMBAT/BOSS → CombatScene3D; EVENT/VENDOR/RECRUIT → NodeStub placeholder; NodeStub shows type name + "Return to Map" button; EndCombatScreen victory: pick reward → immediately clears node + saves + returns to map (no Onward... step); defeat: "Return to Map" (no clear); cleared nodes show red ✗ stamp, traversable pass-through; cleared_nodes saved to disk; player always starts at Badurga; GameState tracks node_types + cleared_nodes (saved), pending_node_type + current_combat_node_id (transient); delete-save debug button still present
 - **Broken / deferred:** City hub UI (Badurga interior); Recruit/Vendor/Event scene content (NodeStub placeholder); ability effects still placeholder; no per-ability QTEs
 - **Next task:** Stage 2 features — see backlog
 
@@ -52,16 +52,23 @@ res://
 │   │   └── Grid.gd              # Legacy 2D
 │   ├── ui/
 │   │   ├── ActionMenu.gd        # Radial ability/consumable pop-up (layer 12)
+│   │   ├── EndCombatScreen.gd   # Victory/defeat overlay (layer 15)
 │   │   ├── StatPanel.gd         # Full examine window (double-click, layer 8)
 │   │   ├── UnitInfoBar.gd       # Condensed strip (single-click, layer 4)
 │   │   └── HUD.gd               # Legacy 2D only
 │   └── globals/
-│       ├── AbilityLibrary.gd    # 12 placeholder abilities, static factory
+│       ├── AbilityLibrary.gd    # 22 placeholder abilities, static factory
 │       ├── ArchetypeLibrary.gd  # 5 archetypes, CombatantData factory
-│       └── GameState.gd         # Autoload stub
+│       ├── ConsumableLibrary.gd # healing_potion, power_tonic
+│       ├── EquipmentLibrary.gd  # 6 items, 2 per slot (weapon/armor/accessory)
+│       ├── RewardGenerator.gd   # Shuffled pool of equipment + consumables
+│       └── GameState.gd         # Autoload — map progress + save/load
 ├── resources/
-│   ├── AbilityData.gd           # Ability resource (TargetType enum + fields)
+│   ├── AbilityData.gd           # Ability resource (TargetShape/ApplicableTo/Attribute enums)
+│   ├── EffectData.gd            # Effect sub-resource (EffectType/PoolType/ForceType/MoveType)
 │   ├── CombatantData.gd         # Active stat resource (3D)
+│   ├── ConsumableData.gd        # Consumable item resource
+│   ├── EquipmentData.gd         # Equipment item resource (Slot enum + stat_bonuses)
 │   └── UnitData.gd              # Legacy stat resource (2D only)
 ├── scenes/map/
 │   └── MapScene.tscn            # World map (root + script only)
@@ -197,4 +204,4 @@ Save/load is live. The pattern: add a field to `GameState`, include it in `save(
 
 Currently saved: `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`.
 Not yet saved (Stage 2): party roster, inventory, faction reputation, combat state.
-Not persisted (transient): `pending_node_type` — consumed by NodeStub on scene entry; `current_combat_node_id` — set by MapManager before entering CombatScene3D, read by EndCombatScreen on Onward... press. Neither written to disk.
+Not persisted (transient): `pending_node_type` — consumed by NodeStub on scene entry; `current_combat_node_id` — set by MapManager before entering CombatScene3D, read by EndCombatScreen on reward selection. Neither written to disk.

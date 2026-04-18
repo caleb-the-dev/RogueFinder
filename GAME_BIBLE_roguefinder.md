@@ -157,11 +157,16 @@ Every Action is resolved through a **Quick Time Event**. QTEs inject real-time p
 The difficulty and structure of a QTE are derived from the action’s **Energy Cost** and its **Targeting Shape**.
 
 * **Difficulty (Energy Anchor):** The **Energy Cost** of an action determines the speed of the QTE and the precision required. High-energy actions have faster sliders, smaller success windows, and tighter timers. Low-energy actions are more forgiving.
-* **Succession (Targeting Anchor):** The **Targeting Shape** determines the number of "beats" or prompts in a sequence.
-    * **Self / Single:** 1 Beat
-    * **Cone:** 2 Beats
-    * **Line:** 3 Beats
-    * **Radial:** 4 Beats
+* **Succession (Targeting Anchor):** The **Targeting Shape** determines the number of "beats" or prompts in a sequence. The *scale* of the beat count depends on the QTE style (see §2), because each style has a different natural granularity.
+
+    | Targeting Shape | Slide (Harm/Mend) | Target (Force) | Directional (Buff/Debuff) | Hold (Travel) |
+    |---|---|---|---|---|
+    | Self / Single | 1 | 3 | 3 | — |
+    | Cone          | 2 | 6 | 6 | — |
+    | Line          | 3 | 9 | 9 | — |
+    | Radial        | 4 | 12 | 12 | — |
+
+    **Travel** uses a single hold-and-release meter regardless of targeting shape — no beat sequence.
 
 #### 2. QTE Styles by Effect Tag
 To ensure mechanical variety, the style of the mini-game changes based on the primary **Effect Tag** of the action:

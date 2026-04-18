@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-14 (Session 3 — ActionMenu added)
+> Last updated: 2026-04-18 (Session 13 grooming — EndCombatScreen no-Onward flow)
 
 ---
 
@@ -87,11 +87,11 @@ Hover shows a tooltip with ability name, tags, energy cost, and description.
 | `show_victory` | `(reward_items: Array) -> void` | Displays VICTORY header + 3 reward buttons |
 | `show_defeat` | `() -> void` | Displays DEFEAT header + "Return to Map" button |
 
-Victory flow: 3 reward buttons (item name + description). Clicking one disables all reward buttons and highlights the chosen button with a `✓` prefix. An "Onward..." button then appears; clicking it appends `GameState.current_combat_node_id` to `GameState.cleared_nodes`, calls `GameState.save()`, then calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
+Victory flow: 3 reward buttons (item name + description). Clicking one disables all reward buttons, highlights the chosen button with a `✓` prefix, appends `GameState.current_combat_node_id` to `GameState.cleared_nodes` (if not already present), calls `GameState.save()`, then immediately calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`. There is no intermediate "Onward..." step — reward selection is the final input.
 
 Defeat flow: single "Return to Map" button → `_return_to_map()` → `MapScene.tscn`. The node is **not** added to `cleared_nodes` on defeat, so it remains re-enterable. Subtitle text: *"Return to the map and try again."*
 
-Both paths now return to the map, not combat. The constant is `MAP_SCENE_PATH`; the method is `_return_to_map()` (renamed from `_reload_combat()` in Feature 3).
+Both paths return to the map, not combat. The constant is `MAP_SCENE_PATH`; the method is `_return_to_map()` (renamed from `_reload_combat()` in Feature 3).
 
 Reward items come from `RewardGenerator.roll(3)` — plain Dicts with keys `id`, `name`, `description`, `item_type`.
 

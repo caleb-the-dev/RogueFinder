@@ -58,7 +58,7 @@ const ABILITIES: Dictionary = {
 		"applicable_to": AbilityData.ApplicableTo.ENEMY,
 		"range":         3,
 		"cost":          2,
-		"description":   "Draw and loose before the moment passes — deal damage to one enemy within 4 tiles.",
+		"description":   "Draw and loose before the moment passes — deal damage to one enemy within 3 tiles.",
 		"effects": [
 			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
 		],

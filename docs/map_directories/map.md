@@ -9,8 +9,8 @@
 | Field | Value |
 |---|---|
 | last_updated | 2026-04-18 |
-| last_groomed | 2026-04-15 |
-| sessions_since_groom | 11 |
+| last_groomed | 2026-04-18 |
+| sessions_since_groom | 0 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -144,7 +144,7 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, an
 `AbilityData` (Resource) stores all fields for a single ability. `EffectData` (Resource) stores one effect within an ability. `TargetShape` enum: `SELF`, `SINGLE`, `CONE`, `LINE`, `RADIAL`. `EffectType` enum: `HARM`, `MEND`, `FORCE`, `TRAVEL`, `BUFF`, `DEBUFF`.
 
 ### Ability Library
-`AbilityLibrary` (static class) defines 12 abilities and provides `get_ability(id) -> AbilityData`. Returns a safe stub for unknown IDs. Future CSV import will replace the inline dictionary without changing the API.
+`AbilityLibrary` (static class) defines 22 abilities and provides `get_ability(id) -> AbilityData`. Returns a safe stub for unknown IDs. Future CSV import will replace the inline dictionary without changing the API.
 
 ### Consumable Data Model
 `ConsumableData` (Resource) stores id, name, effect_type, base_value, target_stat, and description for a single consumable. Only MEND, BUFF, and DEBUFF are valid effect types — consumables never HARM, FORCE, or TRAVEL.
@@ -216,7 +216,7 @@ res://
 │   │   ├── UnitInfoBar.gd       ← condensed strip (single-click)
 │   │   └── HUD.gd               ← legacy 2D only
 │   └── globals/
-│       ├── AbilityLibrary.gd    ← ability factory (12 abilities)
+│       ├── AbilityLibrary.gd    ← ability factory (22 abilities)
 │       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
 │       ├── ConsumableLibrary.gd ← consumable factory (healing_potion, power_tonic)
 │       ├── EquipmentLibrary.gd  ← equipment catalog (6 items, 2 per slot)
