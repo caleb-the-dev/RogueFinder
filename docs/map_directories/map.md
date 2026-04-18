@@ -233,10 +233,14 @@ res://
 │   └── MapScene.tscn            ← world map shell (root + script only)
 ├── scenes/misc/
 │   └── NodeStub.tscn            ← placeholder for unimplemented node types (root + script only)
+├── scenes/city/
+│   └── BadurgaScene.tscn        ← Badurga hub city shell (root + script only)
 ├── scripts/map/
 │   └── MapManager.gd            ← builds map scene in _ready()
-└── scripts/misc/
-    └── NodeStub.gd              ← reads GameState.pending_node_type; shows stub screen with return button
+├── scripts/misc/
+│   └── NodeStub.gd              ← reads GameState.pending_node_type; shows stub screen with return button
+└── scripts/city/
+    └── BadurgaManager.gd        ← builds Badurga shell in _ready(); 6 placeholder section buttons + return
 ```
 
 ---
@@ -247,6 +251,6 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
-| 2026-04-18 | MapManager | Feature 5: procedural names, 1 BOSS, quadrant-aware bridges |
 | 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — Badurga start, BOSS glow, node prompts, instant reward return |
 | 2026-04-18 | Docs | Session 13 grooming pass — bucket files synced to code |
+| 2026-04-18 | BadurgaScene, MapManager | Feature 6: Badurga city shell — CITY branch now loads `BadurgaScene.tscn` with 6 placeholder section buttons + return to map |
