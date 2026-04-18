@@ -39,6 +39,8 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `player_node_id` | `String` | `"node_o11"` | The node the player is currently on |
 | `visited_nodes` | `Array[String]` | `["node_o11"]` | All nodes the player has been to this run |
 | `map_seed` | `int` | `0` | RNG seed for `_build_edge_data()`. `0` = not yet seeded (fresh run). Lives here so `load_save()` can restore it before MapManager seeds its RNG. |
+| `node_types` | `Dictionary` | `{}` | Maps node id → type string (e.g. `"COMBAT"`, `"BOSS"`, `"CITY"`). Populated by `MapManager._assign_node_types()` on first run; restored from save on subsequent loads. **Saved to disk.** |
+| `pending_node_type` | `String` | `""` | Consumed by `NodeStub._ready()` on scene entry to know which stub to display. Set by `MapManager._enter_current_node()` for non-combat/non-city nodes. **NOT saved to disk.** |
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -50,10 +52,10 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `save` | `() -> void` | Serializes `player_node_id`, `visited_nodes`, and `map_seed` to `user://save.json` as indented JSON. Called by **MapManager** after every traversal move — callers control save timing, not GameState internally. |
+| `save` | `() -> void` | Serializes `player_node_id`, `visited_nodes`, `map_seed`, and `node_types` to `user://save.json` as indented JSON. Called by **MapManager** after every traversal move and after `_assign_node_types()` on first run. |
 | `load_save` | `() -> bool` | Reads and deserializes `user://save.json`. Returns `true` if a valid save was found and loaded, `false` on a fresh run or corrupt file. Called by **MapManager** at the start of `_ready()`, before any map data is built. |
 | `delete_save` | `() -> void` | Removes `user://save.json` if it exists. Called by **MapManager**'s debug "Delete Save" button before resetting in-memory state. |
-| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "node_o11"`, `visited_nodes = ["node_o11"]`, `map_seed = 0`). Must be called alongside `delete_save()` when wiping a save mid-session — `load_save()` does NOT reset fields if the file is missing. |
+| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "node_o11"`, `visited_nodes = ["node_o11"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`). Must be called alongside `delete_save()` when wiping a save mid-session. |
 
 ---
 
@@ -64,8 +66,11 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `player_node_id` | `GameState.player_node_id` | String |
 | `visited_nodes` | `GameState.visited_nodes` | JSON Array — typed back via `Array(..., TYPE_STRING, "", null)` on load |
 | `map_seed` | `GameState.map_seed` | int — determines map topology for the run |
+| `node_types` | `GameState.node_types` | JSON Object (id → type string) — values already strings from JSON, no conversion needed |
 
-**What is saved now:** map position, visited nodes, map topology seed.
+**What is saved now:** map position, visited nodes, map topology seed, node type assignments.
+
+Note: `pending_node_type` is **not** saved — it is a transient handoff between MapManager and NodeStub within a single scene transition.
 
 **Deferred (Stage 2+):** party roster, inventory, combat state, faction reputation.
 
@@ -73,7 +78,8 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 
 ## Dependencies
 
-- **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `save()` after every move, `load_save()` at startup, and `delete_save()` + `reset()` from the debug button
+- **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `save()` after every move and after `_assign_node_types()`; calls `load_save()` at startup; calls `delete_save()` + `reset()` from the debug button; sets `pending_node_type` before transitioning to NodeStub
+- **NodeStub** reads and clears `GameState.pending_node_type` in `_ready()`
 - **EndCombatScreen** calls `GameState.add_to_inventory()` stub (no-op currently)
 
 ---

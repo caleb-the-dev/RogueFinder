@@ -6,7 +6,7 @@ extends CanvasLayer
 ## Layer 15 — above all other UI (4, 8, 10, 12).
 ## Build all children in code; no .tscn required.
 
-const SCENE_PATH := "res://scenes/combat/CombatScene3D.tscn"
+const MAP_SCENE_PATH := "res://scenes/map/MapScene.tscn"
 
 var _reward_buttons: Array[Button] = []
 
@@ -75,7 +75,7 @@ func _on_reward_chosen(item: Dictionary, _chosen_index: int) -> void:
 	print("Reward chosen: ", item["name"])
 	if GameState.has_method("add_to_inventory"):
 		GameState.add_to_inventory(item)
-	_reload_combat()
+	_return_to_map()
 
 ## --- Defeat Layout ---
 
@@ -93,7 +93,7 @@ func _build_defeat_layout() -> void:
 	bg.add_child(header)
 
 	var subtitle := Label.new()
-	subtitle.text                 = "Your run has ended."
+	subtitle.text                 = "Return to the map and try again."
 	subtitle.add_theme_font_size_override("font_size", 22)
 	subtitle.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -106,7 +106,7 @@ func _build_defeat_layout() -> void:
 	retry_btn.custom_minimum_size = Vector2(200.0, 50.0)
 	retry_btn.position          = Vector2((1152.0 - 200.0) / 2.0, 300.0)
 	retry_btn.add_theme_font_size_override("font_size", 20)
-	retry_btn.pressed.connect(_reload_combat)
+	retry_btn.pressed.connect(_return_to_map)
 	bg.add_child(retry_btn)
 
 ## --- Helpers ---
@@ -117,5 +117,5 @@ func _make_background() -> ColorRect:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	return bg
 
-func _reload_combat() -> void:
-	get_tree().change_scene_to_file(SCENE_PATH)
+func _return_to_map() -> void:
+	get_tree().change_scene_to_file(MAP_SCENE_PATH)
