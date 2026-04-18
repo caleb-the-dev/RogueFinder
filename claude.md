@@ -16,11 +16,11 @@
 
 ## Current Build State
 
-- **Stage:** Stage 1.5 — 3D combat prototype, playtested and working
-- **Last session:** Session 6 (combat actions) — 2026-04-15
-- **Working:** Full 3D combat loop — select unit → radial ability menu → target → QTE → damage; consumables; auto-end turn
-- **Broken / deferred:** Ability effects are all placeholders (proxy through QTE damage); no per-ability QTEs yet
-- **Next task:** Functional ability effects, per-ability QTEs, or CSV ability import
+- **Stage:** Stage 1.5 — 3D combat prototype + traversable world map
+- **Last session:** Session 8 (MapScene Feature 2) — 2026-04-18
+- **Working:** Full 3D combat loop; MapScene with traversal — click adjacent nodes to move, CURRENT/REACHABLE/VISITED/LOCKED node visual states, visited ✓ stamp, Badurga hover always readable; GameState tracks player_node_id + visited_nodes
+- **Broken / deferred:** MapScene has no scene transitions (Feature 3 — launch combat from node); ability effects still placeholder; no per-ability QTEs
+- **Next task:** Feature 3 — scene transitions on node click, or per-ability QTEs (check backlog)
 
 ---
 
@@ -63,6 +63,10 @@ res://
 │   ├── AbilityData.gd           # Ability resource (TargetType enum + fields)
 │   ├── CombatantData.gd         # Active stat resource (3D)
 │   └── UnitData.gd              # Legacy stat resource (2D only)
+├── scenes/map/
+│   └── MapScene.tscn            # World map (root + script only)
+├── scripts/map/
+│   └── MapManager.gd            # Builds map scene in _ready(); owns traversal logic
 └── main.tscn                    # Entry point → CombatScene3D
 ```
 
