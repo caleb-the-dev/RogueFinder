@@ -43,7 +43,7 @@
 | [Equipment Library](#equipment-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
 | [Game State](#game-state) | [game_state.md](game_state.md) | ✅ Active (map traversal + save/load) | Global |
-| [Map Scene](#map-scene) | [map_scene.md](map_scene.md) | 🟡 Traversable map | World Map |
+| [Map Scene](#map-scene) | [map_scene.md](map_scene.md) | ✅ Active (traversable + save/load) | World Map |
 
 ---
 
@@ -88,9 +88,9 @@ CombatantData
   └── EquipmentData    (weapon / armor / accessory slots)
 
 MapManager
-  └── GameState        (reads player_node_id/visited_nodes; calls move_player)
+  └── GameState        (reads player_node_id/visited_nodes/map_seed; calls move_player, save, load_save)
 
-GameState              (autoload — map traversal live; all other data deferred)
+GameState              (autoload — map traversal + save/load live; all other data deferred)
 ```
 
 ---
@@ -160,7 +160,7 @@ Autoload singleton. Map traversal and save/load are live: tracks `player_node_id
 ## World Map
 
 ### Map Scene
-Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Player can click adjacent nodes to traverse the map; marker tweens to the new node. Nodes display four visual states (CURRENT / REACHABLE / VISITED / LOCKED). Hover is suppressed for LOCKED nodes. Wired to GameState for traversal. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
+Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Player can click adjacent nodes to traverse the map; marker tweens to the new node. Nodes display four visual states (CURRENT / REACHABLE / VISITED / LOCKED). Hover is suppressed for LOCKED nodes. Map topology is seeded per run (deterministic on reload). Wired to GameState for traversal and save/load. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
 
 ---
 

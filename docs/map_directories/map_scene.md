@@ -162,7 +162,7 @@ Pan and zoom use `_input()` (not `_unhandled_input`) so drag is captured even wh
 
 ## Edge Layout (no crossing edges)
 
-Inter-ring connections use **stratified random gateways** — randomized on every scene load:
+Inter-ring connections use **stratified random gateways** — topology is fixed per run (seeded from `GameState.map_seed`), so the same layout reloads identically across sessions:
 
 | Connection | Method |
 |---|---|
@@ -171,7 +171,7 @@ Inter-ring connections use **stratified random gateways** — randomized on ever
 | Inner → middle | 3 gateways: circle divided into 3 sectors, one random angle per sector, closest node in each ring connected |
 | Middle → outer | Same 3-gateway stratified approach |
 
-Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughly radial, preventing crossing between gateways. The stratified sampling prevents gateway clustering. The result is 2-3 bottleneck passages between each ring pair, different each run.
+Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughly radial, preventing crossing between gateways. The stratified sampling prevents gateway clustering. The result is 2-3 bottleneck passages between each ring pair, different each run but identical across saves within the same run.
 
 ## Entry Point
 
@@ -184,6 +184,9 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - **`hover_style` is not updated by `_refresh_all_node_visuals()`** — it is a snapshot duplicate of `normal_style` made at build time (`style.duplicate()`). When `_refresh_all_node_visuals()` darkens `normal_style.bg_color` for VISITED or LOCKED nodes, the hover stylebox still lightens from the original base color. This is acceptable for now but means hover tint does not respect the dimmed state. Fix by also updating `hover_style.bg_color` in `_refresh_all_node_visuals()` if that ever becomes an issue.
 - **`_input()` not `_unhandled_input()`** — intentional so pan drag is captured even when a press starts on a Button node. Do not change this without accounting for that.
 - **Node dict is mutated at runtime** — `nd["stamp_added"]` is set to `true` the first time a visited stamp is added. The dict is the same object in both `_node_data` and `_node_map`, so the mutation is shared.
+- **`stamp_added` is not persisted** — it's a runtime-only flag to prevent double-stamping within a session. On every scene load the flag starts `false`, and `_refresh_all_node_visuals()` re-adds stamps for all restored visited nodes correctly. Do not add `stamp_added` to the save file.
+- **MapManager holds no persistent state** — all run-wide data lives in `GameState`. On every scene load, `MapManager` fully rebuilds nodes, edges, adjacency, and the scene tree from scratch. Data survives because `GameState` is an autoload singleton (and is backed by `save.json`). Do not try to persist data inside `MapManager` fields directly.
+- **`seed()` is a global call** — `_build_edge_data()` calls Godot's global `seed()` function, which affects all subsequent uses of the global RNG. Currently no other system shares that RNG path, but if future code uses `randf()`/`randi()` anywhere after scene load it will be seeded by the map seed. Use `RandomNumberGenerator` instances if independent RNG streams are needed.
 
 ---
 
