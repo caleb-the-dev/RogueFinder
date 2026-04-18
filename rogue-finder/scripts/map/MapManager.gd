@@ -60,6 +60,8 @@ var _outer_ids: Array[String] = []
 
 ## --- Pan State ---
 
+var _node_prompt: Control = null
+
 var _is_panning: bool = false
 var _pan_start_mouse: Vector2 = Vector2.ZERO
 var _pan_start_container: Vector2 = Vector2.ZERO
@@ -454,13 +456,38 @@ func _add_type_icon(btn: Button, node_type: String) -> void:
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(icon)
 
+func _add_boss_glow(center_pos: Vector2) -> void:
+	var glow := Polygon2D.new()
+	var points: PackedVector2Array = []
+	var glow_radius := 34.0
+	for i in range(32):
+		var a := TAU * i / 32.0
+		points.append(center_pos + Vector2(cos(a), sin(a)) * glow_radius)
+	glow.polygon = points
+	glow.color = Color(0.95, 0.15, 0.05, 0.75)
+	_map_container.add_child(glow)
+	# Looping pulse: fade between dim and bright over ~1.6 s
+	var tween := create_tween().set_loops()
+	tween.tween_property(glow, "modulate:a", 0.1, 0.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(glow, "modulate:a", 1.0, 0.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
 func _add_nodes() -> void:
 	for nd in _node_data:
 		var is_hub: bool      = nd["is_hub"]
 		var node_type: String = nd["node_type"]
-		var node_size         := Vector2(56.0, 56.0) if is_hub else Vector2(32.0, 32.0)
-		var node_color        := _color_for_type(node_type)
-		var radius            := int(node_size.x * 0.5)
+		var node_size: Vector2
+		if is_hub:
+			node_size = Vector2(56.0, 56.0)
+		elif node_type == "BOSS":
+			node_size = Vector2(44.0, 44.0)
+		else:
+			node_size = Vector2(32.0, 32.0)
+		var node_color := _color_for_type(node_type)
+		var radius     := int(node_size.x * 0.5)
+
+		# Glow must be added before the button so it renders behind it
+		if node_type == "BOSS":
+			_add_boss_glow(nd["position"])
 
 		var btn := Button.new()
 		btn.size     = node_size
@@ -523,11 +550,12 @@ func _add_player_marker(map_pos: Vector2) -> void:
 
 func _desc_for_type(t: String) -> String:
 	match t:
-		"COMBAT":  return "An enemy patrol. Move here to engage."
+		"COMBAT":  return "An enemy patrol blocks the path."
 		"BOSS":    return "A powerful foe guards this location."
-		"VENDOR":  return "A merchant camp. Move here, then click to browse."
-		"EVENT":   return "Something stirs here. Move here to find out."
-		"CITY":    return "Badurga, the hub city. Click to enter."
+		"VENDOR":  return "A travelling merchant. Browse wares or pass through."
+		"EVENT":   return "Something stirs here. Approach and find out."
+		"CITY":    return "Badurga, the hub city. The heart of civilization in these parts."
+		"RECRUIT": return "A potential ally waits here. Speak with them or move on."
 		_:         return ""
 
 func _add_hover_tooltip() -> void:
@@ -633,6 +661,7 @@ func _add_cleared_stamp(btn: Button, nd: Dictionary) -> void:
 ## --- Traversal ---
 
 func _move_player_to(node_id: String) -> void:
+	_dismiss_prompt()
 	GameState.move_player(node_id)
 	GameState.save()
 	var target_pos: Vector2 = _node_map[node_id]["position"] + Vector2(0.0, -26.0)
@@ -640,12 +669,103 @@ func _move_player_to(node_id: String) -> void:
 	tween.tween_property(_player_marker, "position", target_pos, 0.25) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	_refresh_all_node_visuals()
+	await tween.finished
 
-	# VENDOR and CITY require a deliberate re-click to enter; everything else auto-starts
+	if GameState.cleared_nodes.has(node_id):
+		return  # cleared nodes are pass-through
+
 	var node_type: String = GameState.node_types.get(node_id, "COMBAT")
-	if node_type != "VENDOR" and node_type != "CITY":
-		await tween.finished
+	if node_type == "COMBAT" or node_type == "BOSS":
 		_enter_current_node()
+	else:
+		_show_node_prompt(node_id)
+
+## --- Node Prompt ---
+
+func _show_node_prompt(node_id: String) -> void:
+	_dismiss_prompt()
+
+	var node_type: String  = GameState.node_types.get(node_id, "EVENT")
+	var node_label: String = _node_map[node_id]["label"]
+	var type_color: Color  = _color_for_type(node_type).lightened(0.25)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(400.0, 0.0)
+	var style := StyleBoxFlat.new()
+	style.bg_color            = Color(0.07, 0.05, 0.03, 0.94)
+	style.border_width_left   = 2; style.border_width_right  = 2
+	style.border_width_top    = 2; style.border_width_bottom = 2
+	style.border_color        = _color_for_type(node_type)
+	style.corner_radius_top_left    = 6; style.corner_radius_top_right   = 6
+	style.corner_radius_bottom_left = 6; style.corner_radius_bottom_right = 6
+	style.content_margin_left  = 20.0; style.content_margin_right  = 20.0
+	style.content_margin_top   = 16.0; style.content_margin_bottom = 16.0
+	panel.add_theme_stylebox_override("panel", style)
+	add_child(panel)
+	_node_prompt = panel
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = node_label + "  [" + node_type.capitalize() + "]"
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", type_color)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+
+	var desc := Label.new()
+	desc.text = _desc_for_type(node_type)
+	desc.add_theme_font_size_override("font_size", 14)
+	desc.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.custom_minimum_size = Vector2(360.0, 0.0)
+	vbox.add_child(desc)
+
+	var hbox := HBoxContainer.new()
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	hbox.add_theme_constant_override("separation", 20)
+	vbox.add_child(hbox)
+
+	var enter_btn := Button.new()
+	enter_btn.text = "Enter"
+	enter_btn.custom_minimum_size = Vector2(120.0, 40.0)
+	enter_btn.add_theme_font_size_override("font_size", 15)
+	enter_btn.pressed.connect(_on_prompt_enter.bind(node_id))
+	hbox.add_child(enter_btn)
+
+	var pass_btn := Button.new()
+	pass_btn.text = "Keep Moving"
+	pass_btn.custom_minimum_size = Vector2(120.0, 40.0)
+	pass_btn.add_theme_font_size_override("font_size", 15)
+	pass_btn.pressed.connect(_on_prompt_pass)
+	hbox.add_child(pass_btn)
+
+	# Position after one frame so PanelContainer has computed its size
+	await get_tree().process_frame
+	if is_instance_valid(panel):
+		panel.position = Vector2(
+			(VIEWPORT_SIZE.x - panel.size.x) * 0.5,
+			VIEWPORT_SIZE.y - panel.size.y - 40.0
+		)
+
+func _dismiss_prompt() -> void:
+	if _node_prompt != null and is_instance_valid(_node_prompt):
+		_node_prompt.queue_free()
+	_node_prompt = null
+
+func _on_prompt_enter(node_id: String) -> void:
+	_dismiss_prompt()
+	# node_id == GameState.player_node_id at this point
+	_enter_current_node()
+
+func _on_prompt_pass() -> void:
+	_dismiss_prompt()
 
 ## --- Hover Callbacks ---
 
@@ -701,7 +821,8 @@ func _on_node_clicked(node_id: String) -> void:
 	if _drag_moved:
 		return
 	if node_id == GameState.player_node_id:
-		_enter_current_node()
+		if _node_prompt == null:
+			_enter_current_node()
 		return
 	if not GameState.is_adjacent_to_player(node_id, _adjacency):
 		return

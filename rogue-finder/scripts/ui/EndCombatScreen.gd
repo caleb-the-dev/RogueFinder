@@ -9,7 +9,6 @@ extends CanvasLayer
 const MAP_SCENE_PATH := "res://scenes/map/MapScene.tscn"
 
 var _reward_buttons: Array[Button] = []
-var _onward_btn: Button
 
 func _init() -> void:
 	layer = 15
@@ -67,31 +66,17 @@ func _build_victory_layout(items: Array) -> void:
 		btn.custom_minimum_size = Vector2(button_w, button_h)
 		btn.position    = Vector2(start_x + i * (button_w + gap), btn_y)
 		btn.add_theme_font_size_override("font_size", 16)
-		btn.pressed.connect(_on_reward_chosen.bind(item, i, btn))
+		btn.pressed.connect(_on_reward_chosen.bind(item, btn))
 		bg.add_child(btn)
 		_reward_buttons.append(btn)
 
-	_onward_btn = Button.new()
-	_onward_btn.text = "Onward..."
-	_onward_btn.custom_minimum_size = Vector2(220.0, 50.0)
-	_onward_btn.position = Vector2((1152.0 - 220.0) / 2.0, btn_y + button_h + 24.0)
-	_onward_btn.add_theme_font_size_override("font_size", 20)
-	_onward_btn.visible = false
-	_onward_btn.pressed.connect(_on_onward_pressed)
-	bg.add_child(_onward_btn)
 
-
-func _on_reward_chosen(item: Dictionary, chosen_index: int, chosen_btn: Button) -> void:
-	print("Reward chosen: ", item["name"])
+func _on_reward_chosen(item: Dictionary, chosen_btn: Button) -> void:
 	if GameState.has_method("add_to_inventory"):
 		GameState.add_to_inventory(item)
-	for i in range(_reward_buttons.size()):
-		_reward_buttons[i].disabled = true
+	for btn in _reward_buttons:
+		btn.disabled = true
 	chosen_btn.text = "✓ " + item["name"] + "\n" + item["description"]
-	_onward_btn.visible = true
-
-
-func _on_onward_pressed() -> void:
 	if not GameState.current_combat_node_id.is_empty():
 		if not GameState.cleared_nodes.has(GameState.current_combat_node_id):
 			GameState.cleared_nodes.append(GameState.current_combat_node_id)
