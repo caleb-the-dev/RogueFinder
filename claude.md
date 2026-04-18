@@ -11,68 +11,18 @@
 - **Repo:** https://github.com/caleb-the-dev/RogueFinder
 - **Docs:** https://docs.godotengine.org/en/stable/
 - **Solo dev** — one programmer, one artist (pixel art + learning Blender)
+- **Project layout:** The actual Godot project lives in `rogue-finder/`. All `res://` paths resolve there. Scripts under `rogue-finder/scripts/`, scenes under `rogue-finder/scenes/`, resources under `rogue-finder/resources/`. The repo root holds this doc, the bible, and `docs/`.
 
 ---
 
 ## Current Build State
 
 - **Stage:** Stage 1.5 — 3D combat prototype + traversable world map
-- **Last session:** Session 12 (Feature 4 — Scene Transition Polish + Node Tracking) — 2026-04-18
-- **Working:** Full 3D combat loop; MapScene as game entry point; 6 node types (COMBAT/BOSS/EVENT/VENDOR/CITY) with color-coded buttons, icon chars, and hover tooltip panels (name + type + description); moving to a node auto-starts the encounter after marker tween — except VENDOR and CITY which require re-click; COMBAT/BOSS → CombatScene3D; EVENT/VENDOR → NodeStub placeholder; NodeStub shows type name + "Return to Map" button; EndCombatScreen victory flow: pick reward → Onward... button → node marked cleared + save → return to map; EndCombatScreen defeat: "Return to Map" (no clear); cleared nodes show red ✗ stamp, are traversable but don't re-trigger combat; cleared_nodes saved to disk; GameState tracks node_types + cleared_nodes (saved), pending_node_type + current_combat_node_id (transient); delete-save debug button still present
-- **Broken / deferred:** City hub UI (Badurga interior); Recruit/Vendor/Event scene content (NodeStub placeholder); ability effects still placeholder; no per-ability QTEs
-- **Next task:** Stage 2 features — see backlog
+- **Entry point:** `main.tscn` → MapScene (game boots into the map, not combat)
+- **Live systems:** 3D combat loop · traversable world map with 6 node types · save/load · reward system
+- **Deferred:** City hub UI, Recruit/Vendor/Event scene content (NodeStub placeholder), per-ability QTE styles, ability effects are placeholder
 
----
-
-## Scene Structure
-
-```
-res://
-├── scenes/
-│   ├── combat/
-│   │   ├── CombatScene3D.tscn   # Active entry point (3D)
-│   │   ├── Unit3D.tscn          # Minimal — all children built in code
-│   │   ├── Grid3D.tscn          # Minimal
-│   │   ├── QTEBar.tscn          # CanvasLayer overlay (layer 10)
-│   │   ├── CombatScene.tscn     # Legacy 2D (kept for reference)
-│   │   ├── Unit.tscn            # Legacy 2D
-│   │   └── Grid.tscn            # Legacy 2D
-│   └── ui/
-│       └── HUD.tscn             # CanvasLayer overlay (layer 5) — legacy 2D only
-├── scripts/
-│   ├── camera/
-│   │   └── CameraController.gd  # DOS2-style orbit, Q/E rotate, shake
-│   ├── combat/
-│   │   ├── CombatManager3D.gd   # Turn SM, builds whole scene in _ready()
-│   │   ├── Unit3D.gd            # Box mesh, lunge anim, hit flash, 8-dir
-│   │   ├── Grid3D.gd            # PlaneMesh tiles, raycast picking, highlights
-│   │   ├── QTEBar.gd            # Sliding-bar QTE
-│   │   ├── CombatManager.gd     # Legacy 2D
-│   │   ├── Unit.gd              # Legacy 2D
-│   │   └── Grid.gd              # Legacy 2D
-│   ├── ui/
-│   │   ├── ActionMenu.gd        # Radial ability/consumable pop-up (layer 12)
-│   │   ├── StatPanel.gd         # Full examine window (double-click, layer 8)
-│   │   ├── UnitInfoBar.gd       # Condensed strip (single-click, layer 4)
-│   │   └── HUD.gd               # Legacy 2D only
-│   └── globals/
-│       ├── AbilityLibrary.gd    # 12 placeholder abilities, static factory
-│       ├── ArchetypeLibrary.gd  # 5 archetypes, CombatantData factory
-│       └── GameState.gd         # Autoload stub
-├── resources/
-│   ├── AbilityData.gd           # Ability resource (TargetType enum + fields)
-│   ├── CombatantData.gd         # Active stat resource (3D)
-│   └── UnitData.gd              # Legacy stat resource (2D only)
-├── scenes/map/
-│   └── MapScene.tscn            # World map (root + script only)
-├── scenes/misc/
-│   └── NodeStub.tscn            # Placeholder for unimplemented node types (root + script only)
-├── scripts/map/
-│   └── MapManager.gd            # Builds map scene in _ready(); owns traversal + type assignment logic
-├── scripts/misc/
-│   └── NodeStub.gd              # Reads GameState.pending_node_type; shows stub screen + return button
-└── main.tscn                    # Entry point → MapScene
-```
+For current feature-by-feature status and history, read `docs/map_directories/map.md` and the bucket files it links. For planned work, read `docs/backlog.md` (only when asked).
 
 ---
 
@@ -84,7 +34,7 @@ res://
 - `@export` for inspector-tweakable values; `@onready` for node refs
 - **Placeholder art:** Use the Godot icon (`load("res://icon.svg")`) as the default for all 2D placeholder artwork (portraits, ability icons, item icons). Replace with real art when assets arrive.
 - Section headers: `## --- Section Name ---`; comment the *why*, not the *what*
-- All .tscn files stay **minimal** (root + script only) — build children in `_ready()`
+- All `.tscn` files stay **minimal** (root + script only) — build children in `_ready()`
 - Signals named as past-tense events: `unit_moved`, `qte_resolved`
 
 ---
@@ -113,88 +63,39 @@ Do NOT test: rendering, input, anything needing a live scene.
 - Comment non-obvious logic; note structural decisions (why a signal, etc.)
 - Explain in plain terms when asked — dev knows GML/SQL, learning GDScript
 - Do NOT explain things not asked about
+- Ask the user for permission before triggering anything from the superpowers plugin.
+
+---
 
 ## Version Control Workflow
 
-Claude Code is used in the terminal, working directly in the repo. No worktrees are created.
+- Every session, create and push a branch named `claude/<feature>-<YYYYMMDD>` before any work.
+- **Never touch `main`** until the user explicitly approves the branch.
+- When work is ready, commit + push, then tell the user:
+  ```
+  Branch ready: claude/<feature>-<YYYYMMDD>
+  Open Godot from C:\Users\caleb\.local\bin\Projects\RogueFinder\ to test. Tell me to merge when you're happy.
+  ```
+- On approval: `git checkout main && git merge <branch> --no-ff && git push origin main`.
+- If the user rejects, keep iterating on the same branch.
 
-### The intended workflow (main stays protected)
+---
 
-```
-1. User gives prompt
-2. Claude creates a feature branch and does all work there
-3. Claude commits, pushes, and tells the user the branch is ready to test
-4. User opens Godot from the normal project folder to test
-5. User approves → Claude merges to main and pushes
-   User rejects  → Claude keeps iterating on the same branch (go to step 3)
-```
+## Documentation Protocol
 
-Main is **never touched until the user explicitly approves.**
+- **`docs/map_directories/map.md`** is the high-level index of all game systems. Read it first when working on an unfamiliar system, then navigate to the relevant bucket file. Only read what you need.
+- After any significant logic change or new system, update the relevant bucket `.md` files — changed/new signals, public methods, dependencies, structural decisions. If a change crosses systems, update both bucket files plus `map.md`.
+- Do not use this `CLAUDE.md` for workflow scratchwork, placeholders, or session history.
+- **`/wrapup`** is the authoritative end-of-session workflow (lives at `~/.claude/skills/wrapup/SKILL.md`). Do not do wrap-up work outside it.
 
-### Branch naming convention
+---
 
-Every session branch must be named: `claude/<short-feature-description>-<YYYYMMDD>`
+## Save System
 
-Examples: `claude/combatant-data-model-20260414`, `claude/combat-ui-polish-20260415`
+Save/load is live. Pattern: add a field to `GameState`, include it in `save()`'s data dict, read it back in `load_save()` (use `Array(..., TYPE_T, "", null)` for typed arrays). Save file: `user://save.json`.
 
-At the start of every session, Claude must create and push the branch:
-```bash
-git checkout -b claude/<feature>-<YYYYMMDD>
-git push -u origin claude/<feature>-<YYYYMMDD>
-```
-
-### When work is ready to test
-
-1. Commit all changes and push the branch.
-2. Tell the user:
-   ```
-   Branch ready: claude/<feature>-<YYYYMMDD>
-   Open Godot from C:\Users\caleb\.local\bin\Projects\RogueFinder\ to test. Tell me to merge when you're happy.
-   ```
-
-### When the user approves
-
-```bash
-git checkout main
-git merge claude/<feature>-<YYYYMMDD> --no-ff
-git push origin main
-```
-
-## Documentation & Context Maintenance
-
-### The Map Protocol
-- **Always** read `/docs/map_directories/map.md` first when starting a new session, but only if working on a system you are unfamiliar with.
-- `map.md` is the high-level index of all game systems. Use it to navigate to the relevant system bucket file before reading source code.
-- Each system bucket file in `/docs/map_directories/` is the authoritative prose description of that system's purpose, dependencies, signals, and public API.
-- Only read through the directories that you need to; this strategy is meant to give a map without overburdening with unnecessary context
-
-### This claude.md file
-- Do not use this doc to house workflow, placeholder information, scratchwork, or a session log .
-- Write or read C:\Users\caleb\.local\bin\Projects\RogueFinder\docs\backlog.md for any future plans, but do not read this file automatically. The user will keep track of the backlog. 
-
-### Automatic Updates
-After implementing any significant logic change or new system, Claude must update the relevant `.md` file(s) in `/docs/map_directories/` to reflect:
-- Changed or new signals
-- Changed or new public methods
-- New dependencies on other systems
-- Structural or design decisions made during implementation
-If a change affects multiple systems (e.g., a new signal crosses two systems), update **both** bucket files and the index in `map.md` if a new system was added.
-
-### Session Wrap-Up Skill (`/wrapup`)
-A global `/wrapup` skill lives at `C:\Users\caleb\.claude\skills\wrapup\SKILL.md`. When the user invokes `/wrapup` (or says "wrap up", "close out", "done for today", etc.), this skill takes over and:
-1. Commits any uncommitted work, pushes the feature branch, and merges to main
-2. Reads every `.gd` file changed this session and exhaustively updates all relevant map directory files — signals, public API, dependencies, gotchas, recent-changes rows, and `map.md` index/session log
-
-The skill is the authoritative end-of-session workflow. Do not do wrap-up work ad-hoc outside of it.
-
-## Teaching Mode
-- Ask user for permission before triggering anything from the superpowers plugin.
-
-### Save System
-Save/load is live. The pattern: add a field to `GameState`, include it in `save()`'s data dict, read it back in `load_save()` (use `Array(..., TYPE_T, "", null)` for any typed arrays). The save file is `user://save.json`.
-
-**Every new feature that introduces persistent run state must extend the save system.** Ask: "does this data need to survive a session?" If yes, add it to GameState and wire it into `save()`/`load_save()` in the same PR. Do not defer save wiring to a later session.
+**Every new feature that introduces persistent run state must extend the save system.** Ask: "does this data need to survive a session?" If yes, wire `save()`/`load_save()` in the same PR — do not defer.
 
 Currently saved: `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`.
 Not yet saved (Stage 2): party roster, inventory, faction reputation, combat state.
-Not persisted (transient): `pending_node_type` — consumed by NodeStub on scene entry; `current_combat_node_id` — set by MapManager before entering CombatScene3D, read by EndCombatScreen on Onward... press. Neither written to disk.
+Transient (never saved): `pending_node_type`, `current_combat_node_id` — consumed within a single scene transition.

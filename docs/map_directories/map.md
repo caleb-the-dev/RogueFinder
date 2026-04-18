@@ -9,8 +9,8 @@
 | Field | Value |
 |---|---|
 | last_updated | 2026-04-18 |
-| last_groomed | 2026-04-15 |
-| sessions_since_groom | 11 |
+| last_groomed | 2026-04-18 |
+| sessions_since_groom | 0 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -144,7 +144,7 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, an
 `AbilityData` (Resource) stores all fields for a single ability. `EffectData` (Resource) stores one effect within an ability. `TargetShape` enum: `SELF`, `SINGLE`, `CONE`, `LINE`, `RADIAL`. `EffectType` enum: `HARM`, `MEND`, `FORCE`, `TRAVEL`, `BUFF`, `DEBUFF`.
 
 ### Ability Library
-`AbilityLibrary` (static class) defines 12 abilities and provides `get_ability(id) -> AbilityData`. Returns a safe stub for unknown IDs. Future CSV import will replace the inline dictionary without changing the API.
+`AbilityLibrary` (static class) defines 22 abilities and provides `get_ability(id) -> AbilityData`. Returns a safe stub for unknown IDs. Future CSV import will replace the inline dictionary without changing the API.
 
 ### Consumable Data Model
 `ConsumableData` (Resource) stores id, name, effect_type, base_value, target_stat, and description for a single consumable. Only MEND, BUFF, and DEBUFF are valid effect types — consumables never HARM, FORCE, or TRAVEL.
@@ -216,7 +216,7 @@ res://
 │   │   ├── UnitInfoBar.gd       ← condensed strip (single-click)
 │   │   └── HUD.gd               ← legacy 2D only
 │   └── globals/
-│       ├── AbilityLibrary.gd    ← ability factory (12 abilities)
+│       ├── AbilityLibrary.gd    ← ability factory (22 abilities)
 │       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
 │       ├── ConsumableLibrary.gd ← consumable factory (healing_potion, power_tonic)
 │       ├── EquipmentLibrary.gd  ← equipment catalog (6 items, 2 per slot)
@@ -241,23 +241,12 @@ res://
 
 ---
 
-## Session Log
+## Recent Milestones
+
+Last 3 merged milestones. For full history, see `git log main`; for per-system history, see the `## Recent Changes` table in each bucket file.
 
 | Date | Area | Note |
 |---|---|---|
-| 2026-04-13 | Combat | Stage 1: 2D combat prototype — 6×4 grid, QTE, turn SM, HUD, test suite |
-| 2026-04-14 | Combat, Camera, Grid, Unit | Stage 1.5: 3D refactor — CameraController, Unit3D, Grid3D, CombatManager3D |
-| 2026-04-14 | Data, UI | Combatant data model, ArchetypeLibrary, UnitInfoBar, StatPanel, ActionMenu |
-| 2026-04-15 | Data, Combat | AbilityData/EffectData model, 12 abilities wired; CombatManager3D applies effects |
-| 2026-04-16 | Data, Combat | ConsumableData + ConsumableLibrary; consumable effect wired in CombatManager3D |
-| 2026-04-17 | Grid, Combat | Wall + hazard environment tiles: CellType enum, build_walls(), hazard on-entry and traversal damage, FORCE path tracking, COLOR_MOVE_HAZARD amber highlight, wall color polish |
-| 2026-04-16 | Data | EquipmentData + EquipmentLibrary (6 items); CombatantData slots typed; all derived stats include equipment bonuses |
-| 2026-04-17 | UI, Globals | EndCombatScreen (layer 15) + RewardGenerator; win/lose overlay replaces status label text |
-| 2026-04-17 | World Map | MapScene + MapManager: static spider-web node map, 28 nodes, hover labels, player marker, debug combat button |
-| 2026-04-18 | World Map, GameState | Feature 2: node traversal — adjacency lookup, click gating, GameState wiring (player_node_id, visited_nodes), marker tween, four node visual states (CURRENT/REACHABLE/VISITED/LOCKED), visited stamp, locked hover suppression |
-| 2026-04-18 | GameState, MapManager | Session 9: save/load system — map_seed field, save()/load_save()/delete_save(), deterministic map topology via seeded RNG, marker placed from GameState.player_node_id on load |
-| 2026-04-18 | MapManager, GameState | Session 10: debug delete-save button — "🗑 Delete Save (debug)" button wipes save file and resets in-memory GameState fields via new reset() method, then reloads scene for a clean fresh-run state without restarting Godot |
-| 2026-04-18 | MapManager, GameState, EndCombatScreen, main.tscn | Feature 3: node types, icons, scene routing — 6 node types with colors/icons/hover labels; BOSS extra border; _assign_node_types() deterministic per seed; re-click current node to enter; COMBAT/BOSS → CombatScene3D, others → NodeStub placeholder; game boots into MapScene; EndCombatScreen returns to map |
-| 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 4: scene transition polish + node tracking — current_combat_node_id transient field; cleared_nodes saved to disk; Onward... step on victory before returning to map; defeat button renamed "Return to Map"; CLEARED visual state (red ✗ stamp, darkened); cleared nodes traversable but _enter_current_node() no-ops on them |
-| 2026-04-18 | MapManager | Feature 5: procedural names, 1 BOSS, quadrant-aware bridges — three lore name pools (15/20/25) seeded per ring, names regenerate from map_seed (not saved); outer ring reduced to exactly 1 BOSS + RECRUIT slot added; _connect_gateways_v2() enforces ≥90° intra-pair gap and ≥30° cross-pair exclusion; hub connections exclude inner gateway nodes |
-| 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — player always starts at Badurga; Boss node 44×44 + pulsing red Polygon2D glow; EVENT nodes auto-start (no prompt); VENDOR/RECRUIT/CITY show bottom-center yes/no prompt (_show_node_prompt); _desc_for_type() helper; tooltip upgraded to ColorRect panel; EndCombatScreen "Onward..." button removed — reward selection immediately clears + saves + returns to map |
+| 2026-04-18 | MapManager | Feature 5: procedural names, 1 BOSS, quadrant-aware bridges |
+| 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — Badurga start, BOSS glow, node prompts, instant reward return |
+| 2026-04-18 | Docs | Session 13 grooming pass — bucket files synced to code |

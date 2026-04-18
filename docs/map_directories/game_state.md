@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-04-18 (Session 13 — Feature 5 + UX polish)
+> Last updated: 2026-04-18 (Session 13 grooming — clarified EndCombatScreen add_to_inventory guard behavior)
 
 ---
 
@@ -83,7 +83,7 @@ Note: `pending_node_type` and `current_combat_node_id` are **not** saved — the
 
 - **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `save()` after every move and after `_assign_node_types()`; calls `load_save()` at startup; calls `delete_save()` + `reset()` from the debug button; sets `pending_node_type` before transitioning to NodeStub; sets `current_combat_node_id` before transitioning to CombatScene3D; reads `cleared_nodes` in `_refresh_all_node_visuals()` and `_on_node_clicked()`
 - **NodeStub** reads and clears `GameState.pending_node_type` in `_ready()`
-- **EndCombatScreen** reads `current_combat_node_id` and appends to `cleared_nodes` immediately on reward selection (no "Onward..." step); calls `GameState.save()` then returns to map; calls `GameState.add_to_inventory()` stub (no-op currently)
+- **EndCombatScreen** reads `current_combat_node_id` and appends to `cleared_nodes` immediately on reward selection (no "Onward..." step); calls `GameState.save()` then returns to map. Calls `GameState.add_to_inventory(item)` only if it exists (`has_method()` guard); the method is **not** defined yet, so the call is currently skipped entirely. When Stage 2 adds inventory, define the method on GameState and the guard becomes a no-op.
 
 ---
 
