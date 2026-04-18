@@ -69,3 +69,4 @@ None currently.
 - The singleton pattern was chosen so that any scene in the game can access run state without manual node references or signal chains up the tree.
 - Do not put **combat-local** state here (selected unit, current turn, etc.) — that belongs in CombatManager. GameState is for data that persists between combat encounters.
 - The `adjacency` dict is intentionally passed into `is_adjacent_to_player()` from `MapManager` — GameState should not import or own map topology data.
+- **State is not persisted between scene changes.** `player_node_id` and `visited_nodes` reset to their defaults every time the game boots or the scene tree is reloaded. Feature 3 (scene transitions from map → combat → map) will require saving and restoring these values; do not assume they survive a `change_scene_to_file()` call.

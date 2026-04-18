@@ -161,6 +161,20 @@ Inter-ring connections use **stratified random gateways** — randomized on ever
 
 Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughly radial, preventing crossing between gateways. The stratified sampling prevents gateway clustering. The result is 2-3 bottleneck passages between each ring pair, different each run.
 
+## Entry Point
+
+`MapScene.tscn` is **not** the game entry point. `main.tscn` boots directly into `CombatScene3D.tscn`. The only path to the map is the `"→ Combat (debug)"` button in the map itself, which exits to combat — there is no reverse route yet. Feature 3 will wire up the actual entry flow.
+
+---
+
+## Gotchas
+
+- **`hover_style` is not updated by `_refresh_all_node_visuals()`** — it is a snapshot duplicate of `normal_style` made at build time (`style.duplicate()`). When `_refresh_all_node_visuals()` darkens `normal_style.bg_color` for VISITED or LOCKED nodes, the hover stylebox still lightens from the original base color. This is acceptable for now but means hover tint does not respect the dimmed state. Fix by also updating `hover_style.bg_color` in `_refresh_all_node_visuals()` if that ever becomes an issue.
+- **`_input()` not `_unhandled_input()`** — intentional so pan drag is captured even when a press starts on a Button node. Do not change this without accounting for that.
+- **Node dict is mutated at runtime** — `nd["stamp_added"]` is set to `true` the first time a visited stamp is added. The dict is the same object in both `_node_data` and `_node_map`, so the mutation is shared.
+
+---
+
 ## Explicitly Deferred
 
 - Node types / encounter categories
