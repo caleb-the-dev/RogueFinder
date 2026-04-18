@@ -126,15 +126,76 @@ func _build_node_data() -> void:
 	_node_data[-1]["is_player_start"] = true
 	_node_map["node_o11"]["is_player_start"] = true
 
+	_assign_node_types()
+
 func _add_node(id: String, pos: Vector2, angle: float, label: String,
 		is_hub: bool, is_player_start: bool) -> void:
 	var nd := {
 		"id": id, "position": pos, "angle": angle,
 		"label": label, "is_hub": is_hub, "is_player_start": is_player_start,
 		"stamp_added": false,
+		"node_type": GameState.node_types.get(id, "COMBAT"),
 	}
 	_node_data.append(nd)
 	_node_map[id] = nd
+
+func _assign_node_types() -> void:
+	# Skip if types were already loaded from save
+	if not GameState.node_types.is_empty():
+		# Patch node_type onto dicts now that GameState is populated
+		for nd in _node_data:
+			nd["node_type"] = GameState.node_types.get(nd["id"], "COMBAT")
+		return
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = GameState.map_seed  # isolated from global seed() used in _build_edge_data
+
+	GameState.node_types["badurga"] = "CITY"
+
+	# Pick 2 BOSS nodes from outer ring; ensure player start is never BOSS
+	var boss_pool: Array[String] = _outer_ids.duplicate()
+	for i in range(boss_pool.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp := boss_pool[i]; boss_pool[i] = boss_pool[j]; boss_pool[j] = tmp
+	var boss_ids: Array[String] = [boss_pool[0], boss_pool[1]]
+	for i in range(boss_ids.size()):
+		if boss_ids[i] == GameState.player_node_id:
+			boss_ids[i] = boss_pool[2]
+	for id in boss_ids:
+		GameState.node_types[id] = "BOSS"
+
+	# Remaining 10 outer nodes: COMBAT×6, EVENT×2, RECRUIT×1, VENDOR×1
+	var outer_pool := ["COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
+					   "EVENT","EVENT","RECRUIT","VENDOR"]
+	for i in range(outer_pool.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp := outer_pool[i]; outer_pool[i] = outer_pool[j]; outer_pool[j] = tmp
+	var pool_idx := 0
+	for id in _outer_ids:
+		if not GameState.node_types.has(id):
+			GameState.node_types[id] = outer_pool[pool_idx]
+			pool_idx += 1
+
+	# Middle ring (9): COMBAT×4, EVENT×3, RECRUIT×2
+	var mid_pool := ["COMBAT","COMBAT","COMBAT","COMBAT","EVENT","EVENT","EVENT","RECRUIT","RECRUIT"]
+	for i in range(mid_pool.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp := mid_pool[i]; mid_pool[i] = mid_pool[j]; mid_pool[j] = tmp
+	for i in range(_middle_ids.size()):
+		GameState.node_types[_middle_ids[i]] = mid_pool[i]
+
+	# Inner ring (6): RECRUIT×2, VENDOR×2, EVENT×2
+	var inner_pool := ["RECRUIT","RECRUIT","VENDOR","VENDOR","EVENT","EVENT"]
+	for i in range(inner_pool.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp := inner_pool[i]; inner_pool[i] = inner_pool[j]; inner_pool[j] = tmp
+	for i in range(_inner_ids.size()):
+		GameState.node_types[_inner_ids[i]] = inner_pool[i]
+
+	# Patch node_type onto already-built dicts and persist
+	for nd in _node_data:
+		nd["node_type"] = GameState.node_types.get(nd["id"], "COMBAT")
+	GameState.save()
 
 ## --- Edge Data ---
 
@@ -238,17 +299,10 @@ func _add_ui_chrome() -> void:
 	lbl.label_settings = s
 	add_child(lbl)
 
-	var btn := Button.new()
-	btn.text = "→ Combat (debug)"
-	btn.size = Vector2(160.0, 36.0)
-	btn.position = Vector2(VIEWPORT_SIZE.x - 172.0, 8.0)
-	btn.pressed.connect(_on_debug_combat_pressed)
-	add_child(btn)
-
 	var del_btn := Button.new()
 	del_btn.text = "🗑 Delete Save (debug)"
 	del_btn.size = Vector2(200.0, 36.0)
-	del_btn.position = Vector2(VIEWPORT_SIZE.x - 172.0 - 212.0, 8.0)
+	del_btn.position = Vector2(VIEWPORT_SIZE.x - 212.0, 8.0)
 	del_btn.pressed.connect(_on_debug_delete_save_pressed)
 	add_child(del_btn)
 
@@ -267,12 +321,46 @@ func _add_edges() -> void:
 		line.width = 3.0
 		_map_container.add_child(line)
 
+func _color_for_type(t: String) -> Color:
+	match t:
+		"COMBAT":  return Color(0.70, 0.22, 0.18)
+		"RECRUIT": return Color(0.20, 0.55, 0.28)
+		"VENDOR":  return Color(0.48, 0.22, 0.68)
+		"EVENT":   return Color(0.20, 0.42, 0.72)
+		"BOSS":    return Color(0.40, 0.08, 0.08)
+		"CITY":    return Color(0.85, 0.65, 0.25)
+		_:         return Color(0.72, 0.60, 0.44)
+
+func _icon_for_type(t: String) -> String:
+	match t:
+		"COMBAT":  return "X"
+		"RECRUIT": return "+"
+		"VENDOR":  return "$"
+		"EVENT":   return "?"
+		"BOSS":    return "!"
+		"CITY":    return "★"
+		_:         return ""
+
+func _add_type_icon(btn: Button, node_type: String) -> void:
+	var icon := Label.new()
+	icon.text = _icon_for_type(node_type)
+	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var s := LabelSettings.new()
+	s.font_size = 10
+	s.font_color = Color.WHITE
+	icon.label_settings = s
+	# Must ignore mouse or it swallows button press events
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(icon)
+
 func _add_nodes() -> void:
 	for nd in _node_data:
-		var is_hub: bool  = nd["is_hub"]
-		var node_size     := Vector2(56.0, 56.0) if is_hub else Vector2(32.0, 32.0)
-		var node_color    := Color(0.85, 0.65, 0.25) if is_hub else Color(0.72, 0.60, 0.44)
-		var radius        := int(node_size.x * 0.5)
+		var is_hub: bool      = nd["is_hub"]
+		var node_type: String = nd["node_type"]
+		var node_size         := Vector2(56.0, 56.0) if is_hub else Vector2(32.0, 32.0)
+		var node_color        := _color_for_type(node_type)
+		var radius            := int(node_size.x * 0.5)
 
 		var btn := Button.new()
 		btn.size     = node_size
@@ -289,6 +377,15 @@ func _add_nodes() -> void:
 		style.border_width_top    = 2
 		style.border_width_bottom = 2
 		style.border_color = Color(0.25, 0.18, 0.10)
+
+		# BOSS nodes always show a bright red border regardless of visual state
+		if node_type == "BOSS":
+			style.border_width_left   = 3
+			style.border_width_right  = 3
+			style.border_width_top    = 3
+			style.border_width_bottom = 3
+			style.border_color = Color(0.80, 0.15, 0.10)
+
 		btn.add_theme_stylebox_override("normal", style)
 
 		var hover_style := style.duplicate() as StyleBoxFlat
@@ -297,6 +394,7 @@ func _add_nodes() -> void:
 
 		btn.set_meta("node_id",      nd["id"])
 		btn.set_meta("node_label",   nd["label"])
+		btn.set_meta("node_type",    node_type)
 		btn.set_meta("base_color",   node_color)
 		btn.set_meta("is_hub",       is_hub)
 		btn.set_meta("normal_style", style)
@@ -307,6 +405,7 @@ func _add_nodes() -> void:
 		btn.pressed.connect(_on_node_clicked.bind(nd["id"]))
 
 		_map_container.add_child(btn)
+		_add_type_icon(btn, node_type)
 		_buttons[nd["id"]] = btn
 
 		if nd["id"] == GameState.player_node_id:
@@ -421,7 +520,8 @@ func _on_node_hover_enter(btn: Button) -> void:
 
 	var map_pos: Vector2 = btn.get_meta("map_pos")
 
-	_hover_label.text    = btn.get_meta("node_label")
+	var type_str: String = (btn.get_meta("node_type") as String).capitalize()
+	_hover_label.text    = btn.get_meta("node_label") + " [" + type_str + "]"
 	_hover_label.visible = true
 	# Wait one frame for the label's size to be computed before centering it
 	await get_tree().process_frame
@@ -456,13 +556,22 @@ func _on_node_clicked(node_id: String) -> void:
 	if _drag_moved:
 		return
 	if node_id == GameState.player_node_id:
+		_enter_current_node()
 		return
 	if not GameState.is_adjacent_to_player(node_id, _adjacency):
 		return
 	_move_player_to(node_id)
 
-func _on_debug_combat_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+func _enter_current_node() -> void:
+	var node_type: String = GameState.node_types.get(GameState.player_node_id, "COMBAT")
+	match node_type:
+		"COMBAT", "BOSS":
+			get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+		"CITY":
+			pass  # Badurga interior — deferred to a future session
+		_:
+			GameState.pending_node_type = node_type
+			get_tree().change_scene_to_file("res://scenes/misc/NodeStub.tscn")
 
 func _on_debug_delete_save_pressed() -> void:
 	GameState.delete_save()

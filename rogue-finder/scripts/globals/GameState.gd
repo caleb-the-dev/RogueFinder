@@ -12,6 +12,8 @@ var player_node_id: String = "node_o11"
 var visited_nodes: Array[String] = ["node_o11"]
 # Owned here so load_save() can restore it before MapManager seeds its RNG.
 var map_seed: int = 0  # 0 = not yet seeded
+var node_types: Dictionary = {}    # id -> String; populated by MapManager on first run, saved to disk
+var pending_node_type: String = "" # consumed by NodeStub on scene entry; NOT saved to disk
 
 func move_player(node_id: String) -> void:
 	player_node_id = node_id
@@ -33,6 +35,7 @@ func save() -> void:
 		"player_node_id": player_node_id,
 		"visited_nodes": visited_nodes,
 		"map_seed": map_seed,
+		"node_types": node_types,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data, "\t"))
@@ -49,6 +52,8 @@ func load_save() -> bool:
 	# JSON returns untyped Array; convert back to the typed form
 	visited_nodes = Array(raw_visited, TYPE_STRING, "", null)
 	map_seed = parsed.get("map_seed", 0)
+	# Dictionary values are already strings from JSON; no typed conversion needed
+	node_types = parsed.get("node_types", {})
 	return true
 
 func delete_save() -> void:
@@ -61,3 +66,5 @@ func reset() -> void:
 	player_node_id = "node_o11"
 	visited_nodes = ["node_o11"]
 	map_seed = 0
+	node_types = {}
+	pending_node_type = ""

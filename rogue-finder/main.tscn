@@ -1,8 +1,8 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="PackedScene" path="res://scenes/combat/CombatScene3D.tscn" id="1_combat3d"]
+[ext_resource type="PackedScene" path="res://scenes/map/MapScene.tscn" id="1_mapscene"]
 
-; Entry point — Stage 1 3D combat prototype.
+; Entry point — boots into the world map.
 [node name="Main" type="Node3D"]
 
-[node name="CombatScene3D" parent="." instance=ExtResource("1_combat3d")]
+[node name="MapScene" parent="." instance=ExtResource("1_mapscene")]

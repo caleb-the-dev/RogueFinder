@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-18 |
 | last_groomed | 2026-04-15 |
-| sessions_since_groom | 8 |
+| sessions_since_groom | 9 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -88,7 +88,10 @@ CombatantData
   └── EquipmentData    (weapon / armor / accessory slots)
 
 MapManager
-  └── GameState        (reads player_node_id/visited_nodes/map_seed; calls move_player, save, load_save)
+  └── GameState        (reads player_node_id/visited_nodes/map_seed/node_types; calls move_player, save, load_save; sets pending_node_type before NodeStub transition)
+
+NodeStub
+  └── GameState        (reads+clears pending_node_type)
 
 GameState              (autoload — map traversal + save/load live; all other data deferred)
 ```
@@ -122,7 +125,7 @@ CanvasLayer overlay (layer 8) opened on double-click of any unit. Shows the comp
 Condensed CanvasLayer strip (layer 4). Shown on single-click of any unit. Displays name, class, HP bar, energy bar, ATK/DEF/SPD. Hidden on deselect and combat end.
 
 ### End Combat Screen
-CanvasLayer overlay (layer 15) shown when combat ends. Victory shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)`. Defeat shows "DEFEAT" + "Try Again". Reward pick logs to console and calls `GameState.add_to_inventory()` stub. Both paths reload `CombatScene3D.tscn`. Lives in `scripts/ui/EndCombatScreen.gd`.
+CanvasLayer overlay (layer 15) shown when combat ends. Victory shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)`. Defeat shows "DEFEAT" + "Try Again". Both paths return to `MapScene.tscn`. Reward pick logs to console and calls `GameState.add_to_inventory()` stub. Lives in `scripts/ui/EndCombatScreen.gd`.
 
 ### Reward Generator
 Static utility (`scripts/globals/RewardGenerator.gd`). Combines all `EquipmentLibrary` and `ConsumableLibrary` items into one pool, Fisher-Yates shuffles, and returns `count` distinct Dicts (`id`, `name`, `description`, `item_type`).
@@ -160,7 +163,7 @@ Autoload singleton. Map traversal and save/load are live: tracks `player_node_id
 ## World Map
 
 ### Map Scene
-Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Player can click adjacent nodes to traverse the map; marker tweens to the new node. Nodes display four visual states (CURRENT / REACHABLE / VISITED / LOCKED). Hover is suppressed for LOCKED nodes. Map topology is seeded per run (deterministic on reload). Wired to GameState for traversal and save/load. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
+Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a type (COMBAT, RECRUIT, VENDOR, EVENT, BOSS, CITY) with distinct color, icon, and hover label. Player traverses by clicking adjacent nodes; re-clicking the current node enters it (launches CombatScene3D for COMBAT/BOSS, NodeStub placeholder for others, no-op for CITY). Nodes display four visual states (CURRENT / REACHABLE / VISITED / LOCKED). Map topology and type assignments are seeded per run (deterministic on reload). Wired to GameState for traversal, node types, and save/load. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
 
 ---
 
@@ -224,8 +227,12 @@ res://
     └── UnitData.gd              ← legacy data resource (2D only)
 ├── scenes/map/
 │   └── MapScene.tscn            ← world map shell (root + script only)
-└── scripts/map/
-    └── MapManager.gd            ← builds map scene in _ready()
+├── scenes/misc/
+│   └── NodeStub.tscn            ← placeholder for unimplemented node types (root + script only)
+├── scripts/map/
+│   └── MapManager.gd            ← builds map scene in _ready()
+└── scripts/misc/
+    └── NodeStub.gd              ← reads GameState.pending_node_type; shows stub screen with return button
 ```
 
 ---
@@ -246,3 +253,4 @@ res://
 | 2026-04-18 | World Map, GameState | Feature 2: node traversal — adjacency lookup, click gating, GameState wiring (player_node_id, visited_nodes), marker tween, four node visual states (CURRENT/REACHABLE/VISITED/LOCKED), visited stamp, locked hover suppression |
 | 2026-04-18 | GameState, MapManager | Session 9: save/load system — map_seed field, save()/load_save()/delete_save(), deterministic map topology via seeded RNG, marker placed from GameState.player_node_id on load |
 | 2026-04-18 | MapManager, GameState | Session 10: debug delete-save button — "🗑 Delete Save (debug)" button wipes save file and resets in-memory GameState fields via new reset() method, then reloads scene for a clean fresh-run state without restarting Godot |
+| 2026-04-18 | MapManager, GameState, EndCombatScreen, main.tscn | Feature 3: node types, icons, scene routing — 6 node types with colors/icons/hover labels; BOSS extra border; _assign_node_types() deterministic per seed; re-click current node to enter; COMBAT/BOSS → CombatScene3D, others → NodeStub placeholder; game boots into MapScene; EndCombatScreen returns to map |

@@ -28,6 +28,7 @@ Defined in `_build_node_data()` as `Array[Dictionary]`. Each dictionary has:
 | `is_hub` | `bool` | `true` only for Badurga (center node) |
 | `is_player_start` | `bool` | `true` for exactly one node (current: `"The Last Waypost"`, outer ring) |
 | `stamp_added` | `bool` | `true` after the visited ✓ stamp Label has been added as a button child |
+| `node_type` | `String` | One of `"COMBAT"`, `"RECRUIT"`, `"VENDOR"`, `"EVENT"`, `"BOSS"`, `"CITY"` — set by `_assign_node_types()` at end of `_build_node_data()` |
 
 ### Layout
 
@@ -55,6 +56,8 @@ Connection rules (see also "Edge Layout" section below for the no-crossing desig
 - Inner → middle: 3 stratified-random gateways (randomized each run)
 - Middle → outer: 3 stratified-random gateways (randomized each run)
 
+`_build_node_data()` ends by calling `_assign_node_types()`. This method uses a **separate** `RandomNumberGenerator` instance seeded from `GameState.map_seed` (isolated from the global `seed()` call in `_build_edge_data()`), so type assignment and edge topology are independently reproducible from the same seed.
+
 Before any random call in `_build_edge_data()`, the RNG is seeded from `GameState.map_seed`. On a fresh run `GameState.map_seed` is `0`, so MapManager generates a seed via `randi()` and stores it; on subsequent loads the saved seed is restored first. This makes the map topology identical across sessions for a given run.
 
 ---
@@ -65,16 +68,46 @@ Built in `_build_adjacency()` after `_build_edge_data()`. Stored in `_adjacency:
 
 ---
 
+## Node Types
+
+Six node types give each encounter a distinct identity.
+
+| Type | Color | Icon | Description |
+|---|---|---|---|
+| `COMBAT` | `Color(0.70, 0.22, 0.18)` | `X` | Standard enemy encounter |
+| `RECRUIT` | `Color(0.20, 0.55, 0.28)` | `+` | Add a new unit to your party |
+| `VENDOR` | `Color(0.48, 0.22, 0.68)` | `$` | Buy/sell gear |
+| `EVENT` | `Color(0.20, 0.42, 0.72)` | `?` | Random narrative event |
+| `BOSS` | `Color(0.40, 0.08, 0.08)` | `!` | Elite enemy; extra red border (3 px, `Color(0.80, 0.15, 0.10)`) |
+| `CITY` | `Color(0.85, 0.65, 0.25)` | `★` | Badurga (hub); interior deferred |
+
+CITY is reserved exclusively for `"badurga"`. The icon is a small `Label` child (font size 10, white) with `MOUSE_FILTER_IGNORE` so it doesn't swallow button press events.
+
+### Type Distribution (per ring, per run)
+
+| Ring | Nodes | Distribution |
+|---|---|---|
+| Outer (12) | 12 | 2 BOSS, 6 COMBAT, 2 EVENT, 1 RECRUIT, 1 VENDOR |
+| Middle (9) | 9 | 4 COMBAT, 3 EVENT, 2 RECRUIT |
+| Inner (6) | 6 | 2 RECRUIT, 2 VENDOR, 2 EVENT |
+| Center | 1 | CITY (always Badurga) |
+
+Player start node (`node_o11`) is never BOSS — swap logic protects it during assignment.
+
+---
+
 ## Rendering
 
 | Element | Implementation |
 |---|---|
 | Background | `ColorRect` 1280×720, `Color(0.82, 0.74, 0.58)` (parchment) |
 | Edges | `Line2D` nodes, `Color(0.55, 0.42, 0.28)`, width 3 px |
-| Normal nodes | `Button` with `StyleBoxFlat` circle, `Color(0.72, 0.60, 0.44)`, size 32×32 |
+| Normal nodes | `Button` with `StyleBoxFlat` circle, color derived from `node_type`, size 32×32 |
 | Hub (Badurga) | `Button` with `StyleBoxFlat` circle, `Color(0.85, 0.65, 0.25)` (gold), size 56×56 |
-| All node borders | 2 px default, `Color(0.25, 0.18, 0.10)` |
-| Layer order | ColorRect → Line2Ds → Buttons → player marker → hover label |
+| Default node borders | 2 px, `Color(0.25, 0.18, 0.10)` |
+| BOSS node borders | Always 3 px, `Color(0.80, 0.15, 0.10)` bright red |
+| Type icons | `Label` child, font size 10, white, `MOUSE_FILTER_IGNORE` |
+| Layer order | ColorRect → Line2Ds → Buttons (+ icon Labels) → player marker → hover label |
 
 ---
 
@@ -106,9 +139,21 @@ Visited nodes also receive a small `✓` Label child (stamp). The stamp is added
 `_on_node_clicked(node_id)` gates movement:
 
 1. Ignored if `_drag_moved` (click was part of a pan)
-2. Ignored if `node_id == GameState.player_node_id` (already here)
+2. If `node_id == GameState.player_node_id` → calls `_enter_current_node()` (re-click to enter)
 3. Ignored if `not GameState.is_adjacent_to_player(node_id, _adjacency)` (not reachable)
-4. Otherwise calls `_move_player_to(node_id)`
+4. Otherwise calls `_move_player_to(node_id)` to traverse
+
+### Scene Entry — `_enter_current_node()`
+
+Dispatches scene routing based on the current node's type:
+
+| Node type | Action |
+|---|---|
+| `COMBAT` or `BOSS` | `change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")` |
+| `CITY` | No-op (Badurga interior deferred) |
+| `RECRUIT`, `VENDOR`, `EVENT` | Set `GameState.pending_node_type = node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
+
+`NodeStub` reads and clears `GameState.pending_node_type` in `_ready()` and shows a placeholder screen with a "← Return to Map" button.
 
 `_move_player_to(node_id)`:
 - Calls `GameState.move_player(node_id)` (updates player position + visited list)
@@ -118,8 +163,8 @@ Visited nodes also receive a small `✓` Label child (stamp). The stamp is added
 
 `_ready()` order after save/load integration:
 1. `GameState.load_save()` — restore saved state (or no-op on fresh run)
-2. `_build_node_data()` — define all 28 nodes
-3. `_build_edge_data()` — seed RNG from `GameState.map_seed`, build deterministic edges
+2. `_build_node_data()` — define all 28 nodes; calls `_assign_node_types()` at the end
+3. `_build_edge_data()` — seed global RNG from `GameState.map_seed`, build deterministic edges
 4. `_build_adjacency()` — build undirected adjacency dict
 5. `_build_scene()` — render everything; marker placed at `GameState.player_node_id`
 
@@ -138,6 +183,8 @@ Uses a **single shared `Label`** (`_hover_label`) repositioned on each hover eve
 
 LOCKED nodes feel inert — no scale animation, no label.
 
+Hover label format: `"<node_label> [<Type>]"` (e.g. `"Ashwood Hollow [Combat]"`, `"Badurga [City]"`). Type string is capitalized via `.capitalize()`.
+
 ---
 
 ## Debug Elements (temporary)
@@ -145,8 +192,9 @@ LOCKED nodes feel inert — no scale animation, no label.
 | Element | Purpose |
 |---|---|
 | `"[MAP SCENE]"` label (top-left) | Visual confirmation of scene load |
-| `"→ Combat (debug)"` button (top-right) | Loads `res://scenes/combat/CombatScene3D.tscn` — will be removed in Feature 3 when real scene routing replaces it |
-| `"🗑 Delete Save (debug)"` button (top-right, left of combat button) | Calls `GameState.delete_save()` + `GameState.reset()` then `reload_current_scene()` — wipes the save file and resets all in-memory GameState fields to fresh-run defaults. Gives a completely clean state without restarting Godot. |
+| `"🗑 Delete Save (debug)"` button (top-right) | Calls `GameState.delete_save()` + `GameState.reset()` then `reload_current_scene()` — wipes the save file and resets all in-memory GameState fields to fresh-run defaults. Gives a completely clean state without restarting Godot. |
+
+The `"→ Combat (debug)"` button was removed in Feature 3 — real scene routing via `_enter_current_node()` replaced it.
 
 ---
 
@@ -188,13 +236,15 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - **`stamp_added` is not persisted** — it's a runtime-only flag to prevent double-stamping within a session. On every scene load the flag starts `false`, and `_refresh_all_node_visuals()` re-adds stamps for all restored visited nodes correctly. Do not add `stamp_added` to the save file.
 - **MapManager holds no persistent state** — all run-wide data lives in `GameState`. On every scene load, `MapManager` fully rebuilds nodes, edges, adjacency, and the scene tree from scratch. Data survives because `GameState` is an autoload singleton (and is backed by `save.json`). Do not try to persist data inside `MapManager` fields directly.
 - **`seed()` is a global call** — `_build_edge_data()` calls Godot's global `seed()` function, which affects all subsequent uses of the global RNG. Currently no other system shares that RNG path, but if future code uses `randf()`/`randi()` anywhere after scene load it will be seeded by the map seed. Use `RandomNumberGenerator` instances if independent RNG streams are needed.
-- **`GameState.reset()` must be kept in sync with GameState fields** — the debug delete-save button calls `GameState.reset()` before reloading the scene. When new persistent fields are added to `GameState` in future features (e.g., `node_types`, `pending_node_type`), also add them to `reset()` so the debug button continues to produce a truly clean state.
+- **`GameState.reset()` must be kept in sync with GameState fields** — the debug delete-save button calls `GameState.reset()` before reloading the scene. When new persistent fields are added to `GameState` in future features, also add them to `reset()` so the debug button continues to produce a truly clean state.
+- **Type icons use `MOUSE_FILTER_IGNORE`** — the icon `Label` child of each button must have `mouse_filter = Control.MOUSE_FILTER_IGNORE` or it will intercept mouse events and prevent button presses from registering.
+- **`node_types` is saved on first assignment** — `_assign_node_types()` calls `GameState.save()` after populating `node_types`. On reload, the saved dict is restored by `load_save()` and `_assign_node_types()` skips re-assignment entirely (non-empty dict check).
 
 ---
 
 ## Explicitly Deferred
 
-- Node types / encounter categories
-- Scene transitions on node click (launch encounter)
+- City hub UI (Badurga interior)
+- Recruit / Vendor / Event scene content (NodeStub is placeholder)
 - Procedural generation of the map layout
 - Fog of war
