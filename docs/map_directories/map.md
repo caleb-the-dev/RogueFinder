@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-18 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 0 |
+| sessions_since_groom | 1 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -88,10 +88,12 @@ CombatantData
   └── EquipmentData    (weapon / armor / accessory slots)
 
 MapManager
-  └── GameState        (reads player_node_id/visited_nodes/map_seed/node_types/cleared_nodes; calls move_player, save, load_save; sets pending_node_type before NodeStub transition; sets current_combat_node_id before CombatScene3D transition)
+  └── GameState        (reads player_node_id/visited_nodes/map_seed/node_types/cleared_nodes; calls move_player, save, load_save; sets pending_node_type before NodeStub transition; sets current_combat_node_id before CombatScene3D transition; transitions directly to BadurgaScene for CITY nodes)
 
 NodeStub
   └── GameState        (reads+clears pending_node_type)
+
+BadurgaManager         (standalone — no dependencies; returns to MapScene on back button)
 
 EndCombatScreen
   ├── RewardGenerator  (shuffled pool of EquipmentLibrary + ConsumableLibrary items)
