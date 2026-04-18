@@ -156,7 +156,7 @@ func _assign_node_types() -> void:
 	var boss_pool: Array[String] = _outer_ids.duplicate()
 	for i in range(boss_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
-		var tmp := boss_pool[i]; boss_pool[i] = boss_pool[j]; boss_pool[j] = tmp
+		var tmp: String = boss_pool[i]; boss_pool[i] = boss_pool[j]; boss_pool[j] = tmp
 	var boss_ids: Array[String] = [boss_pool[0], boss_pool[1]]
 	for i in range(boss_ids.size()):
 		if boss_ids[i] == GameState.player_node_id:
@@ -165,11 +165,11 @@ func _assign_node_types() -> void:
 		GameState.node_types[id] = "BOSS"
 
 	# Remaining 10 outer nodes: COMBAT×6, EVENT×2, RECRUIT×1, VENDOR×1
-	var outer_pool := ["COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
+	var outer_pool: Array[String] = ["COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
 					   "EVENT","EVENT","RECRUIT","VENDOR"]
 	for i in range(outer_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
-		var tmp := outer_pool[i]; outer_pool[i] = outer_pool[j]; outer_pool[j] = tmp
+		var tmp: String = outer_pool[i]; outer_pool[i] = outer_pool[j]; outer_pool[j] = tmp
 	var pool_idx := 0
 	for id in _outer_ids:
 		if not GameState.node_types.has(id):
@@ -177,18 +177,18 @@ func _assign_node_types() -> void:
 			pool_idx += 1
 
 	# Middle ring (9): COMBAT×4, EVENT×3, RECRUIT×2
-	var mid_pool := ["COMBAT","COMBAT","COMBAT","COMBAT","EVENT","EVENT","EVENT","RECRUIT","RECRUIT"]
+	var mid_pool: Array[String] = ["COMBAT","COMBAT","COMBAT","COMBAT","EVENT","EVENT","EVENT","RECRUIT","RECRUIT"]
 	for i in range(mid_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
-		var tmp := mid_pool[i]; mid_pool[i] = mid_pool[j]; mid_pool[j] = tmp
+		var tmp: String = mid_pool[i]; mid_pool[i] = mid_pool[j]; mid_pool[j] = tmp
 	for i in range(_middle_ids.size()):
 		GameState.node_types[_middle_ids[i]] = mid_pool[i]
 
 	# Inner ring (6): RECRUIT×2, VENDOR×2, EVENT×2
-	var inner_pool := ["RECRUIT","RECRUIT","VENDOR","VENDOR","EVENT","EVENT"]
+	var inner_pool: Array[String] = ["RECRUIT","RECRUIT","VENDOR","VENDOR","EVENT","EVENT"]
 	for i in range(inner_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
-		var tmp := inner_pool[i]; inner_pool[i] = inner_pool[j]; inner_pool[j] = tmp
+		var tmp: String = inner_pool[i]; inner_pool[i] = inner_pool[j]; inner_pool[j] = tmp
 	for i in range(_inner_ids.size()):
 		GameState.node_types[_inner_ids[i]] = inner_pool[i]
 
