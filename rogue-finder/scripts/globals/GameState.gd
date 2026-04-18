@@ -54,3 +54,10 @@ func load_save() -> bool:
 func delete_save() -> void:
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+
+# Resets all in-memory fields to fresh-run defaults. Call before reload_current_scene()
+# when wiping a save mid-session — load_save() does NOT reset fields on a missing file.
+func reset() -> void:
+	player_node_id = "node_o11"
+	visited_nodes = ["node_o11"]
+	map_seed = 0

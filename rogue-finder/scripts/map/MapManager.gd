@@ -466,4 +466,5 @@ func _on_debug_combat_pressed() -> void:
 
 func _on_debug_delete_save_pressed() -> void:
 	GameState.delete_save()
+	GameState.reset()
 	get_tree().reload_current_scene()
