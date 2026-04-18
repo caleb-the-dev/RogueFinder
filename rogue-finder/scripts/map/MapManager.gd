@@ -837,7 +837,7 @@ func _enter_current_node() -> void:
 			GameState.current_combat_node_id = GameState.player_node_id
 			get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
 		"CITY":
-			pass  # Badurga interior — deferred to a future session
+			get_tree().change_scene_to_file("res://scenes/city/BadurgaScene.tscn")
 		_:
 			GameState.pending_node_type = node_type
 			get_tree().change_scene_to_file("res://scenes/misc/NodeStub.tscn")

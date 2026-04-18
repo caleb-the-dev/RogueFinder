@@ -156,7 +156,7 @@ Dispatches scene routing based on the current node's type:
 | Node type | Action |
 |---|---|
 | `COMBAT` or `BOSS` | Sets `GameState.current_combat_node_id = GameState.player_node_id`, then `change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")` |
-| `CITY` | No-op (Badurga interior deferred) |
+| `CITY` | `change_scene_to_file("res://scenes/city/BadurgaScene.tscn")` — loads the Badurga city shell |
 | `RECRUIT`, `VENDOR`, `EVENT` | Sets `GameState.pending_node_type = node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
 
 `NodeStub` reads and clears `GameState.pending_node_type` in `_ready()` and shows a placeholder screen with a "← Return to Map" button.
@@ -288,11 +288,12 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 | 2026-04-18 | S13 Feature 5 | Procedural name pools (INNER 15 / MIDDLE 20 / OUTER 25); names regenerate from `map_seed` — not saved; outer ring reduced to exactly 1 BOSS + 1 RECRUIT + 7 COMBAT + 2 EVENT + 1 VENDOR; `_connect_gateways_v2()` replaces `_connect_gateways()` (≥90° intra-pair, ≥30° cross-pair); hub excludes inner IM gateway nodes; `map_seed` init moved to `_ready()` before builders |
 | 2026-04-18 | S13 UX | Player always starts at `"badurga"` (not `"node_o11"`); Boss node size 44×44 + pulsing red `Polygon2D` glow (looping tween); EVENT nodes auto-start (no prompt); VENDOR/RECRUIT/CITY show yes/no node prompt (`_show_node_prompt` / `_dismiss_prompt`); `_desc_for_type()` helper; tooltip upgraded from bare `Label` to `ColorRect` + `Label` panel |
 | 2026-04-18 | S13 EndCombatScreen | "Onward..." button removed — picking a reward immediately clears the node, saves, and returns to map |
+| 2026-04-18 | S14 Feature 6 | `CITY` branch of `_enter_current_node()` now routes to `res://scenes/city/BadurgaScene.tscn` (was a no-op). Badurga city shell added with 6 placeholder section buttons + return button. |
 
 ---
 
 ## Explicitly Deferred
 
-- City hub UI (Badurga interior)
+- Badurga section content — tavern/party-management, bulletin board/quests, and all 4 vendor stalls print `"[Badurga] <id> not yet implemented"` placeholders
 - Recruit / Vendor / Event scene content (NodeStub is placeholder)
 - Fog of war

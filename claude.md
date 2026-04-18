@@ -19,8 +19,9 @@
 
 - **Stage:** Stage 1.5 — 3D combat prototype + traversable world map
 - **Entry point:** `main.tscn` → MapScene (game boots into the map, not combat)
-- **Live systems:** 3D combat loop · traversable world map with 6 node types · save/load · reward system
-- **Deferred:** City hub UI, Recruit/Vendor/Event scene content (NodeStub placeholder), per-ability QTE styles, ability effects are placeholder
+- **Live systems:** 3D combat loop · traversable world map with 6 node types · save/load · reward system · Badurga city shell (placeholder sections)
+- **Last session (S14):** Feature 6 — Badurga city scene shell. CITY branch of `_enter_current_node()` now loads `res://scenes/city/BadurgaScene.tscn`. Scene has a title, 6 placeholder section buttons (tavern, bulletin, 4 vendors — each prints `[Badurga] <id> not yet implemented`), and a return-to-map button.
+- **Deferred:** Badurga section content (all 6 buttons are stubs), Recruit/Vendor/Event scene content (NodeStub placeholder), per-ability QTE styles, ability effects are placeholder
 
 For current feature-by-feature status and history, read `docs/map_directories/map.md` and the bucket files it links. For planned work, read `docs/backlog.md` (only when asked).
 
