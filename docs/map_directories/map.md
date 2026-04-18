@@ -43,6 +43,7 @@
 | [Equipment Library](#equipment-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
 | [Game State](#game-state) | [game_state.md](game_state.md) | 🔲 Stub | Global |
+| [Map Scene](#map-scene) | [map_scene.md](map_scene.md) | 🔲 Visual prototype | World Map |
 
 ---
 
@@ -153,6 +154,11 @@ Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) a
 ### Game State
 Autoload singleton stub. Intended for run-wide data (party roster, items, map progress). Not yet wired to any system.
 
+## World Map
+
+### Map Scene
+Visual-only prototype of the world map. Displays a static spider-web of 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer rings). Hover shows node name; clicks print to console. No traversal, no GameState, no scene transitions. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
+
 ---
 
 ## Cross-Cutting Concerns
@@ -213,6 +219,10 @@ res://
     ├── ConsumableData.gd        ← consumable item resource
     ├── EquipmentData.gd         ← equipment item resource (Slot enum, stat_bonuses, get_bonus())
     └── UnitData.gd              ← legacy data resource (2D only)
+├── scenes/map/
+│   └── MapScene.tscn            ← world map shell (root + script only)
+└── scripts/map/
+    └── MapManager.gd            ← builds map scene in _ready()
 ```
 
 ---
@@ -229,3 +239,4 @@ res://
 | 2026-04-17 | Grid, Combat | Wall + hazard environment tiles: CellType enum, build_walls(), hazard on-entry and traversal damage, FORCE path tracking, COLOR_MOVE_HAZARD amber highlight, wall color polish |
 | 2026-04-16 | Data | EquipmentData + EquipmentLibrary (6 items); CombatantData slots typed; all derived stats include equipment bonuses |
 | 2026-04-17 | UI, Globals | EndCombatScreen (layer 15) + RewardGenerator; win/lose overlay replaces status label text |
+| 2026-04-17 | World Map | MapScene + MapManager: static spider-web node map, 28 nodes, hover labels, player marker, debug combat button |
