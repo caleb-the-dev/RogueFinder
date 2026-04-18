@@ -675,7 +675,7 @@ func _move_player_to(node_id: String) -> void:
 		return  # cleared nodes are pass-through
 
 	var node_type: String = GameState.node_types.get(node_id, "COMBAT")
-	if node_type == "COMBAT" or node_type == "BOSS":
+	if node_type == "COMBAT" or node_type == "BOSS" or node_type == "EVENT":
 		_enter_current_node()
 	else:
 		_show_node_prompt(node_id)
