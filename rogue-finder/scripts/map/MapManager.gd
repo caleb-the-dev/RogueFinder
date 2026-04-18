@@ -9,6 +9,36 @@ const ZOOM_MIN      := 0.35
 const ZOOM_MAX      := 2.5
 const ZOOM_STEP     := 0.12
 
+## --- Name Pools (seeded per run, never saved — regenerate identically from map_seed) ---
+
+const INNER_NAMES: Array[String] = [
+	"Ashwood Hollow", "Greymoor Pass", "Ironveil Ford",
+	"Saltfen Reach", "Dunmarch Gate", "The Pale Crossing",
+	"Cobbler's Row", "Millward Lane", "The Ashen Market",
+	"Southgate Crossing", "Copperfield Road", "The Low Quarter",
+	"Brackwater Close", "Tanner's Gate", "Guildhall Approach",
+]
+
+const MIDDLE_NAMES: Array[String] = [
+	"Fenmark Road", "Crownwood Trail", "Veldthorn Outpost",
+	"Harrowed Fen", "Stonewatch Ridge", "Cinder Gorge",
+	"Bleak Mire", "Thornback Camp", "Ravenscar Hill",
+	"Dustwood Crossing", "Ironspire Post", "The Witherhold",
+	"Ashgate Reach", "Coldwood Trail", "Fallow Watch",
+	"Bridgeburn Camp", "Redthorn Pass", "Hollowmere Outpost",
+	"Saltcliff Road", "The Charred Keep",
+]
+
+const OUTER_NAMES: Array[String] = [
+	"Coldwater Landing", "Bramblegate", "Ember Fields", "Wychwood Crossing",
+	"Northfen Approach", "The Sunken Road", "Gravel Watch", "Ashford Ruins",
+	"Moorvale Pass", "Duskwall Junction", "Saltmarch End", "The Last Waypost",
+	"Grimholt Hollow", "Wraithfen Reach", "The Boneyard", "Shatterpeak Ruins",
+	"Thornvast Edge", "Wolfscar Crossing", "Blightwood Camp", "The Forsaken Post",
+	"Ironcliff Ruins", "Dreadmoor Approach", "Cragfall Outpost", "The Dying Road",
+	"Witchwater Mere",
+]
+
 ## --- Scene Refs ---
 
 var _map_container: Node2D
@@ -39,6 +69,9 @@ var _drag_moved: bool = false
 
 func _ready() -> void:
 	GameState.load_save()
+	# Seed must be set before both data builders so names and edges use the same seed
+	if GameState.map_seed == 0:
+		GameState.map_seed = randi()
 	_build_node_data()
 	_build_edge_data()
 	_build_adjacency()
@@ -83,45 +116,31 @@ func _do_zoom(factor: float, pivot: Vector2) -> void:
 func _build_node_data() -> void:
 	_add_node("badurga", CENTER, 0.0, "Badurga", true, false)
 
-	# Inner ring — 6 nodes, radius 140
+	# Inner ring — 6 nodes, radius 140; labels assigned later by _assign_node_names
 	_inner_ids = ["node_i0", "node_i1", "node_i2", "node_i3", "node_i4", "node_i5"]
-	var inner_labels: Array[String] = [
-		"Ashwood Hollow", "Greymoor Pass", "Ironveil Ford",
-		"Saltfen Reach", "Dunmarch Gate", "The Pale Crossing",
-	]
 	var inner_offsets: Array[float] = [0.0, 3.0, -5.0, 7.0, -4.0, 2.0]
 	for i in range(6):
 		var angle := deg_to_rad(i * 60.0 + inner_offsets[i])
 		_add_node(_inner_ids[i], CENTER + Vector2(cos(angle), sin(angle)) * 140.0,
-				angle, inner_labels[i], false, false)
+				angle, "...", false, false)
 
 	# Middle ring — 9 nodes, radius 260
 	_middle_ids = ["node_m0", "node_m1", "node_m2", "node_m3", "node_m4",
 				   "node_m5", "node_m6", "node_m7", "node_m8"]
-	var mid_labels: Array[String] = [
-		"Fenmark Road", "Crownwood Trail", "Veldthorn Outpost",
-		"Harrowed Fen", "Stonewatch Ridge", "Cinder Gorge",
-		"Bleak Mire", "Thornback Camp", "Ravenscar Hill",
-	]
 	var mid_offsets: Array[float] = [5.0, -8.0, 3.0, -3.0, 10.0, -6.0, 4.0, -2.0, 7.0]
 	for i in range(9):
 		var angle := deg_to_rad(i * 40.0 + mid_offsets[i])
 		_add_node(_middle_ids[i], CENTER + Vector2(cos(angle), sin(angle)) * 260.0,
-				angle, mid_labels[i], false, false)
+				angle, "...", false, false)
 
 	# Outer ring — 12 nodes, radius 380
-	var out_labels: Array[String] = [
-		"Coldwater Landing", "Bramblegate", "Ember Fields", "Wychwood Crossing",
-		"Northfen Approach", "The Sunken Road", "Gravel Watch", "Ashford Ruins",
-		"Moorvale Pass", "Duskwall Junction", "Saltmarch End", "The Last Waypost",
-	]
 	var out_offsets: Array[float] = [0.0, -7.0, 5.0, -4.0, 9.0, -10.0, 3.0, -6.0, 8.0, -3.0, 6.0, -5.0]
 	for i in range(12):
 		var oid := "node_o%d" % i
 		_outer_ids.append(oid)
 		var angle := deg_to_rad(i * 30.0 + out_offsets[i])
 		_add_node(oid, CENTER + Vector2(cos(angle), sin(angle)) * 380.0,
-				angle, out_labels[i], false, false)
+				angle, "...", false, false)
 
 	# Mark one outer node as player start
 	_node_data[-1]["is_player_start"] = true
@@ -142,33 +161,35 @@ func _add_node(id: String, pos: Vector2, angle: float, label: String,
 	_node_map[id] = nd
 
 func _assign_node_types() -> void:
-	# Skip if types were already loaded from save
+	var rng := RandomNumberGenerator.new()
+	rng.seed = GameState.map_seed
+
+	# Always regenerate names from seed — not persisted to disk
+	_assign_node_names(rng)
+
+	# Skip type generation if types were already loaded from save
 	if not GameState.node_types.is_empty():
-		# Patch node_type onto dicts now that GameState is populated
 		for nd in _node_data:
 			nd["node_type"] = GameState.node_types.get(nd["id"], "COMBAT")
 		return
 
-	var rng := RandomNumberGenerator.new()
-	rng.seed = GameState.map_seed  # isolated from global seed() used in _build_edge_data
-
 	GameState.node_types["badurga"] = "CITY"
 
-	# Pick 2 BOSS nodes from outer ring; ensure player start is never BOSS
+	# Exactly 1 BOSS in outer ring; player start is never BOSS
 	var boss_pool: Array[String] = _outer_ids.duplicate()
 	for i in range(boss_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var tmp: String = boss_pool[i]; boss_pool[i] = boss_pool[j]; boss_pool[j] = tmp
-	var boss_ids: Array[String] = [boss_pool[0], boss_pool[1]]
-	for i in range(boss_ids.size()):
-		if boss_ids[i] == GameState.player_node_id:
-			boss_ids[i] = boss_pool[2]
-	for id in boss_ids:
-		GameState.node_types[id] = "BOSS"
+	var boss_id: String = boss_pool[0]
+	if boss_id == GameState.player_node_id:
+		boss_id = boss_pool[1]
+	GameState.node_types[boss_id] = "BOSS"
 
-	# Remaining 10 outer nodes: COMBAT×7, EVENT×2, VENDOR×1
-	var outer_pool: Array[String] = ["COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
-					   "EVENT","EVENT","VENDOR"]
+	# Remaining 11 outer nodes: COMBAT×7, EVENT×2, VENDOR×1, RECRUIT×1
+	var outer_pool: Array[String] = [
+		"COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
+		"EVENT","EVENT","VENDOR","RECRUIT",
+	]
 	for i in range(outer_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var tmp: String = outer_pool[i]; outer_pool[i] = outer_pool[j]; outer_pool[j] = tmp
@@ -199,53 +220,130 @@ func _assign_node_types() -> void:
 		nd["node_type"] = GameState.node_types.get(nd["id"], "COMBAT")
 	GameState.save()
 
+# Seeded Fisher-Yates shuffle of each name pool; writes labels directly into _node_map dicts.
+# Called on every load — names are not saved, they regenerate identically from map_seed.
+func _assign_node_names(rng: RandomNumberGenerator) -> void:
+	var inner_pool: Array[String] = INNER_NAMES.duplicate()
+	var mid_pool:   Array[String] = MIDDLE_NAMES.duplicate()
+	var outer_pool: Array[String] = OUTER_NAMES.duplicate()
+
+	for i in range(inner_pool.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp: String = inner_pool[i]; inner_pool[i] = inner_pool[j]; inner_pool[j] = tmp
+	for i in range(mid_pool.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp: String = mid_pool[i]; mid_pool[i] = mid_pool[j]; mid_pool[j] = tmp
+	for i in range(outer_pool.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp: String = outer_pool[i]; outer_pool[i] = outer_pool[j]; outer_pool[j] = tmp
+
+	for i in range(_inner_ids.size()):
+		_node_map[_inner_ids[i]]["label"] = inner_pool[i]
+	for i in range(_middle_ids.size()):
+		_node_map[_middle_ids[i]]["label"] = mid_pool[i]
+	for i in range(_outer_ids.size()):
+		_node_map[_outer_ids[i]]["label"] = outer_pool[i]
+
 ## --- Edge Data ---
 
 func _build_edge_data() -> void:
-	# Seed RNG once per run so the map topology is deterministic on reload
-	if GameState.map_seed == 0:
-		GameState.map_seed = randi()
+	# Seed global RNG from already-set map_seed for deterministic topology
 	seed(GameState.map_seed)
 
-	# Each ring is a simple closed chain — no chords, so no crossings within the ring
+	# Each ring is a simple closed chain
 	_connect_ring(_inner_ids)
 	_connect_ring(_middle_ids)
 	_connect_ring(_outer_ids)
 
-	# Hub → inner: 2 randomly selected inner nodes
-	_connect_hub_random(2)
+	# Inner→middle gateways first; store chosen angles for cross-pair exclusion
+	var im_angles := _connect_gateways_v2(_inner_ids, _middle_ids, 3, [], 90.0)
 
-	# Inter-ring gateways: stratified random angles guarantee spread + no crossings
-	# 3 gateways each; randomized per run
-	_connect_gateways(_inner_ids, _middle_ids, 3)
-	_connect_gateways(_middle_ids, _outer_ids, 3)
+	# Middle→outer: inner→middle angles become 30° exclusion zones
+	_connect_gateways_v2(_middle_ids, _outer_ids, 3, im_angles, 90.0)
+
+	# Hub→inner: skip the inner nodes already used as IM gateways so hub is not a shortcut
+	var gateway_inner_ids: Array[String] = []
+	for a in im_angles:
+		var inner_id := _closest_to_angle(_inner_ids, a)
+		if not gateway_inner_ids.has(inner_id):
+			gateway_inner_ids.append(inner_id)
+	_connect_hub_random(2, gateway_inner_ids)
 
 func _connect_ring(ids: Array[String]) -> void:
 	var n := ids.size()
 	for i in range(n):
 		_edge_data.append([ids[i], ids[(i + 1) % n]])
 
-func _connect_hub_random(count: int) -> void:
-	var shuffled: Array[String] = _inner_ids.duplicate()
-	shuffled.shuffle()
-	for i in range(mini(count, shuffled.size())):
-		_edge_data.append(["badurga", shuffled[i]])
+func _connect_hub_random(count: int, excluded_ids: Array[String] = []) -> void:
+	var candidates: Array[String] = []
+	for id in _inner_ids:
+		if not excluded_ids.has(id):
+			candidates.append(id)
+	candidates.shuffle()
+	for i in range(mini(count, candidates.size())):
+		_edge_data.append(["badurga", candidates[i]])
 
-# Divides the full circle into `count` equal sectors and picks one random angle
-# per sector. For each angle the angularly closest node in each ring is connected.
-# Stratification ensures gateways are spread around the map rather than clustered,
-# and using closest-to-angle (rather than random pairs) keeps the edges radial.
-func _connect_gateways(ring_a: Array[String], ring_b: Array[String], count: int) -> void:
-	var sector := TAU / float(count)
+# Places `count` bridges between ring_a and ring_b with two spacing guarantees:
+#   - Intra-pair: bridges in this pair must be ≥ min_gap_deg apart from each other.
+#   - Cross-pair: bridges must be ≥ 30° away from any angle in excluded_angles (previous pair).
+# Returns chosen bridge angles so the caller can pass them as excluded_angles to the next pair.
+func _connect_gateways_v2(
+		ring_a: Array[String],
+		ring_b: Array[String],
+		count: int,
+		excluded_angles: Array[float],
+		min_gap_deg: float) -> Array[float]:
+	var min_gap_rad: float    = deg_to_rad(min_gap_deg)
+	var cross_excl_rad: float = deg_to_rad(30.0)
+	var sector: float         = TAU / float(count)
+	var chosen_angles: Array[float] = []
 	var used_pairs: Dictionary = {}
+
 	for i in range(count):
-		var angle := i * sector + randf() * sector
-		var a_id := _closest_to_angle(ring_a, angle)
-		var b_id := _closest_to_angle(ring_b, angle)
-		var key := a_id + "|" + b_id
+		var sector_start: float = i * sector
+		var chosen: float       = sector_start + sector * 0.5  # fallback: sector centre
+		var gap_relax: float    = 0.0
+
+		for attempt in range(10):
+			var candidate: float = sector_start + randf() * sector
+
+			# Reject if too close to an already-placed bridge in this ring pair
+			var too_close: bool = false
+			for a: float in chosen_angles:
+				var diff: float = fposmod(candidate - a, TAU)
+				if diff > PI:
+					diff = TAU - diff
+				if diff < (min_gap_rad - gap_relax):
+					too_close = true
+					break
+
+			# Reject if within 30° of any previous-pair bridge (prevents straight corridors)
+			if not too_close:
+				for a: float in excluded_angles:
+					var diff: float = fposmod(candidate - a, TAU)
+					if diff > PI:
+						diff = TAU - diff
+					if diff < cross_excl_rad:
+						too_close = true
+						break
+
+			if not too_close:
+				chosen = candidate
+				break
+
+			# Gradually relax the intra-pair gap after 5 failed attempts in this sector
+			if attempt >= 4:
+				gap_relax += deg_to_rad(10.0)
+
+		chosen_angles.append(chosen)
+		var a_id: String = _closest_to_angle(ring_a, chosen)
+		var b_id: String = _closest_to_angle(ring_b, chosen)
+		var key: String  = a_id + "|" + b_id
 		if not used_pairs.has(key):
 			used_pairs[key] = true
 			_edge_data.append([a_id, b_id])
+
+	return chosen_angles
 
 # Returns the id whose stored angle is closest to target, wrapping correctly
 func _closest_to_angle(ids: Array[String], target: float) -> String:
