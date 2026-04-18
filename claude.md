@@ -17,10 +17,10 @@
 ## Current Build State
 
 - **Stage:** Stage 1.5 — 3D combat prototype + traversable world map
-- **Last session:** Session 9 (Save/Load System) — 2026-04-18
-- **Working:** Full 3D combat loop; MapScene with traversal — click adjacent nodes to move, CURRENT/REACHABLE/VISITED/LOCKED node visual states, visited ✓ stamp, Badurga hover always readable; GameState tracks player_node_id + visited_nodes + map_seed; save/load via `user://save.json` (automatic on every move)
+- **Last session:** Session 10 (Debug Delete-Save Button) — 2026-04-18
+- **Working:** Full 3D combat loop; MapScene with traversal — click adjacent nodes to move, CURRENT/REACHABLE/VISITED/LOCKED node visual states, visited ✓ stamp, Badurga hover always readable; GameState tracks player_node_id + visited_nodes + map_seed; save/load via `user://save.json` (automatic on every move); debug "Delete Save" button wipes save + in-memory state for clean fresh-run testing; GameState.reset() for mid-session state wipe
 - **Broken / deferred:** MapScene has no scene transitions (Feature 3 — launch combat from node); ability effects still placeholder; no per-ability QTEs
-- **Next task:** Feature 3 — scene transitions on node click, or per-ability QTEs (check backlog)
+- **Next task:** Feature 3 — node types, icons, and scene routing (see backlog for full prompt)
 
 ---
 
