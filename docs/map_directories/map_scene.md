@@ -23,6 +23,7 @@ Defined in `_build_node_data()` as `Array[Dictionary]`. Each dictionary has:
 |---|---|---|
 | `id` | `String` | Unique key (e.g. `"badurga"`, `"node_i0"`, `"node_o11"`) |
 | `position` | `Vector2` | Screen position in a 1280×720 viewport |
+| `angle` | `float` | Placement angle in radians from center (used by gateway edge logic) |
 | `label` | `String` | Display name shown on hover (e.g. `"Ashwood Hollow"`) |
 | `is_hub` | `bool` | `true` only for Badurga (center node) |
 | `is_player_start` | `bool` | `true` for exactly one node (current: `"The Last Waypost"`, outer ring) |
@@ -42,16 +43,16 @@ Nodes are evenly spaced around each ring using `cos/sin`, with small per-node de
 
 ## Edge Data Structure
 
-Defined in `_build_edge_data()` as `Array[Array]`. Each entry is `[id_a: String, id_b: String]`.
+Defined in `_build_edge_data()` as `Array[Array]`. Each entry is `[id_a: String, id_b: String]` (treat as undirected).
 
-Connection rules:
+Also stored in `_node_map: Dictionary` (id → dict) for O(1) lookup by id during edge construction and gateway placement.
 
-- Badurga → all 6 inner-ring nodes
-- Inner ring: full chain (wrap-around)
-- Inner → middle: each inner node connects to 1–2 middle nodes
-- Middle ring: full chain + 2 chord edges (`m0↔m3`, `m4↔m7`)
-- Middle → outer: each middle node connects to 1–2 outer nodes
-- Outer ring: full chain + 2 chord edges (`o0↔o2`, `o6↔o9`)
+Connection rules (see also "Edge Layout" section below for the no-crossing design rationale):
+
+- Each ring: closed neighbor chain only — no chords, preventing in-ring crossings
+- Hub → inner: 2 randomly selected inner nodes (shuffled each run)
+- Inner → middle: 3 stratified-random gateways (randomized each run)
+- Middle → outer: 3 stratified-random gateways (randomized each run)
 
 ---
 

@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-17 |
+| last_updated | 2026-04-18 |
 | last_groomed | 2026-04-15 |
-| sessions_since_groom | 4 |
+| sessions_since_groom | 5 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
