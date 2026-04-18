@@ -145,7 +145,8 @@ LOCKED nodes feel inert — no scale animation, no label.
 | Element | Purpose |
 |---|---|
 | `"[MAP SCENE]"` label (top-left) | Visual confirmation of scene load |
-| `"→ Combat (debug)"` button (top-right) | Loads `res://scenes/combat/CombatScene3D.tscn` — will be removed in Feature 4 |
+| `"→ Combat (debug)"` button (top-right) | Loads `res://scenes/combat/CombatScene3D.tscn` — will be removed in Feature 3 when real scene routing replaces it |
+| `"🗑 Delete Save (debug)"` button (top-right, left of combat button) | Calls `GameState.delete_save()` + `GameState.reset()` then `reload_current_scene()` — wipes the save file and resets all in-memory GameState fields to fresh-run defaults. Gives a completely clean state without restarting Godot. |
 
 ---
 
@@ -187,6 +188,7 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - **`stamp_added` is not persisted** — it's a runtime-only flag to prevent double-stamping within a session. On every scene load the flag starts `false`, and `_refresh_all_node_visuals()` re-adds stamps for all restored visited nodes correctly. Do not add `stamp_added` to the save file.
 - **MapManager holds no persistent state** — all run-wide data lives in `GameState`. On every scene load, `MapManager` fully rebuilds nodes, edges, adjacency, and the scene tree from scratch. Data survives because `GameState` is an autoload singleton (and is backed by `save.json`). Do not try to persist data inside `MapManager` fields directly.
 - **`seed()` is a global call** — `_build_edge_data()` calls Godot's global `seed()` function, which affects all subsequent uses of the global RNG. Currently no other system shares that RNG path, but if future code uses `randf()`/`randi()` anywhere after scene load it will be seeded by the map seed. Use `RandomNumberGenerator` instances if independent RNG streams are needed.
+- **`GameState.reset()` must be kept in sync with GameState fields** — the debug delete-save button calls `GameState.reset()` before reloading the scene. When new persistent fields are added to `GameState` in future features (e.g., `node_types`, `pending_node_type`), also add them to `reset()` so the debug button continues to produce a truly clean state.
 
 ---
 

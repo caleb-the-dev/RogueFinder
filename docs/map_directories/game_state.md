@@ -52,7 +52,8 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 |--------|-----------|-------------|
 | `save` | `() -> void` | Serializes `player_node_id`, `visited_nodes`, and `map_seed` to `user://save.json` as indented JSON. Called by **MapManager** after every traversal move — callers control save timing, not GameState internally. |
 | `load_save` | `() -> bool` | Reads and deserializes `user://save.json`. Returns `true` if a valid save was found and loaded, `false` on a fresh run or corrupt file. Called by **MapManager** at the start of `_ready()`, before any map data is built. |
-| `delete_save` | `() -> void` | Removes `user://save.json` if it exists. Available for new-game resets; no callers yet. |
+| `delete_save` | `() -> void` | Removes `user://save.json` if it exists. Called by **MapManager**'s debug "Delete Save" button before resetting in-memory state. |
+| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "node_o11"`, `visited_nodes = ["node_o11"]`, `map_seed = 0`). Must be called alongside `delete_save()` when wiping a save mid-session — `load_save()` does NOT reset fields if the file is missing. |
 
 ---
 
@@ -72,7 +73,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 
 ## Dependencies
 
-- **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`) and calls `save()` after every move and `load_save()` at startup
+- **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `save()` after every move, `load_save()` at startup, and `delete_save()` + `reset()` from the debug button
 - **EndCombatScreen** calls `GameState.add_to_inventory()` stub (no-op currently)
 
 ---
@@ -104,3 +105,4 @@ None currently.
 - **`save()` has no null guard on `FileAccess.open()`** — if `user://` is unwritable (rare on desktop, possible on some platforms), it will crash. Add a null check before `file.store_string()` if this becomes an issue in future platform targets.
 - **Field defaults are fresh-run values only** — `player_node_id = "node_o11"` and `visited_nodes = ["node_o11"]` are the GDScript initializers. On any run with a valid save file, `load_save()` overwrites them before anything reads them. Do not rely on these defaults in code that runs after `MapManager._ready()`.
 - **GameState persists across `change_scene_to_file()` calls** — as an autoload it is never freed. In-memory fields survive scene transitions without saving; `save()` is called explicitly to persist to disk.
+- **`load_save()` does NOT reset fields on a missing file** — it returns `false` immediately if `user://save.json` doesn't exist, leaving all in-memory fields unchanged. This means calling `delete_save()` alone before a scene reload is NOT enough for a clean fresh-run state in a live session; you must also call `reset()` to clear the in-memory fields. If you only delete the file, the player marker and visited state persist in memory for the remainder of the session.
