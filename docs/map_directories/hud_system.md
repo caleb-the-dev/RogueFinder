@@ -85,11 +85,11 @@ Hover shows a tooltip with ability name, tags, energy cost, and description.
 | Method | Signature | Purpose |
 |--------|-----------|---------|
 | `show_victory` | `(reward_items: Array) -> void` | Displays VICTORY header + 3 reward buttons |
-| `show_defeat` | `() -> void` | Displays DEFEAT header + "Try Again" button |
+| `show_defeat` | `() -> void` | Displays DEFEAT header + "Return to Map" button |
 
-Victory flow: 3 buttons (item name + description). Clicking one logs the choice, calls `GameState.add_to_inventory()` if available, then calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
+Victory flow: 3 reward buttons (item name + description). Clicking one disables all reward buttons and highlights the chosen button with a `✓` prefix. An "Onward..." button then appears; clicking it appends `GameState.current_combat_node_id` to `GameState.cleared_nodes`, calls `GameState.save()`, then calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
 
-Defeat flow: single "Try Again" button → `_return_to_map()` → `MapScene.tscn`. Subtitle text: *"Return to the map and try again."*
+Defeat flow: single "Return to Map" button → `_return_to_map()` → `MapScene.tscn`. The node is **not** added to `cleared_nodes` on defeat, so it remains re-enterable. Subtitle text: *"Return to the map and try again."*
 
 Both paths now return to the map, not combat. The constant is `MAP_SCENE_PATH`; the method is `_return_to_map()` (renamed from `_reload_combat()` in Feature 3).
 

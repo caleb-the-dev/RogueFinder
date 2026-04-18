@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-18 |
 | last_groomed | 2026-04-15 |
-| sessions_since_groom | 9 |
+| sessions_since_groom | 10 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -88,10 +88,14 @@ CombatantData
   └── EquipmentData    (weapon / armor / accessory slots)
 
 MapManager
-  └── GameState        (reads player_node_id/visited_nodes/map_seed/node_types; calls move_player, save, load_save; sets pending_node_type before NodeStub transition)
+  └── GameState        (reads player_node_id/visited_nodes/map_seed/node_types/cleared_nodes; calls move_player, save, load_save; sets pending_node_type before NodeStub transition; sets current_combat_node_id before CombatScene3D transition)
 
 NodeStub
   └── GameState        (reads+clears pending_node_type)
+
+EndCombatScreen
+  ├── RewardGenerator  (shuffled pool of EquipmentLibrary + ConsumableLibrary items)
+  └── GameState        (reads current_combat_node_id; appends to cleared_nodes; calls save() on Onward...)
 
 GameState              (autoload — map traversal + save/load live; all other data deferred)
 ```
@@ -125,7 +129,7 @@ CanvasLayer overlay (layer 8) opened on double-click of any unit. Shows the comp
 Condensed CanvasLayer strip (layer 4). Shown on single-click of any unit. Displays name, class, HP bar, energy bar, ATK/DEF/SPD. Hidden on deselect and combat end.
 
 ### End Combat Screen
-CanvasLayer overlay (layer 15) shown when combat ends. Victory shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)`. Defeat shows "DEFEAT" + "Try Again". Both paths return to `MapScene.tscn`. Reward pick logs to console and calls `GameState.add_to_inventory()` stub. Lives in `scripts/ui/EndCombatScreen.gd`.
+CanvasLayer overlay (layer 15) shown when combat ends. Victory shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)` — picking one disables all buttons and reveals an "Onward..." button; clicking Onward appends the node to `GameState.cleared_nodes`, saves, and returns to `MapScene.tscn`. Defeat shows "DEFEAT" + "Return to Map" button (node is NOT cleared). Lives in `scripts/ui/EndCombatScreen.gd`.
 
 ### Reward Generator
 Static utility (`scripts/globals/RewardGenerator.gd`). Combines all `EquipmentLibrary` and `ConsumableLibrary` items into one pool, Fisher-Yates shuffles, and returns `count` distinct Dicts (`id`, `name`, `description`, `item_type`).
@@ -158,12 +162,12 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, an
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
 
 ### Game State
-Autoload singleton. Map traversal and save/load are live: tracks `player_node_id`, `visited_nodes`, and `map_seed`; exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `save()`, `load_save()`, `delete_save()`. Save path: `user://save.json`. All other run-wide data (party roster, reputation, etc.) is deferred to Stage 2.
+Autoload singleton. Map traversal and save/load are live: tracks `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, and `cleared_nodes` (all saved to disk); `pending_node_type` and `current_combat_node_id` are transient handoffs between scenes. Exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `save()`, `load_save()`, `delete_save()`, `reset()`. Save path: `user://save.json`. All other run-wide data (party roster, reputation, etc.) is deferred to Stage 2.
 
 ## World Map
 
 ### Map Scene
-Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a type (COMBAT, RECRUIT, VENDOR, EVENT, BOSS, CITY) with distinct color, icon, and hover label. Player traverses by clicking adjacent nodes; re-clicking the current node enters it (launches CombatScene3D for COMBAT/BOSS, NodeStub placeholder for others, no-op for CITY). Nodes display four visual states (CURRENT / REACHABLE / VISITED / LOCKED). Map topology and type assignments are seeded per run (deterministic on reload). Wired to GameState for traversal, node types, and save/load. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
+Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a type (COMBAT, RECRUIT, VENDOR, EVENT, BOSS, CITY) with distinct color, icon, and hover label. Player traverses by clicking adjacent nodes; re-clicking the current node enters it (launches CombatScene3D for COMBAT/BOSS, NodeStub placeholder for others, no-op for CITY). Nodes display five visual states (CURRENT / REACHABLE / CLEARED / VISITED / LOCKED) — CLEARED nodes show a red ✗ stamp and are traversable but don't re-trigger combat. Map topology and type assignments are seeded per run (deterministic on reload). Wired to GameState for traversal, node types, cleared nodes, and save/load. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
 
 ---
 
@@ -254,3 +258,4 @@ res://
 | 2026-04-18 | GameState, MapManager | Session 9: save/load system — map_seed field, save()/load_save()/delete_save(), deterministic map topology via seeded RNG, marker placed from GameState.player_node_id on load |
 | 2026-04-18 | MapManager, GameState | Session 10: debug delete-save button — "🗑 Delete Save (debug)" button wipes save file and resets in-memory GameState fields via new reset() method, then reloads scene for a clean fresh-run state without restarting Godot |
 | 2026-04-18 | MapManager, GameState, EndCombatScreen, main.tscn | Feature 3: node types, icons, scene routing — 6 node types with colors/icons/hover labels; BOSS extra border; _assign_node_types() deterministic per seed; re-click current node to enter; COMBAT/BOSS → CombatScene3D, others → NodeStub placeholder; game boots into MapScene; EndCombatScreen returns to map |
+| 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 4: scene transition polish + node tracking — current_combat_node_id transient field; cleared_nodes saved to disk; Onward... step on victory before returning to map; defeat button renamed "Return to Map"; CLEARED visual state (red ✗ stamp, darkened); cleared nodes traversable but _enter_current_node() no-ops on them |

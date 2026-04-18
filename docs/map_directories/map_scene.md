@@ -28,6 +28,7 @@ Defined in `_build_node_data()` as `Array[Dictionary]`. Each dictionary has:
 | `is_hub` | `bool` | `true` only for Badurga (center node) |
 | `is_player_start` | `bool` | `true` for exactly one node (current: `"The Last Waypost"`, outer ring) |
 | `stamp_added` | `bool` | `true` after the visited ✓ stamp Label has been added as a button child |
+| `cleared_stamp_added` | `bool` | `true` after the cleared ✗ stamp Label has been added as a button child |
 | `node_type` | `String` | One of `"COMBAT"`, `"RECRUIT"`, `"VENDOR"`, `"EVENT"`, `"BOSS"`, `"CITY"` — set by `_assign_node_types()` at end of `_build_node_data()` |
 
 ### Layout
@@ -123,14 +124,17 @@ Initial placement at scene load uses `GameState.player_node_id` (which may have 
 
 Applied by `_refresh_all_node_visuals()`, called at end of `_build_scene()` and after each traversal move.
 
-| State | Condition | bg_color | Border | Modulate |
-|---|---|---|---|---|
-| **CURRENT** | `id == GameState.player_node_id` | base color | gold `Color(0.9, 0.85, 0.3)`, 3 px | `(1,1,1,1)` |
-| **REACHABLE** | adjacent to current node | base color | default `Color(0.25, 0.18, 0.10)`, 2 px | `(1,1,1,1)` |
-| **VISITED** | in `GameState.visited_nodes` (and not current) | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` |
-| **LOCKED** | none of the above | `base.darkened(0.15)` | default, 2 px | `(1,1,1,0.5)` |
+| State | Condition | bg_color | Border | Modulate | Stamp |
+|---|---|---|---|---|---|
+| **CURRENT** | `id == GameState.player_node_id` | base color | gold `Color(0.9, 0.85, 0.3)`, 3 px | `(1,1,1,1)` | — |
+| **REACHABLE** | adjacent to current node | base color | default `Color(0.25, 0.18, 0.10)`, 2 px | `(1,1,1,1)` | — |
+| **CLEARED** | `GameState.cleared_nodes.has(id)` (and not current) — checked before VISITED | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` | `✗` muted red `Color(0.75, 0.25, 0.20)` |
+| **VISITED** | in `GameState.visited_nodes` (and not current, not cleared) | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` | `✓` `Color(0.9, 0.95, 0.7)` |
+| **LOCKED** | none of the above | `base.darkened(0.15)` | default, 2 px | `(1,1,1,0.5)` | — |
 
-Visited nodes also receive a small `✓` Label child (stamp). The stamp is added once — `nd["stamp_added"]` prevents duplicates.
+CLEARED nodes are traversable — the player can move through them freely. Hover behavior is the same as normal nodes (tooltip + scale animation). The only difference: `_enter_current_node()` returns early when `GameState.cleared_nodes.has(GameState.player_node_id)`, so landing on or re-clicking a cleared node never re-starts combat. CLEARED takes priority over VISITED in `_refresh_all_node_visuals()` since a cleared node is always also visited.
+
+Stamps are added once per session — `nd["stamp_added"]` and `nd["cleared_stamp_added"]` prevent duplicates.
 
 ---
 
@@ -139,7 +143,7 @@ Visited nodes also receive a small `✓` Label child (stamp). The stamp is added
 `_on_node_clicked(node_id)` gates movement:
 
 1. Ignored if `_drag_moved` (click was part of a pan)
-2. If `node_id == GameState.player_node_id` → calls `_enter_current_node()` (re-click to enter)
+2. If `node_id == GameState.player_node_id` → calls `_enter_current_node()` (re-click to enter; no-ops if the node is cleared)
 3. Ignored if `not GameState.is_adjacent_to_player(node_id, _adjacency)` (not reachable)
 4. Otherwise calls `_move_player_to(node_id)` to traverse
 
@@ -149,7 +153,7 @@ Dispatches scene routing based on the current node's type:
 
 | Node type | Action |
 |---|---|
-| `COMBAT` or `BOSS` | `change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")` |
+| `COMBAT` or `BOSS` | Sets `GameState.current_combat_node_id = GameState.player_node_id`, then `change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")` |
 | `CITY` | No-op (Badurga interior deferred) |
 | `RECRUIT`, `VENDOR`, `EVENT` | Set `GameState.pending_node_type = node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
 
@@ -182,7 +186,7 @@ Uses a shared `_tooltip: ColorRect` (dark panel, `Color(0.10, 0.08, 0.06, 0.88)`
 | Hub hover enter | Same scale tween + tint `StyleBoxFlat.bg_color` to `Color(1.0, 0.85, 0.4)` over 0.12 s |
 | Hub hover exit | Tint returns to `Color(0.85, 0.65, 0.25)` over 0.10 s |
 
-LOCKED nodes feel inert — no scale animation, no label.
+LOCKED nodes feel inert — no scale animation, no label. CLEARED nodes behave like normal nodes for hover (tooltip + scale) — they are still traversable pass-through points.
 
 Hover label format: `"<node_label> [<Type>]"` (e.g. `"Ashwood Hollow [Combat]"`, `"Badurga [City]"`). Type string is capitalized via `.capitalize()`.
 
@@ -234,7 +238,9 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - **`hover_style` is not updated by `_refresh_all_node_visuals()`** — it is a snapshot duplicate of `normal_style` made at build time (`style.duplicate()`). When `_refresh_all_node_visuals()` darkens `normal_style.bg_color` for VISITED or LOCKED nodes, the hover stylebox still lightens from the original base color. This is acceptable for now but means hover tint does not respect the dimmed state. Fix by also updating `hover_style.bg_color` in `_refresh_all_node_visuals()` if that ever becomes an issue.
 - **`_input()` not `_unhandled_input()`** — intentional so pan drag is captured even when a press starts on a Button node. Do not change this without accounting for that.
 - **Node dict is mutated at runtime** — `nd["stamp_added"]` is set to `true` the first time a visited stamp is added. The dict is the same object in both `_node_data` and `_node_map`, so the mutation is shared.
-- **`stamp_added` is not persisted** — it's a runtime-only flag to prevent double-stamping within a session. On every scene load the flag starts `false`, and `_refresh_all_node_visuals()` re-adds stamps for all restored visited nodes correctly. Do not add `stamp_added` to the save file.
+- **`stamp_added` and `cleared_stamp_added` are not persisted** — they are runtime-only flags to prevent double-stamping within a session. On every scene load both flags start `false`, and `_refresh_all_node_visuals()` re-adds stamps for all restored visited/cleared nodes correctly. Do not add either to the save file.
+- **`_enter_current_node()` is the cleared-node guard, not `_on_node_clicked()`** — cleared nodes are fully traversable (you can click them, move to them). The guard that prevents combat re-entry lives at the top of `_enter_current_node()`. Do not add a click guard back to `_on_node_clicked()` — players need to be able to pass through cleared nodes.
+- **`current_combat_node_id` must be set before `change_scene_to_file()`** — it's a transient field that EndCombatScreen reads after the scene transition. Setting it after the call would have no effect since GameState survives transitions but the assignment order matters.
 - **MapManager holds no persistent state** — all run-wide data lives in `GameState`. On every scene load, `MapManager` fully rebuilds nodes, edges, adjacency, and the scene tree from scratch. Data survives because `GameState` is an autoload singleton (and is backed by `save.json`). Do not try to persist data inside `MapManager` fields directly.
 - **`seed()` is a global call** — `_build_edge_data()` calls Godot's global `seed()` function, which affects all subsequent uses of the global RNG. Currently no other system shares that RNG path, but if future code uses `randf()`/`randi()` anywhere after scene load it will be seeded by the map seed. Use `RandomNumberGenerator` instances if independent RNG streams are needed.
 - **`GameState.reset()` must be kept in sync with GameState fields** — the debug delete-save button calls `GameState.reset()` before reloading the scene. When new persistent fields are added to `GameState` in future features, also add them to `reset()` so the debug button continues to produce a truly clean state.

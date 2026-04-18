@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-04-18 (Session 9 — Save/Load System)
+> Last updated: 2026-04-18 (Session 12 — Feature 4: Scene Transition Polish + Node Tracking)
 
 ---
 
@@ -41,6 +41,8 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `map_seed` | `int` | `0` | RNG seed for `_build_edge_data()`. `0` = not yet seeded (fresh run). Lives here so `load_save()` can restore it before MapManager seeds its RNG. |
 | `node_types` | `Dictionary` | `{}` | Maps node id → type string (e.g. `"COMBAT"`, `"BOSS"`, `"CITY"`). Populated by `MapManager._assign_node_types()` on first run; restored from save on subsequent loads. **Saved to disk.** |
 | `pending_node_type` | `String` | `""` | Consumed by `NodeStub._ready()` on scene entry to know which stub to display. Set by `MapManager._enter_current_node()` for non-combat/non-city nodes. **NOT saved to disk.** |
+| `current_combat_node_id` | `String` | `""` | Set by `MapManager._enter_current_node()` immediately before transitioning to `CombatScene3D`. Read by `EndCombatScreen._on_onward_pressed()` to know which node to append to `cleared_nodes`. **NOT saved to disk** (transient handoff, like `pending_node_type`). |
+| `cleared_nodes` | `Array[String]` | `[]` | Nodes where the player completed combat AND collected a reward. Nodes in this array are non-traversable and show a `✗` stamp on the map. **Saved to disk.** |
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -52,10 +54,10 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `save` | `() -> void` | Serializes `player_node_id`, `visited_nodes`, `map_seed`, and `node_types` to `user://save.json` as indented JSON. Called by **MapManager** after every traversal move and after `_assign_node_types()` on first run. |
+| `save` | `() -> void` | Serializes `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, and `cleared_nodes` to `user://save.json` as indented JSON. Called by **MapManager** after every traversal move and after `_assign_node_types()` on first run; also called by **EndCombatScreen** when the player confirms reward collection. |
 | `load_save` | `() -> bool` | Reads and deserializes `user://save.json`. Returns `true` if a valid save was found and loaded, `false` on a fresh run or corrupt file. Called by **MapManager** at the start of `_ready()`, before any map data is built. |
 | `delete_save` | `() -> void` | Removes `user://save.json` if it exists. Called by **MapManager**'s debug "Delete Save" button before resetting in-memory state. |
-| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "node_o11"`, `visited_nodes = ["node_o11"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`). Must be called alongside `delete_save()` when wiping a save mid-session. |
+| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "node_o11"`, `visited_nodes = ["node_o11"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`, `current_combat_node_id = ""`, `cleared_nodes = []`). Must be called alongside `delete_save()` when wiping a save mid-session. |
 
 ---
 
@@ -67,10 +69,11 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `visited_nodes` | `GameState.visited_nodes` | JSON Array — typed back via `Array(..., TYPE_STRING, "", null)` on load |
 | `map_seed` | `GameState.map_seed` | int — determines map topology for the run |
 | `node_types` | `GameState.node_types` | JSON Object (id → type string) — values already strings from JSON, no conversion needed |
+| `cleared_nodes` | `GameState.cleared_nodes` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load |
 
-**What is saved now:** map position, visited nodes, map topology seed, node type assignments.
+**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes.
 
-Note: `pending_node_type` is **not** saved — it is a transient handoff between MapManager and NodeStub within a single scene transition.
+Note: `pending_node_type` and `current_combat_node_id` are **not** saved — they are transient handoffs consumed within a single scene transition.
 
 **Deferred (Stage 2+):** party roster, inventory, combat state, faction reputation.
 
@@ -78,9 +81,9 @@ Note: `pending_node_type` is **not** saved — it is a transient handoff between
 
 ## Dependencies
 
-- **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `save()` after every move and after `_assign_node_types()`; calls `load_save()` at startup; calls `delete_save()` + `reset()` from the debug button; sets `pending_node_type` before transitioning to NodeStub
+- **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `save()` after every move and after `_assign_node_types()`; calls `load_save()` at startup; calls `delete_save()` + `reset()` from the debug button; sets `pending_node_type` before transitioning to NodeStub; sets `current_combat_node_id` before transitioning to CombatScene3D; reads `cleared_nodes` in `_refresh_all_node_visuals()` and `_on_node_clicked()`
 - **NodeStub** reads and clears `GameState.pending_node_type` in `_ready()`
-- **EndCombatScreen** calls `GameState.add_to_inventory()` stub (no-op currently)
+- **EndCombatScreen** reads `current_combat_node_id` and appends to `cleared_nodes` when player collects reward ("Onward..."); calls `GameState.save()` at that point; calls `GameState.add_to_inventory()` stub (no-op currently)
 
 ---
 

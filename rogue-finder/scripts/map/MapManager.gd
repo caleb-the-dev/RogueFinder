@@ -135,6 +135,7 @@ func _add_node(id: String, pos: Vector2, angle: float, label: String,
 		"id": id, "position": pos, "angle": angle,
 		"label": label, "is_hub": is_hub, "is_player_start": is_player_start,
 		"stamp_added": false,
+		"cleared_stamp_added": false,
 		"node_type": GameState.node_types.get(id, "COMBAT"),
 	}
 	_node_data.append(nd)
@@ -457,6 +458,7 @@ func _refresh_all_node_visuals() -> void:
 		var base_color: Color = btn.get_meta("base_color")
 
 		var is_current: bool   = id == GameState.player_node_id
+		var is_cleared: bool   = GameState.cleared_nodes.has(id)
 		var is_visited: bool   = GameState.is_visited(id)
 		var is_reachable: bool = GameState.is_adjacent_to_player(id, _adjacency)
 
@@ -476,6 +478,15 @@ func _refresh_all_node_visuals() -> void:
 			style.border_width_top    = 2
 			style.border_width_bottom = 2
 			btn.modulate = Color(1, 1, 1, 1)
+		elif is_cleared:
+			style.bg_color = base_color.darkened(0.35)
+			style.border_color = Color(0.25, 0.18, 0.10)
+			style.border_width_left   = 2
+			style.border_width_right  = 2
+			style.border_width_top    = 2
+			style.border_width_bottom = 2
+			btn.modulate = Color(1, 1, 1, 0.85)
+			_add_cleared_stamp(btn, nd)
 		elif is_visited:
 			style.bg_color = base_color.darkened(0.35)
 			style.border_color = Color(0.25, 0.18, 0.10)
@@ -505,6 +516,19 @@ func _add_visited_stamp(btn: Button, nd: Dictionary) -> void:
 	var s := LabelSettings.new()
 	s.font_size = 11
 	s.font_color = Color(0.9, 0.95, 0.7)
+	stamp.label_settings = s
+	btn.add_child(stamp)
+
+func _add_cleared_stamp(btn: Button, nd: Dictionary) -> void:
+	if nd["cleared_stamp_added"]:
+		return
+	nd["cleared_stamp_added"] = true
+	var stamp := Label.new()
+	stamp.text = "✗"
+	stamp.position = Vector2(2.0, -2.0)
+	var s := LabelSettings.new()
+	s.font_size = 11
+	s.font_color = Color(0.75, 0.25, 0.20)
 	stamp.label_settings = s
 	btn.add_child(stamp)
 
@@ -586,9 +610,12 @@ func _on_node_clicked(node_id: String) -> void:
 	_move_player_to(node_id)
 
 func _enter_current_node() -> void:
+	if GameState.cleared_nodes.has(GameState.player_node_id):
+		return
 	var node_type: String = GameState.node_types.get(GameState.player_node_id, "COMBAT")
 	match node_type:
 		"COMBAT", "BOSS":
+			GameState.current_combat_node_id = GameState.player_node_id
 			get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
 		"CITY":
 			pass  # Badurga interior — deferred to a future session
