@@ -13,7 +13,8 @@ const ZOOM_STEP     := 0.12
 
 var _map_container: Node2D
 var _buttons: Dictionary = {}   # id -> Button
-var _hover_label: Label
+var _tooltip: ColorRect
+var _tooltip_label: Label
 var _player_marker: Polygon2D
 
 ## --- Data ---
@@ -164,9 +165,9 @@ func _assign_node_types() -> void:
 	for id in boss_ids:
 		GameState.node_types[id] = "BOSS"
 
-	# Remaining 10 outer nodes: COMBAT×6, EVENT×2, RECRUIT×1, VENDOR×1
-	var outer_pool: Array[String] = ["COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
-					   "EVENT","EVENT","RECRUIT","VENDOR"]
+	# Remaining 10 outer nodes: COMBAT×7, EVENT×2, VENDOR×1
+	var outer_pool: Array[String] = ["COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
+					   "EVENT","EVENT","VENDOR"]
 	for i in range(outer_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var tmp: String = outer_pool[i]; outer_pool[i] = outer_pool[j]; outer_pool[j] = tmp
@@ -176,16 +177,16 @@ func _assign_node_types() -> void:
 			GameState.node_types[id] = outer_pool[pool_idx]
 			pool_idx += 1
 
-	# Middle ring (9): COMBAT×4, EVENT×3, RECRUIT×2
-	var mid_pool: Array[String] = ["COMBAT","COMBAT","COMBAT","COMBAT","EVENT","EVENT","EVENT","RECRUIT","RECRUIT"]
+	# Middle ring (9): COMBAT×5, EVENT×3, VENDOR×1
+	var mid_pool: Array[String] = ["COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","EVENT","EVENT","EVENT","VENDOR"]
 	for i in range(mid_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var tmp: String = mid_pool[i]; mid_pool[i] = mid_pool[j]; mid_pool[j] = tmp
 	for i in range(_middle_ids.size()):
 		GameState.node_types[_middle_ids[i]] = mid_pool[i]
 
-	# Inner ring (6): RECRUIT×2, VENDOR×2, EVENT×2
-	var inner_pool: Array[String] = ["RECRUIT","RECRUIT","VENDOR","VENDOR","EVENT","EVENT"]
+	# Inner ring (6): VENDOR×2, EVENT×4
+	var inner_pool: Array[String] = ["VENDOR","VENDOR","EVENT","EVENT","EVENT","EVENT"]
 	for i in range(inner_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var tmp: String = inner_pool[i]; inner_pool[i] = inner_pool[j]; inner_pool[j] = tmp
@@ -279,7 +280,7 @@ func _build_scene() -> void:
 	_create_map_container()
 	_add_edges()
 	_add_nodes()
-	_add_hover_label()
+	_add_hover_tooltip()
 	_refresh_all_node_visuals()
 
 func _add_background() -> void:
@@ -421,18 +422,30 @@ func _add_player_marker(map_pos: Vector2) -> void:
 	_player_marker.position = map_pos + Vector2(0.0, -26.0)
 	_map_container.add_child(_player_marker)
 
-func _add_hover_label() -> void:
-	_hover_label = Label.new()
-	_hover_label.visible = false
-	_hover_label.z_index = 10
+func _desc_for_type(t: String) -> String:
+	match t:
+		"COMBAT":  return "An enemy patrol. Move here to engage."
+		"BOSS":    return "A powerful foe guards this location."
+		"VENDOR":  return "A merchant camp. Move here, then click to browse."
+		"EVENT":   return "Something stirs here. Move here to find out."
+		"CITY":    return "Badurga, the hub city. Click to enter."
+		_:         return ""
+
+func _add_hover_tooltip() -> void:
+	_tooltip = ColorRect.new()
+	_tooltip.color = Color(0.10, 0.08, 0.06, 0.88)
+	_tooltip.visible = false
+	_tooltip.z_index = 10
+	_tooltip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_container.add_child(_tooltip)
+
+	_tooltip_label = Label.new()
+	_tooltip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var s := LabelSettings.new()
-	s.font_size    = 13
-	s.font_color   = Color.WHITE
-	s.shadow_color  = Color(0.0, 0.0, 0.0, 0.8)
-	s.shadow_offset = Vector2(1.0, 1.0)
-	_hover_label.label_settings = s
-	# Inside container so it pans/zooms with the map
-	_map_container.add_child(_hover_label)
+	s.font_size = 12
+	s.font_color = Color.WHITE
+	_tooltip_label.label_settings = s
+	_tooltip.add_child(_tooltip_label)
 
 ## --- Node Visual States ---
 
@@ -506,30 +519,40 @@ func _move_player_to(node_id: String) -> void:
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	_refresh_all_node_visuals()
 
+	# VENDOR and CITY require a deliberate re-click to enter; everything else auto-starts
+	var node_type: String = GameState.node_types.get(node_id, "COMBAT")
+	if node_type != "VENDOR" and node_type != "CITY":
+		await tween.finished
+		_enter_current_node()
+
 ## --- Hover Callbacks ---
 
 func _on_node_hover_enter(btn: Button) -> void:
-	var node_id: String  = btn.get_meta("node_id")
-	var is_locked: bool  = not GameState.is_visited(node_id) \
+	var node_id: String   = btn.get_meta("node_id")
+	var node_type: String = btn.get_meta("node_type")
+	var is_locked: bool   = not GameState.is_visited(node_id) \
 		and not GameState.is_adjacent_to_player(node_id, _adjacency) \
 		and node_id != GameState.player_node_id
-	# Always show the hub label so the player knows it exists — just suppress animation
+	# Always show Badurga's tooltip so the player knows it exists
 	var is_hub: bool = btn.get_meta("is_hub")
 	if is_locked and not is_hub:
 		return
 
 	var map_pos: Vector2 = btn.get_meta("map_pos")
+	var type_str: String = node_type.capitalize()
+	_tooltip_label.text = btn.get_meta("node_label") + " [" + type_str + "]\n" + _desc_for_type(node_type)
+	_tooltip.visible = true
 
-	var type_str: String = (btn.get_meta("node_type") as String).capitalize()
-	_hover_label.text    = btn.get_meta("node_label") + " [" + type_str + "]"
-	_hover_label.visible = true
-	# Wait one frame for the label's size to be computed before centering it
+	# Wait one frame for the label to compute its size before positioning
 	await get_tree().process_frame
-	var lw: float = _hover_label.size.x
-	_hover_label.position = map_pos + Vector2(-lw * 0.5, btn.size.y * 0.5 + 6.0)
+	var pad := Vector2(8.0, 6.0)
+	_tooltip_label.position = pad
+	_tooltip.size = _tooltip_label.size + pad * 2.0
+	_tooltip.position = map_pos + Vector2(-_tooltip.size.x * 0.5,
+			-btn.size.y * 0.5 - _tooltip.size.y - 6.0)
 
 	if is_locked:
-		return  # label shown; skip scale/tint for unreachable hub
+		return  # tooltip shown; skip scale/tint for unreachable hub
 
 	var tween := create_tween()
 	tween.tween_property(btn, "scale", Vector2(1.25, 1.25), 0.12).set_trans(Tween.TRANS_QUAD)
@@ -539,9 +562,9 @@ func _on_node_hover_enter(btn: Button) -> void:
 		tween.parallel().tween_property(style, "bg_color", Color(1.0, 0.85, 0.4), 0.12)
 
 func _on_node_hover_exit(btn: Button) -> void:
-	_hover_label.visible = false
-	var is_hub: bool   = btn.get_meta("is_hub")
-	var base: Color    = btn.get_meta("base_color")
+	_tooltip.visible = false
+	var is_hub: bool = btn.get_meta("is_hub")
+	var base: Color  = btn.get_meta("base_color")
 
 	var tween := create_tween()
 	tween.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.10).set_trans(Tween.TRANS_QUAD)
