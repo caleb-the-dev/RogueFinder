@@ -102,6 +102,30 @@ Uses a **single shared `Label`** (`_hover_label`) repositioned on each hover eve
 
 ---
 
+## Pan & Zoom
+
+All map content lives in a `_map_container: Node2D` child. The background and UI chrome (placeholder label, debug button) are fixed children of the root and do not move.
+
+| Action | Behavior |
+|---|---|
+| LMB hold + drag | Pans the container (`_map_container.position`) |
+| Scroll wheel up/down | Zooms in/out (range 0.35 – 2.5), pivoted on the cursor position |
+
+Pan and zoom use `_input()` (not `_unhandled_input`) so drag is captured even when the initial press lands on a node Button. A `_drag_moved: bool` flag (true when drag delta > 4 px) prevents node click callbacks from firing on a drag release.
+
+## Edge Layout (no crossing edges)
+
+Inter-ring connections use **stratified random gateways** — randomized on every scene load:
+
+| Connection | Method |
+|---|---|
+| Within each ring | Closed chain of adjacent neighbors only — no chords |
+| Hub → inner | 2 randomly shuffled inner nodes |
+| Inner → middle | 3 gateways: circle divided into 3 sectors, one random angle per sector, closest node in each ring connected |
+| Middle → outer | Same 3-gateway stratified approach |
+
+Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughly radial, preventing crossing between gateways. The stratified sampling prevents gateway clustering. The result is 2-3 bottleneck passages between each ring pair, different each run.
+
 ## Explicitly Deferred
 
 - Traversal logic and movement restrictions
