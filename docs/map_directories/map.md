@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-18 |
 | last_groomed | 2026-04-15 |
-| sessions_since_groom | 6 |
+| sessions_since_groom | 7 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -42,7 +42,7 @@
 | [Equipment Data Model](#equipment-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Equipment Library](#equipment-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
-| [Game State](#game-state) | [game_state.md](game_state.md) | 🟡 Partial (map traversal live) | Global |
+| [Game State](#game-state) | [game_state.md](game_state.md) | ✅ Active (map traversal + save/load) | Global |
 | [Map Scene](#map-scene) | [map_scene.md](map_scene.md) | 🟡 Traversable map | World Map |
 
 ---
@@ -155,7 +155,7 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, an
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
 
 ### Game State
-Autoload singleton. Map traversal is live: tracks `player_node_id` and `visited_nodes`; exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`. All other run-wide data (party roster, reputation, etc.) is deferred to Stage 2.
+Autoload singleton. Map traversal and save/load are live: tracks `player_node_id`, `visited_nodes`, and `map_seed`; exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `save()`, `load_save()`, `delete_save()`. Save path: `user://save.json`. All other run-wide data (party roster, reputation, etc.) is deferred to Stage 2.
 
 ## World Map
 
@@ -244,3 +244,4 @@ res://
 | 2026-04-17 | UI, Globals | EndCombatScreen (layer 15) + RewardGenerator; win/lose overlay replaces status label text |
 | 2026-04-17 | World Map | MapScene + MapManager: static spider-web node map, 28 nodes, hover labels, player marker, debug combat button |
 | 2026-04-18 | World Map, GameState | Feature 2: node traversal — adjacency lookup, click gating, GameState wiring (player_node_id, visited_nodes), marker tween, four node visual states (CURRENT/REACHABLE/VISITED/LOCKED), visited stamp, locked hover suppression |
+| 2026-04-18 | GameState, MapManager | Session 9: save/load system — map_seed field, save()/load_save()/delete_save(), deterministic map topology via seeded RNG, marker placed from GameState.player_node_id on load |

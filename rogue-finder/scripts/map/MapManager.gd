@@ -37,6 +37,7 @@ var _drag_moved: bool = false
 ## --- Lifecycle ---
 
 func _ready() -> void:
+	GameState.load_save()
 	_build_node_data()
 	_build_edge_data()
 	_build_adjacency()
@@ -138,6 +139,11 @@ func _add_node(id: String, pos: Vector2, angle: float, label: String,
 ## --- Edge Data ---
 
 func _build_edge_data() -> void:
+	# Seed RNG once per run so the map topology is deterministic on reload
+	if GameState.map_seed == 0:
+		GameState.map_seed = randi()
+	seed(GameState.map_seed)
+
 	# Each ring is a simple closed chain — no chords, so no crossings within the ring
 	_connect_ring(_inner_ids)
 	_connect_ring(_middle_ids)
@@ -296,7 +302,7 @@ func _add_nodes() -> void:
 		_map_container.add_child(btn)
 		_buttons[nd["id"]] = btn
 
-		if nd["is_player_start"]:
+		if nd["id"] == GameState.player_node_id:
 			_add_player_marker(nd["position"])
 
 func _add_player_marker(map_pos: Vector2) -> void:
@@ -387,6 +393,7 @@ func _add_visited_stamp(btn: Button, nd: Dictionary) -> void:
 
 func _move_player_to(node_id: String) -> void:
 	GameState.move_player(node_id)
+	GameState.save()
 	var target_pos: Vector2 = _node_map[node_id]["position"] + Vector2(0.0, -26.0)
 	var tween := create_tween()
 	tween.tween_property(_player_marker, "position", target_pos, 0.25) \

@@ -55,6 +55,8 @@ Connection rules (see also "Edge Layout" section below for the no-crossing desig
 - Inner → middle: 3 stratified-random gateways (randomized each run)
 - Middle → outer: 3 stratified-random gateways (randomized each run)
 
+Before any random call in `_build_edge_data()`, the RNG is seeded from `GameState.map_seed`. On a fresh run `GameState.map_seed` is `0`, so MapManager generates a seed via `randi()` and stores it; on subsequent loads the saved seed is restored first. This makes the map topology identical across sessions for a given run.
+
 ---
 
 ## Adjacency Lookup
@@ -79,6 +81,8 @@ Built in `_build_adjacency()` after `_build_edge_data()`. Stored in `_adjacency:
 ## Player Marker
 
 A `Polygon2D` diamond (4 points ±10 px) in `Color(0.3, 0.6, 1.0)` (blue), centered 26 px above the current node. Stored as `_player_marker: Polygon2D`. On traversal it tweens to the new node position over 0.25 s (TRANS_QUAD, EASE_IN_OUT).
+
+Initial placement at scene load uses `GameState.player_node_id` (which may have been restored by `load_save()`), not the static `is_player_start` flag on the node dict. The `is_player_start` field is kept on node dicts for future run-reset logic but does not drive marker placement.
 
 ---
 
@@ -108,8 +112,16 @@ Visited nodes also receive a small `✓` Label child (stamp). The stamp is added
 
 `_move_player_to(node_id)`:
 - Calls `GameState.move_player(node_id)` (updates player position + visited list)
+- Calls `GameState.save()` (persists position + visited list + map seed to disk)
 - Tweens `_player_marker.position` to `node_map[node_id]["position"] + Vector2(0, -26)` over 0.25 s
 - Calls `_refresh_all_node_visuals()`
+
+`_ready()` order after save/load integration:
+1. `GameState.load_save()` — restore saved state (or no-op on fresh run)
+2. `_build_node_data()` — define all 28 nodes
+3. `_build_edge_data()` — seed RNG from `GameState.map_seed`, build deterministic edges
+4. `_build_adjacency()` — build undirected adjacency dict
+5. `_build_scene()` — render everything; marker placed at `GameState.player_node_id`
 
 ---
 
@@ -181,4 +193,3 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - Scene transitions on node click (launch encounter)
 - Procedural generation of the map layout
 - Fog of war
-- Save/load of map state
