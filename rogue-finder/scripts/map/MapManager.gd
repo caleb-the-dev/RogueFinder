@@ -400,11 +400,12 @@ func _on_node_hover_enter(btn: Button) -> void:
 	var is_locked: bool  = not GameState.is_visited(node_id) \
 		and not GameState.is_adjacent_to_player(node_id, _adjacency) \
 		and node_id != GameState.player_node_id
-	if is_locked:
+	# Always show the hub label so the player knows it exists — just suppress animation
+	var is_hub: bool = btn.get_meta("is_hub")
+	if is_locked and not is_hub:
 		return
 
 	var map_pos: Vector2 = btn.get_meta("map_pos")
-	var is_hub: bool     = btn.get_meta("is_hub")
 
 	_hover_label.text    = btn.get_meta("node_label")
 	_hover_label.visible = true
@@ -412,6 +413,9 @@ func _on_node_hover_enter(btn: Button) -> void:
 	await get_tree().process_frame
 	var lw: float = _hover_label.size.x
 	_hover_label.position = map_pos + Vector2(-lw * 0.5, btn.size.y * 0.5 + 6.0)
+
+	if is_locked:
+		return  # label shown; skip scale/tint for unreachable hub
 
 	var tween := create_tween()
 	tween.tween_property(btn, "scale", Vector2(1.25, 1.25), 0.12).set_trans(Tween.TRANS_QUAD)
