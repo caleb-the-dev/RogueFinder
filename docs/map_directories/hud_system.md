@@ -87,9 +87,11 @@ Hover shows a tooltip with ability name, tags, energy cost, and description.
 | `show_victory` | `(reward_items: Array) -> void` | Displays VICTORY header + 3 reward buttons |
 | `show_defeat` | `() -> void` | Displays DEFEAT header + "Try Again" button |
 
-Victory flow: 3 buttons (item name + description). Clicking one logs the choice, calls `GameState.add_to_inventory()` if available, hides unchosen buttons, reveals "Onward..." which reloads `CombatScene3D.tscn`.
+Victory flow: 3 buttons (item name + description). Clicking one logs the choice, calls `GameState.add_to_inventory()` if available, then calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
 
-Defeat flow: single "Try Again" button → reloads `CombatScene3D.tscn`.
+Defeat flow: single "Try Again" button → `_return_to_map()` → `MapScene.tscn`. Subtitle text: *"Return to the map and try again."*
+
+Both paths now return to the map, not combat. The constant is `MAP_SCENE_PATH`; the method is `_return_to_map()` (renamed from `_reload_combat()` in Feature 3).
 
 Reward items come from `RewardGenerator.roll(3)` — plain Dicts with keys `id`, `name`, `description`, `item_type`.
 

@@ -157,9 +157,10 @@ Dispatches scene routing based on the current node's type:
 
 `_move_player_to(node_id)`:
 - Calls `GameState.move_player(node_id)` (updates player position + visited list)
-- Calls `GameState.save()` (persists position + visited list + map seed to disk)
+- Calls `GameState.save()` (persists to disk)
 - Tweens `_player_marker.position` to `node_map[node_id]["position"] + Vector2(0, -26)` over 0.25 s
 - Calls `_refresh_all_node_visuals()`
+- For all types **except VENDOR and CITY**: `await tween.finished` then calls `_enter_current_node()` — the encounter starts automatically after the marker lands. VENDOR and CITY require a deliberate re-click.
 
 `_ready()` order after save/load integration:
 1. `GameState.load_save()` — restore saved state (or no-op on fresh run)
@@ -172,12 +173,12 @@ Dispatches scene routing based on the current node's type:
 
 ## Hover Behavior
 
-Uses a **single shared `Label`** (`_hover_label`) repositioned on each hover event.
+Uses a shared `_tooltip: ColorRect` (dark panel, `Color(0.10, 0.08, 0.06, 0.88)`) with a `_tooltip_label: Label` child. Both live inside `_map_container` so they pan/zoom with the map. The tooltip is repositioned above the hovered node each time (after one `process_frame` await so the label size is computed first).
 
 | Event | Behavior |
 |---|---|
-| `mouse_entered` | Skip entirely if node is LOCKED; otherwise tween scale → `Vector2(1.25, 1.25)` over 0.12 s; show `_hover_label` centered 6 px below the node |
-| `mouse_exited` | Tween scale → `Vector2(1.0, 1.0)` over 0.10 s; hide `_hover_label` |
+| `mouse_entered` | Skip entirely if node is LOCKED; otherwise show `_tooltip` panel above the node (name + type header, one-line description); tween scale → `Vector2(1.25, 1.25)` over 0.12 s |
+| `mouse_exited` | Tween scale → `Vector2(1.0, 1.0)` over 0.10 s; hide `_tooltip` |
 | Hub hover enter | Same scale tween + tint `StyleBoxFlat.bg_color` to `Color(1.0, 0.85, 0.4)` over 0.12 s |
 | Hub hover exit | Tint returns to `Color(0.85, 0.65, 0.25)` over 0.10 s |
 
@@ -224,7 +225,7 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 
 ## Entry Point
 
-`MapScene.tscn` is **not** the game entry point. `main.tscn` boots directly into `CombatScene3D.tscn`. The only path to the map is the `"→ Combat (debug)"` button in the map itself, which exits to combat — there is no reverse route yet. Feature 3 will wire up the actual entry flow.
+`MapScene.tscn` **is** the game entry point as of Feature 3. `main.tscn` instances `MapScene.tscn` directly. From the map, players enter encounters by moving to nodes (auto-starts) or clicking VENDOR/CITY nodes. After combat or a stub scene, `EndCombatScreen` and `NodeStub` both route back to `MapScene.tscn`.
 
 ---
 
@@ -238,6 +239,7 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 - **`seed()` is a global call** — `_build_edge_data()` calls Godot's global `seed()` function, which affects all subsequent uses of the global RNG. Currently no other system shares that RNG path, but if future code uses `randf()`/`randi()` anywhere after scene load it will be seeded by the map seed. Use `RandomNumberGenerator` instances if independent RNG streams are needed.
 - **`GameState.reset()` must be kept in sync with GameState fields** — the debug delete-save button calls `GameState.reset()` before reloading the scene. When new persistent fields are added to `GameState` in future features, also add them to `reset()` so the debug button continues to produce a truly clean state.
 - **Type icons use `MOUSE_FILTER_IGNORE`** — the icon `Label` child of each button must have `mouse_filter = Control.MOUSE_FILTER_IGNORE` or it will intercept mouse events and prevent button presses from registering.
+- **RECRUIT is kept as a fallback in `_color_for_type` and `_icon_for_type`** — the type is no longer assigned to any node, but the match arms remain so old saves (pre-Feature 3) don't crash with an unmatched type. Safe to remove once all pre-Feature-3 save files are gone.
 - **`node_types` is saved on first assignment** — `_assign_node_types()` calls `GameState.save()` after populating `node_types`. On reload, the saved dict is restored by `load_save()` and `_assign_node_types()` skips re-assignment entirely (non-empty dict check).
 
 ---
