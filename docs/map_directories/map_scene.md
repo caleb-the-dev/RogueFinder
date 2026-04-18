@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`MapScene.tscn` + `MapManager.gd` display the world map as a static, interactive spider-web of nodes. This is the top-level navigation screen the player will return to between encounters. In the current build it is a **visual-only prototype**: no traversal logic, no GameState reads/writes, no scene transitions beyond the debug shortcut.
+`MapScene.tscn` + `MapManager.gd` display the world map as an interactive spider-web of nodes. This is the top-level navigation screen the player returns to between encounters. The player can click adjacent nodes to move their marker across the map; visited and reachable nodes are visually distinct from locked ones.
 
 ---
 
@@ -27,6 +27,7 @@ Defined in `_build_node_data()` as `Array[Dictionary]`. Each dictionary has:
 | `label` | `String` | Display name shown on hover (e.g. `"Ashwood Hollow"`) |
 | `is_hub` | `bool` | `true` only for Badurga (center node) |
 | `is_player_start` | `bool` | `true` for exactly one node (current: `"The Last Waypost"`, outer ring) |
+| `stamp_added` | `bool` | `true` after the visited ✓ stamp Label has been added as a button child |
 
 ### Layout
 
@@ -56,6 +57,12 @@ Connection rules (see also "Edge Layout" section below for the no-crossing desig
 
 ---
 
+## Adjacency Lookup
+
+Built in `_build_adjacency()` after `_build_edge_data()`. Stored in `_adjacency: Dictionary` (id → `Array[String]`). Each edge is added in both directions (undirected graph). Used by `GameState.is_adjacent_to_player()`.
+
+---
+
 ## Rendering
 
 | Element | Implementation |
@@ -64,14 +71,45 @@ Connection rules (see also "Edge Layout" section below for the no-crossing desig
 | Edges | `Line2D` nodes, `Color(0.55, 0.42, 0.28)`, width 3 px |
 | Normal nodes | `Button` with `StyleBoxFlat` circle, `Color(0.72, 0.60, 0.44)`, size 32×32 |
 | Hub (Badurga) | `Button` with `StyleBoxFlat` circle, `Color(0.85, 0.65, 0.25)` (gold), size 56×56 |
-| All node borders | 2 px, `Color(0.25, 0.18, 0.10)` |
+| All node borders | 2 px default, `Color(0.25, 0.18, 0.10)` |
 | Layer order | ColorRect → Line2Ds → Buttons → player marker → hover label |
 
 ---
 
 ## Player Marker
 
-A `Polygon2D` diamond (4 points ±10 px) in `Color(0.3, 0.6, 1.0)` (blue), centered 26 px above the player-start node. Stored as `_player_marker: Polygon2D`.
+A `Polygon2D` diamond (4 points ±10 px) in `Color(0.3, 0.6, 1.0)` (blue), centered 26 px above the current node. Stored as `_player_marker: Polygon2D`. On traversal it tweens to the new node position over 0.25 s (TRANS_QUAD, EASE_IN_OUT).
+
+---
+
+## Node Visual States
+
+Applied by `_refresh_all_node_visuals()`, called at end of `_build_scene()` and after each traversal move.
+
+| State | Condition | bg_color | Border | Modulate |
+|---|---|---|---|---|
+| **CURRENT** | `id == GameState.player_node_id` | base color | gold `Color(0.9, 0.85, 0.3)`, 3 px | `(1,1,1,1)` |
+| **REACHABLE** | adjacent to current node | base color | default `Color(0.25, 0.18, 0.10)`, 2 px | `(1,1,1,1)` |
+| **VISITED** | in `GameState.visited_nodes` (and not current) | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` |
+| **LOCKED** | none of the above | `base.darkened(0.15)` | default, 2 px | `(1,1,1,0.5)` |
+
+Visited nodes also receive a small `✓` Label child (stamp). The stamp is added once — `nd["stamp_added"]` prevents duplicates.
+
+---
+
+## Traversal
+
+`_on_node_clicked(node_id)` gates movement:
+
+1. Ignored if `_drag_moved` (click was part of a pan)
+2. Ignored if `node_id == GameState.player_node_id` (already here)
+3. Ignored if `not GameState.is_adjacent_to_player(node_id, _adjacency)` (not reachable)
+4. Otherwise calls `_move_player_to(node_id)`
+
+`_move_player_to(node_id)`:
+- Calls `GameState.move_player(node_id)` (updates player position + visited list)
+- Tweens `_player_marker.position` to `node_map[node_id]["position"] + Vector2(0, -26)` over 0.25 s
+- Calls `_refresh_all_node_visuals()`
 
 ---
 
@@ -81,10 +119,12 @@ Uses a **single shared `Label`** (`_hover_label`) repositioned on each hover eve
 
 | Event | Behavior |
 |---|---|
-| `mouse_entered` | Tween scale → `Vector2(1.25, 1.25)` over 0.12 s; show `_hover_label` centered 6 px below the node |
+| `mouse_entered` | Skip entirely if node is LOCKED; otherwise tween scale → `Vector2(1.25, 1.25)` over 0.12 s; show `_hover_label` centered 6 px below the node |
 | `mouse_exited` | Tween scale → `Vector2(1.0, 1.0)` over 0.10 s; hide `_hover_label` |
 | Hub hover enter | Same scale tween + tint `StyleBoxFlat.bg_color` to `Color(1.0, 0.85, 0.4)` over 0.12 s |
 | Hub hover exit | Tint returns to `Color(0.85, 0.65, 0.25)` over 0.10 s |
+
+LOCKED nodes feel inert — no scale animation, no label.
 
 ---
 
@@ -94,12 +134,6 @@ Uses a **single shared `Label`** (`_hover_label`) repositioned on each hover eve
 |---|---|
 | `"[MAP SCENE]"` label (top-left) | Visual confirmation of scene load |
 | `"→ Combat (debug)"` button (top-right) | Loads `res://scenes/combat/CombatScene3D.tscn` — will be removed in Feature 4 |
-
----
-
-## Node Clicks
-
-`_on_node_clicked(node_id)` prints `"Clicked: <id>"` to console. No other effect.
 
 ---
 
@@ -129,10 +163,8 @@ Using closest-to-angle for both sides of a gateway keeps inter-ring edges roughl
 
 ## Explicitly Deferred
 
-- Traversal logic and movement restrictions
 - Node types / encounter categories
-- GameState reads or writes
-- Scene transitions on node click
-- Procedural generation of the map
-- Fog of war / locked nodes
+- Scene transitions on node click (launch encounter)
+- Procedural generation of the map layout
+- Fog of war
 - Save/load of map state

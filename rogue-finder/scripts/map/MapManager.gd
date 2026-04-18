@@ -21,6 +21,7 @@ var _player_marker: Polygon2D
 var _node_data: Array[Dictionary] = []
 var _edge_data: Array[Array] = []
 var _node_map: Dictionary = {}  # id -> Dictionary (fast lookup)
+var _adjacency: Dictionary = {} # id -> Array[String]
 
 var _inner_ids: Array[String] = []
 var _middle_ids: Array[String] = []
@@ -38,6 +39,7 @@ var _drag_moved: bool = false
 func _ready() -> void:
 	_build_node_data()
 	_build_edge_data()
+	_build_adjacency()
 	_build_scene()
 
 # _input (not _unhandled_input) so drag is captured even when the press starts on a Button
@@ -128,6 +130,7 @@ func _add_node(id: String, pos: Vector2, angle: float, label: String,
 	var nd := {
 		"id": id, "position": pos, "angle": angle,
 		"label": label, "is_hub": is_hub, "is_player_start": is_player_start,
+		"stamp_added": false,
 	}
 	_node_data.append(nd)
 	_node_map[id] = nd
@@ -188,6 +191,19 @@ func _closest_to_angle(ids: Array[String], target: float) -> String:
 			best_id = id
 	return best_id
 
+## --- Adjacency ---
+
+func _build_adjacency() -> void:
+	for edge in _edge_data:
+		var a: String = edge[0]
+		var b: String = edge[1]
+		if not _adjacency.has(a):
+			_adjacency[a] = []
+		if not _adjacency.has(b):
+			_adjacency[b] = []
+		_adjacency[a].append(b)
+		_adjacency[b].append(a)
+
 ## --- Scene Construction ---
 
 func _build_scene() -> void:
@@ -197,6 +213,7 @@ func _build_scene() -> void:
 	_add_edges()
 	_add_nodes()
 	_add_hover_label()
+	_refresh_all_node_visuals()
 
 func _add_background() -> void:
 	var bg := ColorRect.new()
@@ -305,11 +322,90 @@ func _add_hover_label() -> void:
 	# Inside container so it pans/zooms with the map
 	_map_container.add_child(_hover_label)
 
+## --- Node Visual States ---
+
+func _refresh_all_node_visuals() -> void:
+	for nd in _node_data:
+		var id: String = nd["id"]
+		var btn: Button = _buttons[id]
+		var style: StyleBoxFlat = btn.get_meta("normal_style")
+		var base_color: Color = btn.get_meta("base_color")
+
+		var is_current: bool   = id == GameState.player_node_id
+		var is_visited: bool   = GameState.is_visited(id)
+		var is_reachable: bool = GameState.is_adjacent_to_player(id, _adjacency)
+
+		if is_current:
+			style.bg_color = base_color
+			style.border_color = Color(0.9, 0.85, 0.3)
+			style.border_width_left   = 3
+			style.border_width_right  = 3
+			style.border_width_top    = 3
+			style.border_width_bottom = 3
+			btn.modulate = Color(1, 1, 1, 1)
+		elif is_reachable:
+			style.bg_color = base_color
+			style.border_color = Color(0.25, 0.18, 0.10)
+			style.border_width_left   = 2
+			style.border_width_right  = 2
+			style.border_width_top    = 2
+			style.border_width_bottom = 2
+			btn.modulate = Color(1, 1, 1, 1)
+		elif is_visited:
+			style.bg_color = base_color.darkened(0.35)
+			style.border_color = Color(0.25, 0.18, 0.10)
+			style.border_width_left   = 2
+			style.border_width_right  = 2
+			style.border_width_top    = 2
+			style.border_width_bottom = 2
+			btn.modulate = Color(1, 1, 1, 0.85)
+			_add_visited_stamp(btn, nd)
+		else:
+			# LOCKED
+			style.bg_color = base_color.darkened(0.15)
+			style.border_color = Color(0.25, 0.18, 0.10)
+			style.border_width_left   = 2
+			style.border_width_right  = 2
+			style.border_width_top    = 2
+			style.border_width_bottom = 2
+			btn.modulate = Color(1, 1, 1, 0.5)
+
+func _add_visited_stamp(btn: Button, nd: Dictionary) -> void:
+	if nd["stamp_added"]:
+		return
+	nd["stamp_added"] = true
+	var stamp := Label.new()
+	stamp.text = "✓"
+	stamp.position = Vector2(2.0, -2.0)
+	var s := LabelSettings.new()
+	s.font_size = 11
+	s.font_color = Color(0.9, 0.95, 0.7)
+	stamp.label_settings = s
+	btn.add_child(stamp)
+
+## --- Traversal ---
+
+func _move_player_to(node_id: String) -> void:
+	GameState.move_player(node_id)
+	var target_pos: Vector2 = _node_map[node_id]["position"] + Vector2(0.0, -26.0)
+	var tween := create_tween()
+	tween.tween_property(_player_marker, "position", target_pos, 0.25) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	_refresh_all_node_visuals()
+
 ## --- Hover Callbacks ---
 
 func _on_node_hover_enter(btn: Button) -> void:
+	var node_id: String  = btn.get_meta("node_id")
+	var is_locked: bool  = not GameState.is_visited(node_id) \
+		and not GameState.is_adjacent_to_player(node_id, _adjacency) \
+		and node_id != GameState.player_node_id
+	# Always show the hub label so the player knows it exists — just suppress animation
+	var is_hub: bool = btn.get_meta("is_hub")
+	if is_locked and not is_hub:
+		return
+
 	var map_pos: Vector2 = btn.get_meta("map_pos")
-	var is_hub: bool     = btn.get_meta("is_hub")
 
 	_hover_label.text    = btn.get_meta("node_label")
 	_hover_label.visible = true
@@ -317,6 +413,9 @@ func _on_node_hover_enter(btn: Button) -> void:
 	await get_tree().process_frame
 	var lw: float = _hover_label.size.x
 	_hover_label.position = map_pos + Vector2(-lw * 0.5, btn.size.y * 0.5 + 6.0)
+
+	if is_locked:
+		return  # label shown; skip scale/tint for unreachable hub
 
 	var tween := create_tween()
 	tween.tween_property(btn, "scale", Vector2(1.25, 1.25), 0.12).set_trans(Tween.TRANS_QUAD)
@@ -342,7 +441,11 @@ func _on_node_hover_exit(btn: Button) -> void:
 func _on_node_clicked(node_id: String) -> void:
 	if _drag_moved:
 		return
-	print("Clicked: ", node_id)
+	if node_id == GameState.player_node_id:
+		return
+	if not GameState.is_adjacent_to_player(node_id, _adjacency):
+		return
+	_move_player_to(node_id)
 
 func _on_debug_combat_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")

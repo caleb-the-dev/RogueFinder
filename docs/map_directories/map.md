@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-18 |
 | last_groomed | 2026-04-15 |
-| sessions_since_groom | 5 |
+| sessions_since_groom | 6 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -42,8 +42,8 @@
 | [Equipment Data Model](#equipment-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Equipment Library](#equipment-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
-| [Game State](#game-state) | [game_state.md](game_state.md) | 🔲 Stub | Global |
-| [Map Scene](#map-scene) | [map_scene.md](map_scene.md) | 🔲 Visual prototype | World Map |
+| [Game State](#game-state) | [game_state.md](game_state.md) | 🟡 Partial (map traversal live) | Global |
+| [Map Scene](#map-scene) | [map_scene.md](map_scene.md) | 🟡 Traversable map | World Map |
 
 ---
 
@@ -87,7 +87,10 @@ EquipmentLibrary
 CombatantData
   └── EquipmentData    (weapon / armor / accessory slots)
 
-GameState              (autoload stub — not yet wired to anything)
+MapManager
+  └── GameState        (reads player_node_id/visited_nodes; calls move_player)
+
+GameState              (autoload — map traversal live; all other data deferred)
 ```
 
 ---
@@ -152,12 +155,12 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, an
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
 
 ### Game State
-Autoload singleton stub. Intended for run-wide data (party roster, items, map progress). Not yet wired to any system.
+Autoload singleton. Map traversal is live: tracks `player_node_id` and `visited_nodes`; exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`. All other run-wide data (party roster, reputation, etc.) is deferred to Stage 2.
 
 ## World Map
 
 ### Map Scene
-Visual-only prototype of the world map. Displays a static spider-web of 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer rings). Hover shows node name; clicks print to console. No traversal, no GameState, no scene transitions. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
+Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Player can click adjacent nodes to traverse the map; marker tweens to the new node. Nodes display four visual states (CURRENT / REACHABLE / VISITED / LOCKED). Hover is suppressed for LOCKED nodes. Wired to GameState for traversal. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
 
 ---
 
@@ -240,3 +243,4 @@ res://
 | 2026-04-16 | Data | EquipmentData + EquipmentLibrary (6 items); CombatantData slots typed; all derived stats include equipment bonuses |
 | 2026-04-17 | UI, Globals | EndCombatScreen (layer 15) + RewardGenerator; win/lose overlay replaces status label text |
 | 2026-04-17 | World Map | MapScene + MapManager: static spider-web node map, 28 nodes, hover labels, player marker, debug combat button |
+| 2026-04-18 | World Map, GameState | Feature 2: node traversal — adjacency lookup, click gating, GameState wiring (player_node_id, visited_nodes), marker tween, four node visual states (CURRENT/REACHABLE/VISITED/LOCKED), visited stamp, locked hover suppression |
