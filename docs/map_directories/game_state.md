@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-04-19 (S17 Slice 2 — party field added to GameState; init_party(), _serialize_combatant(), _deserialize_combatant() added; save/load/reset extended; MapManager._ready() calls init_party() on fresh runs)
+> Last updated: 2026-04-19 (S18 — run_summary field added; reset() clears it; CombatManager3D now calls save() on permadeath and combat end)
 
 ---
 
@@ -45,6 +45,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `cleared_nodes` | `Array[String]` | `[]` | Nodes where the player completed combat AND collected a reward. Show a `✗` stamp on the map; traversable as pass-through. **Saved to disk.** |
 | `threat_level` | `float` | `0.0` | Run-wide danger gauge. Range 0.0–1.0 (0%–100%). Incremented by MapManager on both travel (+0.05) and node entry (+0.05); capped at 1.0 via `minf()`. Reset to `0.0` by EndCombatScreen when a BOSS node is defeated. Displayed as a vertical bar in the map HUD. **Saved to disk.** |
 | `party` | `Array[CombatantData]` | `[]` | Active party roster. index 0 = PC. Empty = not yet initialized (freshness check for `init_party()`). **Saved to disk.** |
+| `run_summary` | `Dictionary` | `{}` | Snapshot of run stats written by `CombatManager3D._capture_run_summary()` immediately before a run-end transition. Keys: `pc_name`, `nodes_visited`, `nodes_cleared`, `threat_level`, `fallen_allies`. Read by `RunSummaryManager`. Cleared by `reset()`. **NOT saved to disk** — survives the scene transition only because GameState is an autoload. |
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -58,10 +59,10 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `save` | `() -> void` | Serializes all persistent fields (including `party`) to `user://save.json` as indented JSON. Party members are written as plain dicts with equipment slots serialized as their `equipment_id` string. Called by **MapManager** after travel increments and node entry, after `_assign_node_types()` on first run; also called by **EndCombatScreen** immediately on reward selection (after any threat reset). |
+| `save` | `() -> void` | Serializes all persistent fields (including `party`) to `user://save.json` as indented JSON. Party members are written as plain dicts with equipment slots serialized as their `equipment_id` string. Called by: **MapManager** after travel increments, node entry, and `_assign_node_types()`; **EndCombatScreen** on reward selection; **CombatManager3D** on ally permadeath (`_on_unit_died()`), on victory write-back, and on run-end (defeat). |
 | `load_save` | `() -> bool` | Reads and deserializes `user://save.json`. Returns `true` if a valid save was found and loaded, `false` on a fresh run or corrupt file. Called by **MapManager** at the start of `_ready()`, before any map data is built. Typed arrays are converted via `Array(raw, TYPE_STRING, "", null)`. Equipment slots resolve via `EquipmentLibrary.get_equipment(id)`; `""` id → `null` slot. |
 | `delete_save` | `() -> void` | Removes `user://save.json` if it exists. Called by **MapManager**'s debug "Delete Save" button before resetting in-memory state. |
-| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "badurga"`, `visited_nodes = ["badurga"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`, `current_combat_node_id = ""`, `cleared_nodes = []`, `threat_level = 0.0`, `party = []`). Must be called alongside `delete_save()` when wiping a save mid-session. |
+| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "badurga"`, `visited_nodes = ["badurga"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`, `current_combat_node_id = ""`, `cleared_nodes = []`, `threat_level = 0.0`, `party = []`, `run_summary = {}`). Must be called alongside `delete_save()` when wiping a save mid-session. |
 
 ---
 
@@ -103,7 +104,7 @@ None currently.
 
 | Data | Type | Notes |
 |------|------|-------|
-| Party roster | `Array[CombatantData]` | **Live** as of Slice 2 — party is seeded, saved, and loaded. Slice 3 will wire party[0] into CombatManager3D as the player squad. |
+| Party roster | `Array[CombatantData]` | **Live** — party is seeded, saved, loaded, and fully wired into CombatManager3D (Slices 1–3 complete). |
 | Faction reputation | `Dictionary` | Per-faction standing |
 | Currency / resources | `int` | TBD |
 | Run flags | `Dictionary` | Misc boolean state |

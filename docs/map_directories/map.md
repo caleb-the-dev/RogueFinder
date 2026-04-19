@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-19 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 4 |
+| sessions_since_groom | 5 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -32,7 +32,8 @@
 | [Stat Panel](#stat-panel) | [hud_system.md](hud_system.md) | ✅ Active (double-click examine) | Presentation |
 | [Unit Info Bar](#unit-info-bar) | [hud_system.md](hud_system.md) | ✅ Active (single-click strip) | Presentation |
 | [Action Menu](#action-menu) | [hud_system.md](hud_system.md) | ✅ Active | Presentation |
-| [End Combat Screen](#end-combat-screen) | [hud_system.md](hud_system.md) | ✅ Active | Presentation |
+| [End Combat Screen](#end-combat-screen) | [hud_system.md](hud_system.md) | ✅ Active (victory only) | Presentation |
+| [Run Summary Scene](#run-summary-scene) | [combat_manager.md](combat_manager.md) | ✅ Active | Presentation |
 | [Reward Generator](#reward-generator) | [hud_system.md](hud_system.md) | ✅ Active | Global |
 | [Combatant Data Model](#combatant-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active (3D) | Data |
 | [Ability Data Model](#ability-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
@@ -52,14 +53,16 @@
 ```
 CombatManager3D
   ├── Grid3D           (cell queries, highlights, world↔grid math)
-  ├── Unit3D ×6        (HP/energy state, movement, animations)
+  ├── Unit3D ×≤6       (HP/energy state, movement, animations; player units from GameState.party)
   ├── QTEBar           (skill-check overlay → accuracy float)
   ├── CameraController (built by CM3D; shake on hit)
   ├── UnitInfoBar      (condensed strip; shown on single-click)
   ├── StatPanel        (full examine window; shown on double-click)
-  ├── ActionMenu         (radial pop-up; signals ability_selected, consumable_selected)
-  ├── EndCombatScreen    (victory/defeat overlay; shown by _end_combat())
-  └── ArchetypeLibrary   (creates CombatantData for each unit at scene load)
+  ├── ActionMenu       (radial pop-up; signals ability_selected, consumable_selected)
+  ├── EndCombatScreen  (victory overlay only; defeat bypasses it)
+  ├── ArchetypeLibrary (creates CombatantData for enemy units only)
+  ├── GameState        (party read at setup; save() on permadeath and combat end)
+  └── RunSummaryScene  (loaded via change_scene_to_file on run-end defeat)
 
 EndCombatScreen
   └── RewardGenerator  (shuffled pool of EquipmentLibrary + ConsumableLibrary items)
@@ -133,7 +136,10 @@ CanvasLayer overlay (layer 8) opened on double-click of any unit. Shows the comp
 Condensed CanvasLayer strip (layer 4). Shown on single-click of any unit. Displays name, class, HP bar, energy bar, ATK/DEF/SPD. Hidden on deselect and combat end.
 
 ### End Combat Screen
-CanvasLayer overlay (layer 15) shown when combat ends. Victory shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)` — picking one immediately appends the node to `GameState.cleared_nodes`, saves, and returns to `MapScene.tscn` (no "Onward..." step). Defeat shows "DEFEAT" + "Return to Map" button (node is NOT cleared). Lives in `scripts/ui/EndCombatScreen.gd`.
+CanvasLayer overlay (layer 15) shown on combat **victory only**. Shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)` — picking one immediately appends the node to `GameState.cleared_nodes`, saves, and returns to `MapScene.tscn`. The defeat path now bypasses EndCombatScreen entirely (see Run Summary Scene). Lives in `scripts/ui/EndCombatScreen.gd`.
+
+### Run Summary Scene
+Shown after a run-ending defeat (full party wipe). Displays run stats read from `GameState.run_summary`: pc_name, nodes visited/cleared, threat level percentage, fallen allies. Three buttons: Start New Run (reset + delete save + load MapScene), Main Menu (stub — same as Start New Run until a title scene exists), Quit Game. Lives in `scripts/ui/RunSummaryManager.gd` + `scenes/ui/RunSummaryScene.tscn`.
 
 ### Reward Generator
 Static utility (`scripts/globals/RewardGenerator.gd`). Combines all `EquipmentLibrary` and `ConsumableLibrary` items into one pool, Fisher-Yates shuffles, and returns `count` distinct Dicts (`id`, `name`, `description`, `item_type`).
@@ -166,7 +172,7 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, sl
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
 
 ### Game State
-Autoload singleton. Map traversal, save/load, and party roster are live. Tracks `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, `threat_level` (float 0.0–1.0), and `party: Array[CombatantData]` (index 0 = PC) — all saved to disk. `pending_node_type` and `current_combat_node_id` are transient handoffs. Exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `get_threat_level()`, `init_party()`, `save()`, `load_save()`, `delete_save()`, `reset()`. Save path: `user://save.json`. Inventory, reputation, and other Stage 2+ data deferred.
+Autoload singleton. Map traversal, save/load, and party roster are live. Tracks `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, `threat_level` (float 0.0–1.0), `party: Array[CombatantData]` (index 0 = PC) — all saved to disk. `run_summary: Dictionary` holds stats for the RunSummaryScene after a run-end defeat (not saved to disk; lives in autoload memory across the scene transition). `pending_node_type` and `current_combat_node_id` are transient handoffs. Exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `get_threat_level()`, `init_party()`, `save()`, `load_save()`, `delete_save()`, `reset()`. Save path: `user://save.json`. Inventory, reputation, and other Stage 2+ data deferred.
 
 ## World Map
 
@@ -215,7 +221,8 @@ res://
 │   │   └── Grid.gd              ← legacy 2D
 │   ├── ui/
 │   │   ├── ActionMenu.gd        ← radial action pop-up (player unit selection)
-│   │   ├── EndCombatScreen.gd   ← victory/defeat overlay (layer 15)
+│   │   ├── EndCombatScreen.gd   ← victory overlay (layer 15; defeat bypassed)
+│   │   ├── RunSummaryManager.gd ← run-end stats + new run / quit buttons
 │   │   ├── StatPanel.gd         ← full examine window (double-click)
 │   │   ├── UnitInfoBar.gd       ← condensed strip (single-click)
 │   │   └── HUD.gd               ← legacy 2D only
@@ -233,6 +240,8 @@ res://
     ├── ConsumableData.gd        ← consumable item resource
     ├── EquipmentData.gd         ← equipment item resource (Slot enum, stat_bonuses, get_bonus())
     └── UnitData.gd              ← legacy data resource (2D only)
+├── scenes/ui/
+│   └── RunSummaryScene.tscn     ← run-end stats scene (root CanvasLayer + script only)
 ├── scenes/map/
 │   └── MapScene.tscn            ← world map shell (root + script only)
 ├── scenes/misc/
@@ -258,5 +267,6 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 | 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — Badurga start, BOSS glow, node prompts, instant reward return |
 | 2026-04-18 | BadurgaScene, MapManager | Feature 6: Badurga city shell — CITY branch now loads `BadurgaScene.tscn` with 6 placeholder section buttons + return to map |
 | 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 7: Threat escalation counter — `threat_level` float (0.0–1.0) saved to disk; +5% on travel, +5% on node entry; vertical HUD bar with quadrant colors + tick marks; resets to 0 on BOSS defeat |
+| 2026-04-19 | CombatManager3D, Unit3D, GameState, RunSummaryScene | S18 Persistent Party Slice 3 + permadeath + run-end: combat pulls player units from `GameState.party`; `Unit3D.setup()` seeds from `current_hp`/`current_energy`; `_attr_snapshots` rolls back stat mutations on combat end; allies die permanently on 0 HP; PC revives at 1 HP on victory; full wipe triggers "RogueFinder has perished" overlay → `RunSummaryScene` (stats + new run/quit buttons); T-key debug menu in combat for faster testing |
 | 2026-04-19 | GameState, MapManager | S17 Persistent Party Slice 2: `GameState.party: Array[CombatantData]` added; `init_party()` seeds PC (RogueFinder/"Hero") + 2 allies (archer_bandit, grunt) on fresh runs; `save()` / `load_save()` / `reset()` extended; equipment slots persist as id strings; 6 new headless tests (28 total passing) |
 | 2026-04-18 | CombatantData, ArchetypeLibrary | S16 Persistent Party Slice 1: added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData; `create()` seeds all four; pool ⊇ slots invariant |

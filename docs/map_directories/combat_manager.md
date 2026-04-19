@@ -46,7 +46,8 @@ Does **NOT** own: grid math (see `grid_system.md`), unit visuals/HP state (see `
 | **ArchetypeLibrary** | `create(archetype_id, name, is_player)` for enemy units only (player units come from `GameState.party`) |
 | **GameState** | `GameState.party` read in `_setup_units()`; `GameState.save()` called on permadeath and combat end |
 | **AbilityLibrary** | `get_ability(id)` to resolve `_pending_ability` before targeting |
-| **EndCombatScreen** | Built in `_setup_ui()`; `show_victory()` / `show_defeat()` called from `_end_combat()` |
+| **EndCombatScreen** | Built in `_setup_ui()`; `show_victory()` called on win. Defeat path bypasses it entirely — `_show_run_end_overlay()` handles defeat. |
+| **RunSummaryScene** | Loaded via `change_scene_to_file()` after the run-end overlay timer expires |
 | **RewardGenerator** | `roll(3)` called on victory to populate the reward panel |
 
 ---
@@ -146,7 +147,10 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_setup_environment_tiles()` | Calls `_grid.build_walls()` and `_grid.set_cell_type()` for the hardcoded placeholder layout. Called from `_ready()` after `_setup_grid()`. |
 | `_pick_best_aoe_origin(enemy, ability)` | For AoE abilities: finds the origin cell that maximizes living player units hit (random tiebreak). RADIAL scans all cells in range; CONE/ARC/LINE try 4 cardinal roots. |
 | `_check_win_lose()` | All-dead check on either side; calls `_end_combat()` |
-| `_end_combat(player_won)` | Sets WIN/LOSE state; hides UI; restores snapshotted attributes for all player units; writes hp/energy back to `GameState.party` for alive units on victory; calls `GameState.save()`, then `EndCombatScreen.show_victory()` or `show_defeat()` |
+| `_end_combat(player_won)` | Sets WIN/LOSE state; hides UI; restores `_attr_snapshots` for all player units. **Victory:** writes `current_hp`/`current_energy` back; PC revives at 1 HP if downed; calls `GameState.save()` then `EndCombatScreen.show_victory()`. **Defeat:** marks PC `is_dead = true`; calls `_capture_run_summary()` + `GameState.save()` + `_show_run_end_overlay()`. |
+| `_capture_run_summary()` | Snapshots run stats into `GameState.run_summary` (pc_name, nodes_visited, nodes_cleared, threat_level, fallen_allies list) immediately before defeat transition |
+| `_show_run_end_overlay()` | Builds a full-screen "The RogueFinder has perished." CanvasLayer (layer 20); awaits 3 seconds then `change_scene_to_file("res://scenes/ui/RunSummaryScene.tscn")` |
+| `_toggle_debug_menu()` | T key: creates `_debug_menu` on first call (returns immediately, so menu appears); toggles visible on subsequent presses |
 | `_unit_can_still_act(unit)` | True if alive, has_acted=false, energy ≥ lowest affordable ability cost |
 
 ---
@@ -214,7 +218,8 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 - **`_setup_units()` reads `GameState.party`** — passes the same `CombatantData` resource instance, not a copy. Mutations via `_apply_stat_delta()` hit the live party member, which is why snapshot/restore is mandatory.
 - **Dead members are skipped on spawn** — if `cd.is_dead == true`, no unit is created for that party slot. Fewer than 3 player units may enter combat.
 - **"Redo" reloads CombatScene3D with current party state** — after Slice 3 it re-uses the (possibly damaged) party, not a fresh one. This is intentional.
-- **Permadeath saves immediately** — `_on_unit_died()` sets `unit.data.is_dead = true` and calls `GameState.save()` before `_check_win_lose()` so the flag persists even if the game is closed mid-defeat screen.
+- **Ally permadeath vs PC permadeath are separate paths** — `_on_unit_died()` only sets `is_dead = true` and saves for non-RogueFinder player units (allies). The PC's death is deferred to `_end_combat()`: on victory the PC revives at 1 HP; on defeat `_end_combat()` marks the PC dead and triggers the run-end flow. Check `unit.data.archetype_id != "RogueFinder"` before touching `is_dead` in `_on_unit_died()`.
+- **Defeat path does NOT use EndCombatScreen** — it calls `_show_run_end_overlay()` directly. `EndCombatScreen.show_defeat()` is now dead code (no callers).
 
 ---
 
@@ -222,9 +227,10 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
-| 2026-04-19 | Slice 3 — `_setup_units()` rewritten to spawn player units from `GameState.party` (shared resource references, not fresh instances); dead members skipped. `_attr_snapshots` dict records per-unit attribute baseline at setup; `_end_combat()` restores snapshots on both win and defeat. `_on_unit_died()` sets `unit.data.is_dead = true` + calls `GameState.save()` for player deaths. Victory path writes `current_hp`/`current_energy` back to party members. `Unit3D.setup()` now seeds from `data.current_hp`/`data.current_energy` instead of max. |
+| 2026-04-19 | Permadeath rules, PC revival, run-end flow, debug menu — allies die permanently in `_on_unit_died()`; PC death deferred to `_end_combat()`. Victory: PC downed → revives at 1 HP. Defeat: PC `is_dead = true` → `_capture_run_summary()` → 3-second overlay → `RunSummaryScene`. `_attr_snapshots` restored on both outcomes. T key toggles in-combat debug menu (Kill PC / Kill Allies / Kill Enemies / Kill Party / Damage PC -20). |
+| 2026-04-19 | Slice 3 — `_setup_units()` rewritten to spawn player units from `GameState.party` (shared resource references, not fresh instances); dead members skipped. `_attr_snapshots` dict records per-unit attribute baseline at setup. Victory path writes `current_hp`/`current_energy` back to party members. `Unit3D.setup()` now seeds from `data.current_hp`/`data.current_energy` instead of max. |
 | 2026-04-17 | Pathfinding + movement reservation: `_try_move()` now uses `Grid3D.find_path()` for cell-by-cell tween traversal (~0.12s per cell); hazard damage fires on each cell entered. Unit3D `has_moved` replaced by `remaining_move: int` (initialized to `data.speed` on `setup()`/`reset_turn()`); stride can be used multiple times per turn until budget reaches 0. `_select_unit()` and enemy stride both pass `unit.remaining_move` to `get_move_range()`. Enemy stride updated to use same cell-by-cell traversal. |
-| 2026-04-17 | Win/lose screen: `_end_combat()` now triggers `EndCombatScreen`; victory shows 3 rewards from `RewardGenerator.roll(3)`; defeat shows "Try Again"; status label cleared on end; K key debug hotkey instant-kills all enemies |
+| 2026-04-17 | Win/lose screen: `_end_combat()` triggers `EndCombatScreen` for victory (3 rewards from `RewardGenerator.roll(3)`); K key debug hotkey instant-kills all enemies |
 | 2026-04-17 | Hazard polish: on-entry damage fires for player stride, TRAVEL, and enemy stride; `_apply_force()` now tracks full path and applies 2 HP per hazard cell traversed (not just landing cell); enemy killed by stride hazard damage skips ability execution; win/lose guard added after player hazard loop in `_run_enemy_turn()` |
 | 2026-04-17 | Added wall/hazard environment tiles: `_setup_environment_tiles()`, `_check_hazard_damage()`, player hazard damage at start of player turn, enemy hazard damage before each enemy acts |
 | 2026-04-17 | Rewrote `_process_enemy_actions()`: target selection, consumable use (50% at <50% HP), greedy Manhattan stride, per-enemy ability filtering (energy + range + applicable_to), AoE origin selection via `_pick_best_aoe_origin()` |

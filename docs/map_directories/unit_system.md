@@ -1,6 +1,6 @@
 # System: Unit System
 
-> Last updated: 2026-04-17 (Session 11 — has_moved replaced by remaining_move; can_stride() gates on budget > 0)
+> Last updated: 2026-04-19 (S18 — setup() seeds from data.current_hp/current_energy instead of max)
 
 ---
 
@@ -59,7 +59,7 @@ CombatManager subscribes to both signals on every unit.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `setup` | `(unit_data: CombatantData, pos: Vector2i) -> void` | Initializes all stats and position |
+| `setup` | `(unit_data: CombatantData, pos: Vector2i) -> void` | Initializes stats and position. Seeds `current_hp` from `data.current_hp` and `current_energy` from `data.current_energy` — **not** from max — so a unit enters combat at its last saved HP/energy. |
 
 ### State Queries
 
@@ -96,8 +96,8 @@ CombatManager subscribes to both signals on every unit.
 
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
-| `current_hp` | `int` | `data.hp_max` | Current hit points |
-| `current_energy` | `int` | `data.energy_max` | Current action energy |
+| `current_hp` | `int` | `data.current_hp` | Current hit points — seeded from the CombatantData persistent field, not from max |
+| `current_energy` | `int` | `data.current_energy` | Current action energy — seeded from persistent field |
 | `grid_pos` | `Vector2i` | from `setup()` | Current cell on the grid |
 | `remaining_move` | `int` | `data.speed` | Tiles of movement budget remaining this turn; depleted by CombatManager after each stride |
 | `has_acted` | `bool` | `false` | Active action used this turn |
@@ -164,3 +164,12 @@ The buff ▲ and debuff ▼ billboard indicators are refreshed after every `add_
 - `take_damage()` calls `_play_hit_flash()` as fire-and-forget — damage and `unit_died` signal are not delayed by the animation.
 - `stat_effects` is read by `UnitInfoBar._refresh_status()` and `StatPanel._format()` for display; Unit3D only writes to it.
 - FORCE displacement calls `move_to()` but does not consume `remaining_move` — forced movement is involuntary and does not reduce the stride budget.
+- **`setup()` reads `current_hp`/`current_energy` from the shared `CombatantData` instance** — the same object that lives in `GameState.party`. `CombatManager3D._end_combat()` writes back to it on victory, so the HP a unit enters combat with is what it had when it last left combat.
+
+---
+
+## Recent Changes
+
+| Date | Change |
+|---|---|
+| 2026-04-19 | `setup()` changed to seed `current_hp` from `data.current_hp` and `current_energy` from `data.current_energy` (was `hp_max` / `energy_max`). Units now enter combat at their last saved HP, not always full. |
