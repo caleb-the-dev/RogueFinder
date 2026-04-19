@@ -87,7 +87,14 @@ Hover shows a tooltip with ability name, tags, energy cost, and description.
 | `show_victory` | `(reward_items: Array) -> void` | Displays VICTORY header + 3 reward buttons |
 | `show_defeat` | `() -> void` | Displays DEFEAT header + "Return to Map" button |
 
-Victory flow: 3 reward buttons (item name + description). Clicking one disables all reward buttons, highlights the chosen button with a `✓` prefix, appends `GameState.current_combat_node_id` to `GameState.cleared_nodes` (if not already present), calls `GameState.save()`, then immediately calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`. There is no intermediate "Onward..." step — reward selection is the final input.
+Victory flow: 3 reward buttons (item name + description). Clicking one:
+1. Disables all reward buttons, highlights chosen with `✓` prefix.
+2. Appends `GameState.current_combat_node_id` to `GameState.cleared_nodes` (if not already present).
+3. If the defeated node's type is `"BOSS"` (checked via `GameState.node_types.get(...)`), resets `GameState.threat_level = 0.0`.
+4. Calls `GameState.save()`.
+5. Calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
+
+There is no intermediate "Onward..." step — reward selection is the final input.
 
 Defeat flow: single "Return to Map" button → `_return_to_map()` → `MapScene.tscn`. The node is **not** added to `cleared_nodes` on defeat, so it remains re-enterable. Subtitle text: *"Return to the map and try again."*
 

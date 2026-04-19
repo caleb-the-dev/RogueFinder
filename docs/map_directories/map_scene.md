@@ -151,7 +151,11 @@ Stamps are added once per session — `nd["stamp_added"]` and `nd["cleared_stamp
 
 ### Scene Entry — `_enter_current_node()`
 
-Dispatches scene routing based on the current node's type:
+Guards cleared nodes first — returns immediately (no entry increment) if `GameState.cleared_nodes.has(player_node_id)`. Otherwise:
+
+1. Increments `GameState.threat_level` by `0.05` (capped at `1.0`) — the **entry increment**. All non-cleared node types including CITY count.
+2. Calls `GameState.save()`.
+3. Dispatches based on node type:
 
 | Node type | Action |
 |---|---|
@@ -161,15 +165,18 @@ Dispatches scene routing based on the current node's type:
 
 `NodeStub` reads and clears `GameState.pending_node_type` in `_ready()` and shows a placeholder screen with a "← Return to Map" button.
 
+**City entry increments threat** — entering Badurga counts as entering a node. "Keep Moving" from the node prompt avoids the entry increment (player never calls `_enter_current_node()`).
+
 `_move_player_to(node_id)`:
 - Dismisses any open node prompt via `_dismiss_prompt()`
 - Calls `GameState.move_player(node_id)` (updates player position + visited list)
-- Calls `GameState.save()` (persists to disk)
+- Increments `GameState.threat_level` by `0.05` (capped at `1.0`) — the **travel increment**. Always fires regardless of node type or cleared status.
+- Calls `GameState.save()` (persists travel increment to disk)
 - Tweens `_player_marker.position` to `node_map[node_id]["position"] + Vector2(0, -26)` over 0.25 s
 - Calls `_refresh_all_node_visuals()`
 - `await tween.finished` — then:
-  - If `cleared_nodes.has(node_id)`: returns early (cleared nodes are pass-through)
-  - If node type is `COMBAT`, `BOSS`, or `EVENT`: calls `_enter_current_node()` immediately — **auto-starts the encounter**
+  - If `cleared_nodes.has(node_id)`: returns early (cleared nodes are pass-through — no entry increment)
+  - If node type is `COMBAT`, `BOSS`, or `EVENT`: calls `_enter_current_node()` immediately — **auto-starts the encounter** (also fires entry increment)
   - If node type is `VENDOR`, `RECRUIT`, or `CITY`: calls `_show_node_prompt(node_id)` — shows a yes/no panel asking the player to enter or keep moving
 
 ### Node Prompt
@@ -214,12 +221,39 @@ Hover label format: `"<node_label> [<Type>]"` (e.g. `"Ashwood Hollow [Combat]"`,
 
 ---
 
-## Debug Elements (temporary)
+## UI Chrome (screen-fixed, not in `_map_container`)
 
-| Element | Purpose |
+Built in `_add_ui_chrome()` and `_add_threat_meter()`. These elements are children of the root MapManager node, so they stay fixed on screen while the map pans.
+
+| Element | Position | Purpose |
+|---|---|---|
+| `"[MAP SCENE]"` label | top-left `(12, 8)` | Debug: visual confirmation of scene load |
+| Threat meter | left side `(12, 46)` | Run-wide danger gauge — see below |
+| `"🗑 Delete Save (debug)"` button | top-right `(VIEWPORT_SIZE.x - 212, 8)` | Calls `GameState.delete_save()` + `GameState.reset()` then `reload_current_scene()` |
+
+### Threat Meter — `_add_threat_meter()`
+
+Vertical bar on the left edge (below the debug label). Built entirely in code; no stored reference needed — the map scene fully rebuilds on every load so the displayed value is always current.
+
+| Part | Details |
 |---|---|
-| `"[MAP SCENE]"` label (top-left) | Visual confirmation of scene load |
-| `"🗑 Delete Save (debug)"` button (top-right) | Calls `GameState.delete_save()` + `GameState.reset()` then `reload_current_scene()` — wipes the save file and resets all in-memory GameState fields to fresh-run defaults. Gives a completely clean state without restarting Godot. |
+| "THREAT" header | Font size 11, `Color(0.75, 0.18, 0.12)` dark red, at `(12, 30)` |
+| Border outline | `Color(0.45, 0.35, 0.25, 0.9)`, 2 px larger than bar on all sides |
+| Background track | `Color(0.06, 0.04, 0.03, 0.95)`, 20×120 px |
+| Fill | Height = `threat_level × 120` px, bottom-aligned (grows upward). Color from `_threat_fill_color()`. Only rendered if `threat_level > 0.0`. |
+| Tick marks | 1.5 px horizontal lines at 25 / 50 / 75 % positions — mark quadrant thresholds for boss scaling |
+| Percentage label | `int(threat_level × 100)%`, below bar, font 12 |
+
+Fill color by quadrant (`_threat_fill_color(t: float) -> Color`):
+
+| Range | Color | Label |
+|---|---|---|
+| 0–25% | `Color(0.95, 0.75, 0.10)` | yellow-orange |
+| 25–50% | `Color(0.95, 0.45, 0.08)` | orange |
+| 50–75% | `Color(0.90, 0.22, 0.08)` | red-orange |
+| 75–100% | `Color(0.85, 0.08, 0.08)` | bright red |
+
+The quadrant breaks at 25 / 50 / 75 / 100% correspond to planned boss difficulty tiers (Feature 8).
 
 The `"→ Combat (debug)"` button was removed in Feature 3 — real scene routing via `_enter_current_node()` replaced it.
 
@@ -289,6 +323,7 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 | 2026-04-18 | S13 UX | Player always starts at `"badurga"` (not `"node_o11"`); Boss node size 44×44 + pulsing red `Polygon2D` glow (looping tween); EVENT nodes auto-start (no prompt); VENDOR/RECRUIT/CITY show yes/no node prompt (`_show_node_prompt` / `_dismiss_prompt`); `_desc_for_type()` helper; tooltip upgraded from bare `Label` to `ColorRect` + `Label` panel |
 | 2026-04-18 | S13 EndCombatScreen | "Onward..." button removed — picking a reward immediately clears the node, saves, and returns to map |
 | 2026-04-18 | S14 Feature 6 | `CITY` branch of `_enter_current_node()` now routes to `res://scenes/city/BadurgaScene.tscn` (was a no-op). Badurga city shell added with 6 placeholder section buttons + return button. |
+| 2026-04-18 | S15 Feature 7 | Travel increment (+0.05) added to `_move_player_to()`. Entry increment (+0.05) added to `_enter_current_node()` (replaces int increment; city now counts). Old text label replaced with `_add_threat_meter()` vertical bar + `_threat_fill_color()` helper. |
 
 ---
 

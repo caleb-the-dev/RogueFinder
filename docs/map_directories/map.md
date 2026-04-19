@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-18 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 1 |
+| sessions_since_groom | 2 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -88,7 +88,7 @@ CombatantData
   └── EquipmentData    (weapon / armor / accessory slots)
 
 MapManager
-  └── GameState        (reads player_node_id/visited_nodes/map_seed/node_types/cleared_nodes; calls move_player, save, load_save; sets pending_node_type before NodeStub transition; sets current_combat_node_id before CombatScene3D transition; transitions directly to BadurgaScene for CITY nodes)
+  └── GameState        (reads player_node_id/visited_nodes/map_seed/node_types/cleared_nodes/threat_level; increments threat_level on travel and entry; calls move_player, save, load_save; sets pending_node_type before NodeStub transition; sets current_combat_node_id before CombatScene3D transition; transitions directly to BadurgaScene for CITY nodes)
 
 NodeStub
   └── GameState        (reads+clears pending_node_type)
@@ -97,7 +97,7 @@ BadurgaManager         (standalone — no dependencies; returns to MapScene on b
 
 EndCombatScreen
   ├── RewardGenerator  (shuffled pool of EquipmentLibrary + ConsumableLibrary items)
-  └── GameState        (reads current_combat_node_id; appends to cleared_nodes; calls save() on reward selection)
+  └── GameState        (reads current_combat_node_id + node_types; appends to cleared_nodes; resets threat_level to 0.0 on BOSS defeat; calls save() on reward selection)
 
 GameState              (autoload — map traversal + save/load live; all other data deferred)
 ```
@@ -164,12 +164,12 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, an
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
 
 ### Game State
-Autoload singleton. Map traversal and save/load are live: tracks `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, and `cleared_nodes` (all saved to disk); `pending_node_type` and `current_combat_node_id` are transient handoffs between scenes. Exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `save()`, `load_save()`, `delete_save()`, `reset()`. Save path: `user://save.json`. All other run-wide data (party roster, reputation, etc.) is deferred to Stage 2.
+Autoload singleton. Map traversal and save/load are live: tracks `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, and `threat_level` (float 0.0–1.0, all saved to disk); `pending_node_type` and `current_combat_node_id` are transient handoffs between scenes. Exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `get_threat_level()`, `save()`, `load_save()`, `delete_save()`, `reset()`. Save path: `user://save.json`. All other run-wide data (party roster, reputation, etc.) is deferred to Stage 2.
 
 ## World Map
 
 ### Map Scene
-Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a procedurally-drawn lore name (seeded per ring — not saved, regenerates from map_seed), a type (COMBAT, RECRUIT, VENDOR, EVENT, BOSS, CITY) with distinct color/icon/hover label, and exactly 1 BOSS per run in the outer ring. Player traverses by clicking adjacent nodes; re-clicking enters the current node. Nodes display five visual states (CURRENT / REACHABLE / CLEARED / VISITED / LOCKED). Bridges use quadrant-aware placement (≥90° intra-pair gap, ≥30° cross-pair exclusion) to prevent straight corridors. Seeded from map_seed — deterministic on reload. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
+Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a procedurally-drawn lore name (seeded per ring — not saved, regenerates from map_seed), a type (COMBAT, RECRUIT, VENDOR, EVENT, BOSS, CITY) with distinct color/icon/hover label, and exactly 1 BOSS per run in the outer ring. Player traverses by clicking adjacent nodes; re-clicking enters the current node. Nodes display five visual states (CURRENT / REACHABLE / CLEARED / VISITED / LOCKED). Bridges use quadrant-aware placement (≥90° intra-pair gap, ≥30° cross-pair exclusion) to prevent straight corridors. Seeded from map_seed — deterministic on reload. HUD shows a fixed vertical threat bar (left side) with quadrant tick marks and fill color scaling from yellow to red. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
 
 ---
 
@@ -254,5 +254,5 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 | Date | Area | Note |
 |---|---|---|
 | 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — Badurga start, BOSS glow, node prompts, instant reward return |
-| 2026-04-18 | Docs | Session 13 grooming pass — bucket files synced to code |
 | 2026-04-18 | BadurgaScene, MapManager | Feature 6: Badurga city shell — CITY branch now loads `BadurgaScene.tscn` with 6 placeholder section buttons + return to map |
+| 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 7: Threat escalation counter — `threat_level` float (0.0–1.0) saved to disk; +5% on travel, +5% on node entry; vertical HUD bar with quadrant colors + tick marks; resets to 0 on BOSS defeat |
