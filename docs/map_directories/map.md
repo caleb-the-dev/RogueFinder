@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-18 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 2 |
+| sessions_since_groom | 3 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -140,7 +140,7 @@ Static utility (`scripts/globals/RewardGenerator.gd`). Combines all `EquipmentLi
 CanvasLayer (layer 12) pop-up shown when a player unit is selected. D-pad layout: 4 ability buttons + 1 consumable center button. Projects the unit's 3D position to screen space. Emits `ability_selected(ability_id)` and `consumable_selected()`. Buttons grey out based on energy and `has_acted` state.
 
 ### Combatant Data Model
-Two-file system: `CombatantData` (Resource) stores identity, core attributes, and slot data; all derived combat stats are computed properties. `ArchetypeLibrary` (static class) defines 5 archetypes and provides `create()` to instantiate randomized `CombatantData`.
+Two-file system: `CombatantData` (Resource) stores identity, core attributes, slot data, and persistent run state (`ability_pool`, `current_hp`, `current_energy`, `is_dead`); all derived combat stats are computed properties. `ArchetypeLibrary` (static class) defines 5 archetypes and provides `create()` to instantiate randomized `CombatantData` with all persistent fields seeded. Pool ⊇ slots invariant: every non-empty active slot appears in `ability_pool`.
 
 ### Ability Data Model
 `AbilityData` (Resource) stores all fields for a single ability. `EffectData` (Resource) stores one effect within an ability. `TargetShape` enum: `SELF`, `SINGLE`, `CONE`, `LINE`, `RADIAL`. `EffectType` enum: `HARM`, `MEND`, `FORCE`, `TRAVEL`, `BUFF`, `DEBUFF`.
@@ -193,7 +193,7 @@ Interactive world map. 28 named nodes across 4 concentric rings (center hub Badu
 ### Testing
 - Tests live in `/tests/`. Use `extends Node`, `_ready()`, plain `assert()`.
 - Do NOT test: rendering, input, anything needing a live scene.
-- Run headless: `godot --headless --path rogue-finder --import` first, then `godot --headless --path rogue-finder --script tests/<file>.gd`.
+- Run headless: import first (`godot --headless --path rogue-finder --import`), then run via a `.tscn` wrapper (`godot --headless --path rogue-finder res://tests/<file>.tscn --quit`). The `--script` flag requires `extends SceneTree` — test files extend `Node` so they need a scene. See `tests/test_combatant_data.tscn` as the reference pattern.
 
 ---
 
@@ -256,3 +256,4 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 | 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — Badurga start, BOSS glow, node prompts, instant reward return |
 | 2026-04-18 | BadurgaScene, MapManager | Feature 6: Badurga city shell — CITY branch now loads `BadurgaScene.tscn` with 6 placeholder section buttons + return to map |
 | 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 7: Threat escalation counter — `threat_level` float (0.0–1.0) saved to disk; +5% on travel, +5% on node entry; vertical HUD bar with quadrant colors + tick marks; resets to 0 on BOSS defeat |
+| 2026-04-18 | CombatantData, ArchetypeLibrary | S16 Persistent Party Slice 1: added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData; `create()` seeds all four; pool ⊇ slots invariant; persistence deferred to Slice 2 |

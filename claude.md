@@ -19,9 +19,9 @@
 
 - **Stage:** Stage 1.5 — 3D combat prototype + traversable world map
 - **Entry point:** `main.tscn` → MapScene (game boots into the map, not combat)
-- **Live systems:** 3D combat loop · traversable world map with 6 node types · save/load · reward system · Badurga city shell (placeholder sections)
-- **Last session (S14):** Feature 6 — Badurga city scene shell. CITY branch of `_enter_current_node()` now loads `res://scenes/city/BadurgaScene.tscn`. Scene has a title, 6 placeholder section buttons (tavern, bulletin, 4 vendors — each prints `[Badurga] <id> not yet implemented`), and a return-to-map button.
-- **Deferred:** Badurga section content (all 6 buttons are stubs), Recruit/Vendor/Event scene content (NodeStub placeholder), per-ability QTE styles, ability effects are placeholder
+- **Live systems:** 3D combat loop · traversable world map with 6 node types · save/load · reward system · Badurga city shell (placeholder sections) · threat escalation counter + HUD bar
+- **Last session (S16):** Persistent Party Slice 1 — data foundation. Added `ability_pool: Array[String]`, `current_hp: int`, `current_energy: int`, `is_dead: bool` to `CombatantData`. `ArchetypeLibrary.create()` seeds all four (pool from archetype abilities, no empty strings; hp/energy to max). No save/load yet — deferred to Slice 2. 5 new headless tests, all 22 passing.
+- **Deferred:** Badurga section content (all 6 buttons are stubs), Recruit/Vendor/Event scene content (NodeStub placeholder), per-ability QTE styles, ability effects are placeholder, boss difficulty scaling from threat quadrants (Feature 8), Persistent Party Slice 2 (save/load wire-up for new CombatantData fields), Slice 3 (CombatManager3D tracks current_hp/energy between combats)
 
 For current feature-by-feature status and history, read `docs/map_directories/map.md` and the bucket files it links. For planned work, read `docs/backlog.md` (only when asked).
 
@@ -97,6 +97,6 @@ Save/load is live. Pattern: add a field to `GameState`, include it in `save()`'s
 
 **Every new feature that introduces persistent run state must extend the save system.** Ask: "does this data need to survive a session?" If yes, wire `save()`/`load_save()` in the same PR — do not defer.
 
-Currently saved: `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`.
+Currently saved: `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, `threat_level`.
 Not yet saved (Stage 2): party roster, inventory, faction reputation, combat state.
 Transient (never saved): `pending_node_type`, `current_combat_node_id` — consumed within a single scene transition.
