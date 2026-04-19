@@ -141,14 +141,20 @@ static func create(archetype_id: String, character_name: String = "",
 	data.artwork_idle   = def["artwork_idle"]
 	data.artwork_attack = def["artwork_attack"]
 
-	# Ability pool: copy so each instance is independent
+	# Active slots: exactly 4 entries, empty string = unfilled
 	var ability_src: Array = def["abilities"]
 	data.abilities.clear()
 	for ab in ability_src:
 		data.abilities.append(str(ab))
-	# Pad to exactly 4 slots
 	while data.abilities.size() < 4:
 		data.abilities.append("")
+
+	# ability_pool: superset of active slots. Future leveling appends here without
+	# touching the 4-slot active list. Skip empty strings — the pool holds real IDs only.
+	data.ability_pool.clear()
+	for ab in ability_src:
+		if ab != "":
+			data.ability_pool.append(str(ab))
 
 	# Consumable item (empty string = none)
 	data.consumable = def.get("consumable", "")
@@ -167,6 +173,10 @@ static func create(archetype_id: String, character_name: String = "",
 
 	data.armor_defense  = rng.randi_range(def["armor_range"][0], def["armor_range"][1])
 	data.qte_resolution = rng.randf_range(def["qte_range"][0], def["qte_range"][1])
+
+	# Seed live pools to full — vitality and all attributes are already set above
+	data.current_hp     = data.hp_max
+	data.current_energy = data.energy_max
 
 	# Name: explicit override always wins.
 	# Player units with no name get one from the flavor pool.

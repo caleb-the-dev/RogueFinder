@@ -67,12 +67,32 @@ extends Resource
 @export var accessory:  EquipmentData = null
 
 ## ======================================================
-## --- Ability Pool ---
-## Exactly 4 slotted ability names. Empty string = unfilled slot.
-## Ability system is TBD; strings are placeholders until then.
+## --- Ability Slots ---
+## Exactly 4 active ability IDs. Empty string = unfilled slot.
+## This is the subset shown in the ActionMenu — not the full unlocked set.
 ## ======================================================
 
 @export var abilities: Array[String] = ["", "", "", ""]
+
+## ======================================================
+## --- Persistent Run State ---
+## These fields survive between combats. Fresh units are seeded by ArchetypeLibrary.create().
+## Persisted to disk in Slice 2; types are JSON-friendly already.
+## ======================================================
+
+## Full unlocked ability set for this unit — superset of `abilities`.
+## Grows as the unit unlocks new abilities (leveling is a future slice).
+## Kept separate from `abilities` so the 4-slot active list is undisturbed when the pool grows.
+@export var ability_pool: Array[String] = []
+
+## Live HP that persists between combats. Seeded to hp_max at creation.
+@export var current_hp: int = 0
+
+## Live energy that persists between combats. Seeded to energy_max at creation.
+@export var current_energy: int = 0
+
+## Permanent death flag. Flipped by CombatManager3D in a later slice; defaults false.
+@export var is_dead: bool = false
 
 ## ======================================================
 ## --- Enemy-Only ---
