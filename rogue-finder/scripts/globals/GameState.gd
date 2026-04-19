@@ -21,6 +21,7 @@ var threat_level: float = 0.0          # 0.0–1.0; rises on travel + entry; res
 ## --- Party ---
 
 var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
+var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
 
 ## Populates party with the PC + 2 allies. Guard ensures it is idempotent — safe to
 ## call from MapManager._ready() after load_save() regardless of save state.
@@ -161,3 +162,4 @@ func reset() -> void:
 	cleared_nodes = []
 	threat_level = 0.0
 	party = []
+	run_summary = {}

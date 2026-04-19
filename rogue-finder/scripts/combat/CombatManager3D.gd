@@ -45,6 +45,9 @@ var _aoe_origin:     Vector2i           = Vector2i(-1, -1)  ## aimed cell for Ao
 var _travel_effect:  EffectData         = null   ## stored while awaiting destination pick
 var _hovered_cell:   Vector2i           = Vector2i(-1, -1)  ## last cell under mouse (cone preview)
 
+var _attr_snapshots: Dictionary         = {}  ## per-unit attribute baseline; restored at combat end
+var _debug_menu:     CanvasLayer        = null
+
 var _grid:           Grid3D             = null
 var _camera_rig:     CameraController   = null
 var _qte_bar:        QTEBar             = null
@@ -100,31 +103,29 @@ func _setup_environment_tiles() -> void:
 func _setup_units() -> void:
 	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
 
-	# --- Player unit 0: The RogueFinder (PC) ---
-	# Always uses the "RogueFinder" archetype with a fixed name. One per party.
-	var pc_cd: CombatantData = ArchetypeLibrary.create("RogueFinder", "Vael", true)
-	var pc: Unit3D = unit_scene.instantiate()
-	add_child(pc)
-	pc.setup(pc_cd, Vector2i(1, 3))
-	pc.global_position = _grid.grid_to_world(Vector2i(1, 3))
-	_grid.set_occupied(Vector2i(1, 3), pc)
-	pc.unit_died.connect(_on_unit_died)
-	_player_units.append(pc)
-
-	# --- Player units 1-2: Allies (random archetype, auto-named from flavor pool) ---
-	var ally_archetypes: Array[String] = ["archer_bandit", "grunt", "alchemist", "elite_guard"]
-	var ally_positions: Array[Vector2i] = [Vector2i(1, 5), Vector2i(0, 4)]
-	for pos in ally_positions:
-		var arch: String = ally_archetypes[randi() % ally_archetypes.size()]
-		# character_name="" + is_player=true → auto-named from the archetype's flavor pool
-		var cd: CombatantData = ArchetypeLibrary.create(arch, "", true)
+	# --- Player units — driven by GameState.party ---
+	# index 0 = PC, 1-2 = allies. Dead members are skipped so fewer than 3 may spawn.
+	var positions: Array[Vector2i] = [Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)]
+	var pos_idx: int = 0
+	for cd in GameState.party:
+		if cd.is_dead:
+			continue
 		var unit: Unit3D = unit_scene.instantiate()
 		add_child(unit)
-		unit.setup(cd, pos)
-		unit.global_position = _grid.grid_to_world(pos)
-		_grid.set_occupied(pos, unit)
+		unit.setup(cd, positions[pos_idx])
+		unit.global_position = _grid.grid_to_world(positions[pos_idx])
+		_grid.set_occupied(positions[pos_idx], unit)
 		unit.unit_died.connect(_on_unit_died)
 		_player_units.append(unit)
+		# Snapshot attributes so stat-delta mutations are rolled back at combat end
+		_attr_snapshots[unit] = {
+			"strength":  cd.strength,
+			"dexterity": cd.dexterity,
+			"cognition": cd.cognition,
+			"vitality":  cd.vitality,
+			"willpower": cd.willpower,
+		}
+		pos_idx += 1
 
 	# --- Enemy units ---
 	# character_name="" + is_player=false → empty; Unit3D shows archetype label above head.
@@ -242,6 +243,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				for u in _enemy_units:
 					if u.is_alive:
 						u.take_damage(9999)
+				get_viewport().set_input_as_handled()
+			KEY_T:
+				_toggle_debug_menu()
 				get_viewport().set_input_as_handled()
 
 	if event is InputEventMouseMotion and mode == PlayerMode.ABILITY_TARGET_MODE \
@@ -660,7 +664,7 @@ func _get_attribute_value(unit: Unit3D, attribute: AbilityData.Attribute) -> int
 
 ## Applies a +/- delta to one of a unit's core attributes.
 ## Clamped to [0, 5] — the defined range for all attributes.
-## NOTE: stat changes are not currently reset at combat end; that is a future task.
+## Attribute mutations on player units are rolled back at combat end via _attr_snapshots.
 func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
 	match stat:
 		AbilityData.Attribute.STRENGTH:
@@ -1215,6 +1219,11 @@ func _on_unit_died(unit: Unit3D) -> void:
 	if _info_bar_unit == unit:
 		_info_bar.hide_bar()
 		_info_bar_unit = null
+	# Allies die permanently on death. PC death is resolved at combat end:
+	# if the team wins the PC revives at 1 HP; if all units die the run ends.
+	if unit.data.is_player_unit and unit.data.archetype_id != "RogueFinder":
+		unit.data.is_dead = true
+		GameState.save()
 	_check_win_lose()
 
 func _check_win_lose() -> void:
@@ -1241,10 +1250,149 @@ func _end_combat(player_won: bool) -> void:
 	_action_menu.close()
 	_info_bar_unit = null
 	_update_status()
+	# Restore snapshotted attributes for all player units regardless of outcome.
+	for unit in _player_units:
+		var snap: Dictionary = _attr_snapshots.get(unit, {})
+		if not snap.is_empty():
+			unit.data.strength  = snap["strength"]
+			unit.data.dexterity = snap["dexterity"]
+			unit.data.cognition = snap["cognition"]
+			unit.data.vitality  = snap["vitality"]
+			unit.data.willpower = snap["willpower"]
+
 	if player_won:
+		for unit in _player_units:
+			if unit.is_alive:
+				unit.data.current_hp     = unit.current_hp
+				unit.data.current_energy = unit.current_energy
+			elif unit.data.archetype_id == "RogueFinder":
+				# PC was downed but allies won — revive at 1 HP, never permanently dead
+				unit.data.current_hp = 1
+				unit.data.current_energy = 0
+		GameState.save()
 		_end_combat_screen.show_victory(RewardGenerator.roll(3))
 	else:
-		_end_combat_screen.show_defeat()
+		# All player units died — run is over. Mark PC as dead, capture stats, show overlay.
+		for unit in _player_units:
+			if unit.data.archetype_id == "RogueFinder":
+				unit.data.is_dead = true
+				break
+		_capture_run_summary()
+		GameState.save()
+		_show_run_end_overlay()
+
+## --- Debug Menu ---
+
+func _toggle_debug_menu() -> void:
+	if _debug_menu == null:
+		_build_debug_menu()
+		return  # just built = already visible
+	_debug_menu.visible = not _debug_menu.visible
+
+func _build_debug_menu() -> void:
+	_debug_menu = CanvasLayer.new()
+	_debug_menu.layer = 25
+	add_child(_debug_menu)
+
+	var panel := ColorRect.new()
+	panel.color = Color(0.08, 0.08, 0.10, 0.95)
+	panel.size = Vector2(240.0, 320.0)
+	panel.position = Vector2(20.0, 20.0)
+	_debug_menu.add_child(panel)
+
+	var title := Label.new()
+	title.text = "DEBUG MENU  [T]"
+	title.add_theme_font_size_override("font_size", 14)
+	title.add_theme_color_override("font_color", Color(0.5, 1.0, 0.5))
+	title.position = Vector2(8.0, 8.0)
+	title.size = Vector2(224.0, 20.0)
+	panel.add_child(title)
+
+	var actions: Array[Dictionary] = [
+		{"label": "Kill PC",               "cb": _dbg_kill_pc},
+		{"label": "Kill All Allies",        "cb": _dbg_kill_allies},
+		{"label": "Kill All Enemies  (K)",  "cb": _dbg_kill_enemies},
+		{"label": "Kill Entire Party",      "cb": _dbg_kill_party},
+		{"label": "Damage PC  -20 HP",      "cb": _dbg_damage_pc},
+	]
+	for i in range(actions.size()):
+		var btn := Button.new()
+		btn.text = actions[i]["label"]
+		btn.custom_minimum_size = Vector2(224.0, 40.0)
+		btn.position = Vector2(8.0, 36.0 + i * 48.0)
+		btn.add_theme_font_size_override("font_size", 14)
+		btn.pressed.connect(actions[i]["cb"])
+		panel.add_child(btn)
+
+func _dbg_kill_pc() -> void:
+	for u in _player_units:
+		if u.is_alive and u.data.archetype_id == "RogueFinder":
+			u.take_damage(9999)
+			break
+	_debug_menu.visible = false
+
+func _dbg_kill_allies() -> void:
+	for u in _player_units:
+		if u.is_alive and u.data.archetype_id != "RogueFinder":
+			u.take_damage(9999)
+	_debug_menu.visible = false
+
+func _dbg_kill_enemies() -> void:
+	for u in _enemy_units:
+		if u.is_alive:
+			u.take_damage(9999)
+	_debug_menu.visible = false
+
+func _dbg_kill_party() -> void:
+	for u in _player_units:
+		if u.is_alive:
+			u.take_damage(9999)
+	_debug_menu.visible = false
+
+func _dbg_damage_pc() -> void:
+	for u in _player_units:
+		if u.is_alive and u.data.archetype_id == "RogueFinder":
+			u.take_damage(20)
+			break
+	_debug_menu.visible = false
+
+## Populates GameState.run_summary with stats captured at the moment of run loss.
+func _capture_run_summary() -> void:
+	var fallen_allies: Array[String] = []
+	for i in range(1, GameState.party.size()):
+		if GameState.party[i].is_dead:
+			fallen_allies.append(GameState.party[i].character_name)
+	var pc_name: String = GameState.party[0].character_name if not GameState.party.is_empty() else "The RogueFinder"
+	GameState.run_summary = {
+		"pc_name":       pc_name,
+		"nodes_visited": GameState.visited_nodes.size(),
+		"nodes_cleared": GameState.cleared_nodes.size(),
+		"threat_level":  GameState.threat_level,
+		"fallen_allies": fallen_allies,
+	}
+
+## Shows "The RogueFinder has perished." for 3 seconds then loads the run summary scene.
+func _show_run_end_overlay() -> void:
+	var overlay := CanvasLayer.new()
+	overlay.layer = 20
+	add_child(overlay)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.0, 0.88)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(bg)
+
+	var label := Label.new()
+	label.text = "The RogueFinder has perished."
+	label.add_theme_font_size_override("font_size", 52)
+	label.add_theme_color_override("font_color", Color(0.85, 0.15, 0.15))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	label.position = Vector2(0.0, 340.0)
+	overlay.add_child(label)
+
+	await get_tree().create_timer(3.0).timeout
+	get_tree().change_scene_to_file("res://scenes/ui/RunSummaryScene.tscn")
 
 ## --- Damage Formula ---
 ## Result scales with stat delta (+/-20 pts = 2x / 0.5x) and QTE accuracy.
