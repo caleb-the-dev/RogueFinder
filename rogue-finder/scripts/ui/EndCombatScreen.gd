@@ -81,7 +81,7 @@ func _on_reward_chosen(item: Dictionary, chosen_btn: Button) -> void:
 		if not GameState.cleared_nodes.has(GameState.current_combat_node_id):
 			GameState.cleared_nodes.append(GameState.current_combat_node_id)
 		if GameState.node_types.get(GameState.current_combat_node_id, "") == "BOSS":
-			GameState.threat_level = 0
+			GameState.threat_level = 0.0
 	GameState.save()
 	_return_to_map()
 

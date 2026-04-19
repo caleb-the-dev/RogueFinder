@@ -401,14 +401,7 @@ func _add_ui_chrome() -> void:
 	lbl.label_settings = s
 	add_child(lbl)
 
-	var threat_lbl := Label.new()
-	threat_lbl.text = "Threat: %d" % GameState.threat_level
-	threat_lbl.position = Vector2(12.0, 28.0)
-	var ts := LabelSettings.new()
-	ts.font_size = 14
-	ts.font_color = Color(0.75, 0.18, 0.12)
-	threat_lbl.label_settings = ts
-	add_child(threat_lbl)
+	_add_threat_meter()
 
 	var del_btn := Button.new()
 	del_btn.text = "🗑 Delete Save (debug)"
@@ -416,6 +409,73 @@ func _add_ui_chrome() -> void:
 	del_btn.position = Vector2(VIEWPORT_SIZE.x - 212.0, 8.0)
 	del_btn.pressed.connect(_on_debug_delete_save_pressed)
 	add_child(del_btn)
+
+func _add_threat_meter() -> void:
+	var bar_w  := 20.0
+	var bar_h  := 120.0
+	var bar_x  := 12.0
+	var bar_y  := 50.0
+	var t: float = GameState.threat_level
+
+	var header := Label.new()
+	header.text = "THREAT"
+	header.position = Vector2(bar_x, 30.0)
+	var hs := LabelSettings.new()
+	hs.font_size = 11
+	hs.font_color = Color(0.75, 0.18, 0.12)
+	header.label_settings = hs
+	add_child(header)
+
+	# Border outline
+	var border := ColorRect.new()
+	border.color = Color(0.45, 0.35, 0.25, 0.9)
+	border.size = Vector2(bar_w + 4.0, bar_h + 4.0)
+	border.position = Vector2(bar_x - 2.0, bar_y - 2.0)
+	add_child(border)
+
+	# Dark background track
+	var bg := ColorRect.new()
+	bg.color = Color(0.06, 0.04, 0.03, 0.95)
+	bg.size = Vector2(bar_w, bar_h)
+	bg.position = Vector2(bar_x, bar_y)
+	add_child(bg)
+
+	# Fill — grows upward from the bottom of the bar
+	if t > 0.0:
+		var fill_h: float = t * bar_h
+		var fill := ColorRect.new()
+		fill.color = _threat_fill_color(t)
+		fill.size = Vector2(bar_w, fill_h)
+		fill.position = Vector2(bar_x, bar_y + bar_h - fill_h)
+		add_child(fill)
+
+	# Quadrant tick marks at 25 / 50 / 75 %
+	for pct: float in [0.25, 0.50, 0.75]:
+		var tick := ColorRect.new()
+		tick.color = Color(0.85, 0.80, 0.70, 0.65)
+		tick.size = Vector2(bar_w, 1.5)
+		tick.position = Vector2(bar_x, bar_y + bar_h * (1.0 - pct))
+		add_child(tick)
+
+	# Percentage readout below the bar
+	var pct_lbl := Label.new()
+	pct_lbl.text = "%d%%" % int(t * 100.0)
+	pct_lbl.position = Vector2(bar_x, bar_y + bar_h + 4.0)
+	var ps := LabelSettings.new()
+	ps.font_size = 12
+	ps.font_color = Color(0.85, 0.75, 0.65)
+	pct_lbl.label_settings = ps
+	add_child(pct_lbl)
+
+func _threat_fill_color(t: float) -> Color:
+	if t < 0.25:
+		return Color(0.95, 0.75, 0.10)   # yellow-orange — low threat
+	elif t < 0.50:
+		return Color(0.95, 0.45, 0.08)   # orange
+	elif t < 0.75:
+		return Color(0.90, 0.22, 0.08)   # red-orange
+	else:
+		return Color(0.85, 0.08, 0.08)   # bright red — critical
 
 func _create_map_container() -> void:
 	_map_container = Node2D.new()
@@ -672,6 +732,8 @@ func _add_cleared_stamp(btn: Button, nd: Dictionary) -> void:
 func _move_player_to(node_id: String) -> void:
 	_dismiss_prompt()
 	GameState.move_player(node_id)
+	# +5% for each node traversal, regardless of whether you enter it
+	GameState.threat_level = minf(GameState.threat_level + 0.05, 1.0)
 	GameState.save()
 	var target_pos: Vector2 = _node_map[node_id]["position"] + Vector2(0.0, -26.0)
 	var tween := create_tween()
@@ -839,12 +901,11 @@ func _on_node_clicked(node_id: String) -> void:
 
 func _enter_current_node() -> void:
 	if GameState.cleared_nodes.has(GameState.player_node_id):
-		return  # cleared nodes are pass-through — threat does not increment
+		return  # cleared nodes are pass-through — no entry increment
+	# +5% for actually entering any non-cleared node (city counts — you crossed the gate)
+	GameState.threat_level = minf(GameState.threat_level + 0.05, 1.0)
+	GameState.save()
 	var node_type: String = GameState.node_types.get(GameState.player_node_id, "COMBAT")
-	# City visits do not increment threat — the hub is a safe zone, not an encounter.
-	if node_type != "CITY":
-		GameState.threat_level += 1
-		GameState.save()
 	match node_type:
 		"COMBAT", "BOSS":
 			GameState.current_combat_node_id = GameState.player_node_id
