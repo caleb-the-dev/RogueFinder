@@ -1286,6 +1286,7 @@ func _end_combat(player_won: bool) -> void:
 func _toggle_debug_menu() -> void:
 	if _debug_menu == null:
 		_build_debug_menu()
+		return  # just built = already visible
 	_debug_menu.visible = not _debug_menu.visible
 
 func _build_debug_menu() -> void:
