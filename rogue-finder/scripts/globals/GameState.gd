@@ -23,34 +23,24 @@ var threat_level: float = 0.0          # 0.0–1.0; rises on travel + entry; res
 var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
 var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
 
-## --- Inventory ---
+## --- Inventory (party bag) ---
+## Stores raw reward dicts: {id, name, description, item_type}.
+## item_type is "equipment" or "consumable" — used for tab filtering in the bag UI (Stage 2).
+## Player assigns items from the bag manually; nothing is auto-equipped on pickup.
 
-var inventory: Array[EquipmentData] = []  # equipment items collected this run
+var inventory: Array = []
 
-## Routes reward dict to inventory (equipment) or party consumable slot (consumable).
 func add_to_inventory(item: Dictionary) -> void:
-	if item.get("item_type", "") == "equipment":
-		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
-		inventory.append(eq)
-		print("[Inventory] Added equipment '%s' — inventory size: %d" % [item["id"], inventory.size()])
-	elif item.get("item_type", "") == "consumable":
-		var placed := false
-		for member in party:
-			if member.consumable == "" and not member.is_dead:
-				member.consumable = item["id"]
-				placed = true
-				print("[Inventory] Consumable '%s' placed in party slot for '%s'" % [item["id"], member.character_name])
-				break
-		if not placed:
-			print("[Inventory] Consumable '%s' dropped — all party slots full" % item["id"])
-			pass  # TODO: inventory overflow — consumable not placed
+	inventory.append(item)
+	print("[Inventory] Added '%s' (%s) — bag size: %d" % [item.get("id", "?"), item.get("item_type", "?"), inventory.size()])
 
-func remove_from_inventory(item: EquipmentData) -> bool:
-	var idx: int = inventory.find(item)
-	if idx == -1:
-		return false
-	inventory.remove_at(idx)
-	return true
+## Removes the first entry whose id matches. Returns true if found and removed.
+func remove_from_inventory(item_id: String) -> bool:
+	for i in range(inventory.size()):
+		if inventory[i].get("id", "") == item_id:
+			inventory.remove_at(i)
+			return true
+	return false
 
 ## Populates party with the PC + 2 allies. Guard ensures it is idempotent — safe to
 ## call from MapManager._ready() after load_save() regardless of save state.
@@ -92,7 +82,7 @@ func save() -> void:
 		"cleared_nodes": cleared_nodes,
 		"threat_level": threat_level,
 		"party": party_data,
-		"inventory": inventory.map(func(eq): return eq.equipment_id),
+		"inventory": inventory,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data, "\t"))
@@ -146,8 +136,9 @@ func load_save() -> bool:
 			party.append(_deserialize_combatant(dict))
 	inventory.clear()
 	var raw_inv: Array = parsed.get("inventory", [])
-	for id in raw_inv:
-		inventory.append(EquipmentLibrary.get_equipment(id))
+	for entry in raw_inv:
+		if entry is Dictionary:
+			inventory.append(entry)
 	return true
 
 func _deserialize_combatant(dict: Dictionary) -> CombatantData:

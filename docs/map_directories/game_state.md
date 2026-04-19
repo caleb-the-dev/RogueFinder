@@ -46,7 +46,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `threat_level` | `float` | `0.0` | Run-wide danger gauge. Range 0.0–1.0 (0%–100%). Incremented by MapManager on both travel (+0.05) and node entry (+0.05); capped at 1.0 via `minf()`. Reset to `0.0` by EndCombatScreen when a BOSS node is defeated. Displayed as a vertical bar in the map HUD. **Saved to disk.** |
 | `party` | `Array[CombatantData]` | `[]` | Active party roster. index 0 = PC. Empty = not yet initialized (freshness check for `init_party()`). **Saved to disk.** |
 | `run_summary` | `Dictionary` | `{}` | Snapshot of run stats written by `CombatManager3D._capture_run_summary()` immediately before a run-end transition. Keys: `pc_name`, `nodes_visited`, `nodes_cleared`, `threat_level`, `fallen_allies`. Read by `RunSummaryManager`. Cleared by `reset()`. **NOT saved to disk** — survives the scene transition only because GameState is an autoload. |
-| `inventory` | `Array[EquipmentData]` | `[]` | Equipment items collected from combat rewards this run. Consumable rewards go directly into party member `.consumable` slots (not here). Cleared by `reset()`. **Saved to disk.** |
+| `inventory` | `Array` | `[]` | Shared party bag. Holds raw reward dicts `{id, name, description, item_type}` for both equipment and consumables. `item_type` is used by the bag UI (Stage 2) to filter into tabs (All / Weapons / Armor / Accessories / Consumables). Nothing is auto-assigned on pickup — the player assigns from the bag manually. Cleared by `reset()`. **Saved to disk.** |
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -55,8 +55,8 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `is_adjacent_to_player` | `(node_id: String, adjacency: Dictionary) -> bool` | Returns `true` if `node_id` is in the adjacency list for `player_node_id`. The `adjacency` dict is passed in from `MapManager` to keep `GameState` decoupled from map-building data. |
 | `get_threat_level` | `() -> float` | Returns `threat_level`. Stub hookpoint for Feature 8 boss difficulty scaling — annotated with a comment pointing there. |
 | `init_party` | `() -> void` | Seeds `party` with PC (RogueFinder/"Hero") + 2 allies (archer_bandit, grunt). Guard: no-ops if `party` is already populated — safe to call after `load_save()`. |
-| `add_to_inventory` | `(item: Dictionary) -> void` | Routes a reward dict (`{id, name, description, item_type}`) to the right container. `"equipment"` → appended to `inventory` via `EquipmentLibrary.get_equipment(id)`. `"consumable"` → placed in the first non-dead party member whose `.consumable` slot is empty; silently dropped if all slots are full. |
-| `remove_from_inventory` | `(item: EquipmentData) -> bool` | Removes `item` from `inventory` by reference. Returns `true` if found and removed, `false` if not present. |
+| `add_to_inventory` | `(item: Dictionary) -> void` | Appends the reward dict to the party bag. No routing — both equipment and consumables land here. |
+| `remove_from_inventory` | `(item_id: String) -> bool` | Removes the first bag entry whose `id` matches `item_id`. Returns `true` if found and removed, `false` if not present. |
 
 ### Save / Load
 
@@ -80,7 +80,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `cleared_nodes` | `GameState.cleared_nodes` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load |
 | `threat_level` | `GameState.threat_level` | float — read back via `float(parsed.get("threat_level", 0.0))` (no typed-array conversion needed) |
 | `party` | `GameState.party` | JSON Array of dicts — each dict holds all scalar fields + `abilities`/`ability_pool` as string arrays + `weapon_id`/`armor_id`/`accessory_id` as strings. Deserialized back to `Array[CombatantData]` by `_deserialize_combatant()`. |
-| `inventory` | `GameState.inventory` | JSON Array of `equipment_id` strings. On load, each id is resolved via `EquipmentLibrary.get_equipment(id)` — unknown ids produce a stub, never a null. |
+| `inventory` | `GameState.inventory` | JSON Array of reward dicts `{id, name, description, item_type}`. Stored and loaded as-is — no resolution step needed. |
 
 **What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, party roster (all CombatantData fields including persistent run state), inventory (equipment item ids).
 
@@ -94,7 +94,7 @@ Note: `pending_node_type` and `current_combat_node_id` are **not** saved — the
 
 - **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `init_party()` on fresh runs (after `load_save()` if `party.is_empty()`); increments `threat_level` by 0.05 (capped at 1.0) on every `_move_player_to()` call (travel increment) and again in `_enter_current_node()` for non-cleared nodes (entry increment); calls `save()` after each increment and after `_assign_node_types()`; calls `load_save()` at startup; calls `delete_save()` + `reset()` from the debug button; sets `pending_node_type` before transitioning to NodeStub; sets `current_combat_node_id` before transitioning to CombatScene3D; reads `cleared_nodes` in `_refresh_all_node_visuals()` and `_on_node_clicked()`; reads `threat_level` in `_add_threat_meter()` to render the HUD bar.
 - **NodeStub** reads and clears `GameState.pending_node_type` in `_ready()`
-- **EndCombatScreen** reads `current_combat_node_id` and appends to `cleared_nodes` immediately on reward selection; resets `threat_level = 0.0` if the defeated node was a BOSS; calls `GameState.save()` then returns to map. Calls `GameState.add_to_inventory(item)` via `has_method()` guard — the method is now live, so the guard activates on every reward choice.
+- **EndCombatScreen** reads `current_combat_node_id` and appends to `cleared_nodes` immediately on reward selection; resets `threat_level = 0.0` if the defeated node was a BOSS; calls `GameState.save()` then returns to map. Calls `GameState.add_to_inventory(item)` via `has_method()` guard — method is live, reward dict lands in the party bag on every pickup.
 
 ---
 
