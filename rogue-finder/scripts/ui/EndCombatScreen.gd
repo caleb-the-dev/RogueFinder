@@ -22,10 +22,6 @@ func show_victory(reward_items: Array) -> void:
 	_build_victory_layout(reward_items)
 	visible = true
 
-func show_defeat() -> void:
-	_build_defeat_layout()
-	visible = true
-
 ## --- Victory Layout ---
 
 func _build_victory_layout(items: Array) -> void:
@@ -84,38 +80,6 @@ func _on_reward_chosen(item: Dictionary, chosen_btn: Button) -> void:
 			GameState.threat_level = 0.0
 	GameState.save()
 	_return_to_map()
-
-## --- Defeat Layout ---
-
-func _build_defeat_layout() -> void:
-	var bg := _make_background()
-	add_child(bg)
-
-	var header := Label.new()
-	header.text                   = "DEFEAT"
-	header.add_theme_font_size_override("font_size", 64)
-	header.add_theme_color_override("font_color", Color(0.9, 0.1, 0.1))
-	header.horizontal_alignment   = HORIZONTAL_ALIGNMENT_CENTER
-	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	header.position = Vector2(0.0, 120.0)
-	bg.add_child(header)
-
-	var subtitle := Label.new()
-	subtitle.text                 = "Return to the map and try again."
-	subtitle.add_theme_font_size_override("font_size", 22)
-	subtitle.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	subtitle.position = Vector2(0.0, 210.0)
-	bg.add_child(subtitle)
-
-	var retry_btn := Button.new()
-	retry_btn.text              = "Return to Map"
-	retry_btn.custom_minimum_size = Vector2(200.0, 50.0)
-	retry_btn.position          = Vector2((1152.0 - 200.0) / 2.0, 300.0)
-	retry_btn.add_theme_font_size_override("font_size", 20)
-	retry_btn.pressed.connect(_return_to_map)
-	bg.add_child(retry_btn)
 
 ## --- Helpers ---
 
