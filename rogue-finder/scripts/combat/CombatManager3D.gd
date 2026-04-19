@@ -1215,7 +1215,9 @@ func _on_unit_died(unit: Unit3D) -> void:
 	if _info_bar_unit == unit:
 		_info_bar.hide_bar()
 		_info_bar_unit = null
-	if unit.data.is_player_unit:
+	# Allies die permanently on death. PC death is resolved at combat end:
+	# if the team wins the PC revives at 1 HP; if all units die the run ends.
+	if unit.data.is_player_unit and unit.data.archetype_id != "RogueFinder":
 		unit.data.is_dead = true
 		GameState.save()
 	_check_win_lose()
@@ -1244,9 +1246,7 @@ func _end_combat(player_won: bool) -> void:
 	_action_menu.close()
 	_info_bar_unit = null
 	_update_status()
-	# Write back hp/energy for alive units and restore snapshotted attributes.
-	# Attributes are restored on both win and defeat — stat-delta mutations should
-	# never bleed into the next combat regardless of outcome.
+	# Restore snapshotted attributes for all player units regardless of outcome.
 	for unit in _player_units:
 		var snap: Dictionary = _attr_snapshots.get(unit, {})
 		if not snap.is_empty():
@@ -1255,15 +1255,65 @@ func _end_combat(player_won: bool) -> void:
 			unit.data.cognition = snap["cognition"]
 			unit.data.vitality  = snap["vitality"]
 			unit.data.willpower = snap["willpower"]
-		if player_won and unit.is_alive:
-			unit.data.current_hp     = unit.current_hp
-			unit.data.current_energy = unit.current_energy
-	GameState.save()
 
 	if player_won:
+		for unit in _player_units:
+			if unit.is_alive:
+				unit.data.current_hp     = unit.current_hp
+				unit.data.current_energy = unit.current_energy
+			elif unit.data.archetype_id == "RogueFinder":
+				# PC was downed but allies won — revive at 1 HP, never permanently dead
+				unit.data.current_hp = 1
+				unit.data.current_energy = 0
+		GameState.save()
 		_end_combat_screen.show_victory(RewardGenerator.roll(3))
 	else:
-		_end_combat_screen.show_defeat()
+		# All player units died — run is over. Mark PC as dead, capture stats, show overlay.
+		for unit in _player_units:
+			if unit.data.archetype_id == "RogueFinder":
+				unit.data.is_dead = true
+				break
+		_capture_run_summary()
+		GameState.save()
+		_show_run_end_overlay()
+
+## Populates GameState.run_summary with stats captured at the moment of run loss.
+func _capture_run_summary() -> void:
+	var fallen_allies: Array[String] = []
+	for i in range(1, GameState.party.size()):
+		if GameState.party[i].is_dead:
+			fallen_allies.append(GameState.party[i].character_name)
+	var pc_name: String = GameState.party[0].character_name if not GameState.party.is_empty() else "The RogueFinder"
+	GameState.run_summary = {
+		"pc_name":       pc_name,
+		"nodes_visited": GameState.visited_nodes.size(),
+		"nodes_cleared": GameState.cleared_nodes.size(),
+		"threat_level":  GameState.threat_level,
+		"fallen_allies": fallen_allies,
+	}
+
+## Shows "The RogueFinder has perished." for 3 seconds then loads the run summary scene.
+func _show_run_end_overlay() -> void:
+	var overlay := CanvasLayer.new()
+	overlay.layer = 20
+	add_child(overlay)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.0, 0.88)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(bg)
+
+	var label := Label.new()
+	label.text = "The RogueFinder has perished."
+	label.add_theme_font_size_override("font_size", 52)
+	label.add_theme_color_override("font_color", Color(0.85, 0.15, 0.15))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	label.position = Vector2(0.0, 340.0)
+	overlay.add_child(label)
+
+	await get_tree().create_timer(3.0).timeout
+	get_tree().change_scene_to_file("res://scenes/ui/RunSummaryScene.tscn")
 
 ## --- Damage Formula ---
 ## Result scales with stat delta (+/-20 pts = 2x / 0.5x) and QTE accuracy.

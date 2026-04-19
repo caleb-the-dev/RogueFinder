@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://run_summary_scene"]
+
+[ext_resource type="Script" path="res://scripts/ui/RunSummaryManager.gd" id="1_summary"]
+
+[node name="RunSummaryScene" type="CanvasLayer"]
+script = ExtResource("1_summary")
