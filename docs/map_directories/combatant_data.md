@@ -33,7 +33,7 @@
 
 Like a Pokémon: the archetype is Pikachu, the character_name is whatever the trainer called it.
 
-**Fixed per archetype:** `unit_class`, `artwork_idle`, `artwork_attack`, `abilities`.
+**Fixed per archetype:** `unit_class`, `artwork_idle`, `artwork_attack`, `abilities`, `ability_pool` (starting set).
 
 **Randomized per instance (within archetype ranges):** `background`, all five core attributes, `armor_defense`, `qte_resolution`.
 
@@ -78,8 +78,20 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 `weapon`, `armor`, `accessory` — typed `EquipmentData` (nullable; `null` = unequipped). Stat bonuses are applied to derived stats via `_equip_bonus()`. Gear comes from rewards — no archetype starts with equipment.
 `consumable` — consumable ID into `ConsumableLibrary` (e.g. `"healing_potion"`). Set to `""` when used in combat.
 
-### Ability Pool
-`abilities: Array[String]` — exactly 4 slots. Stores ability IDs (e.g. `"strike"`). Empty string = unfilled slot. Looked up via `AbilityLibrary.get_ability()` at runtime.
+### Ability Slots
+`abilities: Array[String]` — exactly 4 active slots. Stores ability IDs (e.g. `"strike"`). Empty string = unfilled slot. Looked up via `AbilityLibrary.get_ability()` at runtime.
+
+### Persistent Run State (Slice 1)
+These fields survive between combats. Seeded at creation by `ArchetypeLibrary.create()`. Types are JSON-friendly; persistence wired in Slice 2.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `ability_pool` | `Array[String]` | archetype's 4 abilities | Full unlocked set — superset of `abilities`. Future leveling appends here without touching the 4-slot active list. |
+| `current_hp` | `int` | `hp_max` | Live HP between combats. |
+| `current_energy` | `int` | `energy_max` | Live energy between combats. |
+| `is_dead` | `bool` | `false` | Permanent death flag. Flipped by CombatManager3D (future slice). |
+
+**Pool ⊇ Slots invariant:** every non-empty entry in `abilities` must also appear in `ability_pool`. True by construction in `create()` since both are seeded from the same archetype source.
 
 ### Enemy-Only
 `qte_resolution: float` — auto-resolve accuracy for enemy QTE simulation (0.0–1.0).
@@ -359,6 +371,7 @@ static func all_equipment() -> Array[EquipmentData]
 
 | Date | Change |
 |---|---|
+| 2026-04-18 | Slice 1 — Added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData. `ArchetypeLibrary.create()` seeds pool from archetype abilities (no empty strings), current_hp/energy to max. Pool ⊇ slots invariant documented. Persistence deferred to Slice 2. |
 | 2026-04-16 | Added EquipmentData resource + EquipmentLibrary (6 placeholder items, 2 per slot) |
 | 2026-04-16 | CombatantData equipment slots changed from String to EquipmentData (nullable); derived stats now include equipment bonuses via _equip_bonus() |
 | 2026-04-16 | Added ConsumableData resource + ConsumableLibrary (healing_potion MEND 15, power_tonic BUFF STR+2) |
