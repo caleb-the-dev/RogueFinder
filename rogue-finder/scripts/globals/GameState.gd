@@ -23,6 +23,32 @@ var threat_level: float = 0.0          # 0.0–1.0; rises on travel + entry; res
 var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
 var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
 
+## --- Inventory ---
+
+var inventory: Array[EquipmentData] = []  # equipment items collected this run
+
+## Routes reward dict to inventory (equipment) or party consumable slot (consumable).
+func add_to_inventory(item: Dictionary) -> void:
+	if item.get("item_type", "") == "equipment":
+		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
+		inventory.append(eq)
+	elif item.get("item_type", "") == "consumable":
+		var placed := false
+		for member in party:
+			if member.consumable == "" and not member.is_dead:
+				member.consumable = item["id"]
+				placed = true
+				break
+		if not placed:
+			pass  # TODO: inventory overflow — consumable not placed
+
+func remove_from_inventory(item: EquipmentData) -> bool:
+	var idx: int = inventory.find(item)
+	if idx == -1:
+		return false
+	inventory.remove_at(idx)
+	return true
+
 ## Populates party with the PC + 2 allies. Guard ensures it is idempotent — safe to
 ## call from MapManager._ready() after load_save() regardless of save state.
 func init_party() -> void:
@@ -63,6 +89,7 @@ func save() -> void:
 		"cleared_nodes": cleared_nodes,
 		"threat_level": threat_level,
 		"party": party_data,
+		"inventory": inventory.map(func(eq): return eq.equipment_id),
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data, "\t"))
@@ -114,6 +141,10 @@ func load_save() -> bool:
 	for dict in raw_party:
 		if dict is Dictionary:
 			party.append(_deserialize_combatant(dict))
+	inventory.clear()
+	var raw_inv: Array = parsed.get("inventory", [])
+	for id in raw_inv:
+		inventory.append(EquipmentLibrary.get_equipment(id))
 	return true
 
 func _deserialize_combatant(dict: Dictionary) -> CombatantData:
@@ -163,3 +194,4 @@ func reset() -> void:
 	threat_level = 0.0
 	party = []
 	run_summary = {}
+	inventory = []
