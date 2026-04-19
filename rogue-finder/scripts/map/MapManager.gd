@@ -401,6 +401,15 @@ func _add_ui_chrome() -> void:
 	lbl.label_settings = s
 	add_child(lbl)
 
+	var threat_lbl := Label.new()
+	threat_lbl.text = "Threat: %d" % GameState.threat_level
+	threat_lbl.position = Vector2(12.0, 28.0)
+	var ts := LabelSettings.new()
+	ts.font_size = 14
+	ts.font_color = Color(0.75, 0.18, 0.12)
+	threat_lbl.label_settings = ts
+	add_child(threat_lbl)
+
 	var del_btn := Button.new()
 	del_btn.text = "🗑 Delete Save (debug)"
 	del_btn.size = Vector2(200.0, 36.0)
@@ -830,8 +839,12 @@ func _on_node_clicked(node_id: String) -> void:
 
 func _enter_current_node() -> void:
 	if GameState.cleared_nodes.has(GameState.player_node_id):
-		return
+		return  # cleared nodes are pass-through — threat does not increment
 	var node_type: String = GameState.node_types.get(GameState.player_node_id, "COMBAT")
+	# City visits do not increment threat — the hub is a safe zone, not an encounter.
+	if node_type != "CITY":
+		GameState.threat_level += 1
+		GameState.save()
 	match node_type:
 		"COMBAT", "BOSS":
 			GameState.current_combat_node_id = GameState.player_node_id

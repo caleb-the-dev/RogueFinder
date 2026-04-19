@@ -16,6 +16,11 @@ var node_types: Dictionary = {}    # id -> String; populated by MapManager on fi
 var pending_node_type: String = "" # consumed by NodeStub on scene entry; NOT saved to disk
 var current_combat_node_id: String = "" # transient handoff to EndCombatScreen; NOT saved to disk
 var cleared_nodes: Array[String] = []  # nodes where player won and collected reward; saved to disk
+var threat_level: int = 0              # increments each non-cleared node entry; resets on BOSS defeat
+
+# threat_level feeds into boss difficulty scaling — see Feature 8
+func get_threat_level() -> int:
+	return threat_level
 
 func move_player(node_id: String) -> void:
 	player_node_id = node_id
@@ -39,6 +44,7 @@ func save() -> void:
 		"map_seed": map_seed,
 		"node_types": node_types,
 		"cleared_nodes": cleared_nodes,
+		"threat_level": threat_level,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data, "\t"))
@@ -59,6 +65,7 @@ func load_save() -> bool:
 	node_types = parsed.get("node_types", {})
 	var raw_cleared: Array = parsed.get("cleared_nodes", [])
 	cleared_nodes = Array(raw_cleared, TYPE_STRING, "", null)
+	threat_level = parsed.get("threat_level", 0)
 	return true
 
 func delete_save() -> void:
@@ -75,3 +82,4 @@ func reset() -> void:
 	pending_node_type = ""
 	current_combat_node_id = ""
 	cleared_nodes = []
+	threat_level = 0
