@@ -42,6 +42,8 @@
 | [Consumable Library](#consumable-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Equipment Data Model](#equipment-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Equipment Library](#equipment-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
+| [Background Data Model](#background-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active (dormant — no consumers yet) | Data |
+| [Background Library](#background-library) | [combatant_data.md](combatant_data.md) | ✅ Active (dormant — first CSV-sourced library) | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
 | [Game State](#game-state) | [game_state.md](game_state.md) | ✅ Active (map traversal + save/load) | Global |
 | [Map Scene](#map-scene) | [map_scene.md](map_scene.md) | ✅ Active (traversable + save/load) | World Map |
@@ -86,6 +88,9 @@ ArchetypeLibrary
 
 EquipmentLibrary
   └── EquipmentData    (creates instances)
+
+BackgroundLibrary      (static class — lazy CSV load; no consumers yet)
+  └── BackgroundData   (creates instances from res://data/backgrounds.csv)
 
 CombatantData
   └── EquipmentData    (weapon / armor / accessory slots)
@@ -168,6 +173,12 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, sl
 ### Equipment Library
 `EquipmentLibrary` (static class) defines 6 placeholder items (2 per slot) and provides `get_equipment(id) -> EquipmentData` (never null) and `all_equipment() -> Array[EquipmentData]` for reward pools. No archetype starts with equipment — gear comes from rewards.
 
+### Background Data Model
+`BackgroundData` (Resource) stores one character background: `background_id`, `background_name`, `starting_ability_id` (the 1 action granted at creation per GAME_BIBLE), `feat_pool` (odd-level feat draws), `unlocked_by_default` (meta-progression gate), `tags` (optional event hooks), and `description`. Lives at `resources/BackgroundData.gd`.
+
+### Background Library
+`BackgroundLibrary` (static class) is the first CSV-sourced library in the codebase — reads `res://data/backgrounds.csv` lazily, caches by id, and returns `BackgroundData` via `get_background(id)` (never null — stub fallback) / `get_background_by_name(display_name)` (back-compat bridge for current PascalCase callers) / `all_backgrounds()` / `reload()`. CSV lives at `rogue-finder/data/backgrounds.csv` (single source of truth; no `docs/csv_data/` mirror). Currently dormant — no production code calls it yet. Lives at `scripts/globals/BackgroundLibrary.gd`.
+
 ### Unit Data Resource (Legacy)
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
 
@@ -229,6 +240,7 @@ res://
 │   └── globals/
 │       ├── AbilityLibrary.gd    ← ability factory (22 abilities)
 │       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
+│       ├── BackgroundLibrary.gd ← background catalog (CSV-sourced from res://data/backgrounds.csv)
 │       ├── ConsumableLibrary.gd ← consumable factory (healing_potion, power_tonic)
 │       ├── EquipmentLibrary.gd  ← equipment catalog (6 items, 2 per slot)
 │       ├── RewardGenerator.gd   ← shuffled reward pool (equipment + consumables)
@@ -239,7 +251,10 @@ res://
     ├── CombatantData.gd         ← active data resource (3D)
     ├── ConsumableData.gd        ← consumable item resource
     ├── EquipmentData.gd         ← equipment item resource (Slot enum, stat_bonuses, get_bonus())
+    ├── BackgroundData.gd        ← background resource (id, name, starting ability, feat pool, tags)
     └── UnitData.gd              ← legacy data resource (2D only)
+├── data/
+│   └── backgrounds.csv          ← CSV-backed catalog (single source; read via res://data/)
 ├── scenes/ui/
 │   └── RunSummaryScene.tscn     ← run-end stats scene (root CanvasLayer + script only)
 ├── scenes/map/
@@ -264,6 +279,7 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-19 | BackgroundData, BackgroundLibrary | Added CSV-backed background catalog. Single source at `rogue-finder/data/backgrounds.csv` (dual `docs/csv_data/` mirror scrapped — drift risk > ergonomic benefit). `get_background_by_name()` bridges current PascalCase display strings so the library is callable today; full snake_case-id migration deferred until first real consumer lands. Dormant — no callers yet. First CSV-sourced library; pattern established for future migrations. |
 | 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — Badurga start, BOSS glow, node prompts, instant reward return |
 | 2026-04-18 | BadurgaScene, MapManager | Feature 6: Badurga city shell — CITY branch now loads `BadurgaScene.tscn` with 6 placeholder section buttons + return to map |
 | 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 7: Threat escalation counter — `threat_level` float (0.0–1.0) saved to disk; +5% on travel, +5% on node entry; vertical HUD bar with quadrant colors + tick marks; resets to 0 on BOSS defeat |
