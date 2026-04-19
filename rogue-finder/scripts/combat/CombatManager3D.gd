@@ -46,6 +46,7 @@ var _travel_effect:  EffectData         = null   ## stored while awaiting destin
 var _hovered_cell:   Vector2i           = Vector2i(-1, -1)  ## last cell under mouse (cone preview)
 
 var _attr_snapshots: Dictionary         = {}  ## per-unit attribute baseline; restored at combat end
+var _debug_menu:     CanvasLayer        = null
 
 var _grid:           Grid3D             = null
 var _camera_rig:     CameraController   = null
@@ -242,6 +243,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				for u in _enemy_units:
 					if u.is_alive:
 						u.take_damage(9999)
+				get_viewport().set_input_as_handled()
+			KEY_T:
+				_toggle_debug_menu()
 				get_viewport().set_input_as_handled()
 
 	if event is InputEventMouseMotion and mode == PlayerMode.ABILITY_TARGET_MODE \
@@ -1276,6 +1280,80 @@ func _end_combat(player_won: bool) -> void:
 		_capture_run_summary()
 		GameState.save()
 		_show_run_end_overlay()
+
+## --- Debug Menu ---
+
+func _toggle_debug_menu() -> void:
+	if _debug_menu == null:
+		_build_debug_menu()
+	_debug_menu.visible = not _debug_menu.visible
+
+func _build_debug_menu() -> void:
+	_debug_menu = CanvasLayer.new()
+	_debug_menu.layer = 25
+	add_child(_debug_menu)
+
+	var panel := ColorRect.new()
+	panel.color = Color(0.08, 0.08, 0.10, 0.95)
+	panel.size = Vector2(240.0, 320.0)
+	panel.position = Vector2(20.0, 20.0)
+	_debug_menu.add_child(panel)
+
+	var title := Label.new()
+	title.text = "DEBUG MENU  [T]"
+	title.add_theme_font_size_override("font_size", 14)
+	title.add_theme_color_override("font_color", Color(0.5, 1.0, 0.5))
+	title.position = Vector2(8.0, 8.0)
+	title.size = Vector2(224.0, 20.0)
+	panel.add_child(title)
+
+	var actions: Array[Dictionary] = [
+		{"label": "Kill PC",               "cb": _dbg_kill_pc},
+		{"label": "Kill All Allies",        "cb": _dbg_kill_allies},
+		{"label": "Kill All Enemies  (K)",  "cb": _dbg_kill_enemies},
+		{"label": "Kill Entire Party",      "cb": _dbg_kill_party},
+		{"label": "Damage PC  -20 HP",      "cb": _dbg_damage_pc},
+	]
+	for i in range(actions.size()):
+		var btn := Button.new()
+		btn.text = actions[i]["label"]
+		btn.custom_minimum_size = Vector2(224.0, 40.0)
+		btn.position = Vector2(8.0, 36.0 + i * 48.0)
+		btn.add_theme_font_size_override("font_size", 14)
+		btn.pressed.connect(actions[i]["cb"])
+		panel.add_child(btn)
+
+func _dbg_kill_pc() -> void:
+	for u in _player_units:
+		if u.is_alive and u.data.archetype_id == "RogueFinder":
+			u.take_damage(9999)
+			break
+	_debug_menu.visible = false
+
+func _dbg_kill_allies() -> void:
+	for u in _player_units:
+		if u.is_alive and u.data.archetype_id != "RogueFinder":
+			u.take_damage(9999)
+	_debug_menu.visible = false
+
+func _dbg_kill_enemies() -> void:
+	for u in _enemy_units:
+		if u.is_alive:
+			u.take_damage(9999)
+	_debug_menu.visible = false
+
+func _dbg_kill_party() -> void:
+	for u in _player_units:
+		if u.is_alive:
+			u.take_damage(9999)
+	_debug_menu.visible = false
+
+func _dbg_damage_pc() -> void:
+	for u in _player_units:
+		if u.is_alive and u.data.archetype_id == "RogueFinder":
+			u.take_damage(20)
+			break
+	_debug_menu.visible = false
 
 ## Populates GameState.run_summary with stats captured at the moment of run loss.
 func _capture_run_summary() -> void:
