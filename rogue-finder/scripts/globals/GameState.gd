@@ -23,6 +23,25 @@ var threat_level: float = 0.0          # 0.0–1.0; rises on travel + entry; res
 var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
 var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
 
+## --- Inventory (party bag) ---
+## Stores raw reward dicts: {id, name, description, item_type}.
+## item_type is "equipment" or "consumable" — used for tab filtering in the bag UI (Stage 2).
+## Player assigns items from the bag manually; nothing is auto-equipped on pickup.
+
+var inventory: Array = []
+
+func add_to_inventory(item: Dictionary) -> void:
+	inventory.append(item)
+	print("[Inventory] Added '%s' (%s) — bag size: %d" % [item.get("id", "?"), item.get("item_type", "?"), inventory.size()])
+
+## Removes the first entry whose id matches. Returns true if found and removed.
+func remove_from_inventory(item_id: String) -> bool:
+	for i in range(inventory.size()):
+		if inventory[i].get("id", "") == item_id:
+			inventory.remove_at(i)
+			return true
+	return false
+
 ## Populates party with the PC + 2 allies. Guard ensures it is idempotent — safe to
 ## call from MapManager._ready() after load_save() regardless of save state.
 func init_party() -> void:
@@ -63,6 +82,7 @@ func save() -> void:
 		"cleared_nodes": cleared_nodes,
 		"threat_level": threat_level,
 		"party": party_data,
+		"inventory": inventory,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data, "\t"))
@@ -114,6 +134,11 @@ func load_save() -> bool:
 	for dict in raw_party:
 		if dict is Dictionary:
 			party.append(_deserialize_combatant(dict))
+	inventory.clear()
+	var raw_inv: Array = parsed.get("inventory", [])
+	for entry in raw_inv:
+		if entry is Dictionary:
+			inventory.append(entry)
 	return true
 
 func _deserialize_combatant(dict: Dictionary) -> CombatantData:
@@ -163,3 +188,4 @@ func reset() -> void:
 	threat_level = 0.0
 	party = []
 	run_summary = {}
+	inventory = []
