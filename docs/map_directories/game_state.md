@@ -8,7 +8,7 @@
 
 `GameState` is the **autoload singleton** for run-wide persistent data. It is the single source of truth for anything that needs to survive across scenes — party roster, equipment, currency, map progress, faction reputation.
 
-**Current status: Active.** Map traversal and save/load are live. All other planned data is deferred.
+**Current status: Active.** Map traversal, save/load, and party roster are live. Inventory, reputation, and other Stage 2+ data are deferred.
 
 ---
 
@@ -87,7 +87,7 @@ Note: `pending_node_type` and `current_combat_node_id` are **not** saved — the
 
 ## Dependencies
 
-- **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); increments `threat_level` by 0.05 (capped at 1.0) on every `_move_player_to()` call (travel increment) and again in `_enter_current_node()` for non-cleared nodes (entry increment); calls `save()` after each increment and after `_assign_node_types()`; calls `load_save()` at startup; calls `delete_save()` + `reset()` from the debug button; sets `pending_node_type` before transitioning to NodeStub; sets `current_combat_node_id` before transitioning to CombatScene3D; reads `cleared_nodes` in `_refresh_all_node_visuals()` and `_on_node_clicked()`; reads `threat_level` in `_add_threat_meter()` to render the HUD bar.
+- **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `init_party()` on fresh runs (after `load_save()` if `party.is_empty()`); increments `threat_level` by 0.05 (capped at 1.0) on every `_move_player_to()` call (travel increment) and again in `_enter_current_node()` for non-cleared nodes (entry increment); calls `save()` after each increment and after `_assign_node_types()`; calls `load_save()` at startup; calls `delete_save()` + `reset()` from the debug button; sets `pending_node_type` before transitioning to NodeStub; sets `current_combat_node_id` before transitioning to CombatScene3D; reads `cleared_nodes` in `_refresh_all_node_visuals()` and `_on_node_clicked()`; reads `threat_level` in `_add_threat_meter()` to render the HUD bar.
 - **NodeStub** reads and clears `GameState.pending_node_type` in `_ready()`
 - **EndCombatScreen** reads `current_combat_node_id` and appends to `cleared_nodes` immediately on reward selection; resets `threat_level = 0.0` if the defeated node was a BOSS; calls `GameState.save()` then returns to map. Calls `GameState.add_to_inventory(item)` only if it exists (`has_method()` guard); the method is **not** defined yet, so the call is currently skipped entirely. When Stage 2 adds inventory, define the method on GameState and the guard becomes a no-op.
 
@@ -121,3 +121,4 @@ None currently.
 - **Field defaults are fresh-run values only** — `player_node_id = "badurga"` and `visited_nodes = ["badurga"]` are the GDScript initializers. On any run with a valid save file, `load_save()` overwrites them before anything reads them. Do not rely on these defaults in code that runs after `MapManager._ready()`.
 - **GameState persists across `change_scene_to_file()` calls** — as an autoload it is never freed. In-memory fields survive scene transitions without saving; `save()` is called explicitly to persist to disk.
 - **`load_save()` does NOT reset fields on a missing file** — it returns `false` immediately if `user://save.json` doesn't exist, leaving all in-memory fields unchanged. This means calling `delete_save()` alone before a scene reload is NOT enough for a clean fresh-run state in a live session; you must also call `reset()` to clear the in-memory fields. If you only delete the file, the player marker and visited state persist in memory for the remainder of the session.
+- **`_serialize_combatant()` / `_deserialize_combatant()`** — private helpers that convert a `CombatantData` to/from a plain Dictionary for JSON. Equipment slots (which are `EquipmentData` resources) serialize as their `equipment_id: String`; on deserialize, `EquipmentLibrary.get_equipment(id)` resolves back to the item. Empty string id → `null` slot (no equipment). If a save contains an unknown equipment id, the stub returned by `get_equipment()` is kept — slots are never silently dropped. These methods are the only place where `CombatantData` ↔ JSON translation lives; extend them (not `save()`/`load_save()`) when new fields are added to `CombatantData`.

@@ -196,11 +196,12 @@ Panel style: dark background `Color(0.07, 0.05, 0.03, 0.94)`, 2-px border in the
 
 `_ready()` order after save/load integration:
 1. `GameState.load_save()` — restore saved state (or no-op on fresh run)
-2. Initialize `map_seed` if zero (fresh run): `GameState.map_seed = randi()` — must happen before node data so names and edge topology share the same seed
-3. `_build_node_data()` — define all 28 nodes with placeholder labels; calls `_assign_node_types()` at the end (which assigns seeded names + types)
-4. `_build_edge_data()` — seed global RNG from `GameState.map_seed`, build deterministic edges via `_connect_gateways_v2()`
-5. `_build_adjacency()` — build undirected adjacency dict
-6. `_build_scene()` — render everything; marker placed at `GameState.player_node_id`
+2. `GameState.init_party()` — seeds party with PC + 2 allies if `party.is_empty()` (i.e., fresh run or old save with no party key). No-ops if party was loaded from disk.
+3. Initialize `map_seed` if zero (fresh run): `GameState.map_seed = randi()` — must happen before node data so names and edge topology share the same seed
+4. `_build_node_data()` — define all 28 nodes with placeholder labels; calls `_assign_node_types()` at the end (which assigns seeded names + types)
+5. `_build_edge_data()` — seed global RNG from `GameState.map_seed`, build deterministic edges via `_connect_gateways_v2()`
+6. `_build_adjacency()` — build undirected adjacency dict
+7. `_build_scene()` — render everything; marker placed at `GameState.player_node_id`
 
 ---
 

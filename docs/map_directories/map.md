@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-18 |
+| last_updated | 2026-04-19 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 3 |
+| sessions_since_groom | 4 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -88,7 +88,7 @@ CombatantData
   └── EquipmentData    (weapon / armor / accessory slots)
 
 MapManager
-  └── GameState        (reads player_node_id/visited_nodes/map_seed/node_types/cleared_nodes/threat_level; increments threat_level on travel and entry; calls move_player, save, load_save; sets pending_node_type before NodeStub transition; sets current_combat_node_id before CombatScene3D transition; transitions directly to BadurgaScene for CITY nodes)
+  └── GameState        (calls load_save() + init_party() at startup; reads player_node_id/visited_nodes/map_seed/node_types/cleared_nodes/threat_level/party; increments threat_level on travel and entry; calls move_player, save, load_save; sets pending_node_type before NodeStub transition; sets current_combat_node_id before CombatScene3D transition; transitions directly to BadurgaScene for CITY nodes)
 
 NodeStub
   └── GameState        (reads+clears pending_node_type)
@@ -99,7 +99,9 @@ EndCombatScreen
   ├── RewardGenerator  (shuffled pool of EquipmentLibrary + ConsumableLibrary items)
   └── GameState        (reads current_combat_node_id + node_types; appends to cleared_nodes; resets threat_level to 0.0 on BOSS defeat; calls save() on reward selection)
 
-GameState              (autoload — map traversal + save/load live; all other data deferred)
+GameState              (autoload — map traversal + save/load + party roster live; inventory/reputation deferred)
+  ├── ArchetypeLibrary   (init_party() calls create() for PC + 2 allies)
+  └── EquipmentLibrary   (load_save() resolves equipment slot ids via get_equipment())
 ```
 
 ---
@@ -164,7 +166,7 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, sl
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
 
 ### Game State
-Autoload singleton. Map traversal and save/load are live: tracks `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, and `threat_level` (float 0.0–1.0, all saved to disk); `pending_node_type` and `current_combat_node_id` are transient handoffs between scenes. Exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `get_threat_level()`, `save()`, `load_save()`, `delete_save()`, `reset()`. Save path: `user://save.json`. All other run-wide data (party roster, reputation, etc.) is deferred to Stage 2.
+Autoload singleton. Map traversal, save/load, and party roster are live. Tracks `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, `threat_level` (float 0.0–1.0), and `party: Array[CombatantData]` (index 0 = PC) — all saved to disk. `pending_node_type` and `current_combat_node_id` are transient handoffs. Exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `get_threat_level()`, `init_party()`, `save()`, `load_save()`, `delete_save()`, `reset()`. Save path: `user://save.json`. Inventory, reputation, and other Stage 2+ data deferred.
 
 ## World Map
 
@@ -256,4 +258,5 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 | 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — Badurga start, BOSS glow, node prompts, instant reward return |
 | 2026-04-18 | BadurgaScene, MapManager | Feature 6: Badurga city shell — CITY branch now loads `BadurgaScene.tscn` with 6 placeholder section buttons + return to map |
 | 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 7: Threat escalation counter — `threat_level` float (0.0–1.0) saved to disk; +5% on travel, +5% on node entry; vertical HUD bar with quadrant colors + tick marks; resets to 0 on BOSS defeat |
-| 2026-04-18 | CombatantData, ArchetypeLibrary | S16 Persistent Party Slice 1: added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData; `create()` seeds all four; pool ⊇ slots invariant; persistence deferred to Slice 2 |
+| 2026-04-19 | GameState, MapManager | S17 Persistent Party Slice 2: `GameState.party: Array[CombatantData]` added; `init_party()` seeds PC (RogueFinder/"Hero") + 2 allies (archer_bandit, grunt) on fresh runs; `save()` / `load_save()` / `reset()` extended; equipment slots persist as id strings; 6 new headless tests (28 total passing) |
+| 2026-04-18 | CombatantData, ArchetypeLibrary | S16 Persistent Party Slice 1: added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData; `create()` seeds all four; pool ⊇ slots invariant |
