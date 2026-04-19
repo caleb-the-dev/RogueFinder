@@ -71,6 +71,8 @@ var _drag_moved: bool = false
 
 func _ready() -> void:
 	GameState.load_save()
+	if GameState.party.is_empty():
+		GameState.init_party()
 	# Seed must be set before both data builders so names and edges use the same seed
 	if GameState.map_seed == 0:
 		GameState.map_seed = randi()

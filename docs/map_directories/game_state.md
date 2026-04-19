@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-04-18 (S15 Feature 7 — threat_level field added; float 0.0–1.0; incremented on travel and node entry; reset to 0.0 on BOSS defeat)
+> Last updated: 2026-04-19 (S17 Slice 2 — party field added to GameState; init_party(), _serialize_combatant(), _deserialize_combatant() added; save/load/reset extended; MapManager._ready() calls init_party() on fresh runs)
 
 ---
 
@@ -44,6 +44,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `current_combat_node_id` | `String` | `""` | Set by `MapManager._enter_current_node()` immediately before transitioning to `CombatScene3D`. Read by `EndCombatScreen._on_reward_chosen()` to know which node to append to `cleared_nodes`. **NOT saved to disk** (transient handoff, like `pending_node_type`). |
 | `cleared_nodes` | `Array[String]` | `[]` | Nodes where the player completed combat AND collected a reward. Show a `✗` stamp on the map; traversable as pass-through. **Saved to disk.** |
 | `threat_level` | `float` | `0.0` | Run-wide danger gauge. Range 0.0–1.0 (0%–100%). Incremented by MapManager on both travel (+0.05) and node entry (+0.05); capped at 1.0 via `minf()`. Reset to `0.0` by EndCombatScreen when a BOSS node is defeated. Displayed as a vertical bar in the map HUD. **Saved to disk.** |
+| `party` | `Array[CombatantData]` | `[]` | Active party roster. index 0 = PC. Empty = not yet initialized (freshness check for `init_party()`). **Saved to disk.** |
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -51,15 +52,16 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `is_visited` | `(node_id: String) -> bool` | Returns `true` if the node is in `visited_nodes` |
 | `is_adjacent_to_player` | `(node_id: String, adjacency: Dictionary) -> bool` | Returns `true` if `node_id` is in the adjacency list for `player_node_id`. The `adjacency` dict is passed in from `MapManager` to keep `GameState` decoupled from map-building data. |
 | `get_threat_level` | `() -> float` | Returns `threat_level`. Stub hookpoint for Feature 8 boss difficulty scaling — annotated with a comment pointing there. |
+| `init_party` | `() -> void` | Seeds `party` with PC (RogueFinder/"Hero") + 2 allies (archer_bandit, grunt). Guard: no-ops if `party` is already populated — safe to call after `load_save()`. |
 
 ### Save / Load
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `save` | `() -> void` | Serializes `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, and `threat_level` to `user://save.json` as indented JSON. Called by **MapManager** after travel increments and node entry, after `_assign_node_types()` on first run; also called by **EndCombatScreen** immediately on reward selection (after any threat reset). |
-| `load_save` | `() -> bool` | Reads and deserializes `user://save.json`. Returns `true` if a valid save was found and loaded, `false` on a fresh run or corrupt file. Called by **MapManager** at the start of `_ready()`, before any map data is built. `threat_level` is read back with `float(parsed.get("threat_level", 0.0))`. |
+| `save` | `() -> void` | Serializes all persistent fields (including `party`) to `user://save.json` as indented JSON. Party members are written as plain dicts with equipment slots serialized as their `equipment_id` string. Called by **MapManager** after travel increments and node entry, after `_assign_node_types()` on first run; also called by **EndCombatScreen** immediately on reward selection (after any threat reset). |
+| `load_save` | `() -> bool` | Reads and deserializes `user://save.json`. Returns `true` if a valid save was found and loaded, `false` on a fresh run or corrupt file. Called by **MapManager** at the start of `_ready()`, before any map data is built. Typed arrays are converted via `Array(raw, TYPE_STRING, "", null)`. Equipment slots resolve via `EquipmentLibrary.get_equipment(id)`; `""` id → `null` slot. |
 | `delete_save` | `() -> void` | Removes `user://save.json` if it exists. Called by **MapManager**'s debug "Delete Save" button before resetting in-memory state. |
-| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "badurga"`, `visited_nodes = ["badurga"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`, `current_combat_node_id = ""`, `cleared_nodes = []`, `threat_level = 0.0`). Must be called alongside `delete_save()` when wiping a save mid-session. |
+| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "badurga"`, `visited_nodes = ["badurga"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`, `current_combat_node_id = ""`, `cleared_nodes = []`, `threat_level = 0.0`, `party = []`). Must be called alongside `delete_save()` when wiping a save mid-session. |
 
 ---
 
@@ -73,12 +75,13 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `node_types` | `GameState.node_types` | JSON Object (id → type string) — values already strings from JSON, no conversion needed |
 | `cleared_nodes` | `GameState.cleared_nodes` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load |
 | `threat_level` | `GameState.threat_level` | float — read back via `float(parsed.get("threat_level", 0.0))` (no typed-array conversion needed) |
+| `party` | `GameState.party` | JSON Array of dicts — each dict holds all scalar fields + `abilities`/`ability_pool` as string arrays + `weapon_id`/`armor_id`/`accessory_id` as strings. Deserialized back to `Array[CombatantData]` by `_deserialize_combatant()`. |
 
-**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level.
+**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, party roster (all CombatantData fields including persistent run state).
 
 Note: `pending_node_type` and `current_combat_node_id` are **not** saved — they are transient handoffs consumed within a single scene transition.
 
-**Deferred (Stage 2+):** party roster, inventory, combat state, faction reputation.
+**Deferred (Stage 2+):** inventory, combat state, faction reputation.
 
 ---
 
@@ -100,7 +103,7 @@ None currently.
 
 | Data | Type | Notes |
 |------|------|-------|
-| Party roster | `Array[UnitData]` | Active + bench units for the run |
+| Party roster | `Array[CombatantData]` | **Live** as of Slice 2 — party is seeded, saved, and loaded. Slice 3 will wire party[0] into CombatManager3D as the player squad. |
 | Faction reputation | `Dictionary` | Per-faction standing |
 | Currency / resources | `int` | TBD |
 | Run flags | `Dictionary` | Misc boolean state |
