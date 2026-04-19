@@ -61,6 +61,7 @@ var _outer_ids: Array[String] = []
 ## --- Pan State ---
 
 var _node_prompt: Control = null
+var _party_sheet: PartySheet = null
 
 var _is_panning: bool = false
 var _pan_start_mouse: Vector2 = Vector2.ZERO
@@ -79,6 +80,8 @@ func _ready() -> void:
 	_build_node_data()
 	_build_edge_data()
 	_build_adjacency()
+	_party_sheet = PartySheet.new()
+	add_child(_party_sheet)
 	_build_scene()
 
 # _input (not _unhandled_input) so drag is captured even when the press starts on a Button
@@ -404,6 +407,13 @@ func _add_ui_chrome() -> void:
 	add_child(lbl)
 
 	_add_threat_meter()
+
+	var party_btn := Button.new()
+	party_btn.text = "Party"
+	party_btn.size = Vector2(80.0, 36.0)
+	party_btn.position = Vector2(VIEWPORT_SIZE.x - 300.0, 8.0)
+	party_btn.pressed.connect(func(): _party_sheet.show_sheet())
+	add_child(party_btn)
 
 	var del_btn := Button.new()
 	del_btn.text = "🗑 Delete Save (debug)"

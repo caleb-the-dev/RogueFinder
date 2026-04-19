@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-19 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 6 |
+| sessions_since_groom | 7 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -42,9 +42,12 @@
 | [Consumable Library](#consumable-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Equipment Data Model](#equipment-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
 | [Equipment Library](#equipment-library) | [combatant_data.md](combatant_data.md) | ✅ Active | Data |
+| [Background Data Model](#background-data-model) | [combatant_data.md](combatant_data.md) | ✅ Active (dormant — no consumers yet) | Data |
+| [Background Library](#background-library) | [combatant_data.md](combatant_data.md) | ✅ Active (dormant — first CSV-sourced library) | Data |
 | [Unit Data Resource](#unit-data-resource) | [unit_data.md](unit_data.md) | ⚠️ Legacy (2D only) | Data |
 | [Game State](#game-state) | [game_state.md](game_state.md) | ✅ Active (map traversal + save/load) | Global |
 | [Map Scene](#map-scene) | [map_scene.md](map_scene.md) | ✅ Active (traversable + save/load) | World Map |
+| [Party Sheet](#party-sheet) | [map_scene.md](map_scene.md) | ✅ Active (read-only map overlay, layer 20) | Presentation |
 
 ---
 
@@ -87,11 +90,19 @@ ArchetypeLibrary
 EquipmentLibrary
   └── EquipmentData    (creates instances)
 
+BackgroundLibrary      (static class — lazy CSV load; no consumers yet)
+  └── BackgroundData   (creates instances from res://data/backgrounds.csv)
+
 CombatantData
   └── EquipmentData    (weapon / armor / accessory slots)
 
 MapManager
-  └── GameState        (calls load_save() + init_party() at startup; reads player_node_id/visited_nodes/map_seed/node_types/cleared_nodes/threat_level/party; increments threat_level on travel and entry; calls move_player, save, load_save; sets pending_node_type before NodeStub transition; sets current_combat_node_id before CombatScene3D transition; transitions directly to BadurgaScene for CITY nodes)
+  ├── GameState        (calls load_save() + init_party() at startup; reads player_node_id/visited_nodes/map_seed/node_types/cleared_nodes/threat_level/party; increments threat_level on travel and entry; calls move_player, save, load_save; sets pending_node_type before NodeStub transition; sets current_combat_node_id before CombatScene3D transition; transitions directly to BadurgaScene for CITY nodes)
+  └── PartySheet       (instantiated as child in _ready(); Party button calls show_sheet())
+
+PartySheet
+  ├── GameState        (reads party + inventory on every show_sheet() call)
+  └── EquipmentLibrary (resolves equipment ids for inventory display)
 
 NodeStub
   └── GameState        (reads+clears pending_node_type)
@@ -168,6 +179,12 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, sl
 ### Equipment Library
 `EquipmentLibrary` (static class) defines 6 placeholder items (2 per slot) and provides `get_equipment(id) -> EquipmentData` (never null) and `all_equipment() -> Array[EquipmentData]` for reward pools. No archetype starts with equipment — gear comes from rewards.
 
+### Background Data Model
+`BackgroundData` (Resource) stores one character background: `background_id`, `background_name`, `starting_ability_id` (the 1 action granted at creation per GAME_BIBLE), `feat_pool` (odd-level feat draws), `unlocked_by_default` (meta-progression gate), `tags` (optional event hooks), and `description`. Lives at `resources/BackgroundData.gd`.
+
+### Background Library
+`BackgroundLibrary` (static class) is the first CSV-sourced library in the codebase — reads `res://data/backgrounds.csv` lazily, caches by id, and returns `BackgroundData` via `get_background(id)` (never null — stub fallback) / `all_backgrounds()` / `reload()`. Authoring source of truth is `docs/csv_data/backgrounds.csv`; it is mirrored into `rogue-finder/data/` so `res://` can reach it. Currently dormant — no production code calls it yet. Lives at `scripts/globals/BackgroundLibrary.gd`.
+
 ### Unit Data Resource (Legacy)
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
 
@@ -178,6 +195,9 @@ Autoload singleton. Map traversal, save/load, party roster, and party bag invent
 
 ### Map Scene
 Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a procedurally-drawn lore name (seeded per ring — not saved, regenerates from map_seed), a type (COMBAT, RECRUIT, VENDOR, EVENT, BOSS, CITY) with distinct color/icon/hover label, and exactly 1 BOSS per run in the outer ring. Player traverses by clicking adjacent nodes; re-clicking enters the current node. Nodes display five visual states (CURRENT / REACHABLE / CLEARED / VISITED / LOCKED). Bridges use quadrant-aware placement (≥90° intra-pair gap, ≥30° cross-pair exclusion) to prevent straight corridors. Seeded from map_seed — deterministic on reload. HUD shows a fixed vertical threat bar (left side) with quadrant tick marks and fill color scaling from yellow to red. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
+
+### Party Sheet
+Full-screen read-only overlay (CanvasLayer, layer 20). Opened by the "Party" button in MapManager UI chrome. Shows 3 party cards (portrait, name, class, HP bar with fill, attribute row) plus an inventory bag list. Rebuilds all content from `GameState.party` and `GameState.inventory` on every open — no caching. Equipment rows resolved via `EquipmentLibrary.get_equipment(id)` for slot and stat bonuses; consumable rows use the dict's description. Dead members greyed with a "DEFEATED" stamp added to parent so it renders above the grey. Close button hides the overlay. No mutation. Lives in `scenes/party/PartySheet.tscn` + `scripts/party/PartySheet.gd`.
 
 ---
 
@@ -231,6 +251,7 @@ res://
 │       ├── ArchetypeLibrary.gd  ← archetype factory (3D)
 │       ├── ConsumableLibrary.gd ← consumable factory (healing_potion, power_tonic)
 │       ├── EquipmentLibrary.gd  ← equipment catalog (6 items, 2 per slot)
+│       ├── BackgroundLibrary.gd ← background catalog (CSV-sourced from res://data/backgrounds.csv)
 │       ├── RewardGenerator.gd   ← shuffled reward pool (equipment + consumables)
 │       └── GameState.gd
 └── resources/
@@ -239,15 +260,22 @@ res://
     ├── CombatantData.gd         ← active data resource (3D)
     ├── ConsumableData.gd        ← consumable item resource
     ├── EquipmentData.gd         ← equipment item resource (Slot enum, stat_bonuses, get_bonus())
+    ├── BackgroundData.gd        ← background resource (id, name, starting ability, feat pool, tags)
     └── UnitData.gd              ← legacy data resource (2D only)
+├── data/
+│   └── backgrounds.csv          ← engine-readable mirror of docs/csv_data/backgrounds.csv
 ├── scenes/ui/
 │   └── RunSummaryScene.tscn     ← run-end stats scene (root CanvasLayer + script only)
+├── scenes/party/
+│   └── PartySheet.tscn          ← party/inventory overlay shell (root CanvasLayer + script only)
 ├── scenes/map/
 │   └── MapScene.tscn            ← world map shell (root + script only)
 ├── scenes/misc/
 │   └── NodeStub.tscn            ← placeholder for unimplemented node types (root + script only)
 ├── scenes/city/
 │   └── BadurgaScene.tscn        ← Badurga hub city shell (root + script only)
+├── scripts/party/
+│   └── PartySheet.gd            ← read-only party+inventory overlay; opened from MapManager "Party" button
 ├── scripts/map/
 │   └── MapManager.gd            ← builds map scene in _ready()
 ├── scripts/misc/
@@ -264,6 +292,8 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-19 | MapManager, PartySheet | S20 Party Sheet Slice 5: read-only overlay (layer 20) showing 3 party cards (portrait, name, class, HP bar, attributes) + inventory bag. Equipment rows resolve via EquipmentLibrary; consumable rows use description. Dead members greyed with DEFEATED stamp. "Party" button added to MapManager UI chrome. New files: `scenes/party/PartySheet.tscn`, `scripts/party/PartySheet.gd`. |
+| 2026-04-19 | BackgroundData, BackgroundLibrary | Added CSV-backed background catalog. Source of truth at `docs/csv_data/backgrounds.csv`, mirrored to `rogue-finder/data/backgrounds.csv`. Library is dormant (no consumers yet) — `CombatantData.background` still stores PascalCase display strings and needs snake_case-id migration before lookups succeed. First CSV-sourced library; pattern established for future migrations. |
 | 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — Badurga start, BOSS glow, node prompts, instant reward return |
 | 2026-04-18 | BadurgaScene, MapManager | Feature 6: Badurga city shell — CITY branch now loads `BadurgaScene.tscn` with 6 placeholder section buttons + return to map |
 | 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 7: Threat escalation counter — `threat_level` float (0.0–1.0) saved to disk; +5% on travel, +5% on node entry; vertical HUD bar with quadrant colors + tick marks; resets to 0 on BOSS defeat |
