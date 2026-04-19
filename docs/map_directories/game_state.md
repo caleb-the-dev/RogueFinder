@@ -108,7 +108,6 @@ None currently.
 
 | Data | Type | Notes |
 |------|------|-------|
-| Party roster | `Array[CombatantData]` | **Live** — party is seeded, saved, loaded, and fully wired into CombatManager3D (Slices 1–3 complete). |
 | Faction reputation | `Dictionary` | Per-faction standing |
 | Currency / resources | `int` | TBD |
 | Run flags | `Dictionary` | Misc boolean state |
@@ -121,7 +120,7 @@ None currently.
 - Do not put **combat-local** state here (selected unit, current turn, etc.) — that belongs in CombatManager. GameState is for data that persists between combat encounters.
 - The `adjacency` dict is intentionally passed into `is_adjacent_to_player()` from `MapManager` — GameState should not import or own map topology data.
 - `map_seed` lives in GameState (not MapManager) so `load_save()` can restore it before MapManager calls `seed()` in `_build_edge_data()`. MapManager generates the seed on a fresh run (`randi()`) and writes it to `GameState.map_seed` — GameState never generates it.
-- **Typed-array conversion:** `JSON.parse_string()` returns untyped `Array`. Any `Array[T]` field must be converted back with `Array(raw, TYPE_*, "", null)` when reading from the save. Apply this pattern for any future typed array fields added to the save.
+- **Typed-array conversion:** `JSON.parse_string()` returns untyped `Array`. Any `Array[T]` field must be converted back with `Array(raw, TYPE_*, "", null)` when reading from the save. `inventory` is intentionally an untyped `Array` (holds mixed reward dicts) — no conversion needed; just guard each entry with `if entry is Dictionary` on load.
 - **`save()` has no null guard on `FileAccess.open()`** — if `user://` is unwritable (rare on desktop, possible on some platforms), it will crash. Add a null check before `file.store_string()` if this becomes an issue in future platform targets.
 - **Field defaults are fresh-run values only** — `player_node_id = "badurga"` and `visited_nodes = ["badurga"]` are the GDScript initializers. On any run with a valid save file, `load_save()` overwrites them before anything reads them. Do not rely on these defaults in code that runs after `MapManager._ready()`.
 - **GameState persists across `change_scene_to_file()` calls** — as an autoload it is never freed. In-memory fields survive scene transitions without saving; `save()` is called explicitly to persist to disk.

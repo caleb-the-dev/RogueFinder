@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-19 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 5 |
+| sessions_since_groom | 6 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -100,9 +100,9 @@ BadurgaManager         (standalone — no dependencies; returns to MapScene on b
 
 EndCombatScreen
   ├── RewardGenerator  (shuffled pool of EquipmentLibrary + ConsumableLibrary items)
-  └── GameState        (reads current_combat_node_id + node_types; appends to cleared_nodes; resets threat_level to 0.0 on BOSS defeat; calls save() on reward selection)
+  └── GameState        (reads current_combat_node_id + node_types; appends to cleared_nodes; resets threat_level to 0.0 on BOSS defeat; calls add_to_inventory() + save() on reward selection)
 
-GameState              (autoload — map traversal + save/load + party roster live; inventory/reputation deferred)
+GameState              (autoload — map traversal + save/load + party roster + party bag inventory live; reputation deferred)
   ├── ArchetypeLibrary   (init_party() calls create() for PC + 2 allies)
   └── EquipmentLibrary   (load_save() resolves equipment slot ids via get_equipment())
 ```
@@ -172,7 +172,7 @@ Two-file system: `CombatantData` (Resource) stores identity, core attributes, sl
 Superseded by `CombatantData` for the 3D system. Kept alive for `Unit.gd` (2D) and its test suite.
 
 ### Game State
-Autoload singleton. Map traversal, save/load, and party roster are live. Tracks `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, `threat_level` (float 0.0–1.0), `party: Array[CombatantData]` (index 0 = PC) — all saved to disk. `run_summary: Dictionary` holds stats for the RunSummaryScene after a run-end defeat (not saved to disk; lives in autoload memory across the scene transition). `pending_node_type` and `current_combat_node_id` are transient handoffs. Exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `get_threat_level()`, `init_party()`, `save()`, `load_save()`, `delete_save()`, `reset()`. Save path: `user://save.json`. Inventory, reputation, and other Stage 2+ data deferred.
+Autoload singleton. Map traversal, save/load, party roster, and party bag inventory are live. Tracks `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, `threat_level` (float 0.0–1.0), `party: Array[CombatantData]` (index 0 = PC), `inventory: Array` (raw reward dicts `{id, name, description, item_type}`) — all saved to disk. `run_summary: Dictionary` holds stats for the RunSummaryScene after a run-end defeat (not saved to disk). `pending_node_type` and `current_combat_node_id` are transient handoffs. Exposes `move_player()`, `is_visited()`, `is_adjacent_to_player()`, `get_threat_level()`, `init_party()`, `add_to_inventory()`, `remove_from_inventory()`, `save()`, `load_save()`, `delete_save()`, `reset()`. Save path: `user://save.json`. Reputation and other Stage 2+ data deferred.
 
 ## World Map
 
@@ -269,4 +269,5 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 | 2026-04-18 | GameState, MapManager, EndCombatScreen | Feature 7: Threat escalation counter — `threat_level` float (0.0–1.0) saved to disk; +5% on travel, +5% on node entry; vertical HUD bar with quadrant colors + tick marks; resets to 0 on BOSS defeat |
 | 2026-04-19 | CombatManager3D, Unit3D, GameState, RunSummaryScene | S18 Persistent Party Slice 3 + permadeath + run-end: combat pulls player units from `GameState.party`; `Unit3D.setup()` seeds from `current_hp`/`current_energy`; `_attr_snapshots` rolls back stat mutations on combat end; allies die permanently on 0 HP; PC revives at 1 HP on victory; full wipe triggers "RogueFinder has perished" overlay → `RunSummaryScene` (stats + new run/quit buttons); T-key debug menu in combat for faster testing |
 | 2026-04-19 | GameState, MapManager | S17 Persistent Party Slice 2: `GameState.party: Array[CombatantData]` added; `init_party()` seeds PC (RogueFinder/"Hero") + 2 allies (archer_bandit, grunt) on fresh runs; `save()` / `load_save()` / `reset()` extended; equipment slots persist as id strings; 6 new headless tests (28 total passing) |
+| 2026-04-19 | GameState, EndCombatScreen | S19 Persistent Party Slice 4: `GameState.inventory: Array` (party bag) added; all reward items (equipment + consumables) land as raw dicts on pickup — no auto-assignment; `add_to_inventory()` / `remove_from_inventory(id)` live; save/load/reset extended; EndCombatScreen guard now active; bag UI deferred to Stage 2 |
 | 2026-04-18 | CombatantData, ArchetypeLibrary | S16 Persistent Party Slice 1: added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData; `create()` seeds all four; pool ⊇ slots invariant |

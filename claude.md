@@ -19,9 +19,9 @@
 
 - **Stage:** Stage 1.5 — 3D combat prototype + traversable world map
 - **Entry point:** `main.tscn` → MapScene (game boots into the map, not combat)
-- **Live systems:** 3D combat loop · traversable world map with 6 node types · save/load · reward system · Badurga city shell (placeholder sections) · threat escalation counter + HUD bar
-- **Last session (S16):** Persistent Party Slice 1 — data foundation. Added `ability_pool: Array[String]`, `current_hp: int`, `current_energy: int`, `is_dead: bool` to `CombatantData`. `ArchetypeLibrary.create()` seeds all four (pool from archetype abilities, no empty strings; hp/energy to max). No save/load yet — deferred to Slice 2. 5 new headless tests, all 22 passing.
-- **Deferred:** Badurga section content (all 6 buttons are stubs), Recruit/Vendor/Event scene content (NodeStub placeholder), per-ability QTE styles, ability effects are placeholder, boss difficulty scaling from threat quadrants (Feature 8), Persistent Party Slice 2 (save/load wire-up for new CombatantData fields), Slice 3 (CombatManager3D tracks current_hp/energy between combats)
+- **Live systems:** 3D combat loop · traversable world map with 6 node types · save/load · reward system · Badurga city shell (placeholder sections) · threat escalation counter + HUD bar · persistent party (HP/energy carry-over, ally permadeath, run-end summary screen) · party bag inventory (all reward items land in shared bag; equipment + consumables stored as raw dicts)
+- **Last session (S19):** Persistent Party Slice 4 complete. `GameState.inventory: Array` (party bag) added — stores raw reward dicts `{id, name, description, item_type}` for both equipment and consumables. No auto-assignment; player assigns from the bag manually. `remove_from_inventory(id: String) -> bool`. Save/load/reset extended. `EndCombatScreen` guard now activates — rewards persist to disk. Bag UI deferred to Stage 2.
+- **Deferred:** Badurga section content (all 6 buttons are stubs), Recruit/Vendor/Event scene content (NodeStub placeholder), per-ability QTE styles, ability effects are placeholder, boss difficulty scaling from threat quadrants (Feature 8), dedicated main menu / title scene (RunSummaryScene "Main Menu" button is a stub — same as Start New Run), inventory UI (inventory grows invisibly this slice)
 
 For current feature-by-feature status and history, read `docs/map_directories/map.md` and the bucket files it links. For planned work, read `docs/backlog.md` (only when asked).
 
@@ -72,11 +72,7 @@ Do NOT test: rendering, input, anything needing a live scene.
 
 - Every session, create and push a branch named `claude/<feature>-<YYYYMMDD>` before any work.
 - **Never touch `main`** until the user explicitly approves the branch.
-- When work is ready, commit + push, then tell the user:
-  ```
-  Branch ready: claude/<feature>-<YYYYMMDD>
-  Open Godot from C:\Users\caleb\.local\bin\Projects\RogueFinder\ to test. Tell me to merge when you're happy.
-  ```
+- When work is ready, commit + push, then tell the user what was built and list out in numbered bullet points what is needed to be tested.
 - On approval: `git checkout main && git merge <branch> --no-ff && git push origin main`.
 - If the user rejects, keep iterating on the same branch.
 
@@ -97,6 +93,6 @@ Save/load is live. Pattern: add a field to `GameState`, include it in `save()`'s
 
 **Every new feature that introduces persistent run state must extend the save system.** Ask: "does this data need to survive a session?" If yes, wire `save()`/`load_save()` in the same PR — do not defer.
 
-Currently saved: `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, `threat_level`.
-Not yet saved (Stage 2): party roster, inventory, faction reputation, combat state.
+Currently saved: `player_node_id`, `visited_nodes`, `map_seed`, `node_types`, `cleared_nodes`, `threat_level`, `party`, `inventory`.
+Not yet saved (Stage 2): faction reputation, combat state.
 Transient (never saved): `pending_node_type`, `current_combat_node_id` — consumed within a single scene transition.
