@@ -112,8 +112,8 @@ func _build_visuals() -> void:
 
 func setup(unit_data: CombatantData, pos: Vector2i) -> void:
 	data           = unit_data
-	current_hp     = data.hp_max
-	current_energy = data.energy_max
+	current_hp     = data.current_hp
+	current_energy = data.current_energy
 	grid_pos       = pos
 	is_alive       = true
 	remaining_move = data.speed

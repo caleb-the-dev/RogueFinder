@@ -45,6 +45,8 @@ var _aoe_origin:     Vector2i           = Vector2i(-1, -1)  ## aimed cell for Ao
 var _travel_effect:  EffectData         = null   ## stored while awaiting destination pick
 var _hovered_cell:   Vector2i           = Vector2i(-1, -1)  ## last cell under mouse (cone preview)
 
+var _attr_snapshots: Dictionary         = {}  ## per-unit attribute baseline; restored at combat end
+
 var _grid:           Grid3D             = null
 var _camera_rig:     CameraController   = null
 var _qte_bar:        QTEBar             = null
@@ -100,31 +102,29 @@ func _setup_environment_tiles() -> void:
 func _setup_units() -> void:
 	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
 
-	# --- Player unit 0: The RogueFinder (PC) ---
-	# Always uses the "RogueFinder" archetype with a fixed name. One per party.
-	var pc_cd: CombatantData = ArchetypeLibrary.create("RogueFinder", "Vael", true)
-	var pc: Unit3D = unit_scene.instantiate()
-	add_child(pc)
-	pc.setup(pc_cd, Vector2i(1, 3))
-	pc.global_position = _grid.grid_to_world(Vector2i(1, 3))
-	_grid.set_occupied(Vector2i(1, 3), pc)
-	pc.unit_died.connect(_on_unit_died)
-	_player_units.append(pc)
-
-	# --- Player units 1-2: Allies (random archetype, auto-named from flavor pool) ---
-	var ally_archetypes: Array[String] = ["archer_bandit", "grunt", "alchemist", "elite_guard"]
-	var ally_positions: Array[Vector2i] = [Vector2i(1, 5), Vector2i(0, 4)]
-	for pos in ally_positions:
-		var arch: String = ally_archetypes[randi() % ally_archetypes.size()]
-		# character_name="" + is_player=true → auto-named from the archetype's flavor pool
-		var cd: CombatantData = ArchetypeLibrary.create(arch, "", true)
+	# --- Player units — driven by GameState.party ---
+	# index 0 = PC, 1-2 = allies. Dead members are skipped so fewer than 3 may spawn.
+	var positions: Array[Vector2i] = [Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)]
+	var pos_idx: int = 0
+	for cd in GameState.party:
+		if cd.is_dead:
+			continue
 		var unit: Unit3D = unit_scene.instantiate()
 		add_child(unit)
-		unit.setup(cd, pos)
-		unit.global_position = _grid.grid_to_world(pos)
-		_grid.set_occupied(pos, unit)
+		unit.setup(cd, positions[pos_idx])
+		unit.global_position = _grid.grid_to_world(positions[pos_idx])
+		_grid.set_occupied(positions[pos_idx], unit)
 		unit.unit_died.connect(_on_unit_died)
 		_player_units.append(unit)
+		# Snapshot attributes so stat-delta mutations are rolled back at combat end
+		_attr_snapshots[unit] = {
+			"strength":  cd.strength,
+			"dexterity": cd.dexterity,
+			"cognition": cd.cognition,
+			"vitality":  cd.vitality,
+			"willpower": cd.willpower,
+		}
+		pos_idx += 1
 
 	# --- Enemy units ---
 	# character_name="" + is_player=false → empty; Unit3D shows archetype label above head.
@@ -660,7 +660,7 @@ func _get_attribute_value(unit: Unit3D, attribute: AbilityData.Attribute) -> int
 
 ## Applies a +/- delta to one of a unit's core attributes.
 ## Clamped to [0, 5] — the defined range for all attributes.
-## NOTE: stat changes are not currently reset at combat end; that is a future task.
+## Attribute mutations on player units are rolled back at combat end via _attr_snapshots.
 func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
 	match stat:
 		AbilityData.Attribute.STRENGTH:
@@ -1215,6 +1215,9 @@ func _on_unit_died(unit: Unit3D) -> void:
 	if _info_bar_unit == unit:
 		_info_bar.hide_bar()
 		_info_bar_unit = null
+	if unit.data.is_player_unit:
+		unit.data.is_dead = true
+		GameState.save()
 	_check_win_lose()
 
 func _check_win_lose() -> void:
@@ -1241,6 +1244,22 @@ func _end_combat(player_won: bool) -> void:
 	_action_menu.close()
 	_info_bar_unit = null
 	_update_status()
+	# Write back hp/energy for alive units and restore snapshotted attributes.
+	# Attributes are restored on both win and defeat — stat-delta mutations should
+	# never bleed into the next combat regardless of outcome.
+	for unit in _player_units:
+		var snap: Dictionary = _attr_snapshots.get(unit, {})
+		if not snap.is_empty():
+			unit.data.strength  = snap["strength"]
+			unit.data.dexterity = snap["dexterity"]
+			unit.data.cognition = snap["cognition"]
+			unit.data.vitality  = snap["vitality"]
+			unit.data.willpower = snap["willpower"]
+		if player_won and unit.is_alive:
+			unit.data.current_hp     = unit.current_hp
+			unit.data.current_energy = unit.current_energy
+	GameState.save()
+
 	if player_won:
 		_end_combat_screen.show_victory(RewardGenerator.roll(3))
 	else:

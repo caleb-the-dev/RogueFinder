@@ -89,7 +89,7 @@ These fields survive between combats. Seeded at creation by `ArchetypeLibrary.cr
 | `ability_pool` | `Array[String]` | archetype's 4 abilities | Full unlocked set — superset of `abilities`. Future leveling appends here without touching the 4-slot active list. |
 | `current_hp` | `int` | `hp_max` | Live HP between combats. |
 | `current_energy` | `int` | `energy_max` | Live energy between combats. |
-| `is_dead` | `bool` | `false` | Permanent death flag. Flipped by CombatManager3D (future slice). |
+| `is_dead` | `bool` | `false` | Permanent death flag. Set by `CombatManager3D._on_unit_died()` when a player unit's HP reaches 0; `GameState.save()` is called immediately. |
 
 **Pool ⊇ Slots invariant:** every non-empty entry in `abilities` must also appear in `ability_pool`. True by construction in `create()` since both are seeded from the same archetype source.
 
@@ -333,7 +333,7 @@ Consumables apply immediately when used — no QTE, no energy cost.
 ## Key Patterns & Gotchas
 
 - **Stats clamp to [0, 5] mid-combat** — `_apply_stat_delta()` enforces this.
-- **Stat changes are permanent within a session** — no reset at combat end yet. Future: snapshot at `Unit3D.setup()` and restore post-combat.
+- **Stat changes are rolled back at combat end** — `CombatManager3D._attr_snapshots` records each player unit's attribute baseline at setup and restores it in `_end_combat()` on both win and defeat.
 - **`cognition` has no derived stat yet** — reserved for ability cost scaling.
 - **`abilities` array is exactly 4 slots** — ActionMenu greys out empty slots.
 - **`get_ability()` never returns null** — safe to call without nil checks.
@@ -371,6 +371,7 @@ static func all_equipment() -> Array[EquipmentData]
 
 | Date | Change |
 |---|---|
+| 2026-04-19 | Slice 3 — `is_dead` now set by `CombatManager3D._on_unit_died()` (permadeath). `current_hp`/`current_energy` written back on combat victory. `Unit3D.setup()` seeds from `current_hp`/`current_energy` so a unit enters combat at its last saved HP. |
 | 2026-04-19 | Slice 2 — Persistent run state fields now saved/loaded via `GameState._serialize_combatant()` / `_deserialize_combatant()`. `GameState.party: Array[CombatantData]` holds the active roster; `GameState.init_party()` seeds it on fresh runs. Equipment slots persist as `equipment_id` strings; `""` → `null` on load. 6 new headless tests. |
 | 2026-04-18 | Slice 1 — Added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData. `ArchetypeLibrary.create()` seeds pool from archetype abilities (no empty strings), current_hp/energy to max. Pool ⊇ slots invariant documented. |
 | 2026-04-16 | Added EquipmentData resource + EquipmentLibrary (6 placeholder items, 2 per slot) |
