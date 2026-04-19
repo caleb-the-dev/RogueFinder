@@ -22,6 +22,8 @@
 | `scripts/globals/ArchetypeLibrary.gd` | Static factory: archetype definitions + `create()` method. |
 | `scripts/globals/EquipmentLibrary.gd` | Static catalog: 6 placeholder items + `get_equipment()` / `all_equipment()` methods. |
 | `scripts/globals/ConsumableLibrary.gd` | Static factory: consumable definitions + `get_consumable()` method. |
+| `resources/BackgroundData.gd` | Resource: one background — id, name, starting ability id, feat pool, unlock flag, tags, description. |
+| `scripts/globals/BackgroundLibrary.gd` | Static catalog: CSV-backed (`res://data/backgrounds.csv`) + `get_background()` / `all_backgrounds()` / `reload()` methods. First CSV-sourced library in the codebase. |
 
 ---
 
@@ -51,7 +53,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 ### Background & Class
 | Field | Type | Notes |
 |-------|------|-------|
-| `background` | `String` | e.g. "Crook", "Baker". Pool is per-archetype. |
+| `background` | `String` | Background handle. Resolves to a `BackgroundData` via `BackgroundLibrary.get_background()`. Pool is per-archetype (`ArchetypeLibrary.ARCHETYPES[...].backgrounds`). **Migration note:** currently stores display-case strings (`"Crook"`); BackgroundLibrary keys on snake_case ids (`"crook"`). ArchetypeLibrary + any consumer that reads this field need to migrate to snake_case before BackgroundLibrary lookups succeed. |
 | `unit_class` | `String` | e.g. "Rogue", "Barbarian", "Wizard". Fixed per archetype. |
 
 ### Portrait
@@ -367,10 +369,88 @@ static func all_equipment() -> Array[EquipmentData]
 
 ---
 
+## BackgroundData
+
+`resources/BackgroundData.gd` — Resource subclass. One instance per background row. Created by `BackgroundLibrary.get_background()`.
+
+### Fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `background_id` | `String` | Snake_case key (e.g. `"crook"`). |
+| `background_name` | `String` | Display name (e.g. `"Crook"`). |
+| `starting_ability_id` | `String` | The 1 action granted at character creation (GAME_BIBLE: "1 action from their background"). FK → `AbilityLibrary`. Placeholder ids in CSV until real ability ids are wired. |
+| `feat_pool` | `Array[String]` | Pool of feat ids the character can draw from at odd levels (alongside the class feat pool). Placeholder until the feat system exists. |
+| `unlocked_by_default` | `bool` | `true` = available at character creation in fresh saves; `false` = meta-progression unlock. |
+| `tags` | `Array[String]` | Optional event hooks (e.g. `["criminal", "urban"]`). Per GAME_BIBLE, backgrounds rarely gate events — tags are a light coupling for the cases that do. |
+| `description` | `String` | Short flavor line for character creation UI. |
+
+### Helpers
+
+```gdscript
+func has_tag(tag: String) -> bool
+```
+
+---
+
+## BackgroundLibrary
+
+`scripts/globals/BackgroundLibrary.gd` — static class. **First library in the codebase that sources from CSV**; future migrations of AbilityLibrary / EquipmentLibrary / ConsumableLibrary should follow this shape.
+
+### Data Flow
+
+```
+rogue-finder/data/backgrounds.csv   (source of truth — edit here; Godot reads via res://data/)
+        │
+        ▼  FileAccess.get_csv_line(",")
+BackgroundLibrary._cache            (lazy-loaded Dictionary keyed by id)
+```
+
+### Public API
+
+```gdscript
+## Returns a populated BackgroundData. Never returns null — stub for unknown IDs.
+static func get_background(id: String) -> BackgroundData
+## Back-compat lookup by display name ("Crook" / "Soldier"). Bridges the gap
+## while CombatantData.background and ArchetypeLibrary still use PascalCase
+## display strings. Delete when snake_case id migration lands.
+static func get_background_by_name(display_name: String) -> BackgroundData
+## Returns every loaded background. For character-creation UI / unlock screens.
+static func all_backgrounds() -> Array[BackgroundData]
+## Clears the cache and re-reads the CSV. Useful after editing the CSV mid-session.
+static func reload() -> void
+```
+
+### Defined Backgrounds (4 seed rows)
+
+| ID | Name | Starting Ability (placeholder) | Unlocked by Default | Tags |
+|----|------|--------------------------------|---------------------|------|
+| `crook` | Crook | `pickpocket` | `true` | `criminal`, `urban` |
+| `soldier` | Soldier | `shield_bash` | `true` | `military`, `disciplined` |
+| `scholar` | Scholar | `identify` | `true` | `academic`, `urban` |
+| `baker` | Baker | `rally_feast` | `true` | `commoner`, `urban` |
+
+### Parsing Rules
+
+- First row is the header; column names drive field assignment via `match`.
+- Arrays use `|` as the in-cell separator (e.g. `criminal|urban`).
+- Booleans are literal `true` / `false` lowercase.
+- Empty string → empty array for list-typed columns.
+- Unknown columns → `push_warning`, row continues.
+- Missing `id` → `push_error`, row skipped.
+- Cell count mismatch with header → `push_error`, row skipped.
+
+### Currently Dormant
+
+No production code calls `BackgroundLibrary` yet — it's infrastructure waiting for consumers (character-creation screen, event system, feat system). Dormant-but-ready is intentional.
+
+---
+
 ## Recent Changes
 
 | Date | Change |
 |---|---|
+| 2026-04-19 | Added `BackgroundData` resource + `BackgroundLibrary` static class — first CSV-sourced library. CSV lives at `rogue-finder/data/backgrounds.csv` (single source; read via `res://data/`). `get_background_by_name()` bridges the existing PascalCase display-string convention (`CombatantData.background`, `ArchetypeLibrary` pools) so the library is callable today without a snake_case-id migration. Dormant — no callers yet. |
 | 2026-04-19 | Slice 3 — `is_dead` now set by `CombatManager3D._on_unit_died()` (permadeath). `current_hp`/`current_energy` written back on combat victory. `Unit3D.setup()` seeds from `current_hp`/`current_energy` so a unit enters combat at its last saved HP. |
 | 2026-04-19 | Slice 2 — Persistent run state fields now saved/loaded via `GameState._serialize_combatant()` / `_deserialize_combatant()`. `GameState.party: Array[CombatantData]` holds the active roster; `GameState.init_party()` seeds it on fresh runs. Equipment slots persist as `equipment_id` strings; `""` → `null` on load. 6 new headless tests. |
 | 2026-04-18 | Slice 1 — Added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData. `ArchetypeLibrary.create()` seeds pool from archetype abilities (no empty strings), current_hp/energy to max. Pool ⊇ slots invariant documented. |

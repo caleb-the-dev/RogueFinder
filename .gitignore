@@ -8,6 +8,9 @@ export_presets.cfg
 # Godot — import metadata (regenerated on project open)
 *.import
 
+# Godot — CSV translation artifacts (regenerated on project open; our CSVs are read raw via FileAccess)
+*.translation
+
 # Claude Code — worktree checkouts live here; never commit them
 .claude/worktrees/
 

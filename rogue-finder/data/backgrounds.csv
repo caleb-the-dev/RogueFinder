@@ -1,0 +1,5 @@
+id,name,starting_ability_id,feat_pool,unlocked_by_default,tags,description,notes
+crook,Crook,pickpocket,light_fingers|streetwise|back_alley_deal,true,criminal|urban,Grew up light-fingered in Badurga's alleys.,placeholder: ability + feats not yet defined
+soldier,Soldier,shield_bash,formation_drill|second_wind|veteran_instinct,true,military|disciplined,Served a tour under some banner that mattered once.,shield_bash real; feats not yet defined
+scholar,Scholar,identify,arcane_primer|library_mind|linguist,true,academic|urban,Traded sunlight for ink and ancient texts.,placeholder: ability + feats not yet defined
+baker,Baker,rally_feast,hearth_cheer|neighborly_reach|knead_and_mend,true,commoner|urban,Flour-dusted and endlessly patient.,placeholder: ability + feats not yet defined
