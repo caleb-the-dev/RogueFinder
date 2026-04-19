@@ -32,14 +32,17 @@ func add_to_inventory(item: Dictionary) -> void:
 	if item.get("item_type", "") == "equipment":
 		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
 		inventory.append(eq)
+		print("[Inventory] Added equipment '%s' — inventory size: %d" % [item["id"], inventory.size()])
 	elif item.get("item_type", "") == "consumable":
 		var placed := false
 		for member in party:
 			if member.consumable == "" and not member.is_dead:
 				member.consumable = item["id"]
 				placed = true
+				print("[Inventory] Consumable '%s' placed in party slot for '%s'" % [item["id"], member.character_name])
 				break
 		if not placed:
+			print("[Inventory] Consumable '%s' dropped — all party slots full" % item["id"])
 			pass  # TODO: inventory overflow — consumable not placed
 
 func remove_from_inventory(item: EquipmentData) -> bool:
