@@ -81,8 +81,8 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 ### Ability Slots
 `abilities: Array[String]` — exactly 4 active slots. Stores ability IDs (e.g. `"strike"`). Empty string = unfilled slot. Looked up via `AbilityLibrary.get_ability()` at runtime.
 
-### Persistent Run State (Slice 1)
-These fields survive between combats. Seeded at creation by `ArchetypeLibrary.create()`. Types are JSON-friendly; persistence wired in Slice 2.
+### Persistent Run State (Slices 1 & 2)
+These fields survive between combats. Seeded at creation by `ArchetypeLibrary.create()`. Persisted to disk via `GameState.save()` / `load_save()` as of Slice 2 — serialized by `GameState._serialize_combatant()` / `_deserialize_combatant()`.
 
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
@@ -371,7 +371,8 @@ static func all_equipment() -> Array[EquipmentData]
 
 | Date | Change |
 |---|---|
-| 2026-04-18 | Slice 1 — Added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData. `ArchetypeLibrary.create()` seeds pool from archetype abilities (no empty strings), current_hp/energy to max. Pool ⊇ slots invariant documented. Persistence deferred to Slice 2. |
+| 2026-04-19 | Slice 2 — Persistent run state fields now saved/loaded via `GameState._serialize_combatant()` / `_deserialize_combatant()`. `GameState.party: Array[CombatantData]` holds the active roster; `GameState.init_party()` seeds it on fresh runs. Equipment slots persist as `equipment_id` strings; `""` → `null` on load. 6 new headless tests. |
+| 2026-04-18 | Slice 1 — Added `ability_pool`, `current_hp`, `current_energy`, `is_dead` to CombatantData. `ArchetypeLibrary.create()` seeds pool from archetype abilities (no empty strings), current_hp/energy to max. Pool ⊇ slots invariant documented. |
 | 2026-04-16 | Added EquipmentData resource + EquipmentLibrary (6 placeholder items, 2 per slot) |
 | 2026-04-16 | CombatantData equipment slots changed from String to EquipmentData (nullable); derived stats now include equipment bonuses via _equip_bonus() |
 | 2026-04-16 | Added ConsumableData resource + ConsumableLibrary (healing_potion MEND 15, power_tonic BUFF STR+2) |

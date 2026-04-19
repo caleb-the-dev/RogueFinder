@@ -18,6 +18,19 @@ var current_combat_node_id: String = "" # transient handoff to EndCombatScreen; 
 var cleared_nodes: Array[String] = []  # nodes where player won and collected reward; saved to disk
 var threat_level: float = 0.0          # 0.0–1.0; rises on travel + entry; resets to 0 on BOSS defeat
 
+## --- Party ---
+
+var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
+
+## Populates party with the PC + 2 allies. Guard ensures it is idempotent — safe to
+## call from MapManager._ready() after load_save() regardless of save state.
+func init_party() -> void:
+	if not party.is_empty():
+		return
+	party.append(ArchetypeLibrary.create("RogueFinder", "Hero", true))
+	party.append(ArchetypeLibrary.create("archer_bandit", "", true))
+	party.append(ArchetypeLibrary.create("grunt", "", true))
+
 # threat_level feeds into boss difficulty scaling — see Feature 8
 func get_threat_level() -> float:
 	return threat_level
@@ -38,6 +51,9 @@ func is_adjacent_to_player(node_id: String, adjacency: Dictionary) -> bool:
 ## --- Save / Load ---
 
 func save() -> void:
+	var party_data: Array = []
+	for member in party:
+		party_data.append(_serialize_combatant(member))
 	var data := {
 		"player_node_id": player_node_id,
 		"visited_nodes": visited_nodes,
@@ -45,9 +61,35 @@ func save() -> void:
 		"node_types": node_types,
 		"cleared_nodes": cleared_nodes,
 		"threat_level": threat_level,
+		"party": party_data,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data, "\t"))
+
+func _serialize_combatant(d: CombatantData) -> Dictionary:
+	return {
+		"archetype_id":   d.archetype_id,
+		"character_name": d.character_name,
+		"is_player_unit": d.is_player_unit,
+		"unit_class":     d.unit_class,
+		"background":     d.background,
+		"strength":       d.strength,
+		"dexterity":      d.dexterity,
+		"cognition":      d.cognition,
+		"willpower":      d.willpower,
+		"vitality":       d.vitality,
+		"armor_defense":  d.armor_defense,
+		"qte_resolution": d.qte_resolution,
+		"abilities":      d.abilities,
+		"ability_pool":   d.ability_pool,
+		"current_hp":     d.current_hp,
+		"current_energy": d.current_energy,
+		"is_dead":        d.is_dead,
+		"consumable":     d.consumable,
+		"weapon_id":      d.weapon.equipment_id if d.weapon else "",
+		"armor_id":       d.armor.equipment_id if d.armor else "",
+		"accessory_id":   d.accessory.equipment_id if d.accessory else "",
+	}
 
 func load_save() -> bool:
 	if not FileAccess.file_exists(SAVE_PATH):
@@ -66,7 +108,42 @@ func load_save() -> bool:
 	var raw_cleared: Array = parsed.get("cleared_nodes", [])
 	cleared_nodes = Array(raw_cleared, TYPE_STRING, "", null)
 	threat_level = float(parsed.get("threat_level", 0.0))
+	party.clear()
+	var raw_party: Array = parsed.get("party", [])
+	for dict in raw_party:
+		if dict is Dictionary:
+			party.append(_deserialize_combatant(dict))
 	return true
+
+func _deserialize_combatant(dict: Dictionary) -> CombatantData:
+	var d := CombatantData.new()
+	d.archetype_id   = dict.get("archetype_id", "generic")
+	d.character_name = dict.get("character_name", "Unit")
+	d.is_player_unit = dict.get("is_player_unit", false)
+	d.unit_class     = dict.get("unit_class", "")
+	d.background     = dict.get("background", "")
+	d.strength       = dict.get("strength", 2)
+	d.dexterity      = dict.get("dexterity", 2)
+	d.cognition      = dict.get("cognition", 2)
+	d.willpower      = dict.get("willpower", 2)
+	d.vitality       = dict.get("vitality", 2)
+	d.armor_defense  = dict.get("armor_defense", 5)
+	d.qte_resolution = float(dict.get("qte_resolution", 0.3))
+	var raw_abilities: Array = dict.get("abilities", [])
+	d.abilities      = Array(raw_abilities, TYPE_STRING, "", null)
+	var raw_pool: Array = dict.get("ability_pool", [])
+	d.ability_pool   = Array(raw_pool, TYPE_STRING, "", null)
+	d.current_hp     = dict.get("current_hp", 0)
+	d.current_energy = dict.get("current_energy", 0)
+	d.is_dead        = dict.get("is_dead", false)
+	d.consumable     = dict.get("consumable", "")
+	var weapon_id: String    = dict.get("weapon_id", "")
+	d.weapon    = null if weapon_id    == "" else EquipmentLibrary.get_equipment(weapon_id)
+	var armor_id: String     = dict.get("armor_id", "")
+	d.armor     = null if armor_id     == "" else EquipmentLibrary.get_equipment(armor_id)
+	var accessory_id: String = dict.get("accessory_id", "")
+	d.accessory = null if accessory_id == "" else EquipmentLibrary.get_equipment(accessory_id)
+	return d
 
 func delete_save() -> void:
 	if FileAccess.file_exists(SAVE_PATH):
@@ -83,3 +160,4 @@ func reset() -> void:
 	current_combat_node_id = ""
 	cleared_nodes = []
 	threat_level = 0.0
+	party = []
