@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-20 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 11 |
+| sessions_since_groom | 13 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -194,7 +194,7 @@ Autoload singleton. Map traversal, save/load, party roster, and party bag invent
 ## World Map
 
 ### Map Scene
-Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a procedurally-drawn lore name (seeded per ring — not saved, regenerates from map_seed), a type (COMBAT, RECRUIT, VENDOR, EVENT, BOSS, CITY) with distinct color/icon/hover label, and exactly 1 BOSS per run in the outer ring. Player traverses by clicking adjacent nodes; re-clicking enters the current node. Nodes display five visual states (CURRENT / REACHABLE / CLEARED / VISITED / LOCKED). Bridges use quadrant-aware placement (≥90° intra-pair gap, ≥30° cross-pair exclusion) to prevent straight corridors. Seeded from map_seed — deterministic on reload. HUD shows a fixed vertical threat bar (left side) with quadrant tick marks and fill color scaling from yellow to red. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
+Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a procedurally-drawn lore name (seeded per ring — not saved, regenerates from map_seed), a type (COMBAT, VENDOR, EVENT, BOSS, CITY) with distinct color/icon/hover label. Structured placement: inner ring = 4 COMBAT + 2 EVENT only; middle ring = 5 COMBAT + 3 EVENT + 1 VENDOR; outer ring = 7 COMBAT + 3 EVENT + 1 VENDOR + 1 BOSS. BOSS is placed after edges are built, guaranteed ≥ 2 ring-hops from any middle→outer bridge node. Exactly 2 VENDOR nodes per run (1 middle, 1 outer). Player traverses by clicking adjacent nodes; re-clicking enters the current node. Nodes display five visual states (CURRENT / REACHABLE / CLEARED / VISITED / LOCKED). Bridges use quadrant-aware placement (≥90° intra-pair gap, ≥30° cross-pair exclusion) to prevent straight corridors. Seeded from map_seed — deterministic on reload. HUD shows a fixed vertical threat bar (left side) with quadrant tick marks and fill color scaling from yellow to red. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
 
 ### Party Sheet
 Full-screen interactive overlay (CanvasLayer, layer 20). Opened by the "Party" button in MapManager UI chrome. Three-column layout: LEFT = inventory bag (drag source); MIDDLE = 3 member cards each divided into 4 quadrants (TL: name/class/bg/HP · TR: derived stats + attributes · BL: equipment 2×2 drop targets · BR: slotted abilities 2×2); RIGHT = TabContainer per member ("Abilities" pool list / "Feats" placeholder). Drag inventory items to matching equipment slots; click a filled slot to unequip. Dead members: slots disabled, card and tabs dimmed. All mutations write directly to `GameState.party[i]`; save deferred to next map travel. Stateless `_rebuild()` re-render. Lives in `scenes/party/PartySheet.tscn` + `scripts/party/PartySheet.gd`.
@@ -293,6 +293,8 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-20 | MapManager | S25 Map node placement constraints: inner ring changed to 4 COMBAT + 2 EVENT (no VENDOR); outer ring to 7 COMBAT + 3 EVENT + 1 VENDOR + 1 BOSS. BOSS assignment extracted from `_assign_node_types()` to new `_assign_boss_type()` called after `_build_edge_data()`; bridge endpoints captured into `_outer_bridge_ids`; BOSS excluded from bridge node + 2 ring neighbors. `GameState.save()` moved from type assignment to boss assignment step. |
+| 2026-04-20 | MapManager | S24 Remove RECRUIT node type: RECRUIT scrubbed from all pools, color/icon/desc helpers, and docs. Outer pool COMBAT count unchanged (slot replaced with COMBAT). |
 | 2026-04-20 | ArchetypeLibrary, PartySheet | S23 Ability Pool Swap: `pool_extras` key expands ability pools beyond the 4 active slots (RogueFinder, archer_bandit, grunt now have 4 extras each). Full interactive swap UI: drag from Abilities panel onto BOTTOM-RIGHT slots; right-click to unequip. Per-member sort/search/view in ability panel; inventory gets same treatment. Drag-compare panels for abilities, equipment, and consumables. Backwards-typing fix in search. `_wrap_tooltip()` + opaque tooltip theme. |
 | 2026-04-20 | PartySheet | S22 Party Sheet layout redesign: 4-quadrant card layout (TL name/class/bg/HP · TR derived+attrs · BL equipment 2×2 · BR slotted abilities 2×2), full-card separator lines, prominent Class/Background display, TabContainer ability pool + Feats placeholder on right panel. S21: drag-drop gear management loop, `set_drag_forwarding()` pattern, map input block, sprite slot icons, tooltips on everything. Single-file change: `PartySheet.gd`. |
 | 2026-04-20 | MapManager, PartySheet | S20 Party Sheet Slice 5: read-only overlay (layer 20) showing 3 party cards (portrait, name, class, HP bar, attributes) + inventory bag. Equipment rows resolve via EquipmentLibrary; consumable rows use description. Dead members greyed with DEFEATED stamp. "Party" button added to MapManager UI chrome. New files: `scenes/party/PartySheet.tscn`, `scripts/party/PartySheet.gd`. |
