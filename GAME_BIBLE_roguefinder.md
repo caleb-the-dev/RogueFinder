@@ -100,6 +100,41 @@ Each character has:
 - Gear is a primary driver of power and build identity
 - 4 slots per character: **Weapon, Armor, Consumable, Accessory**
 - Gear interacts with class to shape a character's role
+- **Weapons boost the wielder's attack attribute**, not flat damage — raw hit size lives on abilities (Base Power), so better weapons make a character a better *attacker* across their entire kit rather than just buffing one ability
+- **Armor provides defense values** split across Physical and Arcane (see Combat → Damage Types & Defense)
+- Consumables and accessories — schemas TBD
+
+#### Weapon Schema (CSV fields)
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Unique identifier |
+| `name` | string | Display name |
+| `description` | string | Player-facing flavor text |
+| `notes` | string | Dev-only notes for design/balance |
+| `rarity` | enum | common / uncommon / rare / epic / legendary |
+| `attribute` | enum | STR / DEX / COG — which attribute this weapon boosts when attacking |
+| `attack_bonus` | int | Integer added to the wielder's chosen attribute |
+| `abilities_granted` | array\<ability_id\> | Abilities added to the wielder's available pool while equipped |
+| `effects` | JSON array | Additional modifiers for magic/rare weapons (e.g. `[{"stat":"STR","mod":1}]`) |
+
+- Default: one weapon boosts one attribute. Multi-attribute or exotic bonuses are handled via `effects`.
+- A character can equip an "off-attribute" weapon (e.g. a COG staff on a STR fighter) — it's a build trade-off, not a trap, since `abilities_granted` and `effects` still apply.
+- Weapons do **not** carry a damage value or damage type — those live with the ability being used.
+
+#### Armor Schema (CSV fields)
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Unique identifier |
+| `name` | string | Display name |
+| `description` | string | Player-facing flavor text |
+| `notes` | string | Dev-only notes for design/balance |
+| `rarity` | enum | common / uncommon / rare / epic / legendary |
+| `phys_def` | int | Physical Defense value |
+| `arc_def` | int | Arcane Defense value |
+| `abilities_granted` | array\<ability_id\> | Abilities added to the wearer's available pool while equipped |
+| `effects` | JSON array | Additional modifiers for magic/rare armor |
+
+- Armor pieces can skew heavily to one defense type (plate → high PhysDef, low ArcDef), provide a balanced split, or offer unusual profiles via rarity and effects.
 
 ---
 
@@ -110,6 +145,46 @@ Each character has:
 - Player character is always one of the 3 active combat slots
 - All 3 player units are **fully controlled by the player** — no autobattle for allies
 - Primary win condition: defeat all enemies; other win condition types not ruled out
+
+### Damage Types & Defense
+Every damaging or healing action resolves against a specific defense stat, creating matchup decisions and build expression without adding a redundant multiplier on top of the Stat Delta.
+
+#### Two Defense Stats
+- **Physical Defense (PhysDef)** — resists Physical-typed attacks
+- **Arcane Defense (ArcDef)** — resists Arcane-typed attacks
+
+Armor provides values in one or both, shaping a character's vulnerability profile.
+
+#### Attack Resolution
+- Every offensive ability has a **damage type tag: Physical or Arcane**
+- The tag determines which of the target's two defense stats is used in the Stat Delta comparison
+- The attacker side of the Stat Delta is the **attacker's attribute** (STR, DEX, or COG — specified by the ability) plus any weapon `attack_bonus` if the weapon boosts that attribute
+- Ability damage scale is owned by the ability's **Base Power** — it does not add to the attacker's stat
+
+This yields three clean knobs per ability:
+1. **Attribute** — who's attacking (which character stat drives the Stat Delta)
+2. **Base Power** — how hard the hit lands before modifiers
+3. **Damage Type tag** — which defense stat the attack is compared against
+
+#### Attribute / Damage Type Decoupling
+Attribute and damage type are **independent**. The default alignment is intuitive:
+- STR / DEX abilities → Physical damage
+- COG abilities → Arcane damage
+
+But **off-type abilities** — roughly 15–25% of the ability pool — break this default for build expression:
+- *Flaming Sword:* STR attribute, **Arcane** damage
+- *Fissure:* COG attribute, **Physical** damage
+- *Blood Spike:* COG attribute, **Physical** damage
+
+This means any character archetype can, with the right gear or ability choices, threaten either defense — preventing solved matchups and turning weapon/ability selection into a real build decision.
+
+#### Enemy Roster Balance
+- Ability distribution across the player's available pool will naturally settle roughly 60/40 physical-leaning
+- **Enemy roster is designed for a roughly even spread** of Physical-threat, Arcane-threat, and mixed-threat encounters
+- This keeps ArcDef a live build stat even when the player's own kit skews physical — ArcDef matters because ~⅔ of fights test it, not because the player uses it
+
+#### Design Intent
+Typing integrates *into* the Stat Delta rather than sitting on top of it. The single `attribute vs defense` comparison already answers "is this matchup favorable?" — the Physical/Arcane split just determines *which* defense is tested. No new multiplier, no redundant layer; a legible, gear-interactive matchup system.
 
 ### Grid & Positioning
 - Combat takes place on a **tight grid map** 10x10 (Into the Breach-style)
@@ -185,7 +260,7 @@ The final effectiveness is the product of the **QTE Skill Multiplier** and the *
 * **Failure (0 hits):** **0.25x** (Whiff - the absolute minimum impact).
 
 **The Stat Delta**
-The Stat Delta acts as the Dynamic Baseline. It scales based on the ratio of Attacker Stat to Defender Stat.
+The Stat Delta acts as the Dynamic Baseline. It scales based on the ratio of the **attacker's attribute** (the ability's chosen attribute + any matching weapon `attack_bonus`) to the **target's defense stat** (PhysDef or ArcDef, selected by the ability's damage type tag — see Damage Types & Defense).
 - At Parity (1:1): Delta = 1.0x.
 - At Advantage (2:1): Delta = 2.0x (Hard Cap).
 - At Disadvantage (1:2): Delta = 0.5x (Hard Floor).
@@ -344,6 +419,8 @@ The Stat Delta acts as the Dynamic Baseline. It scales based on the ratio of Att
 - QTE visual design and prompt variety (how many distinct prompt types exist beyond the sliding tick)
 - Energy stat names and exact regeneration formula
 - Faction names, aesthetics, and goal details
+- Consumable and Accessory schemas (weapon and armor schemas settled)
+- Exact `effects` modifier vocabulary (stat names, supported modifier types) for gear
 
 ---
 
