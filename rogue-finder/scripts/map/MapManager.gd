@@ -57,6 +57,7 @@ var _adjacency: Dictionary = {} # id -> Array[String]
 var _inner_ids: Array[String] = []
 var _middle_ids: Array[String] = []
 var _outer_ids: Array[String] = []
+var _outer_bridge_ids: Array[String] = []
 
 ## --- Pan State ---
 
@@ -80,6 +81,7 @@ func _ready() -> void:
 	_build_node_data()
 	_build_edge_data()
 	_build_adjacency()
+	_assign_boss_type()
 	_party_sheet = PartySheet.new()
 	add_child(_party_sheet)
 	_build_scene()
@@ -185,29 +187,17 @@ func _assign_node_types() -> void:
 
 	GameState.node_types["badurga"] = "CITY"
 
-	# Exactly 1 BOSS in outer ring; player start is never BOSS
-	var boss_pool: Array[String] = _outer_ids.duplicate()
-	for i in range(boss_pool.size() - 1, 0, -1):
-		var j := rng.randi_range(0, i)
-		var tmp: String = boss_pool[i]; boss_pool[i] = boss_pool[j]; boss_pool[j] = tmp
-	var boss_id: String = boss_pool[0]
-	if boss_id == GameState.player_node_id:
-		boss_id = boss_pool[1]
-	GameState.node_types[boss_id] = "BOSS"
-
-	# Remaining 11 outer nodes: COMBAT×8, EVENT×2, VENDOR×1
+	# Outer ring (12): BOSS assigned separately in _assign_boss_type(); provision all 12 as COMBAT/EVENT/VENDOR
+	# One COMBAT will later be promoted to BOSS, yielding: 1 BOSS, 7 COMBAT, 3 EVENT, 1 VENDOR
 	var outer_pool: Array[String] = [
 		"COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
-		"EVENT","EVENT","VENDOR",
+		"EVENT","EVENT","EVENT","VENDOR",
 	]
 	for i in range(outer_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var tmp: String = outer_pool[i]; outer_pool[i] = outer_pool[j]; outer_pool[j] = tmp
-	var pool_idx := 0
-	for id in _outer_ids:
-		if not GameState.node_types.has(id):
-			GameState.node_types[id] = outer_pool[pool_idx]
-			pool_idx += 1
+	for i in range(_outer_ids.size()):
+		GameState.node_types[_outer_ids[i]] = outer_pool[i]
 
 	# Middle ring (9): COMBAT×5, EVENT×3, VENDOR×1
 	var mid_pool: Array[String] = ["COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","EVENT","EVENT","EVENT","VENDOR"]
@@ -217,17 +207,56 @@ func _assign_node_types() -> void:
 	for i in range(_middle_ids.size()):
 		GameState.node_types[_middle_ids[i]] = mid_pool[i]
 
-	# Inner ring (6): VENDOR×2, EVENT×4
-	var inner_pool: Array[String] = ["VENDOR","VENDOR","EVENT","EVENT","EVENT","EVENT"]
+	# Inner ring (6): COMBAT×4, EVENT×2 — no VENDOR in inner ring
+	var inner_pool: Array[String] = ["COMBAT","COMBAT","COMBAT","COMBAT","EVENT","EVENT"]
 	for i in range(inner_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var tmp: String = inner_pool[i]; inner_pool[i] = inner_pool[j]; inner_pool[j] = tmp
 	for i in range(_inner_ids.size()):
 		GameState.node_types[_inner_ids[i]] = inner_pool[i]
 
-	# Patch node_type onto already-built dicts and persist
+	# Patch node_type onto already-built dicts (save deferred to _assign_boss_type)
 	for nd in _node_data:
 		nd["node_type"] = GameState.node_types.get(nd["id"], "COMBAT")
+
+# Promotes one outer-ring node to BOSS, chosen after bridge endpoints are known.
+# Excluded zone: each bridge node and its two outer-ring neighbors (≥ 2 hops away).
+# Uses a separate RNG stream so it never interferes with the type-assignment RNG.
+func _assign_boss_type() -> void:
+	if GameState.node_types.values().has("BOSS"):
+		return  # already saved from a previous run load
+
+	var n := _outer_ids.size()
+	var excluded: Array[String] = []
+	for bridge_id in _outer_bridge_ids:
+		var idx := _outer_ids.find(bridge_id)
+		if idx == -1:
+			continue
+		for offset in [-1, 0, 1]:
+			var neighbor := _outer_ids[(idx + offset + n) % n]
+			if not excluded.has(neighbor):
+				excluded.append(neighbor)
+
+	var candidates: Array[String] = []
+	for id in _outer_ids:
+		if not excluded.has(id) and id != GameState.player_node_id:
+			candidates.append(id)
+
+	# Fallback: if exclusion zone consumed everything, allow any non-start outer node
+	if candidates.is_empty():
+		for id in _outer_ids:
+			if id != GameState.player_node_id:
+				candidates.append(id)
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = GameState.map_seed ^ 0x1B055
+	for i in range(candidates.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp: String = candidates[i]; candidates[i] = candidates[j]; candidates[j] = tmp
+
+	var boss_id := candidates[0]
+	GameState.node_types[boss_id] = "BOSS"
+	_node_map[boss_id]["node_type"] = "BOSS"
 	GameState.save()
 
 # Seeded Fisher-Yates shuffle of each name pool; writes labels directly into _node_map dicts.
@@ -269,7 +298,12 @@ func _build_edge_data() -> void:
 	var im_angles := _connect_gateways_v2(_inner_ids, _middle_ids, 3, [], 90.0)
 
 	# Middle→outer: inner→middle angles become 30° exclusion zones
-	_connect_gateways_v2(_middle_ids, _outer_ids, 3, im_angles, 90.0)
+	var mo_angles := _connect_gateways_v2(_middle_ids, _outer_ids, 3, im_angles, 90.0)
+	# Record which outer nodes are bridge endpoints so BOSS can avoid them
+	for a in mo_angles:
+		var oid := _closest_to_angle(_outer_ids, a)
+		if not _outer_bridge_ids.has(oid):
+			_outer_bridge_ids.append(oid)
 
 	# Hub→inner: skip the inner nodes already used as IM gateways so hub is not a shortcut
 	var gateway_inner_ids: Array[String] = []
