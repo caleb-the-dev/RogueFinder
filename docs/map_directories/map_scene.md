@@ -327,6 +327,7 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 | 2026-04-18 | S13 EndCombatScreen | "Onward..." button removed — picking a reward immediately clears the node, saves, and returns to map |
 | 2026-04-18 | S14 Feature 6 | `CITY` branch of `_enter_current_node()` now routes to `res://scenes/city/BadurgaScene.tscn` (was a no-op). Badurga city shell added with 6 placeholder section buttons + return button. |
 | 2026-04-18 | S15 Feature 7 | Travel increment (+0.05) added to `_move_player_to()`. Entry increment (+0.05) added to `_enter_current_node()` (replaces int increment; city now counts). Old text label replaced with `_add_threat_meter()` vertical bar + `_threat_fill_color()` helper. |
+| 2026-04-20 | S20 Party Sheet Slice 5 | `_party_sheet: PartySheet` field added to `MapManager`. Instantiated in `_ready()` before `_build_scene()`. "Party" button added to `_add_ui_chrome()` at `(VIEWPORT_SIZE.x - 300, 8)` — calls `show_sheet()`. Full layout spec lives in `scripts/party/PartySheet.gd`. |
 
 ---
 
