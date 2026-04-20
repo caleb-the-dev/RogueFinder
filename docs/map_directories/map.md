@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-20 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 10 |
+| sessions_since_groom | 11 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -293,6 +293,7 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-20 | ArchetypeLibrary, PartySheet | S23 Ability Pool Swap: `pool_extras` key expands ability pools beyond the 4 active slots (RogueFinder, archer_bandit, grunt now have 4 extras each). Full interactive swap UI: drag from Abilities panel onto BOTTOM-RIGHT slots; right-click to unequip. Per-member sort/search/view in ability panel; inventory gets same treatment. Drag-compare panels for abilities, equipment, and consumables. Backwards-typing fix in search. `_wrap_tooltip()` + opaque tooltip theme. |
 | 2026-04-20 | PartySheet | S22 Party Sheet layout redesign: 4-quadrant card layout (TL name/class/bg/HP · TR derived+attrs · BL equipment 2×2 · BR slotted abilities 2×2), full-card separator lines, prominent Class/Background display, TabContainer ability pool + Feats placeholder on right panel. S21: drag-drop gear management loop, `set_drag_forwarding()` pattern, map input block, sprite slot icons, tooltips on everything. Single-file change: `PartySheet.gd`. |
 | 2026-04-20 | MapManager, PartySheet | S20 Party Sheet Slice 5: read-only overlay (layer 20) showing 3 party cards (portrait, name, class, HP bar, attributes) + inventory bag. Equipment rows resolve via EquipmentLibrary; consumable rows use description. Dead members greyed with DEFEATED stamp. "Party" button added to MapManager UI chrome. New files: `scenes/party/PartySheet.tscn`, `scripts/party/PartySheet.gd`. |
 | 2026-04-19 | BackgroundData, BackgroundLibrary | Added CSV-backed background catalog. Single source at `rogue-finder/data/backgrounds.csv` (dual `docs/csv_data/` mirror scrapped — drift risk > ergonomic benefit). `get_background_by_name()` bridges current PascalCase display strings so the library is callable today; full snake_case-id migration deferred until first real consumer lands. Dormant — no callers yet. First CSV-sourced library; pattern established for future migrations. |

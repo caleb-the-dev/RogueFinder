@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-18 (Session 13 grooming — ability count corrected to 22; archer_bandit/grunt/alchemist ability lists synced to code; quick_shot range 4 → 3)
+> Last updated: 2026-04-20 (S23 — pool_extras key added to ArchetypeLibrary; ability_pool default note corrected)
 
 ---
 
@@ -88,7 +88,7 @@ These fields survive between combats. Seeded at creation by `ArchetypeLibrary.cr
 
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
-| `ability_pool` | `Array[String]` | archetype's 4 abilities | Full unlocked set — superset of `abilities`. Future leveling appends here without touching the 4-slot active list. |
+| `ability_pool` | `Array[String]` | archetype's active abilities + `pool_extras` | Full unlocked set — superset of `abilities`. Seeded in `create()` from `abilities` then `pool_extras` (deduped). Future leveling appends here without touching the 4-slot active list. |
 | `current_hp` | `int` | `hp_max` | Live HP between combats. |
 | `current_energy` | `int` | `energy_max` | Live energy between combats. |
 | `is_dead` | `bool` | `false` | Permanent death flag. Set by `CombatManager3D._on_unit_died()` when a player unit's HP reaches 0; `GameState.save()` is called immediately. |
@@ -450,6 +450,7 @@ No production code calls `BackgroundLibrary` yet — it's infrastructure waiting
 
 | Date | Change |
 |---|---|
+| 2026-04-20 | S23 — `ArchetypeLibrary`: added `pool_extras` key to archetype schema; `create()` now appends extras to `ability_pool` after seeding from `abilities` (deduped). Three archetypes have extras: RogueFinder (+4), archer_bandit (+4), grunt (+4). `alchemist` and `elite_guard` have no `pool_extras` (defaults to empty). Pool ⊇ Slots invariant still holds — extras supplement but never replace active slots. |
 | 2026-04-19 | Added `BackgroundData` resource + `BackgroundLibrary` static class — first CSV-sourced library. CSV lives at `rogue-finder/data/backgrounds.csv` (single source; read via `res://data/`). `get_background_by_name()` bridges the existing PascalCase display-string convention (`CombatantData.background`, `ArchetypeLibrary` pools) so the library is callable today without a snake_case-id migration. Dormant — no callers yet. |
 | 2026-04-19 | Slice 3 — `is_dead` now set by `CombatManager3D._on_unit_died()` (permadeath). `current_hp`/`current_energy` written back on combat victory. `Unit3D.setup()` seeds from `current_hp`/`current_energy` so a unit enters combat at its last saved HP. |
 | 2026-04-19 | Slice 2 — Persistent run state fields now saved/loaded via `GameState._serialize_combatant()` / `_deserialize_combatant()`. `GameState.party: Array[CombatantData]` holds the active roster; `GameState.init_party()` seeds it on fresh runs. Equipment slots persist as `equipment_id` strings; `""` → `null` on load. 6 new headless tests. |

@@ -330,6 +330,7 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 | 2026-04-20 | S20 Party Sheet Slice 5 | `_party_sheet: PartySheet` field added to `MapManager`. Instantiated in `_ready()` before `_build_scene()`. "Party" button added to `_add_ui_chrome()` at `(VIEWPORT_SIZE.x - 300, 8)` — calls `show_sheet()`. Full layout spec lives in `scripts/party/PartySheet.gd`. |
 | 2026-04-20 | S21 Party Sheet Slice 6 | Drag-and-drop gear management. Inventory bag (LEFT col) → equipment slots (MIDDLE col) via native `set_drag_forwarding()` lambdas. Click filled slot to unequip. Dead member slots disabled + drop rejected. `MapManager._input()` early-return guard blocks map pan/zoom when sheet visible. Sprite icons for slot types copied to `res://assets/icons/`. Tooltips on all stats, equipment, abilities, inventory items. |
 | 2026-04-20 | S22 Party Sheet layout redesign | Full 4-quadrant card layout. Each member card divided by full-height vertical + full-width horizontal 50%-alpha separators. TOP-LEFT: name/class/bg (prominent separate lines)/HP bar. TOP-RIGHT: derived stats (blue, 4 cols) + base attributes (yellow, 5 cols). BOTTOM-LEFT: equipment 2×2 grid. BOTTOM-RIGHT: slotted abilities 2×2 grid with ability names + hover tooltips. Right panel replaced with `TabContainer` ("Abilities" pool list + "Feats" placeholder). `_detail_open` pattern removed — fully stateless `_rebuild()`. |
+| 2026-04-20 | S23 Ability Pool Swap (Slice 7) | `ArchetypeLibrary`: `pool_extras` key added (3 archetypes now have extras); `create()` seeds them into `ability_pool` without duplicates. `PartySheet`: drag abilities from Abilities tab onto BOTTOM-RIGHT slots; right-click slots to clear/unequip; per-member sort (Name/Type/EN), per-member search bar with focus+caret restoration fix (backwards-typing bug fixed), per-member 1×/2× view toggle for ability pool; inventory column upgraded with sort (Name/Type), search bar, 1×/2× view toggle; drag-compare panels for all three categories (ability vs ability, equipment vs equipment, consumable vs consumable); compare helpers refactored into `_make_compare_panel()` / `_make_compare_col()` / `_add_cmp_label()` / `_add_cmp_desc()`; opaque tooltip theme + `_wrap_tooltip()` word-wrap; `_process()` auto-clears compare overlay when drag ends. |
 
 ---
 
@@ -337,22 +338,54 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 
 `MapManager` instantiates `PartySheet` (from `scripts/party/PartySheet.gd`) as a programmatic child before `_build_scene()`. The Party button in UI chrome calls `_party_sheet.show_sheet()`. `PartySheet` is a `CanvasLayer` at layer 20 — above all other overlays. It reads `GameState.party` and `GameState.inventory` directly; no state is passed in.
 
-**Public API:** `show_sheet()` / `hide_sheet()`. Internal: `_rebuild()` is the sole re-render path — fully stateless; frees and recreates all children on every call. Called on open and after every mutation.
+**Public API:** `show_sheet()` / `hide_sheet()`. Internal: `_rebuild()` is the sole re-render path — fully stateless; frees and recreates all children on every call. Called on open and after every mutation. `_process()` clears the drag-compare overlay when `get_viewport().gui_is_dragging()` returns false.
+
+**Instance state (persists across rebuilds):**
+
+| Variable | Type | Purpose |
+|---|---|---|
+| `_sort_fields[3]` | `Array[String]` | Per-member sort key (`"name"`, `"attribute"`, `"energy"`) |
+| `_sort_ascs[3]` | `Array[bool]` | Per-member sort direction |
+| `_search_texts[3]` | `Array[String]` | Per-member ability search query |
+| `_focus_search_mi` | `int` | Which member's search `LineEdit` gets focus after next rebuild (-1 = none) |
+| `_abil_views_wide[3]` | `Array[bool]` | Per-member ability view mode (false=1-per-row, true=2-per-row GridContainer) |
+| `_inv_search_text` | `String` | Inventory search query |
+| `_inv_sort_field` | `String` | Inventory sort key (`"name"` or `"type"`) |
+| `_inv_sort_asc` | `bool` | Inventory sort direction |
+| `_inv_view_wide` | `bool` | Inventory view mode (false=1-per-row, true=2-per-row) |
+| `_drag_compare_panel` | `Control` | Live compare overlay; child of the CanvasLayer, not `_content_root` — survives rebuilds |
+| `_cmp_existing` / `_cmp_incoming` | `String` | IDs of the pair currently shown in compare panel; used as a guard to skip redundant rebuilds |
 
 **Layout — three columns:**
-- **LEFT (240 px):** Bag inventory — scrollable list of raw inventory dicts. Each row is a `PanelContainer` with drag forwarding via `set_drag_forwarding()`. Dragging produces `{"item": dict}` as payload.
-- **MIDDLE (530 px):** Three member cards stacked vertically. Each card is divided into **4 quadrants** by thin 50%-alpha separator lines (full-height vertical at card midpoint, full-width horizontal at ~108 px from card top):
-  - **TOP-LEFT:** Character name (17 px, gold/red-for-dead), "Class: X" (13 px gold, separate line), "Background: X" (13 px green, separate line), HP bar + HP text.
-  - **TOP-RIGHT:** Derived stats — Speed, Defense, EN Max, EN Regen (blue tint, 4 columns). Base attributes — STR, DEX, COG, WIL, VIT (yellow tint, 5 columns). All labels carry `tooltip_text` + `MOUSE_FILTER_PASS`.
-  - **BOTTOM-LEFT:** "EQUIPMENT" header + 2×2 grid (Weapon/Armor top row, Accessory/Consumable bottom row). Each cell is a flat `Button` with sprite icon + item name. Slot buttons are drop targets (via `set_drag_forwarding()`); clicking a filled slot calls unequip. Disabled when member is dead.
-  - **BOTTOM-RIGHT:** "ABILITIES" header + 2×2 grid of the 4 slotted ability names (green tint). Hover shows full tooltip (name, EN cost, attribute, description). Labels dimmed when dead.
-- **RIGHT (480 px):** `TabContainer` per member card — "Abilities" tab (scrollable `VBoxContainer` listing all `member.ability_pool` items: name + EN cost + attribute) and "Feats" tab (placeholder label). Entire TabContainer `modulate = Color(0.55,0.55,0.55)` when member is dead.
+- **LEFT (240 px):** Bag inventory. Header row: "BAG" label + `1×/2×` view toggle. Sort row: Name / Type. Search bar. Scrollable `GridContainer` (1 or 2 columns). Each item row is a `PanelContainer` with drag forwarding producing `{"item": dict}`. In compact (2-column) mode: smaller icon (16 px), smaller text (10 px), no stat-bonus sub-line.
+- **MIDDLE (530 px):** Three member cards stacked vertically. Each card divided into 4 quadrants by 50%-alpha separators:
+  - **TOP-LEFT:** Name (17 px), Class (13 px gold), Background (13 px green), HP bar + label.
+  - **TOP-RIGHT:** Derived stats — Speed / Defense / EN Max / EN Regen (blue, 4 cols). Base attributes — STR/DEX/COG/WIL/VIT (yellow, 5 cols). All labels: `tooltip_text` + `MOUSE_FILTER_PASS`.
+  - **BOTTOM-LEFT:** "EQUIPMENT" + 2×2 grid. Each slot is a flat `Button` with sprite icon. Drop target via `set_drag_forwarding()`. **Right-click** an occupied slot to unequip. Dragging bag item over a filled slot shows a compare panel. Disabled when dead.
+  - **BOTTOM-RIGHT:** "ABILITIES" + 2×2 grid of slotted abilities as `Control` + `Label`. Drop target for abilities from the right panel. **Right-click** to clear. Hovering drag over a filled slot shows a side-by-side compare panel (`_show_drag_compare()`). Dragging one member's ability into another member's slot is blocked (member_idx check in `_can_drop_ability_here()`).
+- **RIGHT (480 px):** `TabContainer` per member card:
+  - **Abilities tab:** Top bar (right-aligned) with `1×/2×` view toggle + "drag to slot →" hint. Sort row: Name / Type / EN (per-member, independent). Search bar with live filter (focus is restored after each rebuild via `grab_focus.call_deferred()` + `set_caret_column.call_deferred()` to prevent backwards-typing). Scrollable pool list in `VBoxContainer` (1-per-row) or `GridContainer` (2-per-row). Slotted abilities show gold highlight + `●` prefix + `[s1]`–`[s4]` slot badge. In 2-per-row mode the EN/type sub-line is hidden (tooltip still shows it).
+  - **Feats tab:** Placeholder label.
 
-**Drag-and-drop:** `_can_drop_here(data, slot_type, is_dead)` validates type match and liveness. `_drop_to_slot(item, member_idx, slot_field)` displaces any existing occupant back to bag via `_push_equipment_to_bag()` / `_push_consumable_to_bag()`, sets the appropriate field on the live `CombatantData`, calls `GameState.remove_from_inventory()`, then `_rebuild()`. Click-to-unequip: `_unequip_item(member_idx, slot_field)` / `_unequip_consumable(member_idx)` — same displacement + rebuild pattern.
+**Drag-and-drop:**
+- `_can_drop_here(data, slot_type, is_dead)` — validates equipment/consumable type match and liveness.
+- `_can_drop_ability_here(data, target_mi, is_dead)` — validates ability drag data and member_idx match (cross-member drops rejected).
+- `_drop_to_slot(item, member_idx, slot_field)` — displaces existing occupant to bag, equips new item, calls `GameState.remove_from_inventory()`, then `_rebuild()`.
+- `_drop_ability_to_slot(data, target_mi, slot_idx)` — writes ability_id into the live slot array, `_rebuild()`.
+- `_unequip_item()` / `_unequip_consumable()` — right-click handlers; same displacement + rebuild pattern.
+
+**Drag compare panels (all three live on the CanvasLayer, not `_content_root`):**
+- `_show_drag_compare(near_pos, existing_id, incoming_id)` — ability vs ability (AbilityData).
+- `_show_equip_compare(near_pos, cur_eq, incoming)` — existing EquipmentData vs bag item dict.
+- `_show_consumable_compare(near_pos, cur_id, incoming)` — existing consumable vs bag item dict.
+- All three use shared helpers `_make_compare_panel()`, `_make_compare_col()`, `_add_cmp_label()`, `_add_cmp_desc()`.
+- `_clear_drag_compare()` frees the panel and resets `_cmp_existing`/`_cmp_incoming`. Called: on successful drop, on `hide_sheet()`, and automatically by `_process()` when drag ends.
+
+**Tooltip theming:** A `Theme` with a `StyleBoxFlat` for `TooltipPanel` (dark bg, gold border) is set on `_content_root` in `_rebuild()` — overrides Godot's default transparent tooltip. `_wrap_tooltip(text, max_line=40)` word-wraps all tooltip strings while preserving `\n\n` section breaks.
 
 **Map input block:** `MapManager._input()` has an early-return guard: `if _party_sheet != null and _party_sheet.visible: return`. Required because MapManager uses `_input()` (not `_unhandled_input()`); without this guard, map pan/zoom fires through the CanvasLayer overlay.
 
-**Persistence:** All mutations write directly to the live `CombatantData` object in `GameState.party[i]`. `GameState.save()` is NOT called here — MapScene saves on the next map travel. Dead members cannot be equipped (drop rejected, buttons disabled).
+**Persistence:** All mutations write directly to the live `CombatantData` object in `GameState.party[i]`. `GameState.save()` is NOT called here — MapScene saves on the next map travel. Dead members cannot be equipped (drop rejected, buttons disabled). `_sort_fields`, `_search_texts`, `_abil_views_wide`, etc. are instance vars — they survive `_rebuild()` but reset if the scene is reloaded.
 
 ---
 
