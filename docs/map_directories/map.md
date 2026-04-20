@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-20 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 8 |
+| sessions_since_groom | 9 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -197,7 +197,7 @@ Autoload singleton. Map traversal, save/load, party roster, and party bag invent
 Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a procedurally-drawn lore name (seeded per ring — not saved, regenerates from map_seed), a type (COMBAT, RECRUIT, VENDOR, EVENT, BOSS, CITY) with distinct color/icon/hover label, and exactly 1 BOSS per run in the outer ring. Player traverses by clicking adjacent nodes; re-clicking enters the current node. Nodes display five visual states (CURRENT / REACHABLE / CLEARED / VISITED / LOCKED). Bridges use quadrant-aware placement (≥90° intra-pair gap, ≥30° cross-pair exclusion) to prevent straight corridors. Seeded from map_seed — deterministic on reload. HUD shows a fixed vertical threat bar (left side) with quadrant tick marks and fill color scaling from yellow to red. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
 
 ### Party Sheet
-Full-screen read-only overlay (CanvasLayer, layer 20). Opened by the "Party" button in MapManager UI chrome. Shows 3 party cards (portrait, name, class, HP bar with fill, attribute row) plus an inventory bag list. Rebuilds all content from `GameState.party` and `GameState.inventory` on every open — no caching. Equipment rows resolved via `EquipmentLibrary.get_equipment(id)` for slot and stat bonuses; consumable rows use the dict's description. Dead members greyed with a "DEFEATED" stamp added to parent so it renders above the grey. Close button hides the overlay. No mutation. Lives in `scenes/party/PartySheet.tscn` + `scripts/party/PartySheet.gd`.
+Full-screen interactive overlay (CanvasLayer, layer 20). Opened by the "Party" button in MapManager UI chrome. Shows 3 party cards (portrait, name, class, HP bar, attributes); clicking a card expands it to a detail pane (5 attrs, 6 derived stats, 4 abilities, equipment + consumable slot buttons). Only one detail pane open at a time. Inventory bag items become equip buttons when a living member's pane is open — clicking assigns items, displacing existing occupants back to bag. Clicking a filled slot button unequips back to bag. Dead members show the detail pane read-only (all buttons disabled, card greyed). All mutations write directly to `GameState.party[i]`; save is deferred to next map travel. `_rebuild()` is the sole re-render path — called on open and after every mutation. Lives in `scenes/party/PartySheet.tscn` + `scripts/party/PartySheet.gd`.
 
 ---
 
@@ -293,6 +293,7 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-20 | PartySheet | S21 Party Sheet Slice 6: detail pane + gear management loop. Clicking a card expands to a scrollable detail pane (5 attrs, 6 derived, 4 abilities, equip/consumable slot buttons). Inventory items are equip buttons when a living member's pane is open. Equip displaces existing occupant back to bag. Unequip returns item to bag. Dead members: buttons disabled, pane greyed. Single-file change: `PartySheet.gd`. |
 | 2026-04-20 | MapManager, PartySheet | S20 Party Sheet Slice 5: read-only overlay (layer 20) showing 3 party cards (portrait, name, class, HP bar, attributes) + inventory bag. Equipment rows resolve via EquipmentLibrary; consumable rows use description. Dead members greyed with DEFEATED stamp. "Party" button added to MapManager UI chrome. New files: `scenes/party/PartySheet.tscn`, `scripts/party/PartySheet.gd`. |
 | 2026-04-19 | BackgroundData, BackgroundLibrary | Added CSV-backed background catalog. Single source at `rogue-finder/data/backgrounds.csv` (dual `docs/csv_data/` mirror scrapped — drift risk > ergonomic benefit). `get_background_by_name()` bridges current PascalCase display strings so the library is callable today; full snake_case-id migration deferred until first real consumer lands. Dormant — no callers yet. First CSV-sourced library; pattern established for future migrations. |
 | 2026-04-18 | MapManager, GameState, EndCombatScreen | Session 13 UX polish — Badurga start, BOSS glow, node prompts, instant reward return |

@@ -328,12 +328,17 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 | 2026-04-18 | S14 Feature 6 | `CITY` branch of `_enter_current_node()` now routes to `res://scenes/city/BadurgaScene.tscn` (was a no-op). Badurga city shell added with 6 placeholder section buttons + return button. |
 | 2026-04-18 | S15 Feature 7 | Travel increment (+0.05) added to `_move_player_to()`. Entry increment (+0.05) added to `_enter_current_node()` (replaces int increment; city now counts). Old text label replaced with `_add_threat_meter()` vertical bar + `_threat_fill_color()` helper. |
 | 2026-04-20 | S20 Party Sheet Slice 5 | `_party_sheet: PartySheet` field added to `MapManager`. Instantiated in `_ready()` before `_build_scene()`. "Party" button added to `_add_ui_chrome()` at `(VIEWPORT_SIZE.x - 300, 8)` — calls `show_sheet()`. Full layout spec lives in `scripts/party/PartySheet.gd`. |
+| 2026-04-20 | S21 Party Sheet Slice 6 | Detail pane + equip/unequip. `_detail_open: int` tracks open card. `_build_party_card` gains transparent click-catcher button (StyleBoxEmpty overlay). `_build_detail_pane` builds scrollable detail view (5 attrs, 6 derived, 4 abilities, 3 equip slot buttons, 1 consumable slot button). Inventory rows are `Button` nodes when `can_equip` (living member detail open). `_equip_from_inventory`, `_unequip_item`, `_unequip_consumable` mutate `GameState.party[i]` directly and call `_rebuild()`. Dead member: pane greyed, all buttons disabled. No save call — MapScene saves on next travel. Only file changed: `PartySheet.gd`. |
 
 ---
 
 ## PartySheet Dependency
 
-`MapManager` instantiates `PartySheet` (from `scripts/party/PartySheet.gd`) as a programmatic child before `_build_scene()`. The Party button in UI chrome calls `_party_sheet.show_sheet()`. `PartySheet` is a `CanvasLayer` at layer 20 — above all other overlays. It reads `GameState.party` and `GameState.inventory` directly; no state is passed in. See `scripts/party/PartySheet.gd` for the full layout spec.
+`MapManager` instantiates `PartySheet` (from `scripts/party/PartySheet.gd`) as a programmatic child before `_build_scene()`. The Party button in UI chrome calls `_party_sheet.show_sheet()`. `PartySheet` is a `CanvasLayer` at layer 20 — above all other overlays. It reads `GameState.party` and `GameState.inventory` directly; no state is passed in.
+
+**Public API:** `show_sheet()` / `hide_sheet()`. Internal: `_rebuild()` is the sole re-render path — called on open and after every mutation. `_detail_open: int` (instance var) tracks which party card is expanded; `-1` = none.
+
+**Interaction (S21):** Clicking a party card opens/collapses a detail pane in-place (DETAIL_H = 400 px tall). Only one detail pane is open at a time. The detail pane shows all 5 base attributes, 6 derived stats, 4 ability slots, 3 equipment slot buttons, and 1 consumable slot button. Equipment slots and the consumable slot are clickable buttons; clicking a filled slot unequips back to bag. Inventory items become clickable equip buttons when a living member's detail pane is open — clicking assigns the item to the appropriate slot (displacing the current occupant back to bag). Dead members show the detail pane but all equip/unequip buttons are disabled. All mutations write directly to `GameState.party[i]` (`CombatantData` is a live object); `GameState.save()` is NOT called here — MapScene saves on next travel.
 
 ---
 
