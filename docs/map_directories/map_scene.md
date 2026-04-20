@@ -201,7 +201,8 @@ Panel style: dark background `Color(0.07, 0.05, 0.03, 0.94)`, 2-px border in the
 4. `_build_node_data()` — define all 28 nodes with placeholder labels; calls `_assign_node_types()` at the end (which assigns seeded names + types)
 5. `_build_edge_data()` — seed global RNG from `GameState.map_seed`, build deterministic edges via `_connect_gateways_v2()`
 6. `_build_adjacency()` — build undirected adjacency dict
-7. `_build_scene()` — render everything; marker placed at `GameState.player_node_id`
+7. Instantiate `PartySheet` — `_party_sheet = PartySheet.new(); add_child(_party_sheet)` — must happen before `_build_scene()` so the Party button can bind to it
+8. `_build_scene()` — render everything; marker placed at `GameState.player_node_id`
 
 ---
 
@@ -230,6 +231,7 @@ Built in `_add_ui_chrome()` and `_add_threat_meter()`. These elements are childr
 |---|---|---|
 | `"[MAP SCENE]"` label | top-left `(12, 8)` | Debug: visual confirmation of scene load |
 | Threat meter | left side `(12, 46)` | Run-wide danger gauge — see below |
+| `"Party"` button | top-right `(VIEWPORT_SIZE.x - 300, 8)`, 80×36 | Opens `PartySheet` overlay to review party + inventory |
 | `"🗑 Delete Save (debug)"` button | top-right `(VIEWPORT_SIZE.x - 212, 8)` | Calls `GameState.delete_save()` + `GameState.reset()` then `reload_current_scene()` |
 
 ### Threat Meter — `_add_threat_meter()`
@@ -325,6 +327,13 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 | 2026-04-18 | S13 EndCombatScreen | "Onward..." button removed — picking a reward immediately clears the node, saves, and returns to map |
 | 2026-04-18 | S14 Feature 6 | `CITY` branch of `_enter_current_node()` now routes to `res://scenes/city/BadurgaScene.tscn` (was a no-op). Badurga city shell added with 6 placeholder section buttons + return button. |
 | 2026-04-18 | S15 Feature 7 | Travel increment (+0.05) added to `_move_player_to()`. Entry increment (+0.05) added to `_enter_current_node()` (replaces int increment; city now counts). Old text label replaced with `_add_threat_meter()` vertical bar + `_threat_fill_color()` helper. |
+| 2026-04-20 | S20 Party Sheet Slice 5 | `_party_sheet: PartySheet` field added to `MapManager`. Instantiated in `_ready()` before `_build_scene()`. "Party" button added to `_add_ui_chrome()` at `(VIEWPORT_SIZE.x - 300, 8)` — calls `show_sheet()`. Full layout spec lives in `scripts/party/PartySheet.gd`. |
+
+---
+
+## PartySheet Dependency
+
+`MapManager` instantiates `PartySheet` (from `scripts/party/PartySheet.gd`) as a programmatic child before `_build_scene()`. The Party button in UI chrome calls `_party_sheet.show_sheet()`. `PartySheet` is a `CanvasLayer` at layer 20 — above all other overlays. It reads `GameState.party` and `GameState.inventory` directly; no state is passed in. See `scripts/party/PartySheet.gd` for the full layout spec.
 
 ---
 
