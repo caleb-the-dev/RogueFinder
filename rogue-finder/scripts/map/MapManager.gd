@@ -86,6 +86,9 @@ func _ready() -> void:
 
 # _input (not _unhandled_input) so drag is captured even when the press starts on a Button
 func _input(event: InputEvent) -> void:
+	# Party sheet is a CanvasLayer overlay — block all map input while it is open
+	if _party_sheet != null and _party_sheet.visible:
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		match mb.button_index:
