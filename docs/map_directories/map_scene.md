@@ -328,7 +328,8 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 | 2026-04-18 | S14 Feature 6 | `CITY` branch of `_enter_current_node()` now routes to `res://scenes/city/BadurgaScene.tscn` (was a no-op). Badurga city shell added with 6 placeholder section buttons + return button. |
 | 2026-04-18 | S15 Feature 7 | Travel increment (+0.05) added to `_move_player_to()`. Entry increment (+0.05) added to `_enter_current_node()` (replaces int increment; city now counts). Old text label replaced with `_add_threat_meter()` vertical bar + `_threat_fill_color()` helper. |
 | 2026-04-20 | S20 Party Sheet Slice 5 | `_party_sheet: PartySheet` field added to `MapManager`. Instantiated in `_ready()` before `_build_scene()`. "Party" button added to `_add_ui_chrome()` at `(VIEWPORT_SIZE.x - 300, 8)` — calls `show_sheet()`. Full layout spec lives in `scripts/party/PartySheet.gd`. |
-| 2026-04-20 | S21 Party Sheet Slice 6 | Detail pane + equip/unequip. `_detail_open: int` tracks open card. `_build_party_card` gains transparent click-catcher button (StyleBoxEmpty overlay). `_build_detail_pane` builds scrollable detail view (5 attrs, 6 derived, 4 abilities, 3 equip slot buttons, 1 consumable slot button). Inventory rows are `Button` nodes when `can_equip` (living member detail open). `_equip_from_inventory`, `_unequip_item`, `_unequip_consumable` mutate `GameState.party[i]` directly and call `_rebuild()`. Dead member: pane greyed, all buttons disabled. No save call — MapScene saves on next travel. Only file changed: `PartySheet.gd`. |
+| 2026-04-20 | S21 Party Sheet Slice 6 | Drag-and-drop gear management. Inventory bag (LEFT col) → equipment slots (MIDDLE col) via native `set_drag_forwarding()` lambdas. Click filled slot to unequip. Dead member slots disabled + drop rejected. `MapManager._input()` early-return guard blocks map pan/zoom when sheet visible. Sprite icons for slot types copied to `res://assets/icons/`. Tooltips on all stats, equipment, abilities, inventory items. |
+| 2026-04-20 | S22 Party Sheet layout redesign | Full 4-quadrant card layout. Each member card divided by full-height vertical + full-width horizontal 50%-alpha separators. TOP-LEFT: name/class/bg (prominent separate lines)/HP bar. TOP-RIGHT: derived stats (blue, 4 cols) + base attributes (yellow, 5 cols). BOTTOM-LEFT: equipment 2×2 grid. BOTTOM-RIGHT: slotted abilities 2×2 grid with ability names + hover tooltips. Right panel replaced with `TabContainer` ("Abilities" pool list + "Feats" placeholder). `_detail_open` pattern removed — fully stateless `_rebuild()`. |
 
 ---
 
@@ -336,9 +337,22 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 
 `MapManager` instantiates `PartySheet` (from `scripts/party/PartySheet.gd`) as a programmatic child before `_build_scene()`. The Party button in UI chrome calls `_party_sheet.show_sheet()`. `PartySheet` is a `CanvasLayer` at layer 20 — above all other overlays. It reads `GameState.party` and `GameState.inventory` directly; no state is passed in.
 
-**Public API:** `show_sheet()` / `hide_sheet()`. Internal: `_rebuild()` is the sole re-render path — called on open and after every mutation. `_detail_open: int` (instance var) tracks which party card is expanded; `-1` = none.
+**Public API:** `show_sheet()` / `hide_sheet()`. Internal: `_rebuild()` is the sole re-render path — fully stateless; frees and recreates all children on every call. Called on open and after every mutation.
 
-**Interaction (S21):** Clicking a party card opens/collapses a detail pane in-place (DETAIL_H = 400 px tall). Only one detail pane is open at a time. The detail pane shows all 5 base attributes, 6 derived stats, 4 ability slots, 3 equipment slot buttons, and 1 consumable slot button. Equipment slots and the consumable slot are clickable buttons; clicking a filled slot unequips back to bag. Inventory items become clickable equip buttons when a living member's detail pane is open — clicking assigns the item to the appropriate slot (displacing the current occupant back to bag). Dead members show the detail pane but all equip/unequip buttons are disabled. All mutations write directly to `GameState.party[i]` (`CombatantData` is a live object); `GameState.save()` is NOT called here — MapScene saves on next travel.
+**Layout — three columns:**
+- **LEFT (240 px):** Bag inventory — scrollable list of raw inventory dicts. Each row is a `PanelContainer` with drag forwarding via `set_drag_forwarding()`. Dragging produces `{"item": dict}` as payload.
+- **MIDDLE (530 px):** Three member cards stacked vertically. Each card is divided into **4 quadrants** by thin 50%-alpha separator lines (full-height vertical at card midpoint, full-width horizontal at ~108 px from card top):
+  - **TOP-LEFT:** Character name (17 px, gold/red-for-dead), "Class: X" (13 px gold, separate line), "Background: X" (13 px green, separate line), HP bar + HP text.
+  - **TOP-RIGHT:** Derived stats — Speed, Defense, EN Max, EN Regen (blue tint, 4 columns). Base attributes — STR, DEX, COG, WIL, VIT (yellow tint, 5 columns). All labels carry `tooltip_text` + `MOUSE_FILTER_PASS`.
+  - **BOTTOM-LEFT:** "EQUIPMENT" header + 2×2 grid (Weapon/Armor top row, Accessory/Consumable bottom row). Each cell is a flat `Button` with sprite icon + item name. Slot buttons are drop targets (via `set_drag_forwarding()`); clicking a filled slot calls unequip. Disabled when member is dead.
+  - **BOTTOM-RIGHT:** "ABILITIES" header + 2×2 grid of the 4 slotted ability names (green tint). Hover shows full tooltip (name, EN cost, attribute, description). Labels dimmed when dead.
+- **RIGHT (480 px):** `TabContainer` per member card — "Abilities" tab (scrollable `VBoxContainer` listing all `member.ability_pool` items: name + EN cost + attribute) and "Feats" tab (placeholder label). Entire TabContainer `modulate = Color(0.55,0.55,0.55)` when member is dead.
+
+**Drag-and-drop:** `_can_drop_here(data, slot_type, is_dead)` validates type match and liveness. `_drop_to_slot(item, member_idx, slot_field)` displaces any existing occupant back to bag via `_push_equipment_to_bag()` / `_push_consumable_to_bag()`, sets the appropriate field on the live `CombatantData`, calls `GameState.remove_from_inventory()`, then `_rebuild()`. Click-to-unequip: `_unequip_item(member_idx, slot_field)` / `_unequip_consumable(member_idx)` — same displacement + rebuild pattern.
+
+**Map input block:** `MapManager._input()` has an early-return guard: `if _party_sheet != null and _party_sheet.visible: return`. Required because MapManager uses `_input()` (not `_unhandled_input()`); without this guard, map pan/zoom fires through the CanvasLayer overlay.
+
+**Persistence:** All mutations write directly to the live `CombatantData` object in `GameState.party[i]`. `GameState.save()` is NOT called here — MapScene saves on the next map travel. Dead members cannot be equipped (drop rejected, buttons disabled).
 
 ---
 
