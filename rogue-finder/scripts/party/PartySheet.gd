@@ -2,16 +2,43 @@ class_name PartySheet
 extends CanvasLayer
 
 ## --- PartySheet ---
-## Full-screen read-only overlay showing party cards + inventory bag.
-## Opened from the "Party" button in MapManager UI chrome.
-## Layer 20 — above map UI and combat UI (layer 15).
+## Full-screen overlay: LEFT = inventory bag (drag source),
+## MIDDLE = member cards (4 quadrants: name/hp | stats | equip | abilities),
+## RIGHT = ability pool tabs (Abilities / Feats).
+## Layer 20 — above all other UI.
 
-const VIEWPORT_W: float  = 1280.0
-const VIEWPORT_H: float  = 720.0
-const CARD_W: float      = 360.0
-const CARD_H: float      = 230.0
-const PORTRAIT_SZ: float = 72.0
-const CARD_GAP: float    = 20.0
+const VIEWPORT_W:    float = 1280.0
+const VIEWPORT_H:    float = 720.0
+const HEADER_H:      float = 44.0
+const SIDE_M:        float = 8.0
+const COL_GAP:       float = 10.0
+
+## Left inventory column
+const LEFT_X:        float = SIDE_M
+const LEFT_W:        float = 240.0
+
+## Middle (member cards) — spans the rest of the viewport
+const MID_X:         float = LEFT_X + LEFT_W + COL_GAP    ## = 258
+const MID_W:         float = VIEWPORT_W - MID_X - SIDE_M  ## = 1014
+
+## Within each member card: left 4-quadrant area | right ability pool tabs
+const STATS_BG_W:    float = 530.0
+const ABIL_OFFSET:   float = 534.0
+const ABIL_BG_W:     float = MID_W - ABIL_OFFSET  ## = 480
+
+## Member row sizing
+const MEMBER_H:      float = 215.0
+const MEMBER_GAP:    float = 5.0
+const CONTENT_TOP:   float = HEADER_H + SIDE_M
+
+## Slot type sentinels
+const SLOT_CONSUMABLE: int = 99
+
+## Slot icon paths
+const ICON_WEAPON:     String = "res://assets/icons/sWeaponIcon.png"
+const ICON_ARMOR:      String = "res://assets/icons/sArmorIcon.png"
+const ICON_ACCESSORY:  String = "res://assets/icons/sAccessoryIcon.png"
+const ICON_CONSUMABLE: String = "res://assets/icons/sConsumableIcon.png"
 
 var _content_root: Control = null
 
@@ -39,187 +66,657 @@ func _rebuild() -> void:
 	add_child(root)
 	_content_root = root
 
-	# Full-screen dark overlay — eats all mouse input to block map interaction
 	var overlay := ColorRect.new()
 	overlay.color = Color(0.05, 0.04, 0.03, 0.92)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(overlay)
 
-	# Close button — top-right
+	_build_header(root)
+	_build_inventory_column(root)
+
+	for i in range(GameState.party.size()):
+		var member: CombatantData = GameState.party[i]
+		var row_y: float = CONTENT_TOP + float(i) * (MEMBER_H + MEMBER_GAP)
+		_build_member_card(root, member, Vector2(MID_X, row_y), i)
+
+## --- Header ---
+
+func _build_header(parent: Control) -> void:
+	var title := Label.new()
+	title.text = "PARTY"
+	title.position = Vector2(SIDE_M, 10.0)
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(0.92, 0.86, 0.65))
+	parent.add_child(title)
+
+	var hint := Label.new()
+	hint.text = "Drag bag items → equipment slots  ·  Click a filled slot to unequip  ·  Hover for details"
+	hint.position = Vector2(90.0, 14.0)
+	hint.add_theme_font_size_override("font_size", 10)
+	hint.add_theme_color_override("font_color", Color(0.55, 0.52, 0.46))
+	parent.add_child(hint)
+
 	var close_btn := Button.new()
 	close_btn.text = "✕ Close"
-	close_btn.size = Vector2(100.0, 34.0)
-	close_btn.position = Vector2(VIEWPORT_W - 112.0, 10.0)
+	close_btn.size = Vector2(88.0, 28.0)
+	close_btn.position = Vector2(VIEWPORT_W - 96.0, 8.0)
 	close_btn.pressed.connect(hide_sheet)
-	root.add_child(close_btn)
+	parent.add_child(close_btn)
 
-	# Party cards — top half, 3 side-by-side
-	var total_w: float = 3.0 * CARD_W + 2.0 * CARD_GAP
-	var cards_left: float = (VIEWPORT_W - total_w) * 0.5
-	var cards_top: float  = 55.0
-	for i in range(3):
-		var member: CombatantData = GameState.party[i] if i < GameState.party.size() else null
-		var card_pos := Vector2(cards_left + float(i) * (CARD_W + CARD_GAP), cards_top)
-		_build_party_card(root, member, card_pos)
+	var div := ColorRect.new()
+	div.color = Color(0.30, 0.26, 0.18, 0.70)
+	div.size = Vector2(VIEWPORT_W, 1.0)
+	div.position = Vector2(0.0, HEADER_H - 1.0)
+	parent.add_child(div)
 
-	# Inventory — bottom half
-	var inv_top: float = cards_top + CARD_H + 18.0
-	_build_inventory(root, Vector2(60.0, inv_top),
-			Vector2(VIEWPORT_W - 120.0, VIEWPORT_H - inv_top - 16.0))
+## --- Left Column: Inventory ---
 
-## --- Party Card ---
+func _build_inventory_column(parent: Control) -> void:
+	var col_h: float = VIEWPORT_H - CONTENT_TOP - SIDE_M
 
-func _build_party_card(parent: Control, member: CombatantData, pos: Vector2) -> void:
-	var card := ColorRect.new()
-	card.color = Color(0.10, 0.08, 0.06, 0.90)
-	card.size = Vector2(CARD_W, CARD_H)
-	card.position = pos
-	parent.add_child(card)
+	var bg := ColorRect.new()
+	bg.color = Color(0.08, 0.07, 0.06, 0.70)
+	bg.position = Vector2(LEFT_X, CONTENT_TOP)
+	bg.size = Vector2(LEFT_W, col_h)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(bg)
 
-	if member == null:
-		var empty_lbl := Label.new()
-		empty_lbl.text = "(empty slot)"
-		empty_lbl.set_anchors_preset(Control.PRESET_CENTER)
-		empty_lbl.add_theme_color_override("font_color", Color(0.55, 0.52, 0.48))
-		card.add_child(empty_lbl)
-		return
-
-	var y: float = 10.0
-
-	# Portrait — fall back to Godot icon (CombatantData.portrait is null on all current archetypes)
-	var portrait := TextureRect.new()
-	portrait.texture = member.portrait if member.portrait != null \
-			else (load("res://icon.svg") as Texture2D)
-	portrait.position = Vector2((CARD_W - PORTRAIT_SZ) * 0.5, y)
-	portrait.size = Vector2(PORTRAIT_SZ, PORTRAIT_SZ)
-	portrait.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	card.add_child(portrait)
-	y += PORTRAIT_SZ + 8.0
-
-	# Name
-	var name_lbl := Label.new()
-	name_lbl.text = member.character_name
-	name_lbl.position = Vector2(0.0, y)
-	name_lbl.size = Vector2(CARD_W, 22.0)
-	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lbl.add_theme_font_size_override("font_size", 15)
-	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.75))
-	card.add_child(name_lbl)
-	y += 24.0
-
-	# Class
-	var class_lbl := Label.new()
-	class_lbl.text = member.unit_class
-	class_lbl.position = Vector2(0.0, y)
-	class_lbl.size = Vector2(CARD_W, 18.0)
-	class_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	class_lbl.add_theme_font_size_override("font_size", 12)
-	class_lbl.add_theme_color_override("font_color", Color(0.70, 0.65, 0.55))
-	card.add_child(class_lbl)
-	y += 22.0
-
-	# HP bar track
-	var bar_w: float   = CARD_W - 40.0
-	var bar_h: float   = 12.0
-	var bar_x: float   = 20.0
-	var hp_max_val: int = member.hp_max
-	var hp_fill: float  = float(member.current_hp) / float(max(hp_max_val, 1))
-
-	var bar_bg := ColorRect.new()
-	bar_bg.color = Color(0.15, 0.08, 0.08)
-	bar_bg.size = Vector2(bar_w, bar_h)
-	bar_bg.position = Vector2(bar_x, y)
-	card.add_child(bar_bg)
-
-	if hp_fill > 0.0:
-		var fill_color: Color = Color(0.22, 0.68, 0.28) if hp_fill > 0.5 else Color(0.70, 0.38, 0.12)
-		var bar_fill := ColorRect.new()
-		bar_fill.color = fill_color
-		bar_fill.size = Vector2(bar_w * hp_fill, bar_h)
-		bar_fill.position = Vector2(bar_x, y)
-		card.add_child(bar_fill)
-	y += bar_h + 4.0
-
-	# HP text
-	var hp_lbl := Label.new()
-	hp_lbl.text = "HP: %d / %d" % [member.current_hp, hp_max_val]
-	hp_lbl.position = Vector2(bar_x, y)
-	hp_lbl.add_theme_font_size_override("font_size", 11)
-	hp_lbl.add_theme_color_override("font_color", Color(0.82, 0.82, 0.82))
-	card.add_child(hp_lbl)
-	y += 18.0
-
-	# Attributes row
-	var attrs_lbl := Label.new()
-	attrs_lbl.text = "STR %d  DEX %d  COG %d  WIL %d  VIT %d" % [
-		member.strength, member.dexterity, member.cognition,
-		member.willpower, member.vitality
-	]
-	attrs_lbl.position = Vector2(0.0, y)
-	attrs_lbl.size = Vector2(CARD_W, 18.0)
-	attrs_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	attrs_lbl.add_theme_font_size_override("font_size", 11)
-	attrs_lbl.add_theme_color_override("font_color", Color(0.80, 0.78, 0.72))
-	card.add_child(attrs_lbl)
-
-	# Dead state — grey card, add DEFEATED stamp to parent so it isn't greyed
-	if member.is_dead:
-		card.modulate = Color(0.5, 0.5, 0.5, 1.0)
-		var stamp := Label.new()
-		stamp.text = "DEFEATED"
-		stamp.size = Vector2(CARD_W, 32.0)
-		stamp.position = pos + Vector2(0.0, (CARD_H - 32.0) * 0.5)
-		stamp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		stamp.add_theme_font_size_override("font_size", 24)
-		stamp.add_theme_color_override("font_color", Color(0.72, 0.12, 0.08))
-		parent.add_child(stamp)
-
-## --- Inventory ---
-
-func _build_inventory(parent: Control, pos: Vector2, size: Vector2) -> void:
 	var header := Label.new()
 	header.text = "BAG"
-	header.position = pos
-	header.add_theme_font_size_override("font_size", 16)
+	header.position = Vector2(LEFT_X + 8.0, CONTENT_TOP + 6.0)
+	header.add_theme_font_size_override("font_size", 13)
 	header.add_theme_color_override("font_color", Color(0.90, 0.82, 0.60))
 	parent.add_child(header)
 
 	var scroll := ScrollContainer.new()
-	scroll.position = pos + Vector2(0.0, 26.0)
-	scroll.size = size - Vector2(0.0, 26.0)
+	scroll.position = Vector2(LEFT_X, CONTENT_TOP + 26.0)
+	scroll.size = Vector2(LEFT_W, col_h - 26.0)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	parent.add_child(scroll)
 
 	var vbox := VBoxContainer.new()
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.custom_minimum_size = Vector2(size.x - 20.0, 0.0)
+	vbox.custom_minimum_size = Vector2(LEFT_W - 12.0, 0.0)
+	vbox.add_theme_constant_override("separation", 3)
 	scroll.add_child(vbox)
 
-	var inventory: Array = GameState.inventory
-
-	if inventory.is_empty():
+	if GameState.inventory.is_empty():
 		var empty_lbl := Label.new()
 		empty_lbl.text = "— empty —"
-		empty_lbl.add_theme_font_size_override("font_size", 13)
-		empty_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.44))
+		empty_lbl.add_theme_font_size_override("font_size", 12)
+		empty_lbl.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
 		vbox.add_child(empty_lbl)
 		return
 
-	for item: Dictionary in inventory:
-		var row := Label.new()
-		row.add_theme_font_size_override("font_size", 13)
-		row.add_theme_color_override("font_color", Color(0.88, 0.85, 0.78))
-		if item.get("item_type", "") == "equipment":
-			var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
-			row.text = "%s  %s  %s" % [item["name"], _slot_name(eq.slot), _bonuses_str(eq.stat_bonuses)]
-		else:
-			row.text = "%s  consumable  %s" % [item["name"], item.get("description", "")]
-		vbox.add_child(row)
+	for item: Dictionary in GameState.inventory:
+		_build_draggable_item(vbox, item)
 
-## --- Helpers ---
+func _build_draggable_item(parent: Control, item: Dictionary) -> void:
+	var is_equipment: bool = item.get("item_type", "") == "equipment"
+
+	var row := PanelContainer.new()
+	row.custom_minimum_size = Vector2(LEFT_W - 14.0, 0.0)
+
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color = Color(0.14, 0.12, 0.09, 0.90)
+	sbox.border_width_left = 2; sbox.border_width_top = 2
+	sbox.border_width_right = 2; sbox.border_width_bottom = 2
+	sbox.border_color = Color(0.36, 0.30, 0.20, 0.80)
+	sbox.set_corner_radius_all(3)
+	row.add_theme_stylebox_override("panel", sbox)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 4)
+	row.add_child(hbox)
+
+	var icon_tex: Texture2D
+	if is_equipment:
+		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
+		match eq.slot:
+			EquipmentData.Slot.WEAPON:    icon_tex = load(ICON_WEAPON)    as Texture2D
+			EquipmentData.Slot.ARMOR:     icon_tex = load(ICON_ARMOR)     as Texture2D
+			EquipmentData.Slot.ACCESSORY: icon_tex = load(ICON_ACCESSORY) as Texture2D
+	else:
+		icon_tex = load(ICON_CONSUMABLE) as Texture2D
+
+	if icon_tex != null:
+		var icon_rect := TextureRect.new()
+		icon_rect.texture = icon_tex
+		icon_rect.custom_minimum_size = Vector2(20.0, 20.0)
+		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.add_child(icon_rect)
+
+	var text_vbox := VBoxContainer.new()
+	text_vbox.add_theme_constant_override("separation", 1)
+	text_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(text_vbox)
+
+	var name_lbl := Label.new()
+	name_lbl.text = item.get("name", "?")
+	name_lbl.add_theme_font_size_override("font_size", 11)
+	name_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.78))
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_vbox.add_child(name_lbl)
+
+	if is_equipment:
+		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
+		var bonus_str: String = _bonuses_str(eq.stat_bonuses)
+		if bonus_str != "":
+			var bonus_lbl := Label.new()
+			bonus_lbl.text = bonus_str
+			bonus_lbl.add_theme_font_size_override("font_size", 10)
+			bonus_lbl.add_theme_color_override("font_color", Color(0.55, 0.78, 0.55))
+			bonus_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			text_vbox.add_child(bonus_lbl)
+
+	parent.add_child(row)
+
+	var tip: String
+	if is_equipment:
+		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
+		tip = "%s  [%s]\n%s\n%s\n\nDrag to a matching slot to equip." % [
+			item.get("name", "?"), _slot_name(eq.slot),
+			_bonuses_str(eq.stat_bonuses), eq.description
+		]
+	else:
+		tip = "%s  [consumable]\n%s\n\nDrag to a CONSUMABLE slot to equip." % [
+			item.get("name", "?"), item.get("description", "")
+		]
+	row.tooltip_text = tip
+
+	row.set_drag_forwarding(
+		func(_at: Vector2) -> Variant:
+			var preview := Label.new()
+			preview.text = "  %s" % item.get("name", "?")
+			preview.add_theme_font_size_override("font_size", 12)
+			preview.add_theme_color_override("font_color", Color(0.95, 0.90, 0.70))
+			row.set_drag_preview(preview)
+			return {"item": item},
+		Callable(),
+		Callable()
+	)
+
+## --- Member Card ---
+
+func _build_member_card(parent: Control, member: CombatantData, pos: Vector2, member_idx: int) -> void:
+	var card_bg := ColorRect.new()
+	card_bg.position = pos
+	card_bg.size = Vector2(MID_W, MEMBER_H)
+	card_bg.color = Color(0.07, 0.07, 0.07, 0.50) if member.is_dead \
+		else Color(0.10, 0.09, 0.07, 0.88)
+	card_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(card_bg)
+
+	# Divider between left quadrant area and right tab panel
+	var divider := ColorRect.new()
+	divider.color = Color(0.28, 0.24, 0.18, 0.60)
+	divider.position = pos + Vector2(ABIL_OFFSET - 2.0, 4.0)
+	divider.size = Vector2(2.0, MEMBER_H - 8.0)
+	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(divider)
+
+	_build_stats_gear(parent, member, pos, member_idx)
+	_build_ability_pool_tabs(parent, member, pos)
+
+## --- Stats + Gear (left portion of card) ---
+## 4 quadrants separated by a full-height vertical + full-width horizontal divider:
+##   TOP-LEFT:     Name (prominent) / Class / Background / HP bar
+##   TOP-RIGHT:    Derived stats (BLUE) + Base attributes (YELLOW)
+##   BOTTOM-LEFT:  Equipment 2×2 grid (RED)
+##   BOTTOM-RIGHT: Slotted abilities 2×2 grid (GREEN)
+
+func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2, member_idx: int) -> void:
+	var x: float       = card_pos.x + 10.0
+	var inner_w: float = STATS_BG_W - 20.0   ## = 510
+	var is_dead: bool  = member.is_dead
+	var half_w: float  = inner_w * 0.5        ## = 255
+	var mid_y: float   = card_pos.y + 108.0   ## horizontal divider y
+	var sep_color: Color = Color(0.55, 0.52, 0.44, 0.50)
+
+	# Full-card quadrant separators
+	var vsep := ColorRect.new()
+	vsep.color = sep_color
+	vsep.position = Vector2(x + half_w, card_pos.y + 4.0)
+	vsep.size = Vector2(1.0, MEMBER_H - 8.0)
+	vsep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(vsep)
+
+	var hsep := ColorRect.new()
+	hsep.color = sep_color
+	hsep.position = Vector2(x, mid_y)
+	hsep.size = Vector2(inner_w, 1.0)
+	hsep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(hsep)
+
+	# === TOP LEFT: Name / Class / Background / HP ===
+	var tl_x: float = x + 8.0
+	var tl_y: float = card_pos.y + 8.0
+	var tl_w: float = half_w - 16.0   ## = 239
+
+	var name_lbl := Label.new()
+	name_lbl.text = member.character_name + (" [DEFEATED]" if is_dead else "")
+	name_lbl.position = Vector2(tl_x, tl_y)
+	name_lbl.add_theme_font_size_override("font_size", 17)
+	name_lbl.add_theme_color_override("font_color",
+		Color(0.72, 0.12, 0.08) if is_dead else Color(0.95, 0.90, 0.72))
+	parent.add_child(name_lbl)
+	tl_y += 24.0
+
+	var class_lbl := Label.new()
+	class_lbl.text = "Class: %s" % member.unit_class
+	class_lbl.position = Vector2(tl_x, tl_y)
+	class_lbl.add_theme_font_size_override("font_size", 13)
+	class_lbl.add_theme_color_override("font_color",
+		Color(0.78, 0.68, 0.44).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
+	parent.add_child(class_lbl)
+	tl_y += 18.0
+
+	var bg_text: String = member.background if member.background != "" else "—"
+	var bg_lbl := Label.new()
+	bg_lbl.text = "Background: %s" % bg_text
+	bg_lbl.position = Vector2(tl_x, tl_y)
+	bg_lbl.add_theme_font_size_override("font_size", 13)
+	bg_lbl.add_theme_color_override("font_color",
+		Color(0.58, 0.74, 0.50).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
+	parent.add_child(bg_lbl)
+	tl_y += 22.0
+
+	var bar_w: float   = tl_w
+	var hp_fill: float = float(member.current_hp) / float(max(member.hp_max, 1))
+	var bar_bg := ColorRect.new()
+	bar_bg.color = Color(0.12, 0.06, 0.06)
+	bar_bg.size = Vector2(bar_w, 8.0)
+	bar_bg.position = Vector2(tl_x, tl_y)
+	bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(bar_bg)
+	if hp_fill > 0.0:
+		var fc: Color = Color(0.22, 0.68, 0.28) if hp_fill > 0.5 else Color(0.70, 0.38, 0.12)
+		var bar_fill := ColorRect.new()
+		bar_fill.color = fc
+		bar_fill.size = Vector2(bar_w * hp_fill, 8.0)
+		bar_fill.position = Vector2(tl_x, tl_y)
+		bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		parent.add_child(bar_fill)
+	tl_y += 10.0
+	var hp_lbl := Label.new()
+	hp_lbl.text = "HP %d / %d" % [member.current_hp, member.hp_max]
+	hp_lbl.position = Vector2(tl_x, tl_y)
+	hp_lbl.add_theme_font_size_override("font_size", 11)
+	hp_lbl.add_theme_color_override("font_color",
+		Color(0.70, 0.70, 0.70).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
+	parent.add_child(hp_lbl)
+
+	# === TOP RIGHT: Derived Stats (BLUE) + Base Attributes (YELLOW) ===
+	var tr_x: float = x + half_w + 8.0
+	var tr_w: float = half_w - 16.0   ## = 239
+	var tr_y: float = card_pos.y + 10.0
+
+	# Derived stats — 4 columns
+	var derived_defs: Array = [
+		["Speed",    str(member.speed),        "Speed\nMovement cells per turn.\n= 2 + DEX + gear bonuses"],
+		["Defense",  str(member.defense),      "Defense\nDamage reduction.\n= armor_defense + gear bonuses"],
+		["EN Max",   str(member.energy_max),   "Energy Max\nTotal energy pool.\n= 5 + VIT + gear bonuses"],
+		["EN Regen", str(member.energy_regen), "Energy Regen\nEnergy restored at turn start.\n= 2 + WIL + gear bonuses"],
+	]
+	var dcol_w: float = tr_w / float(derived_defs.size())
+	for i in range(derived_defs.size()):
+		var dd: Array = derived_defs[i]
+		var dx: float = tr_x + float(i) * dcol_w
+		var dlbl := Label.new()
+		dlbl.text = dd[0]
+		dlbl.position = Vector2(dx, tr_y)
+		dlbl.add_theme_font_size_override("font_size", 9)
+		dlbl.add_theme_color_override("font_color",
+			Color(0.48, 0.62, 0.80).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
+		dlbl.tooltip_text = dd[2]
+		dlbl.mouse_filter = Control.MOUSE_FILTER_PASS
+		parent.add_child(dlbl)
+		var dval := Label.new()
+		dval.text = dd[1]
+		dval.position = Vector2(dx, tr_y + 11.0)
+		dval.add_theme_font_size_override("font_size", 14)
+		dval.add_theme_color_override("font_color",
+			Color(0.68, 0.84, 1.00).lerp(Color(0.40, 0.40, 0.40), 0.5 if is_dead else 0.0))
+		dval.tooltip_text = dd[2]
+		dval.mouse_filter = Control.MOUSE_FILTER_PASS
+		parent.add_child(dval)
+	tr_y += 36.0
+
+	# Base attributes — 5 columns
+	var attr_defs: Array = [
+		["STR", member.strength,  "Strength\nDrives physical power. Used in attack formulas."],
+		["DEX", member.dexterity, "Dexterity\nSpeed = 2 + DEX cells of movement per turn."],
+		["COG", member.cognition, "Cognition\nIntelligence. Reserved for future ability cost scaling."],
+		["WIL", member.willpower, "Willpower\nEnergy Regen = 2 + WIL energy restored each turn."],
+		["VIT", member.vitality,  "Vitality\nHP Max = 10 × VIT.  Energy Max = 5 + VIT."],
+	]
+	var acol_w: float = tr_w / float(attr_defs.size())
+	for i in range(attr_defs.size()):
+		var ad: Array = attr_defs[i]
+		var ax: float = tr_x + float(i) * acol_w
+		var abbr := Label.new()
+		abbr.text = ad[0]
+		abbr.position = Vector2(ax, tr_y)
+		abbr.add_theme_font_size_override("font_size", 10)
+		abbr.add_theme_color_override("font_color",
+			Color(0.80, 0.72, 0.34).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
+		abbr.tooltip_text = ad[2]
+		abbr.mouse_filter = Control.MOUSE_FILTER_PASS
+		parent.add_child(abbr)
+		var val := Label.new()
+		val.text = str(ad[1])
+		val.position = Vector2(ax, tr_y + 12.0)
+		val.add_theme_font_size_override("font_size", 16)
+		val.add_theme_color_override("font_color",
+			Color(0.98, 0.92, 0.52).lerp(Color(0.45, 0.45, 0.45), 0.5 if is_dead else 0.0))
+		val.tooltip_text = ad[2]
+		val.mouse_filter = Control.MOUSE_FILTER_PASS
+		parent.add_child(val)
+
+	# === BOTTOM LEFT: Equipment 2×2 ===
+	var bl_x: float = x + 8.0
+	var bl_y: float = mid_y + 7.0
+	var bl_w: float = half_w - 16.0   ## = 239
+
+	var eq_hdr := Label.new()
+	eq_hdr.text = "EQUIPMENT"
+	eq_hdr.position = Vector2(bl_x, bl_y)
+	eq_hdr.add_theme_font_size_override("font_size", 9)
+	eq_hdr.add_theme_color_override("font_color", Color(0.65, 0.40, 0.28))
+	parent.add_child(eq_hdr)
+	bl_y += 13.0
+
+	var slot_defs: Array = [
+		[ICON_WEAPON,    member.weapon,    "weapon",    EquipmentData.Slot.WEAPON,    "WEAPON"],
+		[ICON_ARMOR,     member.armor,     "armor",     EquipmentData.Slot.ARMOR,     "ARMOR"],
+		[ICON_ACCESSORY, member.accessory, "accessory", EquipmentData.Slot.ACCESSORY, "ACCESSORY"],
+		[ICON_CONSUMABLE,null,             "consumable",SLOT_CONSUMABLE,              "CONSUMABLE"],
+	]
+	var cell_w: float   = bl_w * 0.5
+	var row_h: float    = 26.0
+	var row2_gap: float = 5.0
+	var eq_row_y: Array = [0.0, 0.0, row_h + row2_gap, row_h + row2_gap]
+	var eq_col_x: Array = [0.0, cell_w, 0.0, cell_w]
+
+	for i in range(slot_defs.size()):
+		var sd: Array          = slot_defs[i]
+		var icon_path: String  = sd[0]
+		var eq: EquipmentData  = sd[1]
+		var slot_field: String = sd[2]
+		var slot_type: int     = sd[3]
+		var slot_label: String = sd[4]
+
+		var bx: float = bl_x + eq_col_x[i]
+		var by: float = bl_y + eq_row_y[i]
+
+		var slot_btn := Button.new()
+		slot_btn.flat = true
+		slot_btn.position = Vector2(bx, by)
+		slot_btn.size = Vector2(cell_w - 2.0, row_h)
+		slot_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		slot_btn.add_theme_font_size_override("font_size", 11)
+
+		var icon_tex: Texture2D = load(icon_path) as Texture2D
+		if icon_tex != null:
+			slot_btn.icon = icon_tex
+		slot_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		slot_btn.expand_icon = false
+
+		if slot_type == SLOT_CONSUMABLE:
+			if member.consumable != "":
+				var cd: ConsumableData = ConsumableLibrary.get_consumable(member.consumable)
+				slot_btn.text = cd.consumable_name
+				slot_btn.tooltip_text = "%s\n%s\n\nClick to unequip." % [cd.consumable_name, cd.description]
+				slot_btn.add_theme_color_override("font_color", Color(0.85, 0.82, 0.72))
+			else:
+				slot_btn.text = "— none —"
+				slot_btn.tooltip_text = "No consumable equipped.\nDrag a consumable from your bag to assign."
+				slot_btn.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		elif eq != null:
+			slot_btn.text = eq.equipment_name
+			var bonus: String = _bonuses_str(eq.stat_bonuses)
+			slot_btn.tooltip_text = "%s  [%s]\n%s\n%s\n\nClick to unequip." % [
+				eq.equipment_name, slot_label, bonus, eq.description]
+			slot_btn.add_theme_color_override("font_color", Color(0.85, 0.82, 0.72))
+		else:
+			slot_btn.text = "— empty —"
+			slot_btn.tooltip_text = "No %s equipped.\nDrag a %s from your bag to equip." % [
+				slot_label.to_lower(), slot_label.to_lower()]
+			slot_btn.add_theme_color_override("font_color", Color(0.42, 0.40, 0.38))
+
+		if not is_dead:
+			if slot_type == SLOT_CONSUMABLE and member.consumable != "":
+				var mi: int = member_idx
+				slot_btn.pressed.connect(func(): _unequip_consumable(mi))
+			elif slot_type != SLOT_CONSUMABLE and eq != null:
+				var mi: int = member_idx; var sf: String = slot_field
+				slot_btn.pressed.connect(func(): _unequip_item(mi, sf))
+
+		var st: int = slot_type; var mi: int = member_idx; var sf: String = slot_field
+		slot_btn.set_drag_forwarding(
+			Callable(),
+			func(_p: Vector2, data: Variant) -> bool:
+				return _can_drop_here(data, st, is_dead),
+			func(_p: Vector2, data: Variant) -> void:
+				_drop_to_slot(data["item"], mi, sf)
+		)
+
+		if is_dead:
+			slot_btn.disabled = true
+
+		parent.add_child(slot_btn)
+
+	# === BOTTOM RIGHT: Slotted Abilities 2×2 ===
+	var br_x: float = x + half_w + 8.0
+	var br_y: float = mid_y + 7.0
+	var br_w: float = half_w - 16.0   ## = 239
+
+	var ab_hdr := Label.new()
+	ab_hdr.text = "ABILITIES"
+	ab_hdr.position = Vector2(br_x, br_y)
+	ab_hdr.add_theme_font_size_override("font_size", 9)
+	ab_hdr.add_theme_color_override("font_color", Color(0.32, 0.60, 0.38))
+	parent.add_child(ab_hdr)
+	br_y += 13.0
+
+	var ab_cell_w: float = br_w * 0.5 - 1.0
+	var ab_offsets: Array = [
+		[0.0,              0.0],
+		[ab_cell_w + 2.0,  0.0],
+		[0.0,              row_h + row2_gap],
+		[ab_cell_w + 2.0,  row_h + row2_gap],
+	]
+	for j in range(member.abilities.size()):
+		var ability_id: String = member.abilities[j]
+		var off: Array  = ab_offsets[j]
+		var abx: float  = br_x + off[0]
+		var aby: float  = br_y + off[1]
+
+		if ability_id == "":
+			var empty_lbl := Label.new()
+			empty_lbl.text = "— empty —"
+			empty_lbl.position = Vector2(abx, aby + 5.0)
+			empty_lbl.add_theme_font_size_override("font_size", 11)
+			empty_lbl.add_theme_color_override("font_color", Color(0.35, 0.40, 0.35))
+			parent.add_child(empty_lbl)
+		else:
+			var ab: AbilityData = AbilityLibrary.get_ability(ability_id)
+			var tip: String = "%s\nCost: %d Energy\nAttribute: %s\n\n%s" % [
+				ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description
+			]
+			var ab_lbl := Label.new()
+			ab_lbl.text = ab.ability_name
+			ab_lbl.position = Vector2(abx, aby + 5.0)
+			ab_lbl.custom_minimum_size = Vector2(ab_cell_w, 0.0)
+			ab_lbl.clip_contents = true
+			ab_lbl.add_theme_font_size_override("font_size", 12)
+			ab_lbl.add_theme_color_override("font_color",
+				Color(0.42, 0.50, 0.42) if is_dead else Color(0.58, 0.85, 0.62))
+			ab_lbl.tooltip_text = tip
+			ab_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+			parent.add_child(ab_lbl)
+
+## --- Ability Pool Tabs (right portion of card) ---
+## Tab 1 "Abilities": scrollable list of all abilities in member.ability_pool.
+## Tab 2 "Feats": placeholder — not yet implemented.
+
+func _build_ability_pool_tabs(parent: Control, member: CombatantData, card_pos: Vector2) -> void:
+	var tabs := TabContainer.new()
+	tabs.position = Vector2(card_pos.x + ABIL_OFFSET + 4.0, card_pos.y + 4.0)
+	tabs.size = Vector2(ABIL_BG_W - 8.0, MEMBER_H - 8.0)
+	if member.is_dead:
+		tabs.modulate = Color(0.55, 0.55, 0.55)
+	parent.add_child(tabs)
+
+	var abil_scroll := ScrollContainer.new()
+	abil_scroll.name = "Abilities"
+	abil_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	abil_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	tabs.add_child(abil_scroll)
+
+	var abil_vbox := VBoxContainer.new()
+	abil_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	abil_vbox.add_theme_constant_override("separation", 3)
+	abil_scroll.add_child(abil_vbox)
+
+	if member.ability_pool.is_empty():
+		var placeholder := Label.new()
+		placeholder.text = "No abilities in pool."
+		placeholder.add_theme_font_size_override("font_size", 11)
+		placeholder.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		abil_vbox.add_child(placeholder)
+	else:
+		for ab_id: String in member.ability_pool:
+			var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
+			var tip: String = "%s\nCost: %d Energy\nAttribute: %s\n\n%s" % [
+				ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description
+			]
+
+			var ab_pnl := PanelContainer.new()
+			var sbox := StyleBoxFlat.new()
+			sbox.bg_color = Color(0.12, 0.12, 0.15, 0.80)
+			sbox.border_width_bottom = 1
+			sbox.border_color = Color(0.25, 0.25, 0.30, 0.60)
+			sbox.set_corner_radius_all(2)
+			ab_pnl.add_theme_stylebox_override("panel", sbox)
+			ab_pnl.tooltip_text = tip
+			abil_vbox.add_child(ab_pnl)
+
+			var inner := VBoxContainer.new()
+			inner.add_theme_constant_override("separation", 1)
+			ab_pnl.add_child(inner)
+
+			var ab_name := Label.new()
+			ab_name.text = ab.ability_name
+			ab_name.add_theme_font_size_override("font_size", 12)
+			ab_name.add_theme_color_override("font_color", Color(0.90, 0.86, 0.72))
+			ab_name.tooltip_text = tip
+			ab_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			inner.add_child(ab_name)
+
+			var ab_sub := Label.new()
+			ab_sub.text = "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)]
+			ab_sub.add_theme_font_size_override("font_size", 10)
+			ab_sub.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
+			ab_sub.tooltip_text = tip
+			ab_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			inner.add_child(ab_sub)
+
+	var feats_panel := Control.new()
+	feats_panel.name = "Feats"
+	tabs.add_child(feats_panel)
+
+	var feats_lbl := Label.new()
+	feats_lbl.text = "Feats coming soon."
+	feats_lbl.add_theme_font_size_override("font_size", 12)
+	feats_lbl.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+	feats_lbl.position = Vector2(12.0, 12.0)
+	feats_panel.add_child(feats_lbl)
+
+## --- Drag-and-Drop Logic ---
+
+func _can_drop_here(data: Variant, slot_type: int, is_dead: bool) -> bool:
+	if is_dead:
+		return false
+	if not (data is Dictionary) or not data.has("item"):
+		return false
+	var item: Dictionary = data["item"]
+	if slot_type == SLOT_CONSUMABLE:
+		return item.get("item_type", "") == "consumable"
+	if item.get("item_type", "") != "equipment":
+		return false
+	var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
+	return eq.slot == slot_type
+
+func _drop_to_slot(item: Dictionary, member_idx: int, slot_field: String) -> void:
+	var member: CombatantData = GameState.party[member_idx]
+	if item.get("item_type", "") == "equipment":
+		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
+		match slot_field:
+			"weapon":
+				if member.weapon    != null: _push_equipment_to_bag(member.weapon)
+				member.weapon    = eq
+			"armor":
+				if member.armor     != null: _push_equipment_to_bag(member.armor)
+				member.armor     = eq
+			"accessory":
+				if member.accessory != null: _push_equipment_to_bag(member.accessory)
+				member.accessory = eq
+		GameState.remove_from_inventory(item["id"])
+	elif item.get("item_type", "") == "consumable":
+		if member.consumable != "": _push_consumable_to_bag(member.consumable)
+		member.consumable = item["id"]
+		GameState.remove_from_inventory(item["id"])
+	_rebuild()
+
+func _unequip_item(member_idx: int, slot_field: String) -> void:
+	var member: CombatantData = GameState.party[member_idx]
+	var eq: EquipmentData
+	match slot_field:
+		"weapon":    eq = member.weapon;    member.weapon    = null
+		"armor":     eq = member.armor;     member.armor     = null
+		"accessory": eq = member.accessory; member.accessory = null
+	if eq != null: _push_equipment_to_bag(eq)
+	_rebuild()
+
+func _unequip_consumable(member_idx: int) -> void:
+	var member: CombatantData = GameState.party[member_idx]
+	if member.consumable != "":
+		_push_consumable_to_bag(member.consumable)
+		member.consumable = ""
+	_rebuild()
+
+## --- Inventory Helpers ---
+
+func _push_equipment_to_bag(eq: EquipmentData) -> void:
+	GameState.add_to_inventory({
+		"id": eq.equipment_id, "name": eq.equipment_name,
+		"description": eq.description, "item_type": "equipment",
+	})
+
+func _push_consumable_to_bag(consumable_id: String) -> void:
+	var cd: ConsumableData = ConsumableLibrary.get_consumable(consumable_id)
+	GameState.add_to_inventory({
+		"id": cd.consumable_id, "name": cd.consumable_name,
+		"description": cd.description, "item_type": "consumable",
+	})
+
+## --- String Helpers ---
+
+func _attr_name(attr: int) -> String:
+	match attr:
+		AbilityData.Attribute.STRENGTH:  return "Strength"
+		AbilityData.Attribute.DEXTERITY: return "Dexterity"
+		AbilityData.Attribute.COGNITION: return "Cognition"
+		AbilityData.Attribute.WILLPOWER: return "Willpower"
+		AbilityData.Attribute.VITALITY:  return "Vitality"
+		_: return "—"
+
+func _truncate(text: String, max_chars: int) -> String:
+	return text if text.length() <= max_chars else text.substr(0, max_chars - 1) + "…"
 
 func _slot_name(slot: int) -> String:
 	match slot:
@@ -229,8 +726,7 @@ func _slot_name(slot: int) -> String:
 		_: return "?"
 
 func _bonuses_str(bonuses: Dictionary) -> String:
-	if bonuses.is_empty():
-		return ""
+	if bonuses.is_empty(): return ""
 	var parts: PackedStringArray = []
 	for key: String in bonuses:
 		var val: int = bonuses[key]
