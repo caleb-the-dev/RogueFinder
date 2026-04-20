@@ -663,11 +663,26 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 				)
 
 		var st: int = slot_type; var mi: int = member_idx; var sf: String = slot_field
+		var cur_eq_cap: EquipmentData = eq
+		var cur_con_cap: String = member.consumable
+		var sb_cap: Button = slot_btn
 		slot_btn.set_drag_forwarding(
 			Callable(),
-			func(_p: Vector2, data: Variant) -> bool:
-				return _can_drop_here(data, st, is_dead),
+			func(drop_pos: Vector2, data: Variant) -> bool:
+				if _can_drop_here(data, st, is_dead):
+					if data is Dictionary and data.has("item"):
+						var inc: Dictionary = (data as Dictionary)["item"]
+						if st == SLOT_CONSUMABLE and cur_con_cap != "":
+							_show_consumable_compare(sb_cap.global_position + drop_pos,
+								cur_con_cap, inc)
+						elif st != SLOT_CONSUMABLE and cur_eq_cap != null:
+							_show_equip_compare(sb_cap.global_position + drop_pos,
+								cur_eq_cap, inc)
+					return true
+				_clear_drag_compare()
+				return false,
 			func(_p: Vector2, data: Variant) -> void:
+				_clear_drag_compare()
 				_drop_to_slot(data["item"], mi, sf)
 		)
 
@@ -778,7 +793,34 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 	abil_tab.add_theme_constant_override("separation", 2)
 	tabs.add_child(abil_tab)
 
-	# Sort controls row + hint label
+	# Top bar: view toggle + drag hint, right-aligned and prominent
+	var top_bar := HBoxContainer.new()
+	top_bar.add_theme_constant_override("separation", 6)
+	abil_tab.add_child(top_bar)
+	var top_spacer := Control.new()
+	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_bar.add_child(top_spacer)
+	var abil_view_btn := Button.new()
+	abil_view_btn.text = "2×" if not _abil_views_wide[member_idx] else "1×"
+	abil_view_btn.flat = false
+	abil_view_btn.add_theme_font_size_override("font_size", 10)
+	abil_view_btn.add_theme_color_override("font_color", Color(0.42, 0.68, 0.48))
+	abil_view_btn.tooltip_text = "Toggle 1 or 2 abilities per row"
+	var mi_view: int = member_idx
+	abil_view_btn.pressed.connect(func() -> void:
+		_abil_views_wide[mi_view] = not _abil_views_wide[mi_view]
+		_rebuild()
+	)
+	top_bar.add_child(abil_view_btn)
+	var hint_lbl := Label.new()
+	hint_lbl.text = "drag to slot →"
+	hint_lbl.add_theme_font_size_override("font_size", 10)
+	hint_lbl.add_theme_color_override("font_color", Color(0.42, 0.60, 0.45))
+	hint_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	top_bar.add_child(hint_lbl)
+
+	# Sort row (left-aligned, compact)
 	var sort_row := HBoxContainer.new()
 	sort_row.add_theme_constant_override("separation", 3)
 	abil_tab.add_child(sort_row)
@@ -807,28 +849,6 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			_rebuild()
 		)
 		sort_row.add_child(sbtn)
-	# View toggle + hint right-aligned
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sort_row.add_child(spacer)
-	var abil_view_btn := Button.new()
-	abil_view_btn.text = "2×" if not _abil_views_wide[member_idx] else "1×"
-	abil_view_btn.flat = true
-	abil_view_btn.add_theme_font_size_override("font_size", 9)
-	abil_view_btn.add_theme_color_override("font_color", Color(0.42, 0.52, 0.42, 0.80))
-	abil_view_btn.tooltip_text = "Toggle 1 or 2 abilities per row"
-	var mi_view: int = member_idx
-	abil_view_btn.pressed.connect(func() -> void:
-		_abil_views_wide[mi_view] = not _abil_views_wide[mi_view]
-		_rebuild()
-	)
-	sort_row.add_child(abil_view_btn)
-	var hint_lbl := Label.new()
-	hint_lbl.text = "drag to slot →"
-	hint_lbl.add_theme_font_size_override("font_size", 9)
-	hint_lbl.add_theme_color_override("font_color", Color(0.42, 0.52, 0.42, 0.60))
-	hint_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sort_row.add_child(hint_lbl)
 
 	# Search bar
 	var search_edit := LineEdit.new()
@@ -920,10 +940,12 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			sbox.border_color = Color(0.42, 0.36, 0.12, 0.70) if is_slotted \
 				else Color(0.25, 0.25, 0.30, 0.60)
 			sbox.set_corner_radius_all(2)
+			ab_pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			ab_pnl.add_theme_stylebox_override("panel", sbox)
 			ab_pnl.tooltip_text = tip
 			abil_container.add_child(ab_pnl)
 
+			var wide: bool = _abil_views_wide[member_idx]
 			var inner := VBoxContainer.new()
 			inner.add_theme_constant_override("separation", 1)
 			ab_pnl.add_child(inner)
@@ -931,20 +953,21 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			var ab_name := Label.new()
 			ab_name.text = ("● " if is_slotted else "") + ab.ability_name \
 				+ ("  [s%d]" % (slot_idx + 1) if is_slotted else "")
-			ab_name.add_theme_font_size_override("font_size", 12)
+			ab_name.add_theme_font_size_override("font_size", 11 if wide else 12)
 			ab_name.add_theme_color_override("font_color",
 				Color(0.95, 0.82, 0.20) if is_slotted else Color(0.90, 0.86, 0.72))
 			ab_name.tooltip_text = tip
 			ab_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			inner.add_child(ab_name)
 
-			var ab_sub := Label.new()
-			ab_sub.text = "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)]
-			ab_sub.add_theme_font_size_override("font_size", 10)
-			ab_sub.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
-			ab_sub.tooltip_text = tip
-			ab_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			inner.add_child(ab_sub)
+			if not wide:
+				var ab_sub := Label.new()
+				ab_sub.text = "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)]
+				ab_sub.add_theme_font_size_override("font_size", 10)
+				ab_sub.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
+				ab_sub.tooltip_text = tip
+				ab_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				inner.add_child(ab_sub)
 
 			if not member.is_dead:
 				var ai: String = ab_id
@@ -977,11 +1000,108 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 
 func _show_drag_compare(near_pos: Vector2, existing_id: String, incoming_id: String) -> void:
 	if _cmp_existing == existing_id and _cmp_incoming == incoming_id:
-		return  ## already showing the right pair — no-op
+		return
 	_clear_drag_compare()
 	_cmp_existing = existing_id
 	_cmp_incoming = incoming_id
 
+	var panel := _make_compare_panel()
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 14)
+	panel.add_child(hbox)
+
+	for pair: Array in [
+			["CURRENT", existing_id, Color(0.85, 0.32, 0.28)],
+			["→  REPLACING", incoming_id, Color(0.38, 0.72, 0.45)]
+		]:
+		var ab: AbilityData = AbilityLibrary.get_ability(pair[1])
+		var col := _make_compare_col(hbox, pair[0], pair[2])
+		_add_cmp_label(col, ab.ability_name, 14, Color(0.92, 0.88, 0.78))
+		_add_cmp_label(col, "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)],
+			10, Color(0.65, 0.62, 0.50))
+		_add_cmp_desc(col, ab.description)
+
+	var panel_w: float = 360.0; var panel_h: float = 110.0
+	panel.position = Vector2(
+		clampf(near_pos.x, MID_X, VIEWPORT_W - panel_w - 8.0),
+		clampf(near_pos.y + 22.0, CONTENT_TOP, VIEWPORT_H - panel_h - 8.0)
+	)
+
+func _clear_drag_compare() -> void:
+	if _drag_compare_panel != null and is_instance_valid(_drag_compare_panel):
+		_drag_compare_panel.queue_free()
+	_drag_compare_panel = null
+	_cmp_existing = ""
+	_cmp_incoming = ""
+
+func _show_equip_compare(near_pos: Vector2, cur_eq: EquipmentData, incoming: Dictionary) -> void:
+	var key_b: String = incoming.get("id", "")
+	if _cmp_existing == cur_eq.equipment_id and _cmp_incoming == key_b:
+		return
+	_clear_drag_compare()
+	_cmp_existing = cur_eq.equipment_id
+	_cmp_incoming = key_b
+
+	var panel := _make_compare_panel()
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 14)
+	panel.add_child(hbox)
+
+	# Left: current equipped item
+	var col_a := _make_compare_col(hbox, "CURRENT", Color(0.85, 0.32, 0.28))
+	_add_cmp_label(col_a, cur_eq.equipment_name, 14, Color(0.92, 0.88, 0.78))
+	_add_cmp_label(col_a, "%s  %s" % [_slot_name(cur_eq.slot), _bonuses_str(cur_eq.stat_bonuses)],
+		10, Color(0.65, 0.62, 0.50))
+	_add_cmp_desc(col_a, cur_eq.description)
+
+	# Right: incoming item from bag
+	var col_b := _make_compare_col(hbox, "→  REPLACING", Color(0.38, 0.72, 0.45))
+	if incoming.get("item_type", "") == "equipment":
+		var in_eq: EquipmentData = EquipmentLibrary.get_equipment(incoming["id"])
+		_add_cmp_label(col_b, in_eq.equipment_name, 14, Color(0.92, 0.88, 0.78))
+		_add_cmp_label(col_b, "%s  %s" % [_slot_name(in_eq.slot), _bonuses_str(in_eq.stat_bonuses)],
+			10, Color(0.65, 0.62, 0.50))
+		_add_cmp_desc(col_b, in_eq.description)
+	else:
+		_add_cmp_label(col_b, incoming.get("name", "?"), 14, Color(0.92, 0.88, 0.78))
+		_add_cmp_desc(col_b, incoming.get("description", ""))
+
+	var panel_w: float = 360.0; var panel_h: float = 110.0
+	panel.position = Vector2(
+		clampf(near_pos.x, LEFT_X, VIEWPORT_W - panel_w - 8.0),
+		clampf(near_pos.y + 22.0, CONTENT_TOP, VIEWPORT_H - panel_h - 8.0)
+	)
+
+func _show_consumable_compare(near_pos: Vector2, cur_id: String, incoming: Dictionary) -> void:
+	var key_b: String = incoming.get("id", "")
+	if _cmp_existing == cur_id and _cmp_incoming == key_b:
+		return
+	_clear_drag_compare()
+	_cmp_existing = cur_id
+	_cmp_incoming = key_b
+
+	var panel := _make_compare_panel()
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 14)
+	panel.add_child(hbox)
+
+	var cur_cd: ConsumableData = ConsumableLibrary.get_consumable(cur_id)
+	var col_a := _make_compare_col(hbox, "CURRENT", Color(0.85, 0.32, 0.28))
+	_add_cmp_label(col_a, cur_cd.consumable_name, 14, Color(0.92, 0.88, 0.78))
+	_add_cmp_desc(col_a, cur_cd.description)
+
+	var col_b := _make_compare_col(hbox, "→  REPLACING", Color(0.38, 0.72, 0.45))
+	_add_cmp_label(col_b, incoming.get("name", "?"), 14, Color(0.92, 0.88, 0.78))
+	_add_cmp_desc(col_b, incoming.get("description", ""))
+
+	var panel_w: float = 360.0; var panel_h: float = 110.0
+	panel.position = Vector2(
+		clampf(near_pos.x, LEFT_X, VIEWPORT_W - panel_w - 8.0),
+		clampf(near_pos.y + 22.0, CONTENT_TOP, VIEWPORT_H - panel_h - 8.0)
+	)
+
+## Shared helpers for compare panels
+func _make_compare_panel() -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.z_index = 100
 	var sbox := StyleBoxFlat.new()
@@ -995,62 +1115,35 @@ func _show_drag_compare(near_pos: Vector2, existing_id: String, incoming_id: Str
 	panel.add_theme_stylebox_override("panel", sbox)
 	add_child(panel)
 	_drag_compare_panel = panel
+	return panel
 
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 14)
-	panel.add_child(hbox)
+func _make_compare_col(parent: Control, header: String, header_color: Color) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.custom_minimum_size = Vector2(160.0, 0.0)
+	col.add_theme_constant_override("separation", 2)
+	parent.add_child(col)
+	var hdr := Label.new()
+	hdr.text = header
+	hdr.add_theme_font_size_override("font_size", 9)
+	hdr.add_theme_color_override("font_color", header_color)
+	col.add_child(hdr)
+	return col
 
-	# Vertical divider drawn as a ColorRect between columns
-	for pair: Array in [
-			["CURRENT", existing_id, Color(0.85, 0.32, 0.28)],
-			["→  REPLACING", incoming_id, Color(0.38, 0.72, 0.45)]
-		]:
-		var col := VBoxContainer.new()
-		col.custom_minimum_size = Vector2(160.0, 0.0)
-		col.add_theme_constant_override("separation", 2)
-		hbox.add_child(col)
+func _add_cmp_label(col: VBoxContainer, text: String, font_size: int, color: Color) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", font_size)
+	lbl.add_theme_color_override("font_color", color)
+	col.add_child(lbl)
 
-		var hdr := Label.new()
-		hdr.text = pair[0] as String
-		hdr.add_theme_font_size_override("font_size", 9)
-		hdr.add_theme_color_override("font_color", pair[2])
-		col.add_child(hdr)
-
-		var ab: AbilityData = AbilityLibrary.get_ability(pair[1])
-
-		var name_lbl := Label.new()
-		name_lbl.text = ab.ability_name
-		name_lbl.add_theme_font_size_override("font_size", 14)
-		name_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.78))
-		col.add_child(name_lbl)
-
-		var sub_lbl := Label.new()
-		sub_lbl.text = "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)]
-		sub_lbl.add_theme_font_size_override("font_size", 10)
-		sub_lbl.add_theme_color_override("font_color", Color(0.65, 0.62, 0.50))
-		col.add_child(sub_lbl)
-
-		var desc_lbl := Label.new()
-		desc_lbl.text = ab.description
-		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		desc_lbl.custom_minimum_size = Vector2(160.0, 0.0)
-		desc_lbl.add_theme_font_size_override("font_size", 10)
-		desc_lbl.add_theme_color_override("font_color", Color(0.72, 0.70, 0.62))
-		col.add_child(desc_lbl)
-
-	# Position below the hovered slot, clamped to viewport
-	var panel_w: float = 360.0; var panel_h: float = 110.0
-	panel.position = Vector2(
-		clampf(near_pos.x, MID_X, VIEWPORT_W - panel_w - 8.0),
-		clampf(near_pos.y + 22.0, CONTENT_TOP, VIEWPORT_H - panel_h - 8.0)
-	)
-
-func _clear_drag_compare() -> void:
-	if _drag_compare_panel != null and is_instance_valid(_drag_compare_panel):
-		_drag_compare_panel.queue_free()
-	_drag_compare_panel = null
-	_cmp_existing = ""
-	_cmp_incoming = ""
+func _add_cmp_desc(col: VBoxContainer, text: String) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(160.0, 0.0)
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", Color(0.72, 0.70, 0.62))
+	col.add_child(lbl)
 
 ## --- Drag-and-Drop Logic ---
 
