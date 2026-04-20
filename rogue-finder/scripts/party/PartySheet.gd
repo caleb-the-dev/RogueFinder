@@ -387,7 +387,7 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		val.tooltip_text = ad[2]
 		val.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(val)
-	y += 30.0
+	y += 40.0
 
 	# --- RED Equipment + GREEN Slotted Abilities side by side ---
 	var equip_w: float  = inner_w * 0.46   ## ~234 px for equipment
@@ -404,7 +404,7 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	parent.add_child(eq_hdr)
 
 	var ab_hdr := Label.new()
-	ab_hdr.text = "SLOTTED"
+	ab_hdr.text = "ABILITIES"
 	ab_hdr.position = Vector2(abil_x, y)
 	ab_hdr.add_theme_font_size_override("font_size", 9)
 	ab_hdr.add_theme_color_override("font_color", Color(0.32, 0.60, 0.38))
@@ -423,6 +423,21 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	var row2_gap: float = 7.0   ## extra gap before second equipment row
 	var eq_row_y: Array = [0.0, 0.0, row_h + row2_gap, row_h + row2_gap]
 	var eq_col_x: Array = [0.0, cell_w, 0.0, cell_w]
+
+	# Thin quadrant separators (50% alpha) — vertical between equip/abilities, horizontal between rows
+	var sep_color: Color = Color(0.55, 0.52, 0.44, 0.50)
+	var vsep := ColorRect.new()
+	vsep.color = sep_color
+	vsep.position = Vector2(x + equip_w + section_gap * 0.5 - 0.5, y)
+	vsep.size = Vector2(1.0, row_h + row2_gap + row_h)
+	vsep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(vsep)
+	var hsep := ColorRect.new()
+	hsep.color = sep_color
+	hsep.position = Vector2(x, y + row_h + row2_gap * 0.5 - 0.5)
+	hsep.size = Vector2(inner_w, 1.0)
+	hsep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(hsep)
 
 	for i in range(slot_defs.size()):
 		var sd: Array         = slot_defs[i]
@@ -492,17 +507,25 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 
 		parent.add_child(slot_btn)
 
-	# Slotted abilities (GREEN) — 4 named slots beside the equipment grid
-	var ab_slot_h: float  = 20.0
-	var ab_slot_gap: float = 3.0
+	# Slotted abilities (GREEN) — 4 named slots in a 2×2 grid beside equipment
+	var ab_cell_w: float = abil_w * 0.5 - 1.0
+	# index → [col_x_offset, row_y_offset]  (mirrors the equipment 2×2 layout)
+	var ab_offsets: Array = [
+		[0.0,          0.0],
+		[ab_cell_w + 2.0, 0.0],
+		[0.0,          row_h + row2_gap],
+		[ab_cell_w + 2.0, row_h + row2_gap],
+	]
 	for j in range(member.abilities.size()):
 		var ability_id: String = member.abilities[j]
-		var aby: float = y + float(j) * (ab_slot_h + ab_slot_gap)
+		var off: Array = ab_offsets[j]
+		var abx: float = abil_x + off[0]
+		var aby: float = y + off[1]
 
 		if ability_id == "":
 			var empty_lbl := Label.new()
 			empty_lbl.text = "— empty —"
-			empty_lbl.position = Vector2(abil_x, aby + 3.0)
+			empty_lbl.position = Vector2(abx, aby + 5.0)
 			empty_lbl.add_theme_font_size_override("font_size", 11)
 			empty_lbl.add_theme_color_override("font_color", Color(0.35, 0.40, 0.35))
 			parent.add_child(empty_lbl)
@@ -513,8 +536,9 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 			]
 			var ab_lbl := Label.new()
 			ab_lbl.text = ab.ability_name
-			ab_lbl.position = Vector2(abil_x, aby + 3.0)
-			ab_lbl.custom_minimum_size = Vector2(abil_w, 0.0)
+			ab_lbl.position = Vector2(abx, aby + 5.0)
+			ab_lbl.custom_minimum_size = Vector2(ab_cell_w, 0.0)
+			ab_lbl.clip_contents = true
 			ab_lbl.add_theme_font_size_override("font_size", 12)
 			ab_lbl.add_theme_color_override("font_color",
 				Color(0.42, 0.50, 0.42) if is_dead else Color(0.58, 0.85, 0.62))
