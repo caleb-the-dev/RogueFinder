@@ -42,9 +42,35 @@ const ICON_CONSUMABLE: String = "res://assets/icons/sConsumableIcon.png"
 
 var _content_root: Control = null
 
+## --- Per-member sort / search / view state (index = party slot 0..2) ---
+var _sort_fields:   Array[String] = ["name", "name", "name"]
+var _sort_ascs:     Array[bool]   = [true, true, true]
+var _search_texts:  Array[String] = ["", "", ""]
+var _focus_search_mi:    int      = -1
+var _active_search_edit: LineEdit = null
+var _abil_views_wide: Array[bool] = [false, false, false]  ## false=1-per-row, true=2-per-row
+
+## --- Inventory sort / search / view state ---
+var _inv_search_text:   String   = ""
+var _inv_sort_field:    String   = "name"
+var _inv_sort_asc:      bool     = true
+var _inv_view_wide:     bool     = false
+var _focus_inv_search:  bool     = false
+var _active_inv_search: LineEdit = null
+
+## --- Drag comparison overlay (lives on the CanvasLayer, survives rebuilds) ---
+var _drag_compare_panel: Control = null
+var _cmp_existing: String        = ""
+var _cmp_incoming: String        = ""
+
 func _ready() -> void:
 	layer = 20
 	visible = false
+
+func _process(_delta: float) -> void:
+	if _drag_compare_panel != null and is_instance_valid(_drag_compare_panel) \
+			and not get_viewport().gui_is_dragging():
+		_clear_drag_compare()
 
 ## --- Public API ---
 
@@ -53,11 +79,16 @@ func show_sheet() -> void:
 	visible = true
 
 func hide_sheet() -> void:
+	_clear_drag_compare()
+	_focus_search_mi  = -1
+	_focus_inv_search = false
 	visible = false
 
 ## --- Build ---
 
 func _rebuild() -> void:
+	_active_search_edit = null
+	_active_inv_search  = null
 	if _content_root != null and is_instance_valid(_content_root):
 		_content_root.queue_free()
 
@@ -72,6 +103,20 @@ func _rebuild() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(overlay)
 
+	# Opaque dark tooltip background — overrides the engine's transparent default
+	var tip_theme := Theme.new()
+	var tip_sbox := StyleBoxFlat.new()
+	tip_sbox.bg_color = Color(0.08, 0.07, 0.06, 0.97)
+	tip_sbox.border_width_left = 1; tip_sbox.border_width_top = 1
+	tip_sbox.border_width_right = 1; tip_sbox.border_width_bottom = 1
+	tip_sbox.border_color = Color(0.44, 0.38, 0.26, 0.90)
+	tip_sbox.content_margin_left = 6; tip_sbox.content_margin_right = 6
+	tip_sbox.content_margin_top = 4; tip_sbox.content_margin_bottom = 4
+	tip_sbox.set_corner_radius_all(3)
+	tip_theme.set_stylebox("panel", "TooltipPanel", tip_sbox)
+	tip_theme.set_color("font_color", "TooltipLabel", Color(0.92, 0.88, 0.78))
+	root.theme = tip_theme
+
 	_build_header(root)
 	_build_inventory_column(root)
 
@@ -79,6 +124,15 @@ func _rebuild() -> void:
 		var member: CombatantData = GameState.party[i]
 		var row_y: float = CONTENT_TOP + float(i) * (MEMBER_H + MEMBER_GAP)
 		_build_member_card(root, member, Vector2(MID_X, row_y), i)
+
+	if _active_search_edit != null and is_instance_valid(_active_search_edit):
+		var se: LineEdit = _active_search_edit
+		se.grab_focus.call_deferred()
+		(func() -> void: se.set_caret_column(se.text.length())).call_deferred()
+	if _active_inv_search != null and is_instance_valid(_active_inv_search):
+		var si: LineEdit = _active_inv_search
+		si.grab_focus.call_deferred()
+		(func() -> void: si.set_caret_column(si.text.length())).call_deferred()
 
 ## --- Header ---
 
@@ -122,42 +176,144 @@ func _build_inventory_column(parent: Control) -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(bg)
 
-	var header := Label.new()
-	header.text = "BAG"
-	header.position = Vector2(LEFT_X + 8.0, CONTENT_TOP + 6.0)
-	header.add_theme_font_size_override("font_size", 13)
-	header.add_theme_color_override("font_color", Color(0.90, 0.82, 0.60))
-	parent.add_child(header)
+	var margin := MarginContainer.new()
+	margin.position = Vector2(LEFT_X, CONTENT_TOP)
+	margin.size = Vector2(LEFT_W, col_h)
+	margin.add_theme_constant_override("margin_left",   8)
+	margin.add_theme_constant_override("margin_right",  6)
+	margin.add_theme_constant_override("margin_top",    4)
+	margin.add_theme_constant_override("margin_bottom", 4)
+	parent.add_child(margin)
+
+	var col_vbox := VBoxContainer.new()
+	col_vbox.add_theme_constant_override("separation", 3)
+	margin.add_child(col_vbox)
+
+	# Header row: label + view toggle
+	var hdr_row := HBoxContainer.new()
+	hdr_row.add_theme_constant_override("separation", 4)
+	col_vbox.add_child(hdr_row)
+	var bag_lbl := Label.new()
+	bag_lbl.text = "BAG"
+	bag_lbl.add_theme_font_size_override("font_size", 13)
+	bag_lbl.add_theme_color_override("font_color", Color(0.90, 0.82, 0.60))
+	bag_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr_row.add_child(bag_lbl)
+	var inv_view_btn := Button.new()
+	inv_view_btn.text = "2×" if not _inv_view_wide else "1×"
+	inv_view_btn.flat = true
+	inv_view_btn.add_theme_font_size_override("font_size", 9)
+	inv_view_btn.add_theme_color_override("font_color", Color(0.65, 0.60, 0.45))
+	inv_view_btn.tooltip_text = "Toggle 1 or 2 items per row"
+	inv_view_btn.pressed.connect(func() -> void:
+		_inv_view_wide = not _inv_view_wide
+		_rebuild()
+	)
+	hdr_row.add_child(inv_view_btn)
+
+	# Sort row
+	var inv_sort_row := HBoxContainer.new()
+	inv_sort_row.add_theme_constant_override("separation", 3)
+	col_vbox.add_child(inv_sort_row)
+	var inv_sort_lbl := Label.new()
+	inv_sort_lbl.text = "Sort:"
+	inv_sort_lbl.add_theme_font_size_override("font_size", 9)
+	inv_sort_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.42))
+	inv_sort_row.add_child(inv_sort_lbl)
+	for sf: Array in [["name", "Name"], ["type", "Type"]]:
+		var field: String = sf[0]; var caption: String = sf[1]
+		var is_active: bool = (_inv_sort_field == field)
+		var arrow: String   = (" ▲" if _inv_sort_asc else " ▼") if is_active else ""
+		var sbtn := Button.new()
+		sbtn.text = caption + arrow
+		sbtn.flat = not is_active
+		sbtn.add_theme_font_size_override("font_size", 9)
+		if is_active:
+			sbtn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.45))
+		var f: String = field
+		sbtn.pressed.connect(func() -> void:
+			if _inv_sort_field == f:
+				_inv_sort_asc = not _inv_sort_asc
+			else:
+				_inv_sort_field = f
+				_inv_sort_asc   = true
+			_rebuild()
+		)
+		inv_sort_row.add_child(sbtn)
+
+	# Search bar
+	var inv_search := LineEdit.new()
+	inv_search.placeholder_text = "search bag…"
+	inv_search.text = _inv_search_text
+	inv_search.add_theme_font_size_override("font_size", 11)
+	col_vbox.add_child(inv_search)
+	inv_search.text_changed.connect(func(new_text: String) -> void:
+		_inv_search_text  = new_text
+		_focus_inv_search = true
+		_rebuild()
+	)
+	if _focus_inv_search:
+		_active_inv_search = inv_search
 
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(LEFT_X, CONTENT_TOP + 26.0)
-	scroll.size = Vector2(LEFT_W, col_h - 26.0)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	parent.add_child(scroll)
+	col_vbox.add_child(scroll)
 
-	var vbox := VBoxContainer.new()
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.custom_minimum_size = Vector2(LEFT_W - 12.0, 0.0)
-	vbox.add_theme_constant_override("separation", 3)
-	scroll.add_child(vbox)
+	var grid := GridContainer.new()
+	grid.columns = 2 if _inv_view_wide else 1
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("v_separation", 2)
+	scroll.add_child(grid)
 
 	if GameState.inventory.is_empty():
 		var empty_lbl := Label.new()
 		empty_lbl.text = "— empty —"
 		empty_lbl.add_theme_font_size_override("font_size", 12)
 		empty_lbl.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
-		vbox.add_child(empty_lbl)
+		grid.add_child(empty_lbl)
 		return
 
-	for item: Dictionary in GameState.inventory:
-		_build_draggable_item(vbox, item)
+	# Sort + filter
+	var inv_sorted: Array = GameState.inventory.duplicate()
+	inv_sorted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var cmp: int
+		match _inv_sort_field:
+			"type":
+				var ta: int = 0 if a.get("item_type", "") == "equipment" else 1
+				var tb: int = 0 if b.get("item_type", "") == "equipment" else 1
+				cmp = ta - tb
+				if cmp == 0: cmp = _strcmp(a.get("name", ""), b.get("name", ""))
+			_:
+				cmp = _strcmp(a.get("name", ""), b.get("name", ""))
+		return cmp < 0 if _inv_sort_asc else cmp > 0
+	)
+	var inv_query: String = _inv_search_text.strip_edges().to_lower()
+	if inv_query != "":
+		inv_sorted = inv_sorted.filter(func(item: Dictionary) -> bool:
+			return item.get("name", "").to_lower().contains(inv_query)
+		)
 
-func _build_draggable_item(parent: Control, item: Dictionary) -> void:
+	if inv_sorted.is_empty():
+		var no_match := Label.new()
+		no_match.text = "No matches."
+		no_match.add_theme_font_size_override("font_size", 11)
+		no_match.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		grid.add_child(no_match)
+		return
+
+	for item: Dictionary in inv_sorted:
+		_build_draggable_item(grid, item, _inv_view_wide)
+
+func _build_draggable_item(parent: Control, item: Dictionary, compact: bool = false) -> void:
 	var is_equipment: bool = item.get("item_type", "") == "equipment"
 
 	var row := PanelContainer.new()
-	row.custom_minimum_size = Vector2(LEFT_W - 14.0, 0.0)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if not compact:
+		row.custom_minimum_size = Vector2(LEFT_W - 14.0, 0.0)
 
 	var sbox := StyleBoxFlat.new()
 	sbox.bg_color = Color(0.14, 0.12, 0.09, 0.90)
@@ -184,7 +340,8 @@ func _build_draggable_item(parent: Control, item: Dictionary) -> void:
 	if icon_tex != null:
 		var icon_rect := TextureRect.new()
 		icon_rect.texture = icon_tex
-		icon_rect.custom_minimum_size = Vector2(20.0, 20.0)
+		var icon_sz: float = 16.0 if compact else 20.0
+		icon_rect.custom_minimum_size = Vector2(icon_sz, icon_sz)
 		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hbox.add_child(icon_rect)
@@ -196,12 +353,14 @@ func _build_draggable_item(parent: Control, item: Dictionary) -> void:
 
 	var name_lbl := Label.new()
 	name_lbl.text = item.get("name", "?")
-	name_lbl.add_theme_font_size_override("font_size", 11)
+	name_lbl.add_theme_font_size_override("font_size", 10 if compact else 11)
 	name_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.78))
 	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if compact:
+		name_lbl.clip_contents = true
 	text_vbox.add_child(name_lbl)
 
-	if is_equipment:
+	if is_equipment and not compact:
 		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
 		var bonus_str: String = _bonuses_str(eq.stat_bonuses)
 		if bonus_str != "":
@@ -225,7 +384,7 @@ func _build_draggable_item(parent: Control, item: Dictionary) -> void:
 		tip = "%s  [consumable]\n%s\n\nDrag to a CONSUMABLE slot to equip." % [
 			item.get("name", "?"), item.get("description", "")
 		]
-	row.tooltip_text = tip
+	row.tooltip_text = _wrap_tooltip(tip)
 
 	row.set_drag_forwarding(
 		func(_at: Vector2) -> Variant:
@@ -259,7 +418,7 @@ func _build_member_card(parent: Control, member: CombatantData, pos: Vector2, me
 	parent.add_child(divider)
 
 	_build_stats_gear(parent, member, pos, member_idx)
-	_build_ability_pool_tabs(parent, member, pos)
+	_build_ability_pool_tabs(parent, member, pos, member_idx)
 
 ## --- Stats + Gear (left portion of card) ---
 ## 4 quadrants separated by a full-height vertical + full-width horizontal divider:
@@ -469,7 +628,7 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 			if member.consumable != "":
 				var cd: ConsumableData = ConsumableLibrary.get_consumable(member.consumable)
 				slot_btn.text = cd.consumable_name
-				slot_btn.tooltip_text = "%s\n%s\n\nClick to unequip." % [cd.consumable_name, cd.description]
+				slot_btn.tooltip_text = _wrap_tooltip("%s\n%s\n\nRight-click to unequip." % [cd.consumable_name, cd.description])
 				slot_btn.add_theme_color_override("font_color", Color(0.85, 0.82, 0.72))
 			else:
 				slot_btn.text = "— none —"
@@ -478,8 +637,8 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		elif eq != null:
 			slot_btn.text = eq.equipment_name
 			var bonus: String = _bonuses_str(eq.stat_bonuses)
-			slot_btn.tooltip_text = "%s  [%s]\n%s\n%s\n\nClick to unequip." % [
-				eq.equipment_name, slot_label, bonus, eq.description]
+			slot_btn.tooltip_text = _wrap_tooltip("%s  [%s]\n%s\n%s\n\nRight-click to unequip." % [
+				eq.equipment_name, slot_label, bonus, eq.description])
 			slot_btn.add_theme_color_override("font_color", Color(0.85, 0.82, 0.72))
 		else:
 			slot_btn.text = "— empty —"
@@ -490,17 +649,40 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		if not is_dead:
 			if slot_type == SLOT_CONSUMABLE and member.consumable != "":
 				var mi: int = member_idx
-				slot_btn.pressed.connect(func(): _unequip_consumable(mi))
+				slot_btn.gui_input.connect(func(ev: InputEvent) -> void:
+					if ev is InputEventMouseButton \
+							and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
+						_unequip_consumable(mi)
+				)
 			elif slot_type != SLOT_CONSUMABLE and eq != null:
 				var mi: int = member_idx; var sf: String = slot_field
-				slot_btn.pressed.connect(func(): _unequip_item(mi, sf))
+				slot_btn.gui_input.connect(func(ev: InputEvent) -> void:
+					if ev is InputEventMouseButton \
+							and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
+						_unequip_item(mi, sf)
+				)
 
 		var st: int = slot_type; var mi: int = member_idx; var sf: String = slot_field
+		var cur_eq_cap: EquipmentData = eq
+		var cur_con_cap: String = member.consumable
+		var sb_cap: Button = slot_btn
 		slot_btn.set_drag_forwarding(
 			Callable(),
-			func(_p: Vector2, data: Variant) -> bool:
-				return _can_drop_here(data, st, is_dead),
+			func(drop_pos: Vector2, data: Variant) -> bool:
+				if _can_drop_here(data, st, is_dead):
+					if data is Dictionary and data.has("item"):
+						var inc: Dictionary = (data as Dictionary)["item"]
+						if st == SLOT_CONSUMABLE and cur_con_cap != "":
+							_show_consumable_compare(sb_cap.global_position + drop_pos,
+								cur_con_cap, inc)
+						elif st != SLOT_CONSUMABLE and cur_eq_cap != null:
+							_show_equip_compare(sb_cap.global_position + drop_pos,
+								cur_eq_cap, inc)
+					return true
+				_clear_drag_compare()
+				return false,
 			func(_p: Vector2, data: Variant) -> void:
+				_clear_drag_compare()
 				_drop_to_slot(data["item"], mi, sf)
 		)
 
@@ -535,35 +717,69 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		var abx: float  = br_x + off[0]
 		var aby: float  = br_y + off[1]
 
+		var slot_ctrl := Control.new()
+		slot_ctrl.position = Vector2(abx, aby)
+		slot_ctrl.size = Vector2(ab_cell_w, row_h)
+		slot_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
+
+		var slot_lbl := Label.new()
+		slot_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot_lbl.position = Vector2(0.0, 5.0)
+		slot_lbl.custom_minimum_size = Vector2(ab_cell_w, 0.0)
+		slot_lbl.clip_contents = true
+
 		if ability_id == "":
-			var empty_lbl := Label.new()
-			empty_lbl.text = "— empty —"
-			empty_lbl.position = Vector2(abx, aby + 5.0)
-			empty_lbl.add_theme_font_size_override("font_size", 11)
-			empty_lbl.add_theme_color_override("font_color", Color(0.35, 0.40, 0.35))
-			parent.add_child(empty_lbl)
+			slot_lbl.text = "— empty —"
+			slot_lbl.add_theme_font_size_override("font_size", 11)
+			slot_lbl.add_theme_color_override("font_color", Color(0.35, 0.40, 0.35))
+			slot_ctrl.tooltip_text = "Drag an ability from the pool panel →"
 		else:
 			var ab: AbilityData = AbilityLibrary.get_ability(ability_id)
-			var tip: String = "%s\nCost: %d Energy\nAttribute: %s\n\n%s" % [
-				ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description
-			]
-			var ab_lbl := Label.new()
-			ab_lbl.text = ab.ability_name
-			ab_lbl.position = Vector2(abx, aby + 5.0)
-			ab_lbl.custom_minimum_size = Vector2(ab_cell_w, 0.0)
-			ab_lbl.clip_contents = true
-			ab_lbl.add_theme_font_size_override("font_size", 12)
-			ab_lbl.add_theme_color_override("font_color",
+			slot_lbl.text = ab.ability_name
+			slot_lbl.add_theme_font_size_override("font_size", 12)
+			slot_lbl.add_theme_color_override("font_color",
 				Color(0.42, 0.50, 0.42) if is_dead else Color(0.58, 0.85, 0.62))
-			ab_lbl.tooltip_text = tip
-			ab_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
-			parent.add_child(ab_lbl)
+			slot_ctrl.tooltip_text = _wrap_tooltip("%s\nCost: %d Energy\nAttribute: %s\n\n%s\n\nRight-click to clear." % [
+				ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description
+			])
+		slot_ctrl.add_child(slot_lbl)
+
+		if not is_dead:
+			var mi2: int = member_idx; var sj: int = j
+			var existing: String = ability_id  ## capture slot content at build time
+			var sc: Control = slot_ctrl        ## capture for compare panel positioning
+			if ability_id != "":
+				slot_ctrl.gui_input.connect(func(ev: InputEvent) -> void:
+					if ev is InputEventMouseButton \
+							and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
+						GameState.party[mi2].abilities[sj] = ""
+						_rebuild()
+				)
+			slot_ctrl.set_drag_forwarding(
+				Callable(),
+				func(drop_pos: Vector2, data: Variant) -> bool:
+					if _can_drop_ability_here(data, mi2, false):
+						if existing != "" and data is Dictionary and data.has("ability_id"):
+							_show_drag_compare(
+								sc.global_position + drop_pos,
+								existing,
+								(data as Dictionary)["ability_id"]
+							)
+						return true
+					_clear_drag_compare()
+					return false,
+				func(_p: Vector2, data: Variant) -> void:
+					_clear_drag_compare()
+					_drop_ability_to_slot(data, mi2, sj)
+			)
+		parent.add_child(slot_ctrl)
 
 ## --- Ability Pool Tabs (right portion of card) ---
 ## Tab 1 "Abilities": scrollable list of all abilities in member.ability_pool.
 ## Tab 2 "Feats": placeholder — not yet implemented.
 
-func _build_ability_pool_tabs(parent: Control, member: CombatantData, card_pos: Vector2) -> void:
+func _build_ability_pool_tabs(parent: Control, member: CombatantData,
+		card_pos: Vector2, member_idx: int) -> void:
 	var tabs := TabContainer.new()
 	tabs.position = Vector2(card_pos.x + ABIL_OFFSET + 4.0, card_pos.y + 4.0)
 	tabs.size = Vector2(ABIL_BG_W - 8.0, MEMBER_H - 8.0)
@@ -571,59 +787,201 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData, card_pos: 
 		tabs.modulate = Color(0.55, 0.55, 0.55)
 	parent.add_child(tabs)
 
+	# --- Abilities tab: search + sort bar + draggable pool list ---
+	var abil_tab := VBoxContainer.new()
+	abil_tab.name = "Abilities"
+	abil_tab.add_theme_constant_override("separation", 2)
+	tabs.add_child(abil_tab)
+
+	# Top bar: view toggle + drag hint, right-aligned and prominent
+	var top_bar := HBoxContainer.new()
+	top_bar.add_theme_constant_override("separation", 6)
+	abil_tab.add_child(top_bar)
+	var top_spacer := Control.new()
+	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_bar.add_child(top_spacer)
+	var abil_view_btn := Button.new()
+	abil_view_btn.text = "2×" if not _abil_views_wide[member_idx] else "1×"
+	abil_view_btn.flat = false
+	abil_view_btn.add_theme_font_size_override("font_size", 10)
+	abil_view_btn.add_theme_color_override("font_color", Color(0.42, 0.68, 0.48))
+	abil_view_btn.tooltip_text = "Toggle 1 or 2 abilities per row"
+	var mi_view: int = member_idx
+	abil_view_btn.pressed.connect(func() -> void:
+		_abil_views_wide[mi_view] = not _abil_views_wide[mi_view]
+		_rebuild()
+	)
+	top_bar.add_child(abil_view_btn)
+	var hint_lbl := Label.new()
+	hint_lbl.text = "drag to slot →"
+	hint_lbl.add_theme_font_size_override("font_size", 10)
+	hint_lbl.add_theme_color_override("font_color", Color(0.42, 0.60, 0.45))
+	hint_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	top_bar.add_child(hint_lbl)
+
+	# Sort row (left-aligned, compact)
+	var sort_row := HBoxContainer.new()
+	sort_row.add_theme_constant_override("separation", 3)
+	abil_tab.add_child(sort_row)
+	var sort_lbl := Label.new()
+	sort_lbl.text = "Sort:"
+	sort_lbl.add_theme_font_size_override("font_size", 9)
+	sort_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.42))
+	sort_row.add_child(sort_lbl)
+	for sf: Array in [["name", "Name"], ["attribute", "Type"], ["energy", "EN"]]:
+		var field: String = sf[0]; var caption: String = sf[1]
+		var is_active: bool = (_sort_fields[member_idx] == field)
+		var arrow: String   = (" ▲" if _sort_ascs[member_idx] else " ▼") if is_active else ""
+		var sbtn := Button.new()
+		sbtn.text = caption + arrow
+		sbtn.flat = not is_active
+		sbtn.add_theme_font_size_override("font_size", 9)
+		if is_active:
+			sbtn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.45))
+		var f: String = field; var mi_sort: int = member_idx
+		sbtn.pressed.connect(func():
+			if _sort_fields[mi_sort] == f:
+				_sort_ascs[mi_sort] = not _sort_ascs[mi_sort]
+			else:
+				_sort_fields[mi_sort] = f
+				_sort_ascs[mi_sort]   = true
+			_rebuild()
+		)
+		sort_row.add_child(sbtn)
+
+	# Search bar
+	var search_edit := LineEdit.new()
+	search_edit.placeholder_text = "search abilities…"
+	search_edit.text = _search_texts[member_idx]
+	search_edit.add_theme_font_size_override("font_size", 11)
+	abil_tab.add_child(search_edit)
+	var mi_search: int = member_idx
+	search_edit.text_changed.connect(func(new_text: String) -> void:
+		_search_texts[mi_search] = new_text
+		_focus_search_mi = mi_search
+		_rebuild()
+	)
+	if member_idx == _focus_search_mi:
+		_active_search_edit = search_edit
+
 	var abil_scroll := ScrollContainer.new()
-	abil_scroll.name = "Abilities"
+	abil_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	abil_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	abil_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	tabs.add_child(abil_scroll)
+	abil_tab.add_child(abil_scroll)
 
-	var abil_vbox := VBoxContainer.new()
-	abil_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	abil_vbox.add_theme_constant_override("separation", 3)
-	abil_scroll.add_child(abil_vbox)
+	var abil_container: Control
+	if _abil_views_wide[member_idx]:
+		var abil_grid := GridContainer.new()
+		abil_grid.columns = 2
+		abil_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		abil_grid.add_theme_constant_override("h_separation", 3)
+		abil_grid.add_theme_constant_override("v_separation", 3)
+		abil_scroll.add_child(abil_grid)
+		abil_container = abil_grid
+	else:
+		var abil_vbox := VBoxContainer.new()
+		abil_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		abil_vbox.add_theme_constant_override("separation", 3)
+		abil_scroll.add_child(abil_vbox)
+		abil_container = abil_vbox
 
 	if member.ability_pool.is_empty():
 		var placeholder := Label.new()
 		placeholder.text = "No abilities in pool."
 		placeholder.add_theme_font_size_override("font_size", 11)
 		placeholder.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
-		abil_vbox.add_child(placeholder)
+		abil_container.add_child(placeholder)
 	else:
-		for ab_id: String in member.ability_pool:
-			var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
-			var tip: String = "%s\nCost: %d Energy\nAttribute: %s\n\n%s" % [
-				ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description
-			]
+		var sorted_pool: Array = member.ability_pool.duplicate()
+		var sf_cur: String = _sort_fields[member_idx]
+		var sa_cur: bool   = _sort_ascs[member_idx]
+		sorted_pool.sort_custom(func(a: String, b: String) -> bool:
+			var ab_a: AbilityData = AbilityLibrary.get_ability(a)
+			var ab_b: AbilityData = AbilityLibrary.get_ability(b)
+			var cmp: int
+			match sf_cur:
+				"name":      cmp = _strcmp(ab_a.ability_name, ab_b.ability_name)
+				"attribute": cmp = ab_a.attribute - ab_b.attribute
+				"energy":    cmp = ab_a.energy_cost - ab_b.energy_cost
+				_:           cmp = _strcmp(ab_a.ability_name, ab_b.ability_name)
+			return cmp < 0 if sa_cur else cmp > 0
+		)
+		var query: String = _search_texts[member_idx].strip_edges().to_lower()
+		if query != "":
+			sorted_pool = sorted_pool.filter(func(ab_id: String) -> bool:
+				return AbilityLibrary.get_ability(ab_id).ability_name.to_lower().contains(query)
+			)
+
+		if sorted_pool.is_empty():
+			var no_match := Label.new()
+			no_match.text = "No matches."
+			no_match.add_theme_font_size_override("font_size", 11)
+			no_match.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+			abil_container.add_child(no_match)
+
+		var mi: int = member_idx
+		for ab_id: String in sorted_pool:
+			var ab: AbilityData  = AbilityLibrary.get_ability(ab_id)
+			var slot_idx: int    = member.abilities.find(ab_id)
+			var is_slotted: bool = slot_idx >= 0
+			var tip: String = _wrap_tooltip("%s\nCost: %d Energy\nAttribute: %s\n\n%s%s" % [
+				ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description,
+				("\n\nSlotted in slot %d." % (slot_idx + 1)) if is_slotted \
+					else "\n\nDrag onto an ability slot to equip."
+			])
 
 			var ab_pnl := PanelContainer.new()
 			var sbox := StyleBoxFlat.new()
-			sbox.bg_color = Color(0.12, 0.12, 0.15, 0.80)
+			sbox.bg_color = Color(0.28, 0.22, 0.05, 0.70) if is_slotted \
+				else Color(0.12, 0.12, 0.15, 0.80)
 			sbox.border_width_bottom = 1
-			sbox.border_color = Color(0.25, 0.25, 0.30, 0.60)
+			sbox.border_color = Color(0.42, 0.36, 0.12, 0.70) if is_slotted \
+				else Color(0.25, 0.25, 0.30, 0.60)
 			sbox.set_corner_radius_all(2)
+			ab_pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			ab_pnl.add_theme_stylebox_override("panel", sbox)
 			ab_pnl.tooltip_text = tip
-			abil_vbox.add_child(ab_pnl)
+			abil_container.add_child(ab_pnl)
 
+			var wide: bool = _abil_views_wide[member_idx]
 			var inner := VBoxContainer.new()
 			inner.add_theme_constant_override("separation", 1)
 			ab_pnl.add_child(inner)
 
 			var ab_name := Label.new()
-			ab_name.text = ab.ability_name
-			ab_name.add_theme_font_size_override("font_size", 12)
-			ab_name.add_theme_color_override("font_color", Color(0.90, 0.86, 0.72))
+			ab_name.text = ("● " if is_slotted else "") + ab.ability_name \
+				+ ("  [s%d]" % (slot_idx + 1) if is_slotted else "")
+			ab_name.add_theme_font_size_override("font_size", 11 if wide else 12)
+			ab_name.add_theme_color_override("font_color",
+				Color(0.95, 0.82, 0.20) if is_slotted else Color(0.90, 0.86, 0.72))
 			ab_name.tooltip_text = tip
 			ab_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			inner.add_child(ab_name)
 
-			var ab_sub := Label.new()
-			ab_sub.text = "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)]
-			ab_sub.add_theme_font_size_override("font_size", 10)
-			ab_sub.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
-			ab_sub.tooltip_text = tip
-			ab_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			inner.add_child(ab_sub)
+			if not wide:
+				var ab_sub := Label.new()
+				ab_sub.text = "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)]
+				ab_sub.add_theme_font_size_override("font_size", 10)
+				ab_sub.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
+				ab_sub.tooltip_text = tip
+				ab_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				inner.add_child(ab_sub)
+
+			if not member.is_dead:
+				var ai: String = ab_id
+				ab_pnl.set_drag_forwarding(
+					func(_at: Vector2) -> Variant:
+						var preview := Label.new()
+						preview.text = "  %s" % ab.ability_name
+						preview.add_theme_font_size_override("font_size", 12)
+						preview.add_theme_color_override("font_color", Color(0.95, 0.90, 0.70))
+						ab_pnl.set_drag_preview(preview)
+						return {"ability_id": ai, "member_idx": mi},
+					Callable(),
+					Callable()
+				)
 
 	var feats_panel := Control.new()
 	feats_panel.name = "Feats"
@@ -635,6 +993,157 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData, card_pos: 
 	feats_lbl.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
 	feats_lbl.position = Vector2(12.0, 12.0)
 	feats_panel.add_child(feats_lbl)
+
+## --- Drag Compare Overlay ---
+## Lives directly on the CanvasLayer so it survives _rebuild(). Cleared by _process
+## when the drag ends, by _drop_ability_to_slot on a successful drop, and by hide_sheet.
+
+func _show_drag_compare(near_pos: Vector2, existing_id: String, incoming_id: String) -> void:
+	if _cmp_existing == existing_id and _cmp_incoming == incoming_id:
+		return
+	_clear_drag_compare()
+	_cmp_existing = existing_id
+	_cmp_incoming = incoming_id
+
+	var panel := _make_compare_panel()
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 14)
+	panel.add_child(hbox)
+
+	for pair: Array in [
+			["CURRENT", existing_id, Color(0.85, 0.32, 0.28)],
+			["→  REPLACING", incoming_id, Color(0.38, 0.72, 0.45)]
+		]:
+		var ab: AbilityData = AbilityLibrary.get_ability(pair[1])
+		var col := _make_compare_col(hbox, pair[0], pair[2])
+		_add_cmp_label(col, ab.ability_name, 14, Color(0.92, 0.88, 0.78))
+		_add_cmp_label(col, "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)],
+			10, Color(0.65, 0.62, 0.50))
+		_add_cmp_desc(col, ab.description)
+
+	var panel_w: float = 360.0; var panel_h: float = 110.0
+	panel.position = Vector2(
+		clampf(near_pos.x, MID_X, VIEWPORT_W - panel_w - 8.0),
+		clampf(near_pos.y + 22.0, CONTENT_TOP, VIEWPORT_H - panel_h - 8.0)
+	)
+
+func _clear_drag_compare() -> void:
+	if _drag_compare_panel != null and is_instance_valid(_drag_compare_panel):
+		_drag_compare_panel.queue_free()
+	_drag_compare_panel = null
+	_cmp_existing = ""
+	_cmp_incoming = ""
+
+func _show_equip_compare(near_pos: Vector2, cur_eq: EquipmentData, incoming: Dictionary) -> void:
+	var key_b: String = incoming.get("id", "")
+	if _cmp_existing == cur_eq.equipment_id and _cmp_incoming == key_b:
+		return
+	_clear_drag_compare()
+	_cmp_existing = cur_eq.equipment_id
+	_cmp_incoming = key_b
+
+	var panel := _make_compare_panel()
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 14)
+	panel.add_child(hbox)
+
+	# Left: current equipped item
+	var col_a := _make_compare_col(hbox, "CURRENT", Color(0.85, 0.32, 0.28))
+	_add_cmp_label(col_a, cur_eq.equipment_name, 14, Color(0.92, 0.88, 0.78))
+	_add_cmp_label(col_a, "%s  %s" % [_slot_name(cur_eq.slot), _bonuses_str(cur_eq.stat_bonuses)],
+		10, Color(0.65, 0.62, 0.50))
+	_add_cmp_desc(col_a, cur_eq.description)
+
+	# Right: incoming item from bag
+	var col_b := _make_compare_col(hbox, "→  REPLACING", Color(0.38, 0.72, 0.45))
+	if incoming.get("item_type", "") == "equipment":
+		var in_eq: EquipmentData = EquipmentLibrary.get_equipment(incoming["id"])
+		_add_cmp_label(col_b, in_eq.equipment_name, 14, Color(0.92, 0.88, 0.78))
+		_add_cmp_label(col_b, "%s  %s" % [_slot_name(in_eq.slot), _bonuses_str(in_eq.stat_bonuses)],
+			10, Color(0.65, 0.62, 0.50))
+		_add_cmp_desc(col_b, in_eq.description)
+	else:
+		_add_cmp_label(col_b, incoming.get("name", "?"), 14, Color(0.92, 0.88, 0.78))
+		_add_cmp_desc(col_b, incoming.get("description", ""))
+
+	var panel_w: float = 360.0; var panel_h: float = 110.0
+	panel.position = Vector2(
+		clampf(near_pos.x, LEFT_X, VIEWPORT_W - panel_w - 8.0),
+		clampf(near_pos.y + 22.0, CONTENT_TOP, VIEWPORT_H - panel_h - 8.0)
+	)
+
+func _show_consumable_compare(near_pos: Vector2, cur_id: String, incoming: Dictionary) -> void:
+	var key_b: String = incoming.get("id", "")
+	if _cmp_existing == cur_id and _cmp_incoming == key_b:
+		return
+	_clear_drag_compare()
+	_cmp_existing = cur_id
+	_cmp_incoming = key_b
+
+	var panel := _make_compare_panel()
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 14)
+	panel.add_child(hbox)
+
+	var cur_cd: ConsumableData = ConsumableLibrary.get_consumable(cur_id)
+	var col_a := _make_compare_col(hbox, "CURRENT", Color(0.85, 0.32, 0.28))
+	_add_cmp_label(col_a, cur_cd.consumable_name, 14, Color(0.92, 0.88, 0.78))
+	_add_cmp_desc(col_a, cur_cd.description)
+
+	var col_b := _make_compare_col(hbox, "→  REPLACING", Color(0.38, 0.72, 0.45))
+	_add_cmp_label(col_b, incoming.get("name", "?"), 14, Color(0.92, 0.88, 0.78))
+	_add_cmp_desc(col_b, incoming.get("description", ""))
+
+	var panel_w: float = 360.0; var panel_h: float = 110.0
+	panel.position = Vector2(
+		clampf(near_pos.x, LEFT_X, VIEWPORT_W - panel_w - 8.0),
+		clampf(near_pos.y + 22.0, CONTENT_TOP, VIEWPORT_H - panel_h - 8.0)
+	)
+
+## Shared helpers for compare panels
+func _make_compare_panel() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.z_index = 100
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color = Color(0.07, 0.06, 0.10, 0.97)
+	sbox.border_width_left = 2; sbox.border_width_top = 2
+	sbox.border_width_right = 2; sbox.border_width_bottom = 2
+	sbox.border_color = Color(0.50, 0.44, 0.70, 0.90)
+	sbox.content_margin_left = 10; sbox.content_margin_right = 10
+	sbox.content_margin_top = 7; sbox.content_margin_bottom = 7
+	sbox.set_corner_radius_all(4)
+	panel.add_theme_stylebox_override("panel", sbox)
+	add_child(panel)
+	_drag_compare_panel = panel
+	return panel
+
+func _make_compare_col(parent: Control, header: String, header_color: Color) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.custom_minimum_size = Vector2(160.0, 0.0)
+	col.add_theme_constant_override("separation", 2)
+	parent.add_child(col)
+	var hdr := Label.new()
+	hdr.text = header
+	hdr.add_theme_font_size_override("font_size", 9)
+	hdr.add_theme_color_override("font_color", header_color)
+	col.add_child(hdr)
+	return col
+
+func _add_cmp_label(col: VBoxContainer, text: String, font_size: int, color: Color) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", font_size)
+	lbl.add_theme_color_override("font_color", color)
+	col.add_child(lbl)
+
+func _add_cmp_desc(col: VBoxContainer, text: String) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(160.0, 0.0)
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", Color(0.72, 0.70, 0.62))
+	col.add_child(lbl)
 
 ## --- Drag-and-Drop Logic ---
 
@@ -650,6 +1159,16 @@ func _can_drop_here(data: Variant, slot_type: int, is_dead: bool) -> bool:
 		return false
 	var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
 	return eq.slot == slot_type
+
+func _can_drop_ability_here(data: Variant, target_mi: int, is_dead: bool) -> bool:
+	if is_dead: return false
+	if not (data is Dictionary) or not data.has("ability_id"): return false
+	return data.get("member_idx", -1) == target_mi
+
+func _drop_ability_to_slot(data: Variant, target_mi: int, slot_idx: int) -> void:
+	if not (data is Dictionary) or not data.has("ability_id"): return
+	GameState.party[target_mi].abilities[slot_idx] = (data as Dictionary)["ability_id"]
+	_rebuild()
 
 func _drop_to_slot(item: Dictionary, member_idx: int, slot_field: String) -> void:
 	var member: CombatantData = GameState.party[member_idx]
@@ -705,6 +1224,33 @@ func _push_consumable_to_bag(consumable_id: String) -> void:
 	})
 
 ## --- String Helpers ---
+
+## Wrap tooltip text so each line stays ≤ max_line chars, preserving \n\n section breaks.
+func _wrap_tooltip(text: String, max_line: int = 40) -> String:
+	var sections: PackedStringArray = text.split("\n\n")
+	var result_sections: PackedStringArray = []
+	for section: String in sections:
+		var wrapped: PackedStringArray = []
+		for line: String in section.split("\n"):
+			if line.length() <= max_line:
+				wrapped.append(line)
+				continue
+			var cur: String = ""
+			for w: String in line.split(" "):
+				var sep: String = " " if cur != "" else ""
+				if cur.length() + sep.length() + w.length() > max_line and cur != "":
+					wrapped.append(cur)
+					cur = w
+				else:
+					cur += sep + w
+			if cur != "": wrapped.append(cur)
+		result_sections.append("\n".join(wrapped))
+	return "\n\n".join(result_sections)
+
+func _strcmp(a: String, b: String) -> int:
+	if a < b: return -1
+	if a > b: return 1
+	return 0
 
 func _attr_name(attr: int) -> String:
 	match attr:
