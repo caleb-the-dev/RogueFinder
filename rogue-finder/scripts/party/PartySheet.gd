@@ -42,6 +42,12 @@ const ICON_CONSUMABLE: String = "res://assets/icons/sConsumableIcon.png"
 
 var _content_root: Control = null
 
+## --- Picker state ---
+var _picker_member: int    = -1    ## which party member card; -1 = picker closed
+var _picker_slot:   int    = -1    ## which ability slot (0-3) was clicked
+var _sort_field:    String = "name"  ## "name" | "attribute" | "energy"
+var _sort_asc:      bool   = true
+
 func _ready() -> void:
 	layer = 20
 	visible = false
@@ -53,6 +59,8 @@ func show_sheet() -> void:
 	visible = true
 
 func hide_sheet() -> void:
+	_picker_member = -1
+	_picker_slot   = -1
 	visible = false
 
 ## --- Build ---
@@ -79,6 +87,9 @@ func _rebuild() -> void:
 		var member: CombatantData = GameState.party[i]
 		var row_y: float = CONTENT_TOP + float(i) * (MEMBER_H + MEMBER_GAP)
 		_build_member_card(root, member, Vector2(MID_X, row_y), i)
+
+	if _picker_member >= 0:
+		_build_ability_picker(root)
 
 ## --- Header ---
 
@@ -534,30 +545,45 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		var off: Array  = ab_offsets[j]
 		var abx: float  = br_x + off[0]
 		var aby: float  = br_y + off[1]
+		var is_active_slot: bool = (_picker_member == member_idx and _picker_slot == j)
+
+		var slot_btn := Button.new()
+		slot_btn.flat = not is_active_slot
+		slot_btn.position = Vector2(abx, aby)
+		slot_btn.size = Vector2(ab_cell_w, row_h)
+		slot_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		slot_btn.clip_text = true
 
 		if ability_id == "":
-			var empty_lbl := Label.new()
-			empty_lbl.text = "— empty —"
-			empty_lbl.position = Vector2(abx, aby + 5.0)
-			empty_lbl.add_theme_font_size_override("font_size", 11)
-			empty_lbl.add_theme_color_override("font_color", Color(0.35, 0.40, 0.35))
-			parent.add_child(empty_lbl)
+			slot_btn.text = "— empty —"
+			slot_btn.add_theme_font_size_override("font_size", 11)
+			slot_btn.add_theme_color_override("font_color",
+				Color(0.55, 0.70, 0.55) if is_active_slot else Color(0.35, 0.40, 0.35))
 		else:
 			var ab: AbilityData = AbilityLibrary.get_ability(ability_id)
-			var tip: String = "%s\nCost: %d Energy\nAttribute: %s\n\n%s" % [
+			slot_btn.text = ab.ability_name
+			slot_btn.add_theme_font_size_override("font_size", 12)
+			slot_btn.add_theme_color_override("font_color",
+				Color(0.42, 0.50, 0.42) if is_dead else
+				(Color(0.95, 0.90, 0.55) if is_active_slot else Color(0.58, 0.85, 0.62)))
+			slot_btn.tooltip_text = "%s\nCost: %d Energy\nAttribute: %s\n\n%s" % [
 				ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description
 			]
-			var ab_lbl := Label.new()
-			ab_lbl.text = ab.ability_name
-			ab_lbl.position = Vector2(abx, aby + 5.0)
-			ab_lbl.custom_minimum_size = Vector2(ab_cell_w, 0.0)
-			ab_lbl.clip_contents = true
-			ab_lbl.add_theme_font_size_override("font_size", 12)
-			ab_lbl.add_theme_color_override("font_color",
-				Color(0.42, 0.50, 0.42) if is_dead else Color(0.58, 0.85, 0.62))
-			ab_lbl.tooltip_text = tip
-			ab_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
-			parent.add_child(ab_lbl)
+
+		if is_dead:
+			slot_btn.disabled = true
+		else:
+			var mi: int = member_idx; var sj: int = j
+			slot_btn.pressed.connect(func():
+				if _picker_member == mi and _picker_slot == sj:
+					_picker_member = -1
+					_picker_slot   = -1
+				else:
+					_picker_member = mi
+					_picker_slot   = sj
+				_rebuild()
+			)
+		parent.add_child(slot_btn)
 
 ## --- Ability Pool Tabs (right portion of card) ---
 ## Tab 1 "Abilities": scrollable list of all abilities in member.ability_pool.
@@ -636,6 +662,176 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData, card_pos: 
 	feats_lbl.position = Vector2(12.0, 12.0)
 	feats_panel.add_child(feats_lbl)
 
+## --- Ability Picker ---
+## Floating panel over the BOTTOM-RIGHT quadrant of _picker_member's card.
+## All state changes go through: set instance vars + call _rebuild().
+
+func _build_ability_picker(parent: Control) -> void:
+	var member: CombatantData = GameState.party[_picker_member]
+	var card_pos_y: float = CONTENT_TOP + float(_picker_member) * (MEMBER_H + MEMBER_GAP)
+
+	var x: float      = MID_X + 10.0
+	var half_w: float = (STATS_BG_W - 20.0) * 0.5   ## = 255
+	var br_x: float   = x + half_w                    ## start of BR quadrant x
+	var br_y: float   = card_pos_y + 108.0             ## horizontal divider y
+
+	var picker_w: float    = 262.0
+	var picker_top: float  = br_y
+	var max_scroll_h: float = clampf(VIEWPORT_H - picker_top - 80.0, 60.0, 180.0)
+
+	var picker := PanelContainer.new()
+	picker.position = Vector2(br_x, picker_top)
+	picker.custom_minimum_size = Vector2(picker_w, 0.0)
+	picker.z_index = 10
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color = Color(0.07, 0.06, 0.10, 0.97)
+	sbox.border_width_left = 2; sbox.border_width_top = 2
+	sbox.border_width_right = 2; sbox.border_width_bottom = 2
+	sbox.border_color = Color(0.50, 0.44, 0.70, 0.90)
+	sbox.set_corner_radius_all(4)
+	picker.add_theme_stylebox_override("panel", sbox)
+	parent.add_child(picker)
+
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 3)
+	picker.add_child(outer)
+
+	# Header: slot label + close button
+	var hdr := HBoxContainer.new()
+	outer.add_child(hdr)
+	var hdr_lbl := Label.new()
+	hdr_lbl.text = "Slot %d — swap ability" % (_picker_slot + 1)
+	hdr_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr_lbl.add_theme_font_size_override("font_size", 11)
+	hdr_lbl.add_theme_color_override("font_color", Color(0.80, 0.75, 0.92))
+	hdr.add_child(hdr_lbl)
+	var close_btn := Button.new()
+	close_btn.text = "✕"
+	close_btn.flat = true
+	close_btn.add_theme_font_size_override("font_size", 11)
+	close_btn.pressed.connect(func():
+		_picker_member = -1
+		_picker_slot   = -1
+		_rebuild()
+	)
+	hdr.add_child(close_btn)
+
+	# Sort controls
+	var sort_row := HBoxContainer.new()
+	sort_row.add_theme_constant_override("separation", 4)
+	outer.add_child(sort_row)
+	var sort_lbl := Label.new()
+	sort_lbl.text = "Sort:"
+	sort_lbl.add_theme_font_size_override("font_size", 10)
+	sort_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.42))
+	sort_row.add_child(sort_lbl)
+	for sf: Array in [["name", "Name"], ["attribute", "Type"], ["energy", "Energy"]]:
+		var field: String = sf[0]; var caption: String = sf[1]
+		var is_active: bool = (_sort_field == field)
+		var arrow: String   = (" ▲" if _sort_asc else " ▼") if is_active else ""
+		var sbtn := Button.new()
+		sbtn.text = caption + arrow
+		sbtn.flat = not is_active
+		sbtn.add_theme_font_size_override("font_size", 10)
+		if is_active:
+			sbtn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.45))
+		var f: String = field
+		sbtn.pressed.connect(func():
+			if _sort_field == f:
+				_sort_asc = not _sort_asc
+			else:
+				_sort_field = f
+				_sort_asc   = true
+			_rebuild()
+		)
+		sort_row.add_child(sbtn)
+
+	# Divider
+	var div := ColorRect.new()
+	div.color = Color(0.35, 0.30, 0.48, 0.60)
+	div.custom_minimum_size = Vector2(0.0, 1.0)
+	outer.add_child(div)
+
+	# Scrollable ability rows
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(picker_w - 8.0, max_scroll_h)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	outer.add_child(scroll)
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows.add_theme_constant_override("separation", 2)
+	scroll.add_child(rows)
+
+	# "— empty —" always first
+	var empty_btn := Button.new()
+	empty_btn.text = "— empty —"
+	empty_btn.flat = true
+	empty_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	empty_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	empty_btn.add_theme_font_size_override("font_size", 11)
+	empty_btn.add_theme_color_override("font_color", Color(0.50, 0.48, 0.42))
+	var pm0: int = _picker_member; var ps0: int = _picker_slot
+	empty_btn.pressed.connect(func():
+		GameState.party[pm0].abilities[ps0] = ""
+		_picker_member = -1
+		_picker_slot   = -1
+		_rebuild()
+	)
+	rows.add_child(empty_btn)
+
+	# Sort pool copy
+	var sorted_pool: Array = member.ability_pool.duplicate()
+	sorted_pool.sort_custom(func(a: String, b: String) -> bool:
+		var ab_a: AbilityData = AbilityLibrary.get_ability(a)
+		var ab_b: AbilityData = AbilityLibrary.get_ability(b)
+		var cmp: int
+		match _sort_field:
+			"name":      cmp = _strcmp(ab_a.ability_name, ab_b.ability_name)
+			"attribute": cmp = ab_a.attribute - ab_b.attribute
+			"energy":    cmp = ab_a.energy_cost - ab_b.energy_cost
+			_:           cmp = _strcmp(ab_a.ability_name, ab_b.ability_name)
+		return cmp < 0 if _sort_asc else cmp > 0
+	)
+
+	for ab_id: String in sorted_pool:
+		var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
+		var slot_idx: int   = member.abilities.find(ab_id)
+		var is_slotted: bool = slot_idx >= 0
+
+		var row_btn := Button.new()
+		row_btn.flat = not is_slotted
+		row_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row_btn.add_theme_font_size_override("font_size", 12)
+		row_btn.tooltip_text = "%s\nCost: %d Energy\nAttribute: %s\n\n%s" % [
+			ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description
+		]
+
+		if is_slotted:
+			row_btn.text = "● %s  [slot %d]" % [ab.ability_name, slot_idx + 1]
+			row_btn.add_theme_color_override("font_color", Color(0.95, 0.82, 0.20))
+			var rsbox := StyleBoxFlat.new()
+			rsbox.bg_color = Color(0.28, 0.22, 0.05, 0.70)
+			row_btn.add_theme_stylebox_override("normal", rsbox)
+			var rsbox_h := StyleBoxFlat.new()
+			rsbox_h.bg_color = Color(0.40, 0.32, 0.08, 0.80)
+			row_btn.add_theme_stylebox_override("hover", rsbox_h)
+		else:
+			row_btn.text = ab.ability_name
+			row_btn.add_theme_color_override("font_color", Color(0.82, 0.90, 0.82))
+
+		var ai: String = ab_id; var pm2: int = _picker_member; var ps2: int = _picker_slot
+		row_btn.pressed.connect(func():
+			assert(GameState.party[pm2].ability_pool.has(ai),
+				"picker: ability not in pool — invariant broken")
+			GameState.party[pm2].abilities[ps2] = ai
+			_picker_member = -1
+			_picker_slot   = -1
+			_rebuild()
+		)
+		rows.add_child(row_btn)
+
 ## --- Drag-and-Drop Logic ---
 
 func _can_drop_here(data: Variant, slot_type: int, is_dead: bool) -> bool:
@@ -705,6 +901,11 @@ func _push_consumable_to_bag(consumable_id: String) -> void:
 	})
 
 ## --- String Helpers ---
+
+func _strcmp(a: String, b: String) -> int:
+	if a < b: return -1
+	if a > b: return 1
+	return 0
 
 func _attr_name(attr: int) -> String:
 	match attr:

@@ -16,6 +16,7 @@ extends RefCounted
 ## "artwork_attack" : String            — res:// path placeholder
 ## "backgrounds"    : Array[String]     — pool; one is chosen at random
 ## "abilities"      : Array             — fixed 4-slot list of ability IDs ("" = empty slot)
+## "pool_extras"    : Array             — additional IDs appended to ability_pool beyond the 4 slots
 ## "consumable"     : String            — item ID or display name ("" = none)
 ## "str_range"      : [min, max] int
 ## "dex_range"      : [min, max] int
@@ -33,6 +34,7 @@ const ARCHETYPES: Dictionary = {
 		"artwork_attack": "",
 		"backgrounds":    ["Noble", "Peasant", "Scholar", "Soldier", "Merchant"],
 		"abilities":      ["strike", "guard", "fireball", "sweep"],
+		"pool_extras":    ["heavy_strike", "counter", "charge", "inspire"],
 		"consumable":     "power_tonic",
 		"str_range":      [1, 4],
 		"dex_range":      [1, 4],
@@ -49,6 +51,7 @@ const ARCHETYPES: Dictionary = {
 		"artwork_attack": "",
 		"backgrounds":    ["Crook", "Soldier"],
 		"abilities":      ["quick_shot", "gust", "acid_splash", "piercing_shot"],
+		"pool_extras":    ["smoke_bomb", "disengage", "windblast", "counter"],
 		"consumable":     "",
 		"str_range":      [1, 2],
 		"dex_range":      [3, 4],
@@ -65,6 +68,7 @@ const ARCHETYPES: Dictionary = {
 		"artwork_attack": "",
 		"backgrounds":    ["Crook", "Soldier"],
 		"abilities":      ["heavy_strike", "shove", "sweep", "taunt"],
+		"pool_extras":    ["strike", "shield_bash", "charge", "yank"],
 		"consumable":     "",
 		"str_range":      [2, 4],
 		"dex_range":      [1, 2],
@@ -155,6 +159,10 @@ static func create(archetype_id: String, character_name: String = "",
 	for ab in ability_src:
 		if ab != "":
 			data.ability_pool.append(str(ab))
+	for ab in def.get("pool_extras", []) as Array:
+		var ab_str: String = str(ab)
+		if ab_str != "" and not data.ability_pool.has(ab_str):
+			data.ability_pool.append(ab_str)
 
 	# Consumable item (empty string = none)
 	data.consumable = def.get("consumable", "")
