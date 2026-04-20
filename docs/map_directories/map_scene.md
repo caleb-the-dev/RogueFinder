@@ -29,7 +29,7 @@ Defined in `_build_node_data()` as `Array[Dictionary]`. Each dictionary has:
 | `is_player_start` | `bool` | Vestigial flag — still set on `"node_o11"` but does not drive marker placement. Marker placement is driven by `GameState.player_node_id` (default `"badurga"`). |
 | `stamp_added` | `bool` | `true` after the visited ✓ stamp Label has been added as a button child |
 | `cleared_stamp_added` | `bool` | `true` after the cleared ✗ stamp Label has been added as a button child |
-| `node_type` | `String` | One of `"COMBAT"`, `"RECRUIT"`, `"VENDOR"`, `"EVENT"`, `"BOSS"`, `"CITY"` — set by `_assign_node_types()` at end of `_build_node_data()` |
+| `node_type` | `String` | One of `"COMBAT"`, `"VENDOR"`, `"EVENT"`, `"BOSS"`, `"CITY"` — set by `_assign_node_types()` at end of `_build_node_data()` |
 
 ### Layout
 
@@ -71,12 +71,11 @@ Built in `_build_adjacency()` after `_build_edge_data()`. Stored in `_adjacency:
 
 ## Node Types
 
-Six node types give each encounter a distinct identity.
+Five node types give each encounter a distinct identity.
 
 | Type | Color | Icon | Description |
 |---|---|---|---|
 | `COMBAT` | `Color(0.70, 0.22, 0.18)` | `X` | Standard enemy encounter |
-| `RECRUIT` | `Color(0.20, 0.55, 0.28)` | `+` | Add a new unit to your party |
 | `VENDOR` | `Color(0.48, 0.22, 0.68)` | `$` | Buy/sell gear |
 | `EVENT` | `Color(0.20, 0.42, 0.72)` | `?` | Random narrative event |
 | `BOSS` | `Color(0.40, 0.08, 0.08)` | `!` | Elite enemy; extra red border (3 px, `Color(0.80, 0.15, 0.10)`) |
@@ -88,7 +87,7 @@ CITY is reserved exclusively for `"badurga"`. The icon is a small `Label` child 
 
 | Ring | Nodes | Distribution |
 |---|---|---|
-| Outer (12) | 12 | 1 BOSS, 7 COMBAT, 2 EVENT, 1 VENDOR, 1 RECRUIT |
+| Outer (12) | 12 | 1 BOSS, 8 COMBAT, 2 EVENT, 1 VENDOR |
 | Middle (9) | 9 | 5 COMBAT, 3 EVENT, 1 VENDOR |
 | Inner (6) | 6 | 2 VENDOR, 4 EVENT |
 | Center | 1 | CITY (always Badurga) |
@@ -161,7 +160,7 @@ Guards cleared nodes first — returns immediately (no entry increment) if `Game
 |---|---|
 | `COMBAT` or `BOSS` | Sets `GameState.current_combat_node_id = GameState.player_node_id`, then `change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")` |
 | `CITY` | `change_scene_to_file("res://scenes/city/BadurgaScene.tscn")` — loads the Badurga city shell |
-| `RECRUIT`, `VENDOR`, `EVENT` | Sets `GameState.pending_node_type = node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
+| `VENDOR`, `EVENT` | Sets `GameState.pending_node_type = node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
 
 `NodeStub` reads and clears `GameState.pending_node_type` in `_ready()` and shows a placeholder screen with a "← Return to Map" button.
 
@@ -177,11 +176,11 @@ Guards cleared nodes first — returns immediately (no entry increment) if `Game
 - `await tween.finished` — then:
   - If `cleared_nodes.has(node_id)`: returns early (cleared nodes are pass-through — no entry increment)
   - If node type is `COMBAT`, `BOSS`, or `EVENT`: calls `_enter_current_node()` immediately — **auto-starts the encounter** (also fires entry increment)
-  - If node type is `VENDOR`, `RECRUIT`, or `CITY`: calls `_show_node_prompt(node_id)` — shows a yes/no panel asking the player to enter or keep moving
+  - If node type is `VENDOR` or `CITY`: calls `_show_node_prompt(node_id)` — shows a yes/no panel asking the player to enter or keep moving
 
 ### Node Prompt
 
-Shown for optional nodes (VENDOR, RECRUIT, CITY) after the marker lands. A `PanelContainer` anchored to the root MapManager (not `_map_container`) so it stays fixed on screen while the map pans. Positioned bottom-center after one `process_frame` await so the panel's computed size is available.
+Shown for optional nodes (VENDOR, CITY) after the marker lands. A `PanelContainer` anchored to the root MapManager (not `_map_container`) so it stays fixed on screen while the map pans. Positioned bottom-center after one `process_frame` await so the panel's computed size is available.
 
 | Field / Method | Description |
 |---|---|
@@ -293,7 +292,7 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 
 ## Entry Point
 
-`MapScene.tscn` **is** the game entry point as of Feature 3. `main.tscn` instances `MapScene.tscn` directly. From the map, players enter encounters by moving to nodes: COMBAT, BOSS, and EVENT nodes auto-start after the marker lands; VENDOR, RECRUIT, and CITY nodes show a yes/no prompt. After combat or a stub scene, `EndCombatScreen` and `NodeStub` both route back to `MapScene.tscn`.
+`MapScene.tscn` **is** the game entry point as of Feature 3. `main.tscn` instances `MapScene.tscn` directly. From the map, players enter encounters by moving to nodes: COMBAT, BOSS, and EVENT nodes auto-start after the marker lands; VENDOR and CITY nodes show a yes/no prompt. After combat or a stub scene, `EndCombatScreen` and `NodeStub` both route back to `MapScene.tscn`.
 
 ---
 
@@ -309,11 +308,10 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 - **`seed()` is a global call** — `_build_edge_data()` calls Godot's global `seed()` function, which affects all subsequent uses of the global RNG. Currently no other system shares that RNG path, but if future code uses `randf()`/`randi()` anywhere after scene load it will be seeded by the map seed. Use `RandomNumberGenerator` instances if independent RNG streams are needed.
 - **`GameState.reset()` must be kept in sync with GameState fields** — the debug delete-save button calls `GameState.reset()` before reloading the scene. When new persistent fields are added to `GameState` in future features, also add them to `reset()` so the debug button continues to produce a truly clean state.
 - **Type icons use `MOUSE_FILTER_IGNORE`** — the icon `Label` child of each button must have `mouse_filter = Control.MOUSE_FILTER_IGNORE` or it will intercept mouse events and prevent button presses from registering.
-- **RECRUIT is a valid outer-ring type** — one slot per run in the outer pool. `_color_for_type()` and `_icon_for_type()` both handle it. Treat it as optional (prompts the player) same as VENDOR.
 - **`node_types` is saved on first assignment** — `_assign_node_types()` calls `GameState.save()` after populating `node_types`. On reload, the saved dict is restored by `load_save()` and `_assign_node_types()` skips re-assignment entirely (non-empty dict check).
 - **Node labels are NOT saved** — names regenerate from `map_seed` on every load via `_assign_node_names()`. The three lore pools (`INNER_NAMES`, `MIDDLE_NAMES`, `OUTER_NAMES`) are static constants; the same seed always produces the same names. Do not add `node_names` to the save file.
 - **`map_seed` must be set before `_build_node_data()`** — moved from `_build_edge_data()` to `_ready()` so names and edges share the same seed. If you see node labels regenerating differently on reload, check that `map_seed` is being saved (it's saved when the player first moves via `GameState.save()`).
-- **1 BOSS per run, outer ring only** — `_assign_node_types()` picks exactly one BOSS node from the outer ring. The RECRUIT type still appears in the outer pool (1 slot) and color/icon definitions are present in `_color_for_type()`/`_icon_for_type()` — it is a valid type, just never assigned to inner or middle rings.
+- **1 BOSS per run, outer ring only** — `_assign_node_types()` picks exactly one BOSS node from the outer ring. Remaining 11 outer slots are COMBAT×8, EVENT×2, VENDOR×1.
 
 ---
 
@@ -330,6 +328,7 @@ The result is 2-3 forced bottleneck passages between each ring pair, no straight
 | 2026-04-20 | S20 Party Sheet Slice 5 | `_party_sheet: PartySheet` field added to `MapManager`. Instantiated in `_ready()` before `_build_scene()`. "Party" button added to `_add_ui_chrome()` at `(VIEWPORT_SIZE.x - 300, 8)` — calls `show_sheet()`. Full layout spec lives in `scripts/party/PartySheet.gd`. |
 | 2026-04-20 | S21 Party Sheet Slice 6 | Drag-and-drop gear management. Inventory bag (LEFT col) → equipment slots (MIDDLE col) via native `set_drag_forwarding()` lambdas. Click filled slot to unequip. Dead member slots disabled + drop rejected. `MapManager._input()` early-return guard blocks map pan/zoom when sheet visible. Sprite icons for slot types copied to `res://assets/icons/`. Tooltips on all stats, equipment, abilities, inventory items. |
 | 2026-04-20 | S22 Party Sheet layout redesign | Full 4-quadrant card layout. Each member card divided by full-height vertical + full-width horizontal 50%-alpha separators. TOP-LEFT: name/class/bg (prominent separate lines)/HP bar. TOP-RIGHT: derived stats (blue, 4 cols) + base attributes (yellow, 5 cols). BOTTOM-LEFT: equipment 2×2 grid. BOTTOM-RIGHT: slotted abilities 2×2 grid with ability names + hover tooltips. Right panel replaced with `TabContainer` ("Abilities" pool list + "Feats" placeholder). `_detail_open` pattern removed — fully stateless `_rebuild()`. |
+| 2026-04-20 | S24 Remove RECRUIT node type | RECRUIT removed from outer pool (replaced with COMBAT — outer ring is now 1 BOSS, 8 COMBAT, 2 EVENT, 1 VENDOR). Removed from `_color_for_type()`, `_icon_for_type()`, `_desc_for_type()`. Doc scrubbed throughout. |
 | 2026-04-20 | S23 Ability Pool Swap (Slice 7) | `ArchetypeLibrary`: `pool_extras` key added (3 archetypes now have extras); `create()` seeds them into `ability_pool` without duplicates. `PartySheet`: drag abilities from Abilities tab onto BOTTOM-RIGHT slots; right-click slots to clear/unequip; per-member sort (Name/Type/EN), per-member search bar with focus+caret restoration fix (backwards-typing bug fixed), per-member 1×/2× view toggle for ability pool; inventory column upgraded with sort (Name/Type), search bar, 1×/2× view toggle; drag-compare panels for all three categories (ability vs ability, equipment vs equipment, consumable vs consumable); compare helpers refactored into `_make_compare_panel()` / `_make_compare_col()` / `_add_cmp_label()` / `_add_cmp_desc()`; opaque tooltip theme + `_wrap_tooltip()` word-wrap; `_process()` auto-clears compare overlay when drag ends. |
 
 ---

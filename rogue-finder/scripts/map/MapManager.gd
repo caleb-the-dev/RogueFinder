@@ -195,10 +195,10 @@ func _assign_node_types() -> void:
 		boss_id = boss_pool[1]
 	GameState.node_types[boss_id] = "BOSS"
 
-	# Remaining 11 outer nodes: COMBAT×7, EVENT×2, VENDOR×1, RECRUIT×1
+	# Remaining 11 outer nodes: COMBAT×8, EVENT×2, VENDOR×1
 	var outer_pool: Array[String] = [
-		"COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
-		"EVENT","EVENT","VENDOR","RECRUIT",
+		"COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT","COMBAT",
+		"EVENT","EVENT","VENDOR",
 	]
 	for i in range(outer_pool.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
@@ -510,7 +510,6 @@ func _add_edges() -> void:
 func _color_for_type(t: String) -> Color:
 	match t:
 		"COMBAT":  return Color(0.70, 0.22, 0.18)
-		"RECRUIT": return Color(0.20, 0.55, 0.28)
 		"VENDOR":  return Color(0.48, 0.22, 0.68)
 		"EVENT":   return Color(0.20, 0.42, 0.72)
 		"BOSS":    return Color(0.40, 0.08, 0.08)
@@ -520,7 +519,6 @@ func _color_for_type(t: String) -> Color:
 func _icon_for_type(t: String) -> String:
 	match t:
 		"COMBAT":  return "X"
-		"RECRUIT": return "+"
 		"VENDOR":  return "$"
 		"EVENT":   return "?"
 		"BOSS":    return "!"
@@ -639,7 +637,6 @@ func _desc_for_type(t: String) -> String:
 		"VENDOR":  return "A travelling merchant. Browse wares or pass through."
 		"EVENT":   return "Something stirs here. Approach and find out."
 		"CITY":    return "Badurga, the hub city. The heart of civilization in these parts."
-		"RECRUIT": return "A potential ally waits here. Speak with them or move on."
 		_:         return ""
 
 func _add_hover_tooltip() -> void:
