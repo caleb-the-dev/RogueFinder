@@ -42,12 +42,21 @@ const ICON_CONSUMABLE: String = "res://assets/icons/sConsumableIcon.png"
 
 var _content_root: Control = null
 
-## --- Per-member sort / search state (index = party slot 0..2) ---
+## --- Per-member sort / search / view state (index = party slot 0..2) ---
 var _sort_fields:   Array[String] = ["name", "name", "name"]
 var _sort_ascs:     Array[bool]   = [true, true, true]
 var _search_texts:  Array[String] = ["", "", ""]
-var _focus_search_mi:    int      = -1   ## which member's search box gets focus after next rebuild
-var _active_search_edit: LineEdit = null ## reference set during rebuild
+var _focus_search_mi:    int      = -1
+var _active_search_edit: LineEdit = null
+var _abil_views_wide: Array[bool] = [false, false, false]  ## false=1-per-row, true=2-per-row
+
+## --- Inventory sort / search / view state ---
+var _inv_search_text:   String   = ""
+var _inv_sort_field:    String   = "name"
+var _inv_sort_asc:      bool     = true
+var _inv_view_wide:     bool     = false
+var _focus_inv_search:  bool     = false
+var _active_inv_search: LineEdit = null
 
 ## --- Drag comparison overlay (lives on the CanvasLayer, survives rebuilds) ---
 var _drag_compare_panel: Control = null
@@ -71,13 +80,15 @@ func show_sheet() -> void:
 
 func hide_sheet() -> void:
 	_clear_drag_compare()
-	_focus_search_mi = -1
+	_focus_search_mi  = -1
+	_focus_inv_search = false
 	visible = false
 
 ## --- Build ---
 
 func _rebuild() -> void:
 	_active_search_edit = null
+	_active_inv_search  = null
 	if _content_root != null and is_instance_valid(_content_root):
 		_content_root.queue_free()
 
@@ -115,7 +126,13 @@ func _rebuild() -> void:
 		_build_member_card(root, member, Vector2(MID_X, row_y), i)
 
 	if _active_search_edit != null and is_instance_valid(_active_search_edit):
-		_active_search_edit.grab_focus.call_deferred()
+		var se: LineEdit = _active_search_edit
+		se.grab_focus.call_deferred()
+		(func() -> void: se.set_caret_column(se.text.length())).call_deferred()
+	if _active_inv_search != null and is_instance_valid(_active_inv_search):
+		var si: LineEdit = _active_inv_search
+		si.grab_focus.call_deferred()
+		(func() -> void: si.set_caret_column(si.text.length())).call_deferred()
 
 ## --- Header ---
 
@@ -159,42 +176,144 @@ func _build_inventory_column(parent: Control) -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(bg)
 
-	var header := Label.new()
-	header.text = "BAG"
-	header.position = Vector2(LEFT_X + 8.0, CONTENT_TOP + 6.0)
-	header.add_theme_font_size_override("font_size", 13)
-	header.add_theme_color_override("font_color", Color(0.90, 0.82, 0.60))
-	parent.add_child(header)
+	var margin := MarginContainer.new()
+	margin.position = Vector2(LEFT_X, CONTENT_TOP)
+	margin.size = Vector2(LEFT_W, col_h)
+	margin.add_theme_constant_override("margin_left",   8)
+	margin.add_theme_constant_override("margin_right",  6)
+	margin.add_theme_constant_override("margin_top",    4)
+	margin.add_theme_constant_override("margin_bottom", 4)
+	parent.add_child(margin)
+
+	var col_vbox := VBoxContainer.new()
+	col_vbox.add_theme_constant_override("separation", 3)
+	margin.add_child(col_vbox)
+
+	# Header row: label + view toggle
+	var hdr_row := HBoxContainer.new()
+	hdr_row.add_theme_constant_override("separation", 4)
+	col_vbox.add_child(hdr_row)
+	var bag_lbl := Label.new()
+	bag_lbl.text = "BAG"
+	bag_lbl.add_theme_font_size_override("font_size", 13)
+	bag_lbl.add_theme_color_override("font_color", Color(0.90, 0.82, 0.60))
+	bag_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr_row.add_child(bag_lbl)
+	var inv_view_btn := Button.new()
+	inv_view_btn.text = "2×" if not _inv_view_wide else "1×"
+	inv_view_btn.flat = true
+	inv_view_btn.add_theme_font_size_override("font_size", 9)
+	inv_view_btn.add_theme_color_override("font_color", Color(0.65, 0.60, 0.45))
+	inv_view_btn.tooltip_text = "Toggle 1 or 2 items per row"
+	inv_view_btn.pressed.connect(func() -> void:
+		_inv_view_wide = not _inv_view_wide
+		_rebuild()
+	)
+	hdr_row.add_child(inv_view_btn)
+
+	# Sort row
+	var inv_sort_row := HBoxContainer.new()
+	inv_sort_row.add_theme_constant_override("separation", 3)
+	col_vbox.add_child(inv_sort_row)
+	var inv_sort_lbl := Label.new()
+	inv_sort_lbl.text = "Sort:"
+	inv_sort_lbl.add_theme_font_size_override("font_size", 9)
+	inv_sort_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.42))
+	inv_sort_row.add_child(inv_sort_lbl)
+	for sf: Array in [["name", "Name"], ["type", "Type"]]:
+		var field: String = sf[0]; var caption: String = sf[1]
+		var is_active: bool = (_inv_sort_field == field)
+		var arrow: String   = (" ▲" if _inv_sort_asc else " ▼") if is_active else ""
+		var sbtn := Button.new()
+		sbtn.text = caption + arrow
+		sbtn.flat = not is_active
+		sbtn.add_theme_font_size_override("font_size", 9)
+		if is_active:
+			sbtn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.45))
+		var f: String = field
+		sbtn.pressed.connect(func() -> void:
+			if _inv_sort_field == f:
+				_inv_sort_asc = not _inv_sort_asc
+			else:
+				_inv_sort_field = f
+				_inv_sort_asc   = true
+			_rebuild()
+		)
+		inv_sort_row.add_child(sbtn)
+
+	# Search bar
+	var inv_search := LineEdit.new()
+	inv_search.placeholder_text = "search bag…"
+	inv_search.text = _inv_search_text
+	inv_search.add_theme_font_size_override("font_size", 11)
+	col_vbox.add_child(inv_search)
+	inv_search.text_changed.connect(func(new_text: String) -> void:
+		_inv_search_text  = new_text
+		_focus_inv_search = true
+		_rebuild()
+	)
+	if _focus_inv_search:
+		_active_inv_search = inv_search
 
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(LEFT_X, CONTENT_TOP + 26.0)
-	scroll.size = Vector2(LEFT_W, col_h - 26.0)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	parent.add_child(scroll)
+	col_vbox.add_child(scroll)
 
-	var vbox := VBoxContainer.new()
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.custom_minimum_size = Vector2(LEFT_W - 12.0, 0.0)
-	vbox.add_theme_constant_override("separation", 3)
-	scroll.add_child(vbox)
+	var grid := GridContainer.new()
+	grid.columns = 2 if _inv_view_wide else 1
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("v_separation", 2)
+	scroll.add_child(grid)
 
 	if GameState.inventory.is_empty():
 		var empty_lbl := Label.new()
 		empty_lbl.text = "— empty —"
 		empty_lbl.add_theme_font_size_override("font_size", 12)
 		empty_lbl.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
-		vbox.add_child(empty_lbl)
+		grid.add_child(empty_lbl)
 		return
 
-	for item: Dictionary in GameState.inventory:
-		_build_draggable_item(vbox, item)
+	# Sort + filter
+	var inv_sorted: Array = GameState.inventory.duplicate()
+	inv_sorted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var cmp: int
+		match _inv_sort_field:
+			"type":
+				var ta: int = 0 if a.get("item_type", "") == "equipment" else 1
+				var tb: int = 0 if b.get("item_type", "") == "equipment" else 1
+				cmp = ta - tb
+				if cmp == 0: cmp = _strcmp(a.get("name", ""), b.get("name", ""))
+			_:
+				cmp = _strcmp(a.get("name", ""), b.get("name", ""))
+		return cmp < 0 if _inv_sort_asc else cmp > 0
+	)
+	var inv_query: String = _inv_search_text.strip_edges().to_lower()
+	if inv_query != "":
+		inv_sorted = inv_sorted.filter(func(item: Dictionary) -> bool:
+			return item.get("name", "").to_lower().contains(inv_query)
+		)
 
-func _build_draggable_item(parent: Control, item: Dictionary) -> void:
+	if inv_sorted.is_empty():
+		var no_match := Label.new()
+		no_match.text = "No matches."
+		no_match.add_theme_font_size_override("font_size", 11)
+		no_match.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		grid.add_child(no_match)
+		return
+
+	for item: Dictionary in inv_sorted:
+		_build_draggable_item(grid, item, _inv_view_wide)
+
+func _build_draggable_item(parent: Control, item: Dictionary, compact: bool = false) -> void:
 	var is_equipment: bool = item.get("item_type", "") == "equipment"
 
 	var row := PanelContainer.new()
-	row.custom_minimum_size = Vector2(LEFT_W - 14.0, 0.0)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if not compact:
+		row.custom_minimum_size = Vector2(LEFT_W - 14.0, 0.0)
 
 	var sbox := StyleBoxFlat.new()
 	sbox.bg_color = Color(0.14, 0.12, 0.09, 0.90)
@@ -221,7 +340,8 @@ func _build_draggable_item(parent: Control, item: Dictionary) -> void:
 	if icon_tex != null:
 		var icon_rect := TextureRect.new()
 		icon_rect.texture = icon_tex
-		icon_rect.custom_minimum_size = Vector2(20.0, 20.0)
+		var icon_sz: float = 16.0 if compact else 20.0
+		icon_rect.custom_minimum_size = Vector2(icon_sz, icon_sz)
 		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hbox.add_child(icon_rect)
@@ -233,12 +353,14 @@ func _build_draggable_item(parent: Control, item: Dictionary) -> void:
 
 	var name_lbl := Label.new()
 	name_lbl.text = item.get("name", "?")
-	name_lbl.add_theme_font_size_override("font_size", 11)
+	name_lbl.add_theme_font_size_override("font_size", 10 if compact else 11)
 	name_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.78))
 	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if compact:
+		name_lbl.clip_contents = true
 	text_vbox.add_child(name_lbl)
 
-	if is_equipment:
+	if is_equipment and not compact:
 		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
 		var bonus_str: String = _bonuses_str(eq.stat_bonuses)
 		if bonus_str != "":
@@ -685,10 +807,22 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			_rebuild()
 		)
 		sort_row.add_child(sbtn)
-	# Hint label right-aligned
+	# View toggle + hint right-aligned
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sort_row.add_child(spacer)
+	var abil_view_btn := Button.new()
+	abil_view_btn.text = "2×" if not _abil_views_wide[member_idx] else "1×"
+	abil_view_btn.flat = true
+	abil_view_btn.add_theme_font_size_override("font_size", 9)
+	abil_view_btn.add_theme_color_override("font_color", Color(0.42, 0.52, 0.42, 0.80))
+	abil_view_btn.tooltip_text = "Toggle 1 or 2 abilities per row"
+	var mi_view: int = member_idx
+	abil_view_btn.pressed.connect(func() -> void:
+		_abil_views_wide[mi_view] = not _abil_views_wide[mi_view]
+		_rebuild()
+	)
+	sort_row.add_child(abil_view_btn)
 	var hint_lbl := Label.new()
 	hint_lbl.text = "drag to slot →"
 	hint_lbl.add_theme_font_size_override("font_size", 9)
@@ -717,17 +851,28 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 	abil_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	abil_tab.add_child(abil_scroll)
 
-	var abil_vbox := VBoxContainer.new()
-	abil_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	abil_vbox.add_theme_constant_override("separation", 3)
-	abil_scroll.add_child(abil_vbox)
+	var abil_container: Control
+	if _abil_views_wide[member_idx]:
+		var abil_grid := GridContainer.new()
+		abil_grid.columns = 2
+		abil_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		abil_grid.add_theme_constant_override("h_separation", 3)
+		abil_grid.add_theme_constant_override("v_separation", 3)
+		abil_scroll.add_child(abil_grid)
+		abil_container = abil_grid
+	else:
+		var abil_vbox := VBoxContainer.new()
+		abil_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		abil_vbox.add_theme_constant_override("separation", 3)
+		abil_scroll.add_child(abil_vbox)
+		abil_container = abil_vbox
 
 	if member.ability_pool.is_empty():
 		var placeholder := Label.new()
 		placeholder.text = "No abilities in pool."
 		placeholder.add_theme_font_size_override("font_size", 11)
 		placeholder.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
-		abil_vbox.add_child(placeholder)
+		abil_container.add_child(placeholder)
 	else:
 		var sorted_pool: Array = member.ability_pool.duplicate()
 		var sf_cur: String = _sort_fields[member_idx]
@@ -754,7 +899,7 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			no_match.text = "No matches."
 			no_match.add_theme_font_size_override("font_size", 11)
 			no_match.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
-			abil_vbox.add_child(no_match)
+			abil_container.add_child(no_match)
 
 		var mi: int = member_idx
 		for ab_id: String in sorted_pool:
@@ -777,7 +922,7 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			sbox.set_corner_radius_all(2)
 			ab_pnl.add_theme_stylebox_override("panel", sbox)
 			ab_pnl.tooltip_text = tip
-			abil_vbox.add_child(ab_pnl)
+			abil_container.add_child(ab_pnl)
 
 			var inner := VBoxContainer.new()
 			inner.add_theme_constant_override("separation", 1)
