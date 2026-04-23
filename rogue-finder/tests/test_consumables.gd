@@ -58,17 +58,14 @@ func _test_all_archetype_consumables_resolve() -> void:
 
 func _test_mend_base_value() -> void:
 	# MEND consumables must have a positive base_value.
-	for con_id in ConsumableLibrary.CONSUMABLES:
-		var def: Dictionary = ConsumableLibrary.CONSUMABLES[con_id]
-		if def["effect_type"] == EffectData.EffectType.MEND:
-			assert(def["base_value"] > 0,
-				"MEND consumable '%s' base_value must be > 0" % con_id)
+	for c in ConsumableLibrary.all_consumables():
+		if c.effect_type == EffectData.EffectType.MEND:
+			assert(c.base_value > 0,
+				"MEND consumable '%s' base_value must be > 0" % c.consumable_id)
 
 func _test_buff_target_stat() -> void:
-	# BUFF and DEBUFF consumables must declare a target_stat.
-	for con_id in ConsumableLibrary.CONSUMABLES:
-		var def: Dictionary = ConsumableLibrary.CONSUMABLES[con_id]
-		var etype: EffectData.EffectType = def["effect_type"]
-		if etype == EffectData.EffectType.BUFF or etype == EffectData.EffectType.DEBUFF:
-			assert(def.has("target_stat"),
-				"BUFF/DEBUFF consumable '%s' must declare target_stat" % con_id)
+	# BUFF and DEBUFF consumables must declare a non-zero target_stat.
+	for c in ConsumableLibrary.all_consumables():
+		if c.effect_type == EffectData.EffectType.BUFF or c.effect_type == EffectData.EffectType.DEBUFF:
+			assert(c.target_stat != 0,
+				"BUFF/DEBUFF consumable '%s' must declare a non-zero target_stat" % c.consumable_id)

@@ -17,8 +17,7 @@ static func roll(count: int) -> Array:
 			"item_type":   "equipment",
 		})
 
-	for id in ConsumableLibrary.CONSUMABLES:
-		var c: ConsumableData = ConsumableLibrary.get_consumable(id)
+	for c in ConsumableLibrary.all_consumables():
 		pool.append({
 			"id":          c.consumable_id,
 			"name":        c.consumable_name,
