@@ -148,7 +148,8 @@ static func create(archetype_id: String, character_name: String = "",
 	data.archetype_id   = archetype_id
 	data.is_player_unit = is_player
 	data.unit_class     = def["class"]
-	data.kindred        = def.get("kindred", "Unknown")
+	data.kindred         = def.get("kindred", "Unknown")
+	data.kindred_feat_id = KindredLibrary.get_feat_id(data.kindred)
 	data.artwork_idle   = def["artwork_idle"]
 	data.artwork_attack = def["artwork_attack"]
 

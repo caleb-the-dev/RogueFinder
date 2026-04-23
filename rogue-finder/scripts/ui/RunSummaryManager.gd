@@ -5,7 +5,8 @@ extends CanvasLayer
 ## Shown after a run-ending defeat. Reads GameState.run_summary for stats,
 ## then offers three exits: start new run, main menu (stub), or quit.
 
-const MAP_SCENE_PATH := "res://scenes/map/MapScene.tscn"
+const MAP_SCENE_PATH  := "res://scenes/map/MapScene.tscn"
+const MENU_SCENE_PATH := "res://scenes/ui/MainMenuScene.tscn"
 
 func _ready() -> void:
 	layer = 10
@@ -87,8 +88,9 @@ func _on_new_run() -> void:
 	get_tree().change_scene_to_file(MAP_SCENE_PATH)
 
 func _on_main_menu() -> void:
-	# No dedicated title scene yet — resets and loads MapScene as the entry hub.
-	_on_new_run()
+	GameState.reset()
+	GameState.delete_save()
+	get_tree().change_scene_to_file(MENU_SCENE_PATH)
 
 func _on_quit() -> void:
 	get_tree().quit()

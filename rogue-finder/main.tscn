@@ -1,8 +1,8 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="PackedScene" path="res://scenes/map/MapScene.tscn" id="1_mapscene"]
+[ext_resource type="PackedScene" path="res://scenes/ui/MainMenuScene.tscn" id="1_mainmenu"]
 
-; Entry point — boots into the world map.
+; Entry point — boots into the main menu.
 [node name="Main" type="Node3D"]
 
-[node name="MapScene" parent="." instance=ExtResource("1_mapscene")]
+[node name="MainMenuScene" parent="." instance=ExtResource("1_mainmenu")]

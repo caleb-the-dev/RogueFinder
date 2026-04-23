@@ -29,16 +29,21 @@ func _ready() -> void:
 	test_fresh_energy_equals_energy_max()
 	test_is_dead_default_false()
 	test_ability_pool_size_all_archetypes()
+	test_kindred_speed_formula()
+	test_kindred_hp_formula()
+	test_kindred_feat_assignment()
+	test_kindred_unknown_defaults_safe()
 	print("=== All CombatantData tests passed ===")
 
 ## --- Derived Stat Tests ---
 
 func test_derived_hp() -> void:
+	# No kindred set → bonus = 0. Formula: 10 + 0 + vitality*6.
 	var d := CombatantData.new()
 	d.vitality = 3
-	assert(d.hp_max == 30, "hp_max should be 10 * vitality (30), got %d" % d.hp_max)
+	assert(d.hp_max == 28, "hp_max should be 10+0+18=28 (no kindred, vit 3), got %d" % d.hp_max)
 	d.vitality = 1
-	assert(d.hp_max == 10, "hp_max should be 10 for vitality 1, got %d" % d.hp_max)
+	assert(d.hp_max == 16, "hp_max should be 10+0+6=16 (no kindred, vit 1), got %d" % d.hp_max)
 	print("  PASS test_derived_hp")
 
 func test_derived_energy() -> void:
@@ -58,11 +63,12 @@ func test_derived_energy_regen() -> void:
 	print("  PASS test_derived_energy_regen")
 
 func test_derived_speed() -> void:
+	# No kindred set → bonus = 0. Formula: 1 + 0 = 1 regardless of DEX.
 	var d := CombatantData.new()
-	d.dexterity = 4
-	assert(d.speed == 6, "speed should be 2 + dexterity (6), got %d" % d.speed)
-	d.dexterity = 0
-	assert(d.speed == 2, "speed should be 2 for dexterity 0, got %d" % d.speed)
+	d.dexterity = 4  # DEX no longer drives speed
+	assert(d.speed == 1, "speed should be 1+0=1 (no kindred), got %d" % d.speed)
+	d.kindred = "Human"
+	assert(d.speed == 4, "Human speed should be 1+3=4, got %d" % d.speed)
 	print("  PASS test_derived_speed")
 
 func test_derived_attack() -> void:
@@ -86,10 +92,11 @@ func test_unit_name_alias() -> void:
 	print("  PASS test_unit_name_alias")
 
 func test_vitality_min_guard() -> void:
-	# ArchetypeLibrary guards vitality >= 1 so hp_max is never 0
+	# ArchetypeLibrary guards vitality >= 1. Alchemist is Gnome (+2 hp_bonus), VIT min 1.
+	# Minimum hp_max = 10 + 2 + 1*6 = 18.
 	var d: CombatantData = ArchetypeLibrary.create("alchemist")
 	assert(d.vitality >= 1, "vitality must be at least 1 after factory creation")
-	assert(d.hp_max   >= 10, "hp_max must be >= 10 (vitality >= 1)")
+	assert(d.hp_max   >= 18, "hp_max must be >= 18 for Gnome at VIT 1, got %d" % d.hp_max)
 	print("  PASS test_vitality_min_guard")
 
 ## --- Archetype Factory Tests ---
@@ -204,10 +211,72 @@ func test_is_dead_default_false() -> void:
 			"%s: is_dead should default false" % archetype_id)
 	print("  PASS test_is_dead_default_false")
 
-func test_ability_pool_size_all_archetypes() -> void:
-	# All current archetypes have exactly 4 non-empty abilities, so pool size is 4.
-	for archetype_id in ArchetypeLibrary.ARCHETYPES.keys():
+## --- Kindred Stat Tests ---
+
+func test_kindred_speed_formula() -> void:
+	# 1 + kindred_speed_bonus; DEX is irrelevant
+	var cases: Dictionary = { "Human": 4, "Half-Orc": 3, "Gnome": 5, "Dwarf": 2 }
+	for kindred in cases.keys():
+		var d: CombatantData = CombatantData.new()
+		d.kindred   = kindred
+		d.dexterity = 5  # should have zero effect on speed
+		assert(d.speed == cases[kindred],
+			"%s: expected speed %d, got %d" % [kindred, cases[kindred], d.speed])
+	print("  PASS test_kindred_speed_formula")
+
+func test_kindred_hp_formula() -> void:
+	# Formula: 10 + hp_bonus + vitality*6
+	var cases: Dictionary = {
+		"Human":    { "hp_bonus": 5,  "vit": 3, "expected": 10 + 5  + 18 },  # 33
+		"Half-Orc": { "hp_bonus": 12, "vit": 3, "expected": 10 + 12 + 18 },  # 40
+		"Gnome":    { "hp_bonus": 2,  "vit": 1, "expected": 10 + 2  + 6  },  # 18
+		"Dwarf":    { "hp_bonus": 8,  "vit": 4, "expected": 10 + 8  + 24 },  # 42
+	}
+	for kindred in cases.keys():
+		var c: Dictionary = cases[kindred]
+		var d: CombatantData = CombatantData.new()
+		d.kindred  = kindred
+		d.vitality = c["vit"]
+		assert(d.hp_max == c["expected"],
+			"%s: expected hp_max %d, got %d" % [kindred, c["expected"], d.hp_max])
+	print("  PASS test_kindred_hp_formula")
+
+func test_kindred_feat_assignment() -> void:
+	var expected_feats: Dictionary = {
+		"RogueFinder":  "adaptive",
+		"archer_bandit": "adaptive",   # also Human
+		"grunt":         "relentless",
+		"alchemist":     "tinkerer",
+		"elite_guard":   "stonehide",
+	}
+	for archetype_id in expected_feats.keys():
 		var d: CombatantData = ArchetypeLibrary.create(archetype_id)
-		assert(d.ability_pool.size() == 4,
-			"%s: expected pool size 4, got %d" % [archetype_id, d.ability_pool.size()])
+		assert(d.kindred_feat_id == expected_feats[archetype_id],
+			"%s: expected feat '%s', got '%s'" % [archetype_id, expected_feats[archetype_id], d.kindred_feat_id])
+	print("  PASS test_kindred_feat_assignment")
+
+func test_kindred_unknown_defaults_safe() -> void:
+	var d: CombatantData = CombatantData.new()
+	d.kindred = "Unknown"
+	assert(d.speed  == 1, "Unknown kindred speed should be 1+0=1, got %d" % d.speed)
+	assert(d.hp_max == 10 + (d.vitality * 6),
+		"Unknown kindred hp_max should use 0 bonus, got %d" % d.hp_max)
+	assert(KindredLibrary.get_feat_name("Unknown") == "",
+		"Unknown kindred feat_name should be empty string")
+	print("  PASS test_kindred_unknown_defaults_safe")
+
+func test_ability_pool_size_all_archetypes() -> void:
+	# RogueFinder / archer_bandit / grunt have 4 active + 4 pool_extras = 8.
+	# alchemist / elite_guard have no pool_extras = 4.
+	var expected: Dictionary = {
+		"RogueFinder":  8,
+		"archer_bandit": 8,
+		"grunt":         8,
+		"alchemist":     4,
+		"elite_guard":   4,
+	}
+	for archetype_id in expected.keys():
+		var d: CombatantData = ArchetypeLibrary.create(archetype_id)
+		assert(d.ability_pool.size() == expected[archetype_id],
+			"%s: expected pool size %d, got %d" % [archetype_id, expected[archetype_id], d.ability_pool.size()])
 	print("  PASS test_ability_pool_size_all_archetypes")
