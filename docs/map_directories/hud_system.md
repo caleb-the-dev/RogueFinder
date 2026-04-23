@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-23 (map audit — EndCombatScreen.show_defeat() removed; defeat path moved to CombatManager3D._show_run_end_overlay())
+> Last updated: 2026-04-23 (S29 — StatPanel feat row added; MainMenuScene added)
 
 ---
 
@@ -35,7 +35,9 @@ Displays: portrait · name · class · HP bar · Energy bar.
 
 **Layer 8.** Opened on **double-click** of any unit. Closed by the **✕ button** or **ESC**.
 
-Displays: portrait · name · archetype · **kindred** · background · team · all attributes · derived stats · equipment · abilities. No artwork section. Content is scrollable.
+Displays: portrait · name · archetype · **kindred** · **kindred feat name** · background · team · all attributes · derived stats · equipment · abilities. No artwork section. Content is scrollable.
+
+Feat name resolved at display time via `KindredLibrary.get_feat_name(d.kindred)` — not stored on `CombatantData`. Speed label reads `(1 + kindred)` since S29.
 
 ### Public API
 
@@ -132,6 +134,24 @@ Static utility class (`scripts/globals/RewardGenerator.gd`). Builds a shuffled p
 | Method | Signature | Purpose |
 |--------|-----------|---------|
 | `roll` | `(count: int) -> Array` | Returns `count` random distinct reward Dicts |
+
+---
+
+## MainMenuScene
+
+**Entry point.** `main.tscn` now instances `MainMenuScene.tscn` (was `MapScene.tscn` directly). Lives at `scenes/ui/MainMenuScene.tscn` + `scripts/ui/MainMenuManager.gd`.
+
+Displays: title · subtitle · three buttons (Continue, Start New Run, Quit).
+
+- **Continue** — disabled when `user://save.json` does not exist. Calls `GameState.load_save()` then `change_scene_to_file(MAP_SCENE_PATH)`.
+- **Start New Run** — calls `GameState.delete_save()` + `GameState.reset()` then transitions to MapScene.
+- **Quit** — `get_tree().quit()`.
+
+`RunSummaryManager._on_main_menu()` now routes to `MainMenuScene.tscn` (was silently calling `_on_new_run()`).
+
+### Gotchas
+- **No CanvasLayer child nodes** — all UI built in `_ready()` / `_build_ui()`. `main.tscn` is a `Node3D` root instancing the scene; the CanvasLayer sits inside.
+- **Continue button state is set once at `_ready()`** — if a save is written during the same session, the button state won't update without a scene reload (not a real issue in normal flow).
 
 ---
 

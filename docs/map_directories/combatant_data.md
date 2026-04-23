@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-23 (S28 kindred + split during map audit — abilities, equipment, and backgrounds moved to their own files)
+> Last updated: 2026-04-23 (S29 kindred mechanics — speed/HP formulas now kindred-driven; KindredLibrary added; kindred_feat_id added)
 
 ---
 
@@ -24,6 +24,7 @@
 |------|------|
 | `resources/CombatantData.gd` | Resource: identity, attributes, equipment, ability pool. Derived stats are computed properties. |
 | `scripts/globals/ArchetypeLibrary.gd` | Static factory: archetype definitions + `create()` method. |
+| `scripts/globals/KindredLibrary.gd` | Static class: per-kindred mechanical data (speed bonus, HP bonus, feat id/name/desc). Single source of truth — referenced by `CombatantData` computed properties. |
 
 ---
 
@@ -49,7 +50,8 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `character_name` | `String` | Display name; player-editable. |
 | `archetype_id` | `String` | Key into `ArchetypeLibrary.ARCHETYPES`. |
 | `is_player_unit` | `bool` | Team assignment; drives AI vs. player control. |
-| `kindred` | `String` | Species/ancestry (e.g. `"Human"`, `"Dwarf"`, `"Gnome"`, `"Half-Orc"`). Fixed per archetype; set in `create()` from `def["kindred"]` via `.get("kindred", "Unknown")`. Persisted to save. Old saves without this key default to `"Unknown"`. Flavor-only now; mechanical hooks deferred to Stage 2. |
+| `kindred` | `String` | Species/ancestry (e.g. `"Human"`, `"Dwarf"`, `"Gnome"`, `"Half-Orc"`). Fixed per archetype; set in `create()` from `def["kindred"]` via `.get("kindred", "Unknown")`. Persisted to save. Old saves default to `"Unknown"`. **Mechanically active:** drives `speed` and `hp_max` via `KindredLibrary`. |
+| `kindred_feat_id` | `String` | ID of the kindred's passive feat (e.g. `"adaptive"`, `"relentless"`). Set in `create()` via `KindredLibrary.get_feat_id(kindred)`. Persisted to save; old saves default to `""`. Placeholder — no mechanical effect yet. Displayed as feat name in StatPanel. |
 
 ### Background & Class
 | Field | Type | Notes |
@@ -68,10 +70,10 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | Field | Drives |
 |-------|--------|
 | `strength` | `attack` (5 + STR) |
-| `dexterity` | `speed` (2 + DEX) |
+| `dexterity` | Reserved — no longer drives `speed`. Future: dodge/evasion. Equipment `dexterity` bonuses still add to speed as a passthrough until a dedicated speed slot exists. |
 | `cognition` | Reserved for ability cost scaling (TBD) |
 | `willpower` | `energy_regen` (2 + WIL) |
-| `vitality` | `hp_max` (10 × VIT) and `energy_max` (5 + VIT) |
+| `vitality` | `hp_max` (10 + kindred_bonus + VIT×6) and `energy_max` (5 + VIT) |
 
 ### Equipment Slots
 `weapon`, `armor`, `accessory` — typed `EquipmentData` (nullable; `null` = unequipped). Bonuses applied via `_equip_bonus()`. See `equipment_system.md`.
@@ -103,12 +105,22 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 
 | Property | Formula |
 |----------|---------|
-| `hp_max` | `10 * vitality + equip("vitality")` |
+| `hp_max` | `10 + KindredLibrary.get_hp_bonus(kindred) + (vitality × 6) + equip("vitality")` |
 | `energy_max` | `5 + vitality + equip("vitality")` |
 | `energy_regen` | `2 + willpower + equip("willpower")` |
-| `speed` | `2 + dexterity + equip("dexterity")` |
+| `speed` | `1 + KindredLibrary.get_speed_bonus(kindred) + equip("dexterity")` |
 | `attack` | `5 + strength + equip("strength")` |
 | `defense` | `armor_defense + equip("armor_defense")` |
+
+**Kindred bonus values (from KindredLibrary):**
+
+| Kindred | speed_bonus → speed | hp_bonus | HP range (no equip) |
+|---------|---------------------|----------|---------------------|
+| Human | 3 → 4 | +5 | 21–35 (VIT 1–3, archer) / 27–45 (VIT 2–5, PC) |
+| Half-Orc | 2 → 3 | +12 | 34–46 (VIT 2–4) |
+| Gnome | 4 → 5 | +2 | 18–26 (VIT 1–2) |
+| Dwarf | 1 → 2 | +8 | 36–48 (VIT 3–5) |
+| Unknown / empty | 0 → 1 | 0 | safe default, no crash |
 
 ---
 
@@ -144,10 +156,10 @@ static func create(archetype_id: String, character_name: String = "",
 
 | Dependent | On |
 |-----------|----|
-| `CombatantData` | `EquipmentData` (equipment slots) |
-| `ArchetypeLibrary` | `CombatantData` |
+| `CombatantData` | `EquipmentData` (equipment slots), `KindredLibrary` (speed + HP computed props) |
+| `ArchetypeLibrary` | `CombatantData`, `KindredLibrary` (sets `kindred_feat_id` in `create()`) |
 | `Unit3D` | `CombatantData` (via `@export var data`) |
-| `StatPanel` | `CombatantData`, `Unit3D` |
+| `StatPanel` | `CombatantData`, `Unit3D`, `KindredLibrary` (feat name lookup) |
 | `CombatActionPanel` | `CombatantData` (via `Unit3D.data`) |
 | `CombatManager3D` | `ArchetypeLibrary`, `CombatantData` |
 | `GameState` | `CombatantData` (party roster; serialize / deserialize) |
@@ -176,6 +188,7 @@ static func create(archetype_id: String, character_name: String = "",
 
 | Date | Change |
 |---|---|
+| 2026-04-23 | S29 — Kindred mechanics live. `hp_max` formula changed to `10 + kindred_hp_bonus + VIT×6 + equip`; `speed` formula changed to `1 + kindred_speed_bonus + equip("dexterity")`. DEX removed from speed (reserved for future dodge/evasion). Added `kindred_feat_id: String` field; set in `create()` via `KindredLibrary.get_feat_id()`, persisted to save (old saves default `""`). New `KindredLibrary.gd` holds all per-kindred data. StatPanel feat row added. `test_combatant_data.gd` updated + 4 new kindred tests. |
 | 2026-04-23 | S28 — Added `kindred: String` to `CombatantData` (Identity section). Each archetype definition includes a `"kindred"` key; `create()` sets `data.kindred = def.get("kindred", "Unknown")`. Assignments: RogueFinder→Human, archer_bandit→Human, grunt→Half-Orc, alchemist→Gnome, elite_guard→Dwarf. Persisted in `GameState._serialize_combatant()` / `_deserialize_combatant()` (old saves default `"Unknown"`). Displayed in StatPanel, CombatActionPanel, and PartySheet. |
 | 2026-04-20 | S23 — `ArchetypeLibrary.pool_extras` key added; `create()` appends extras to `ability_pool` (deduped). RogueFinder / archer_bandit / grunt each get +4 extras. Pool ⊇ Slots invariant still holds. |
 | 2026-04-19 | Slice 3 — `is_dead` now set by `CombatManager3D._on_unit_died()` (permadeath). `current_hp`/`current_energy` written back on combat victory. `Unit3D.setup()` seeds from persistent fields. |

@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-23 |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 0 |
+| sessions_since_groom | 1 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -33,6 +33,8 @@
 | [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (22 abilities) | Data |
 | [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (6 equipment, 2 consumables) | Data |
 | [Background System](background_system.md) | `background_system.md` | ✅ Active (dormant — first CSV-sourced library) | Data |
+| [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (speed + HP bonuses + placeholder feats) | Data |
+| [Main Menu](hud_system.md) | `hud_system.md` | ✅ Active (title screen, continue/new run) | Presentation |
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
@@ -62,6 +64,9 @@ CombatActionPanel
 
 EndCombatScreen
   └── RewardGenerator → EquipmentLibrary + ConsumableLibrary
+
+MainMenuManager
+  └── GameState             (load_save / reset / delete_save on button press)
 
 MapManager
   ├── GameState             (load_save/init_party at startup; travel + entry increments; sets pending_node_type / current_combat_node_id)
@@ -130,6 +135,7 @@ rogue-finder/
 │   │   ├── BackgroundLibrary.gd        ← CSV-sourced (res://data/backgrounds.csv)
 │   │   ├── ConsumableLibrary.gd        ← healing_potion, power_tonic
 │   │   ├── EquipmentLibrary.gd         ← 6 items, 2 per slot
+│   │   ├── KindredLibrary.gd           ← per-kindred speed/HP bonuses + placeholder feats
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
 │   │   └── GameState.gd                ← autoload
 │   ├── map/MapManager.gd
@@ -138,6 +144,7 @@ rogue-finder/
 │   └── ui/
 │       ├── CombatActionPanel.gd        ← right slide-in (layer 12)
 │       ├── EndCombatScreen.gd          ← victory overlay (layer 15)
+│       ├── MainMenuManager.gd          ← title screen (entry point)
 │       ├── RunSummaryManager.gd        ← run-end stats
 │       ├── StatPanel.gd                ← double-click examine (layer 8)
 │       ├── UnitInfoBar.gd              ← hover strip (layer 4)
@@ -166,6 +173,7 @@ rogue-finder/
 │   └── ui/
 │       ├── CombatActionPanel.tscn
 │       ├── HUD.tscn                    ← legacy 2D only
+│       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
 └── tests/                              ← 18 test files; see `tests/test_combatant_data.tscn` for the runner pattern
 ```
@@ -178,6 +186,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-23 | CombatantData, KindredLibrary, StatPanel, GameState, MainMenuScene | S29 — Kindred mechanics: `speed` = `1 + kindred_bonus`; `hp_max` = `10 + kindred_bonus + VIT×6`. New `KindredLibrary.gd` (speed/HP/feat data for Human/Half-Orc/Gnome/Dwarf). `kindred_feat_id` added to CombatantData + save/load. StatPanel feat row. `MainMenuScene` / `MainMenuManager` added; `main.tscn` now boots to title screen. `RunSummaryManager` Main Menu button wired. |
 | 2026-04-23 | docs | Map audit pass — docs/map_directories groomed against codebase. `combatant_data.md` split into 4 files (ability/equipment/background/core); `map_scene.md` split (PartySheet → `party_sheet.md`). ActionMenu refs purged. `EndCombatScreen.show_defeat` doc removed. Missing files added to file tree. |
 | 2026-04-23 | CombatantData, ArchetypeLibrary, GameState, StatPanel, CombatActionPanel, PartySheet | S28 Kindreds: added `kindred: String` to CombatantData. Fixed per archetype (Human/Human/Half-Orc/Gnome/Dwarf). Persisted in save/load (old saves default `"Unknown"`). Displayed in three places. PartySheet columns rebalanced to ~30/40/30; HP row restructured. |
 | 2026-04-23 | CombatManager3D, CombatActionPanel, UnitInfoBar | S26+S27 Combat UI overhaul: replaced radial ActionMenu with right slide-in `CombatActionPanel` (layer 12). UnitInfoBar converted to hover-based via `_handle_unit_hover()`. Consumable use no longer closes panel. `ActionMenu.gd` deleted. |
