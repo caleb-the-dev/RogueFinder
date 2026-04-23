@@ -53,8 +53,9 @@ var _camera_rig:     CameraController   = null
 var _qte_bar:        QTEBar             = null
 var _stat_panel:     StatPanel          = null
 var _info_bar:       UnitInfoBar        = null
-var _action_menu:    ActionMenu         = null
+var _action_menu:    CombatActionPanel  = null
 var _info_bar_unit:  Unit3D             = null
+var _hover_cell:     Vector2i           = Vector2i(-1, -1)
 var _confirm_panel:    ColorRect          = null
 var _status_label:     Label              = null
 var _end_combat_screen: EndCombatScreen   = null
@@ -155,8 +156,8 @@ func _setup_ui() -> void:
 	_info_bar = UnitInfoBar.new()
 	add_child(_info_bar)
 
-	# Radial action menu — shown on player unit selection
-	_action_menu = ActionMenu.new()
+	# Side panel — shown on player unit selection
+	_action_menu = CombatActionPanel.new()
 	add_child(_action_menu)
 	_action_menu.ability_selected.connect(_on_ability_selected)
 	_action_menu.consumable_selected.connect(_on_consumable_selected)
@@ -248,13 +249,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				_toggle_debug_menu()
 				get_viewport().set_input_as_handled()
 
-	if event is InputEventMouseMotion and mode == PlayerMode.ABILITY_TARGET_MODE \
-			and _pending_ability and _pending_ability.target_shape in [
-				AbilityData.TargetShape.CONE,
-				AbilityData.TargetShape.ARC,
-				AbilityData.TargetShape.RADIAL,
-			]:
-		_handle_shape_hover()
+	if event is InputEventMouseMotion:
+		_handle_unit_hover()
+		if mode == PlayerMode.ABILITY_TARGET_MODE \
+				and _pending_ability and _pending_ability.target_shape in [
+					AbilityData.TargetShape.CONE,
+					AbilityData.TargetShape.ARC,
+					AbilityData.TargetShape.RADIAL,
+				]:
+			_handle_shape_hover()
 		# not marked as handled — camera controller still needs motion events
 
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -262,6 +265,24 @@ func _unhandled_input(event: InputEvent) -> void:
 			_handle_double_click()
 		else:
 			_handle_left_click()
+
+func _handle_unit_hover() -> void:
+	if state == CombatState.QTE_RUNNING:
+		return
+	var camera: Camera3D = _camera_rig.get_camera()
+	if not camera:
+		return
+	var cell: Vector2i = _grid.get_clicked_cell(camera, get_viewport())
+	if cell == _hover_cell:
+		return
+	_hover_cell = cell
+	var obj: Object = _grid.get_unit_at(cell)
+	if obj is Unit3D and (obj as Unit3D).is_alive:
+		_info_bar_unit = obj as Unit3D
+		_info_bar.show_for(_info_bar_unit)
+	else:
+		_info_bar_unit = null
+		_info_bar.hide_bar()
 
 func _handle_left_click() -> void:
 	var camera: Camera3D = _camera_rig.get_camera()
@@ -297,14 +318,25 @@ func _handle_double_click() -> void:
 
 func _try_select_unit(cell: Vector2i) -> void:
 	var obj: Object = _grid.get_unit_at(cell)
-	if obj is Unit3D and obj.is_alive:
+	if obj is Unit3D and (obj as Unit3D).is_alive:
 		var unit := obj as Unit3D
 		if unit.data.is_player_unit:
 			_select_unit(unit)
-			_show_info_bar(unit)
 		else:
-			_deselect()
-			_show_info_bar(unit)
+			# Enemy click: clear player selection without triggering close animation,
+			# then open the panel in read-only mode for the enemy.
+			if _selected_unit:
+				_selected_unit.set_selected(false)
+				_selected_unit = null
+				_grid.clear_highlights()
+			_stat_panel.hide_panel()
+			_pending_ability = null
+			_aoe_origin      = Vector2i(-1, -1)
+			_travel_effect   = null
+			_hovered_cell    = Vector2i(-1, -1)
+			mode = PlayerMode.IDLE
+			_update_status()
+			_action_menu.open_for(unit, _camera_rig.get_camera())
 	else:
 		_deselect()
 
@@ -375,6 +407,7 @@ func _try_move(cell: Vector2i) -> void:
 		_grid.set_occupied(unit.grid_pos, unit)
 		unit.remaining_move -= path.size()
 		_grid.set_highlight(unit.grid_pos, "selected")
+		_action_menu.open_for(unit, _camera_rig.get_camera())
 	_update_status()
 
 ## Called when the player picks an ability from the ActionMenu.
@@ -1219,6 +1252,8 @@ func _on_unit_died(unit: Unit3D) -> void:
 	if _info_bar_unit == unit:
 		_info_bar.hide_bar()
 		_info_bar_unit = null
+	if _action_menu.current_unit == unit:
+		_action_menu.close()
 	# Allies die permanently on death. PC death is resolved at combat end:
 	# if the team wins the PC revives at 1 HP; if all units die the run ends.
 	if unit.data.is_player_unit and unit.data.archetype_id != "RogueFinder":

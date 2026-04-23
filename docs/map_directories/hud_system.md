@@ -17,9 +17,9 @@
 
 ## UnitInfoBar
 
-**Layer 4.** Shown at the bottom-center of the screen when any unit is clicked.
+**Layer 4.** Shown at the bottom-center of the screen when the mouse **hovers** over any unit. Hidden when the cursor moves off all units. Driven by `CombatManager3D._handle_unit_hover()` on every `InputEventMouseMotion`.
 
-Displays: portrait · name · class · HP bar · Energy bar. (ATK/DEF/SPD removed — attack varies per ability; those stats belong in the StatPanel examine view.)
+Displays: portrait · name · class · HP bar · Energy bar.
 
 ### Public API
 
@@ -46,26 +46,34 @@ Displays: portrait · name · archetype · background · team · all attributes 
 
 ---
 
-## ActionMenu
+## CombatActionPanel
 
-**Layer 12.** Shown when a player unit is selected. Closed on deselect, ESC, or when an action is chosen.
+**Layer 12.** Right-side slide-in panel shown when any unit is clicked. Slides in from the right edge (~0.15s cubic tween); slides out when closed. Height auto-fits content.
 
-D-pad layout: 4 ability buttons (top / right / bottom / left, 80×80 px each) surrounding a slightly smaller consumable button (64×64 px, center). Positioned at the selected unit's projected screen coordinates.
+**Player units:** fully interactive. **Enemy units:** read-only (abilities non-clickable, no consumable/stride sections).
 
-Buttons are greyed out and disabled when:
-- Ability slot is empty (`""`)
-- `unit.has_acted == true`
-- `unit.current_energy < ability.energy_cost`
-- `unit.data.consumable == ""`  (consumable button only)
+Layout (top to bottom):
+- Unit name (centered, large)
+- Portrait (centered, `icon.svg` placeholder)
+- HP bar + EN bar with color-coded fill and numeric label
+- Status effects (BBCode colored chips)
+- "Abilities" section: 2×2 grid of buttons; each shows `Name / Cost · Shape`
+- Consumable button — hidden for enemies; hidden when slot empty; greyed when `has_acted`
+- Stride hint — hidden for enemies; shows `"Click to stride · N tiles left"` or `"No movement remaining"`
+- Dialogue stub box (reserved for future combat banter — shows `"..."`)
 
-Hover shows a tooltip with ability name, tags, energy cost, and description.
+Ability/consumable buttons show a floating tooltip on hover (positioned to the left of the panel): name, cost, shape, range, description.
+
+Consumable use does **not** close the panel — `CombatManager3D` calls `open_for()` again after applying the effect to refresh content in-place.
+
+Lives in `scripts/ui/CombatActionPanel.gd` + `scenes/ui/CombatActionPanel.tscn`.
 
 ### Public API
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `open_for` | `(unit: Unit3D, camera: Camera3D) -> void` | Populate, position, and show |
-| `close` | `() -> void` | Hide the menu |
+| `open_for` | `(unit: Unit3D, camera: Camera3D) -> void` | Populate and slide in (`camera` kept for signature compat — unused) |
+| `close` | `() -> void` | Slide out and hide |
 
 ### Signals
 
