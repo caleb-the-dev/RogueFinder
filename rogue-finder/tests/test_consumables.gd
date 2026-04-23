@@ -48,13 +48,13 @@ func _test_unknown_stub() -> void:
 
 func _test_all_archetype_consumables_resolve() -> void:
 	# Every non-empty consumable assigned in ArchetypeLibrary must exist in ConsumableLibrary.
-	for arch_id in ArchetypeLibrary.ARCHETYPES:
-		var con_id: String = ArchetypeLibrary.ARCHETYPES[arch_id].get("consumable", "")
+	for archetype in ArchetypeLibrary.all_archetypes():
+		var con_id: String = archetype.consumable
 		if con_id == "":
 			continue
 		var c: ConsumableData = ConsumableLibrary.get_consumable(con_id)
 		assert(c.consumable_id != "unknown",
-			"Archetype '%s' consumable '%s' not found in ConsumableLibrary" % [arch_id, con_id])
+			"Archetype '%s' consumable '%s' not found in ConsumableLibrary" % [archetype.archetype_id, con_id])
 
 func _test_mend_base_value() -> void:
 	# MEND consumables must have a positive base_value.
@@ -64,8 +64,9 @@ func _test_mend_base_value() -> void:
 				"MEND consumable '%s' base_value must be > 0" % c.consumable_id)
 
 func _test_buff_target_stat() -> void:
-	# BUFF and DEBUFF consumables must declare a non-zero target_stat.
+	# BUFF and DEBUFF consumables must declare a target_stat that is not NONE.
+	# STRENGTH = 0, so checking != 0 is wrong; the sentinel is AbilityData.Attribute.NONE = 5.
 	for c in ConsumableLibrary.all_consumables():
 		if c.effect_type == EffectData.EffectType.BUFF or c.effect_type == EffectData.EffectType.DEBUFF:
-			assert(c.target_stat != 0,
-				"BUFF/DEBUFF consumable '%s' must declare a non-zero target_stat" % c.consumable_id)
+			assert(c.target_stat != AbilityData.Attribute.NONE,
+				"BUFF/DEBUFF consumable '%s' must declare a target_stat (not NONE)" % c.consumable_id)

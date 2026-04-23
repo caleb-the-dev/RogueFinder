@@ -2,127 +2,20 @@ class_name ArchetypeLibrary
 extends RefCounted
 
 ## --- ArchetypeLibrary ---
-## Static archetype definitions and a factory that builds randomized CombatantData.
-##
-## Each archetype entry fixes: class, artwork paths, available backgrounds, ability pool.
-## Numeric fields are given as [min, max] ranges — the factory rolls within them.
-##
-## Placeholder data only — a future CSV import will replace these constants.
-## Adding a new archetype: add an entry to ARCHETYPES, nothing else needs to change.
+## CSV-native archetype catalog + CombatantData factory.
+## Data source: res://data/archetypes.csv (single source of truth).
+## Migrated from inline const dict in S34 (data-library uniformity pass session 5).
+## Public API — create() signature — preserved unchanged.
 
-## --- Archetype definition schema ---
-## "class"          : String            — fixed class label
-## "kindred"        : String            — species/ancestry (fixed per archetype)
-## "artwork_idle"   : String            — res:// path placeholder
-## "artwork_attack" : String            — res:// path placeholder
-## "backgrounds"    : Array[String]     — pool; one is chosen at random
-## "abilities"      : Array             — fixed 4-slot list of ability IDs ("" = empty slot)
-## "pool_extras"    : Array             — additional IDs appended to ability_pool beyond the 4 slots
-## "consumable"     : String            — item ID or display name ("" = none)
-## "str_range"      : [min, max] int
-## "dex_range"      : [min, max] int
-## "cog_range"      : [min, max] int
-## "wil_range"      : [min, max] int
-## "vit_range"      : [min, max] int    — clamped to min 1 at creation
-## "armor_range"    : [min, max] int    — placeholder until item system exists
-## "qte_range"      : [min, max] float  — enemy-only auto-accuracy
+const CSV_PATH := "res://data/archetypes.csv"
 
-const ARCHETYPES: Dictionary = {
-	## RogueFinder — the player character. One per party; wide ranges for variety.
-	"RogueFinder": {
-		"class":          "Custom",
-		"kindred":        "Human",
-		"artwork_idle":   "",
-		"artwork_attack": "",
-		"backgrounds":    ["Noble", "Peasant", "Scholar", "Soldier", "Merchant"],
-		"abilities":      ["strike", "guard", "fireball", "sweep"],
-		"pool_extras":    ["heavy_strike", "counter", "charge", "inspire"],
-		"consumable":     "power_tonic",
-		"str_range":      [1, 4],
-		"dex_range":      [1, 4],
-		"cog_range":      [1, 4],
-		"wil_range":      [1, 4],
-		"vit_range":      [2, 5],
-		"armor_range":    [4, 8],
-		"qte_range":      [0.0, 0.0],
-	},
-	## Quick, nimble brigand. High dex, low strength. Backgrounds limited to criminal/military.
-	"archer_bandit": {
-		"class":          "Rogue",
-		"kindred":        "Human",
-		"artwork_idle":   "",
-		"artwork_attack": "",
-		"backgrounds":    ["Crook", "Soldier"],
-		"abilities":      ["quick_shot", "gust", "acid_splash", "piercing_shot"],
-		"pool_extras":    ["smoke_bomb", "disengage", "windblast", "counter"],
-		"consumable":     "",
-		"str_range":      [1, 2],
-		"dex_range":      [3, 4],
-		"cog_range":      [1, 2],
-		"wil_range":      [0, 2],
-		"vit_range":      [1, 3],
-		"armor_range":    [3, 5],
-		"qte_range":      [0.3, 0.5],
-	},
-	## Brawny melee fighter. High strength and vitality, low cognition.
-	"grunt": {
-		"class":          "Barbarian",
-		"kindred":        "Half-Orc",
-		"artwork_idle":   "",
-		"artwork_attack": "",
-		"backgrounds":    ["Crook", "Soldier"],
-		"abilities":      ["heavy_strike", "shove", "sweep", "taunt"],
-		"pool_extras":    ["strike", "shield_bash", "charge", "yank"],
-		"consumable":     "",
-		"str_range":      [2, 4],
-		"dex_range":      [1, 2],
-		"cog_range":      [0, 1],
-		"wil_range":      [0, 2],
-		"vit_range":      [2, 4],
-		"armor_range":    [4, 7],
-		"qte_range":      [0.2, 0.5],
-	},
-	## Crafty support caster. High cognition, low strength. Broad background pool.
-	"alchemist": {
-		"class":          "Wizard",
-		"kindred":        "Gnome",
-		"artwork_idle":   "",
-		"artwork_attack": "",
-		"backgrounds":    ["Baker", "Scholar", "Merchant"],
-		"abilities":      ["smoke_bomb", "fire_breath", "acid_splash", "healing_draught"],
-		"consumable":     "healing_potion",
-		"str_range":      [0, 1],
-		"dex_range":      [1, 3],
-		"cog_range":      [3, 5],
-		"wil_range":      [2, 4],
-		"vit_range":      [1, 2],
-		"armor_range":    [2, 4],
-		"qte_range":      [0.5, 0.8],
-	},
-	## Heavily armored veteran. High strength, willpower, and vitality. Disciplined background only.
-	"elite_guard": {
-		"class":          "Warrior",
-		"kindred":        "Dwarf",
-		"artwork_idle":   "",
-		"artwork_attack": "",
-		"backgrounds":    ["Soldier", "Noble"],
-		"abilities":      ["shield_bash", "yank", "windblast", "sweep"],
-		"consumable":     "",
-		"str_range":      [3, 5],
-		"dex_range":      [1, 3],
-		"cog_range":      [1, 2],
-		"wil_range":      [2, 4],
-		"vit_range":      [3, 5],
-		"armor_range":    [7, 10],
-		"qte_range":      [0.6, 0.9],
-	},
-}
+## Lazily populated on first access. Keyed by archetype_id.
+static var _cache: Dictionary = {}
 
-## --- Flavor name pools ---
-## Used when is_player=true and no character_name is supplied (party allies auto-named).
-## Enemies (is_player=false) are never auto-named — they show their archetype above their head.
+## Flavor name pools — UI/flavor data only; not worth a CSV row.
+## Enemies are never auto-named; player allies draw from here when no name is given.
 const _NAME_POOLS: Dictionary = {
-	"RogueFinder":  ["Hero"],
+	"RogueFinder":   ["Hero"],
 	"archer_bandit": ["Kale", "Sora", "Wren", "Dax", "Mira", "Fenn"],
 	"grunt":         ["Brak", "Mord", "Thug", "Krak", "Uge", "Dorn"],
 	"alchemist":     ["Finch", "Alda", "Quill", "Senna", "Pip", "Loris"],
@@ -133,70 +26,87 @@ const _NAME_POOLS: Dictionary = {
 ## Public API
 ## ======================================================
 
+## Returns ArchetypeData for the given id. Never returns null; falls back to grunt
+## for unknown ids (preserves existing caller behavior).
+static func get_archetype(id: String) -> ArchetypeData:
+	_ensure_loaded()
+	if _cache.has(id):
+		return _cache[id]
+	if _cache.has("grunt"):
+		return _cache["grunt"]
+	var stub := ArchetypeData.new()
+	stub.archetype_id = id
+	return stub
+
+## Returns every loaded archetype. Replaces ARCHETYPES.keys() iteration in callers.
+static func all_archetypes() -> Array[ArchetypeData]:
+	_ensure_loaded()
+	var result: Array[ArchetypeData] = []
+	for key in _cache.keys():
+		result.append(_cache[key])
+	return result
+
+## Force reload from disk — for tests and dev-time CSV edits.
+static func reload() -> void:
+	_cache.clear()
+	_ensure_loaded()
+
 ## Creates a fully randomized CombatantData for the given archetype.
 ##
-## archetype_id  — must be a key in ARCHETYPES; falls back to "grunt" if unknown.
-## character_name — optional override; if empty a flavor name is chosen from the pool.
+## archetype_id  — key in archetypes.csv; falls back to grunt definition if unknown.
+## character_name — optional override; empty → auto-name for players, empty for enemies.
 ## is_player     — sets is_player_unit on the result.
 static func create(archetype_id: String, character_name: String = "",
 		is_player: bool = false) -> CombatantData:
-	var def: Dictionary = ARCHETYPES.get(archetype_id, ARCHETYPES["grunt"])
+	var src: ArchetypeData = get_archetype(archetype_id)
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 
 	var data := CombatantData.new()
-	data.archetype_id   = archetype_id
-	data.is_player_unit = is_player
-	data.unit_class     = def["class"]
-	data.kindred         = def.get("kindred", "Unknown")
+	data.archetype_id    = archetype_id
+	data.is_player_unit  = is_player
+	data.unit_class      = src.unit_class
+	data.kindred         = src.kindred
 	data.kindred_feat_id = KindredLibrary.get_feat_id(data.kindred)
-	data.artwork_idle   = def["artwork_idle"]
-	data.artwork_attack = def["artwork_attack"]
+	data.artwork_idle    = src.artwork_idle
+	data.artwork_attack  = src.artwork_attack
 
 	# Active slots: exactly 4 entries, empty string = unfilled
-	var ability_src: Array = def["abilities"]
 	data.abilities.clear()
-	for ab in ability_src:
+	for ab in src.abilities:
 		data.abilities.append(str(ab))
 	while data.abilities.size() < 4:
 		data.abilities.append("")
 
 	# ability_pool: superset of active slots. Future leveling appends here without
-	# touching the 4-slot active list. Skip empty strings — the pool holds real IDs only.
+	# touching the 4-slot active list. Skip empty strings — pool holds real IDs only.
 	data.ability_pool.clear()
-	for ab in ability_src:
+	for ab in src.abilities:
 		if ab != "":
 			data.ability_pool.append(str(ab))
-	for ab in def.get("pool_extras", []) as Array:
+	for ab in src.pool_extras:
 		var ab_str: String = str(ab)
 		if ab_str != "" and not data.ability_pool.has(ab_str):
 			data.ability_pool.append(ab_str)
 
-	# Consumable item (empty string = none)
-	data.consumable = def.get("consumable", "")
+	data.consumable = src.consumable
 
-	# Random background from the archetype's allowed pool
-	var bgs: Array = def["backgrounds"]
+	var bgs: Array[String] = src.backgrounds
 	data.background = bgs[rng.randi_range(0, bgs.size() - 1)]
 
-	# Randomize core attributes within archetype ranges
-	data.strength  = rng.randi_range(def["str_range"][0], def["str_range"][1])
-	data.dexterity = rng.randi_range(def["dex_range"][0], def["dex_range"][1])
-	data.cognition = rng.randi_range(def["cog_range"][0], def["cog_range"][1])
-	data.willpower = rng.randi_range(def["wil_range"][0], def["wil_range"][1])
-	data.vitality  = rng.randi_range(def["vit_range"][0], def["vit_range"][1])
+	data.strength  = rng.randi_range(src.str_range[0],   src.str_range[1])
+	data.dexterity = rng.randi_range(src.dex_range[0],   src.dex_range[1])
+	data.cognition = rng.randi_range(src.cog_range[0],   src.cog_range[1])
+	data.willpower = rng.randi_range(src.wil_range[0],   src.wil_range[1])
+	data.vitality  = rng.randi_range(src.vit_range[0],   src.vit_range[1])
 	data.vitality  = maxi(1, data.vitality)  # guard: HP = 0 is invalid
 
-	data.armor_defense  = rng.randi_range(def["armor_range"][0], def["armor_range"][1])
-	data.qte_resolution = rng.randf_range(def["qte_range"][0], def["qte_range"][1])
+	data.armor_defense  = rng.randi_range(src.armor_range[0], src.armor_range[1])
+	data.qte_resolution = rng.randf_range(src.qte_range[0],   src.qte_range[1])
 
-	# Seed live pools to full — vitality and all attributes are already set above
 	data.current_hp     = data.hp_max
 	data.current_energy = data.energy_max
 
-	# Name: explicit override always wins.
-	# Player units with no name get one from the flavor pool.
-	# Enemy units with no name stay empty — Unit3D will show the archetype label instead.
 	if character_name != "":
 		data.character_name = character_name
 	elif is_player:
@@ -206,3 +116,102 @@ static func create(archetype_id: String, character_name: String = "",
 		data.character_name = ""
 
 	return data
+
+## --- Internal ---
+
+static func _ensure_loaded() -> void:
+	if not _cache.is_empty():
+		return
+	var file := FileAccess.open(CSV_PATH, FileAccess.READ)
+	if file == null:
+		push_error("ArchetypeLibrary: could not open %s (err %d)" % [CSV_PATH, FileAccess.get_open_error()])
+		return
+	var header := file.get_csv_line(",")
+	if header.size() == 0 or header[0] == "":
+		push_error("ArchetypeLibrary: %s has no header row" % CSV_PATH)
+		return
+	var row_num := 1
+	while not file.eof_reached():
+		var row := file.get_csv_line(",")
+		row_num += 1
+		if row.size() == 1 and row[0] == "":
+			continue
+		if row.size() != header.size():
+			push_error("ArchetypeLibrary: row %d has %d cells, header has %d — skipping" % [row_num, row.size(), header.size()])
+			continue
+		var archetype := _row_to_data(header, row, row_num)
+		if archetype != null:
+			_cache[archetype.archetype_id] = archetype
+
+static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_num: int) -> ArchetypeData:
+	var archetype := ArchetypeData.new()
+	for i in header.size():
+		var col := header[i]
+		var val := row[i]
+		match col:
+			"id":
+				archetype.archetype_id = val
+			"class":
+				archetype.unit_class = val
+			"kindred":
+				archetype.kindred = val
+			"backgrounds":
+				archetype.backgrounds = _split_pipe_str(val)
+			"abilities":
+				archetype.abilities = _split_pipe_str(val)
+			"pool_extras":
+				archetype.pool_extras = _split_pipe_str(val)
+			"consumable":
+				archetype.consumable = val
+			"str_range":
+				archetype.str_range = _split_pipe_int(val)
+			"dex_range":
+				archetype.dex_range = _split_pipe_int(val)
+			"cog_range":
+				archetype.cog_range = _split_pipe_int(val)
+			"wil_range":
+				archetype.wil_range = _split_pipe_int(val)
+			"vit_range":
+				archetype.vit_range = _split_pipe_int(val)
+			"armor_range":
+				archetype.armor_range = _split_pipe_int(val)
+			"qte_range":
+				archetype.qte_range = _split_pipe_float(val)
+			"artwork_idle":
+				archetype.artwork_idle = val
+			"artwork_attack":
+				archetype.artwork_attack = val
+			"notes":
+				pass  # designer free-text; intentionally ignored
+			_:
+				push_warning("ArchetypeLibrary: unknown column '%s' at row %d" % [col, row_num])
+	if archetype.archetype_id == "":
+		push_error("ArchetypeLibrary: row %d missing id — skipping" % row_num)
+		return null
+	return archetype
+
+static func _split_pipe_str(val: String) -> Array[String]:
+	if val == "":
+		return []
+	var parts: Array[String] = []
+	for p in val.split("|", false):
+		parts.append(p)
+	return parts
+
+static func _split_pipe_int(val: String) -> Array[int]:
+	var parts := val.split("|", false)
+	if parts.size() < 2:
+		return [0, 0]
+	var result: Array[int] = []
+	result.append(int(parts[0]))
+	result.append(int(parts[1]))
+	return result
+
+static func _split_pipe_float(val: String) -> Array[float]:
+	var parts := val.split("|", false)
+	if parts.size() < 2:
+		return [0.0, 0.0]
+	var result: Array[float] = []
+	result.append(float(parts[0]))
+	result.append(float(parts[1]))
+	return result

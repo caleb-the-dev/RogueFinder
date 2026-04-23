@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-23 (S29 kindred mechanics — speed/HP formulas now kindred-driven; KindredLibrary added; kindred_feat_id added)
+> Last updated: 2026-04-23 (S34 — ArchetypeLibrary migrated from inline const dict to archetypes.csv + CSV-native loader; ArchetypeData resource added)
 
 ---
 
@@ -23,8 +23,10 @@
 | File | Role |
 |------|------|
 | `resources/CombatantData.gd` | Resource: identity, attributes, equipment, ability pool. Derived stats are computed properties. |
-| `scripts/globals/ArchetypeLibrary.gd` | Static factory: archetype definitions + `create()` method. |
+| `resources/ArchetypeData.gd` | Resource: one archetype's fixed data and stat ranges. Populated by ArchetypeLibrary from archetypes.csv. |
+| `scripts/globals/ArchetypeLibrary.gd` | CSV-native factory: loads `archetypes.csv`, exposes `create()` / `get_archetype()` / `all_archetypes()` / `reload()`. |
 | `scripts/globals/KindredLibrary.gd` | Static class: per-kindred mechanical data (speed bonus, HP bonus, feat id/name/desc). Single source of truth — referenced by `CombatantData` computed properties. |
+| `data/archetypes.csv` | Data source: 5 archetype rows. Single source of truth for all archetype stat ranges, ability pools, and backgrounds. |
 
 ---
 
@@ -136,18 +138,25 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 | `alchemist` | Wizard | Gnome | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 | smoke_bomb, fire_breath, acid_splash, healing_draught | `healing_potion` |
 | `elite_guard` | Warrior | Dwarf | 3–5 | 1–3 | 1–2 | 2–4 | 3–5 | 7–10 | shield_bash, yank, windblast, sweep | — |
 
-### Schema keys
+### Schema (archetypes.csv columns)
 
+- `id` — archetype key (e.g. `grunt`).
+- `class` → `unit_class: String` — fixed class label.
 - `kindred: String` — species/ancestry (fixed per archetype).
-- `abilities: Array[String]` — 4 active slot ids.
-- `pool_extras: Array[String]` — additional ids appended to `ability_pool` beyond the 4 slots. Defined on: RogueFinder (+4), archer_bandit (+4), grunt (+4). Absent on alchemist + elite_guard (defaults to empty).
-- Attribute ranges as `[lo, hi]` tuples; `create()` samples via `randi_range()`.
+- `backgrounds: Array[String]` — pipe-separated pool; one chosen at random in `create()`.
+- `abilities: Array[String]` — pipe-separated; 4 active slot ids.
+- `pool_extras: Array[String]` — pipe-separated; additional ids appended to `ability_pool` beyond the 4 slots. RogueFinder/archer_bandit/grunt have +4; alchemist/elite_guard empty.
+- Attribute ranges stored as `min|max` pipe pairs; `create()` samples via `randi_range()`.
+- `qte_range` stored as float `min|max`.
 
 ### Public API
 
 ```gdscript
 static func create(archetype_id: String, character_name: String = "",
     is_player: bool = false) -> CombatantData
+static func get_archetype(id: String) -> ArchetypeData   # stub fallback on unknown
+static func all_archetypes() -> Array[ArchetypeData]     # replaces ARCHETYPES iteration
+static func reload() -> void                             # cache-clear for tests/dev
 ```
 
 ---
@@ -188,6 +197,7 @@ static func create(archetype_id: String, character_name: String = "",
 
 | Date | Change |
 |---|---|
+| 2026-04-23 | S34 — ArchetypeLibrary migrated from inline `const ARCHETYPES` dict to `archetypes.csv` + CSV-native loader. `ArchetypeData.gd` resource added with all fields as typed `@export` vars. `ARCHETYPES` dict removed; `all_archetypes()` / `get_archetype()` / `reload()` added to public API. `create()` signature unchanged — unknown ids still fall back to grunt definition. `test_combatant_data.gd` (4 tests) and `test_consumables.gd` (1 test) updated from `ARCHETYPES.keys()` to `all_archetypes()`. |
 | 2026-04-23 | S29 — Kindred mechanics live. `hp_max` formula changed to `10 + kindred_hp_bonus + VIT×6 + equip`; `speed` formula changed to `1 + kindred_speed_bonus + equip("dexterity")`. DEX removed from speed (reserved for future dodge/evasion). Added `kindred_feat_id: String` field; set in `create()` via `KindredLibrary.get_feat_id()`, persisted to save (old saves default `""`). New `KindredLibrary.gd` holds all per-kindred data. StatPanel feat row added. `test_combatant_data.gd` updated + 4 new kindred tests. |
 | 2026-04-23 | S28 — Added `kindred: String` to `CombatantData` (Identity section). Each archetype definition includes a `"kindred"` key; `create()` sets `data.kindred = def.get("kindred", "Unknown")`. Assignments: RogueFinder→Human, archer_bandit→Human, grunt→Half-Orc, alchemist→Gnome, elite_guard→Dwarf. Persisted in `GameState._serialize_combatant()` / `_deserialize_combatant()` (old saves default `"Unknown"`). Displayed in StatPanel, CombatActionPanel, and PartySheet. |
 | 2026-04-20 | S23 — `ArchetypeLibrary.pool_extras` key added; `create()` appends extras to `ability_pool` (deduped). RogueFinder / archer_bandit / grunt each get +4 extras. Pool ⊇ Slots invariant still holds. |
