@@ -21,6 +21,8 @@ extends Resource
 @export var is_player_unit: bool    = false
 ## Species / ancestry (e.g. "Human", "Dwarf", "Gnome"). Fixed per archetype.
 @export var kindred: String         = ""
+## ID of the kindred's passive feat (e.g. "adaptive"). Flavor-only for now; set in ArchetypeLibrary.create().
+@export var kindred_feat_id: String = ""
 
 ## ======================================================
 ## --- Background & Class (placeholder — CSV values TBD) ---
@@ -120,9 +122,9 @@ func _equip_bonus(stat: String) -> int:
 		 + (armor.get_bonus(stat)     if armor     else 0) \
 		 + (accessory.get_bonus(stat) if accessory else 0)
 
-## hp_max: 10 × vitality (vitality bonuses add linearly, not multiplicatively)
+## hp_max: flat 10 + kindred bonus + vitality*6. Kindred differentiates races; VIT is still the primary driver.
 var hp_max: int:
-	get: return 10 * vitality + _equip_bonus("vitality")
+	get: return 10 + KindredLibrary.get_hp_bonus(kindred) + (vitality * 6) + _equip_bonus("vitality")
 
 ## energy_max: 5 + vitality
 var energy_max: int:
@@ -132,10 +134,10 @@ var energy_max: int:
 var energy_regen: int:
 	get: return 2 + willpower + _equip_bonus("willpower")
 
-## speed: movement range in grid cells (Manhattan distance) — 2 + dexterity
-## Named "speed" to stay compatible with Grid3D / CombatManager3D references.
+## speed: movement range in grid cells — 1 + kindred bonus. DEX removed; reserved for dodge/evasion (future).
+## Equipment bonuses on dexterity still flow through until a dedicated speed slot exists.
 var speed: int:
-	get: return 2 + dexterity + _equip_bonus("dexterity")
+	get: return 1 + KindredLibrary.get_speed_bonus(kindred) + _equip_bonus("dexterity")
 
 ## defense: armor_defense + any armor_defense bonuses from equipped items.
 var defense: int:

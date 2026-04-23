@@ -107,6 +107,7 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	# -- Identity --
 	lines.append("[b]Archetype:[/b]  %s" % d.archetype_id.replace("_", " ").capitalize())
 	lines.append("[b]Kindred:[/b]    %s" % _or(d.kindred))
+	lines.append("[b]Feat:[/b]       %s" % _or(KindredLibrary.get_feat_name(d.kindred)))
 	lines.append("[b]Background:[/b] %s" % _or(d.background))
 	lines.append("[b]Team:[/b]       %s" % ("Player" if d.is_player_unit else "Enemy"))
 	lines.append("")
@@ -128,7 +129,7 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	lines.append("[b]── Derived Stats ──[/b]")
 	lines.append("[b]Attack:[/b]  %d   (5 + STR)" % d.attack)
 	lines.append("[b]Defense:[/b] %d   (armor)" % d.defense)
-	lines.append("[b]Speed:[/b]   %d tiles   (2 + DEX)" % d.speed)
+	lines.append("[b]Speed:[/b]   %d tiles   (1 + kindred)" % d.speed)
 	lines.append("[b]E.Regen:[/b] %d/turn   (2 + WIL)" % d.energy_regen)
 	if not d.is_player_unit:
 		lines.append("[b]QTE Res:[/b] %.2f" % d.qte_resolution)
