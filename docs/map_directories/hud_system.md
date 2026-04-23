@@ -46,26 +46,32 @@ Displays: portrait · name · archetype · background · team · all attributes 
 
 ---
 
-## ActionMenu
+## CombatActionPanel
 
-**Layer 12.** Shown when a player unit is selected. Closed on deselect, ESC, or when an action is chosen.
+**Layer 12.** Right-side slide-in panel shown when a player unit is selected. Slides in from the right edge (~0.15s cubic tween); slides out when closed. Height auto-fits content — no fixed size.
 
-D-pad layout: 4 ability buttons (top / right / bottom / left, 80×80 px each) surrounding a slightly smaller consumable button (64×64 px, center). Positioned at the selected unit's projected screen coordinates.
+Layout (top to bottom):
+- Portrait (placeholder: `icon.svg`) + unit name
+- Divider
+- "Abilities" section label + one button per non-empty `unit.data.abilities` slot
+- Divider + consumable button (hidden when slot is empty)
+- *"Click anywhere to stride"* hint label
+- Dialogue stub box (reserved for future combat banter — shows `"..."`)
 
-Buttons are greyed out and disabled when:
-- Ability slot is empty (`""`)
+Ability buttons are greyed out and disabled when:
 - `unit.has_acted == true`
 - `unit.current_energy < ability.energy_cost`
-- `unit.data.consumable == ""`  (consumable button only)
 
-Hover shows a tooltip with ability name, tags, energy cost, and description.
+Consumable button is greyed out when `unit.has_acted == true`; hidden when `unit.data.consumable == ""`.
+
+Lives in `scripts/ui/CombatActionPanel.gd` + `scenes/ui/CombatActionPanel.tscn`.
 
 ### Public API
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `open_for` | `(unit: Unit3D, camera: Camera3D) -> void` | Populate, position, and show |
-| `close` | `() -> void` | Hide the menu |
+| `open_for` | `(unit: Unit3D, camera: Camera3D) -> void` | Populate and slide in (`camera` kept for signature compat — unused) |
+| `close` | `() -> void` | Slide out and hide |
 
 ### Signals
 

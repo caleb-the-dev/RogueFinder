@@ -53,7 +53,7 @@ var _camera_rig:     CameraController   = null
 var _qte_bar:        QTEBar             = null
 var _stat_panel:     StatPanel          = null
 var _info_bar:       UnitInfoBar        = null
-var _action_menu:    ActionMenu         = null
+var _action_menu:    CombatActionPanel  = null
 var _info_bar_unit:  Unit3D             = null
 var _confirm_panel:    ColorRect          = null
 var _status_label:     Label              = null
@@ -155,8 +155,8 @@ func _setup_ui() -> void:
 	_info_bar = UnitInfoBar.new()
 	add_child(_info_bar)
 
-	# Radial action menu — shown on player unit selection
-	_action_menu = ActionMenu.new()
+	# Side panel — shown on player unit selection
+	_action_menu = CombatActionPanel.new()
 	add_child(_action_menu)
 	_action_menu.ability_selected.connect(_on_ability_selected)
 	_action_menu.consumable_selected.connect(_on_consumable_selected)
