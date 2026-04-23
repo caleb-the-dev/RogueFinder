@@ -64,8 +64,9 @@ func _test_mend_base_value() -> void:
 				"MEND consumable '%s' base_value must be > 0" % c.consumable_id)
 
 func _test_buff_target_stat() -> void:
-	# BUFF and DEBUFF consumables must declare a non-zero target_stat.
+	# BUFF and DEBUFF consumables must declare a target_stat that is not NONE.
+	# STRENGTH = 0, so checking != 0 is wrong; the sentinel is AbilityData.Attribute.NONE = 5.
 	for c in ConsumableLibrary.all_consumables():
 		if c.effect_type == EffectData.EffectType.BUFF or c.effect_type == EffectData.EffectType.DEBUFF:
-			assert(c.target_stat != 0,
-				"BUFF/DEBUFF consumable '%s' must declare a non-zero target_stat" % c.consumable_id)
+			assert(c.target_stat != AbilityData.Attribute.NONE,
+				"BUFF/DEBUFF consumable '%s' must declare a target_stat (not NONE)" % c.consumable_id)
