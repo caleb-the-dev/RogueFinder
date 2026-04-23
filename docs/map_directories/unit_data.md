@@ -44,32 +44,15 @@ None. `UnitData` is a leaf node with no imports.
 
 ---
 
-## Current Stat Presets (set in CombatManager3D._make_unit_data)
+## Current Stat Presets
 
-| Unit Type | HP | Atk | Def | Spd | E.Max | E.Regen | QTE Res |
-|-----------|-----|-----|-----|-----|-------|---------|---------|
-| Player unit | 20 | 10 | 10 | 3 | 10 | 3 | — |
-| Grunt enemy | 15 | 8 | 6 | 2 | 10 | 3 | 0.3 |
-
-These are **placeholder values** — balance TBD after Stage 1.5 playtest.
+The 3D system uses `ArchetypeLibrary.create()` → `CombatantData` for all stat seeding. No `_make_unit_data`-style helper exists anywhere anymore. `UnitData` instances for the legacy 2D tests are constructed inline in those test files.
 
 ---
 
-## Usage Pattern
+## Usage Pattern (2D legacy path)
 
-```gdscript
-# CombatManager3D creates the data:
-var data: UnitData = _make_unit_data("Warrior", true, 20, 10, 10, 3, 0.0)
-
-# Unit3D reads it once in setup():
-func setup(unit_data: UnitData, pos: Vector2i) -> void:
-    unit_name = unit_data.unit_name
-    hp_max = unit_data.hp_max
-    current_hp = hp_max
-    # ... etc
-```
-
-After `setup()`, the Unit no longer references the UnitData object. All live state is copied into the Unit's own fields.
+`Unit.gd` reads `UnitData` once in `setup()` and copies all live state into its own fields. After `setup()` the unit no longer references the resource. Preserved for backwards compatibility with `tests/test_unit.gd` and other 2D test scaffolding.
 
 ---
 
