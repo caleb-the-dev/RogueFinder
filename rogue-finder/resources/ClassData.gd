@@ -10,7 +10,7 @@ extends Resource
 ## reserved for future filtering in character-creation UI.
 
 @export var class_id:            String        = ""
-@export var class_name:          String        = ""
+@export var display_name:        String        = ""
 @export var description:         String        = ""
 @export var starting_ability_id: String        = ""
 @export var unlocked_by_default: bool          = true

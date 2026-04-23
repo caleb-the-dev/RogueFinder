@@ -28,18 +28,18 @@ func test_expected_row_count() -> void:
 	print("  PASS test_expected_row_count")
 
 func test_get_known_id() -> void:
-	var c: ClassData = ClassLibrary.get_class("rogue")
-	assert(c != null,                     "get_class('rogue') must not be null")
-	assert(c.class_id == "rogue",         "class_id should be 'rogue'")
-	assert(c.class_name == "Rogue",       "class_name should be 'Rogue'")
-	assert(c.starting_ability_id != "",   "starting_ability_id must not be empty")
-	assert(c.description != "",           "description must not be empty")
+	var c: ClassData = ClassLibrary.get_class_data("rogue")
+	assert(c != null,                      "get_class_data('rogue') must not be null")
+	assert(c.class_id == "rogue",          "class_id should be 'rogue'")
+	assert(c.display_name == "Rogue",      "display_name should be 'Rogue'")
+	assert(c.starting_ability_id != "",    "starting_ability_id must not be empty")
+	assert(c.description != "",            "description must not be empty")
 	print("  PASS test_get_known_id")
 
 func test_get_unknown_id_is_stub_not_null() -> void:
-	var c: ClassData = ClassLibrary.get_class("not_a_real_class")
-	assert(c != null,                          "get_class unknown id must never return null")
-	assert(c.class_name == "Unknown",          "stub class_name should be 'Unknown'")
+	var c: ClassData = ClassLibrary.get_class_data("not_a_real_class")
+	assert(c != null,                          "get_class_data unknown id must never return null")
+	assert(c.display_name == "Unknown",        "stub display_name should be 'Unknown'")
 	assert(c.starting_ability_id == "",        "stub starting_ability_id should be empty")
 	print("  PASS test_get_unknown_id_is_stub_not_null")
 
@@ -60,7 +60,6 @@ func test_reload_reparses() -> void:
 	print("  PASS test_reload_reparses")
 
 func test_known_ability_ids_are_valid() -> void:
-	# Verifies each class points at an ability that actually exists in AbilityLibrary.
 	for c in ClassLibrary.all_classes():
 		assert(AbilityLibrary.ABILITIES.has(c.starting_ability_id),
 			"%s: starting_ability_id '%s' not found in AbilityLibrary" % [c.class_id, c.starting_ability_id])
@@ -73,7 +72,7 @@ func test_unlocked_by_default_all_true() -> void:
 	print("  PASS test_unlocked_by_default_all_true")
 
 func test_tags_parsed() -> void:
-	var rogue: ClassData = ClassLibrary.get_class("rogue")
+	var rogue: ClassData = ClassLibrary.get_class_data("rogue")
 	assert(rogue.tags.size() > 0, "rogue should have at least one tag")
 	assert("agile" in rogue.tags, "rogue tags should include 'agile'")
 	print("  PASS test_tags_parsed")

@@ -31,7 +31,7 @@ Class is a separate axis from Background and Kindred — a `barbarian` Crook (Hu
 | Field | Type | Notes |
 |-------|------|-------|
 | `class_id` | `String` | Snake_case key (e.g. `"rogue"`) |
-| `class_name` | `String` | Display name (e.g. `"Rogue"`) |
+| `display_name` | `String` | Display name (e.g. `"Rogue"`) — named `display_name` not `class_name` because `class_name` is a reserved GDScript keyword |
 | `description` | `String` | Short flavor line for character-creation UI |
 | `starting_ability_id` | `String` | 1 action granted at character creation. FK → `AbilityLibrary` |
 | `unlocked_by_default` | `bool` | `true` = available at character creation in fresh saves |
@@ -60,7 +60,8 @@ ClassLibrary._cache             (lazy-loaded Dictionary keyed by id)
 
 ```gdscript
 ## Returns a populated ClassData. Never returns null — stub for unknown IDs.
-static func get_class(id: String) -> ClassData
+## Named get_class_data() because get_class() is a built-in Object method.
+static func get_class_data(id: String) -> ClassData
 ## Returns every loaded class. For character-creation UI / unlock screens.
 static func all_classes() -> Array[ClassData]
 ## Clears the cache and re-reads the CSV.

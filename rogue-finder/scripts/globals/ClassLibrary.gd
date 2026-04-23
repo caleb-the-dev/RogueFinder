@@ -6,20 +6,23 @@ extends RefCounted
 ## BackgroundLibrary shape exactly (lazy-load, single-parse, stub fallback).
 ##
 ## Data source: res://data/classes.csv
-## get_class() never returns null; falls back to a stub for unknown IDs.
+## get_class_data() never returns null; falls back to a stub for unknown IDs.
+##
+## Note: method named get_class_data() (not get_class) because get_class() is a
+## built-in Object method in Godot and cannot be redeclared.
 
 const CSV_PATH := "res://data/classes.csv"
 
 static var _cache: Dictionary = {}
 
-static func get_class(id: String) -> ClassData:
+static func get_class_data(id: String) -> ClassData:
 	_ensure_loaded()
 	if _cache.has(id):
 		return _cache[id]
 	var stub := ClassData.new()
-	stub.class_id   = id
-	stub.class_name = "Unknown"
-	stub.description = "Unknown class."
+	stub.class_id    = id
+	stub.display_name = "Unknown"
+	stub.description  = "Unknown class."
 	return stub
 
 static func all_classes() -> Array[ClassData]:
@@ -68,7 +71,7 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 			"id":
 				c.class_id = val
 			"name":
-				c.class_name = val
+				c.display_name = val
 			"description":
 				c.description = val
 			"starting_ability_id":
