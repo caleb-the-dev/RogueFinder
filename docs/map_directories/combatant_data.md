@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-20 (S23 — pool_extras key added to ArchetypeLibrary; ability_pool default note corrected)
+> Last updated: 2026-04-23 (S28 — kindred field added to CombatantData + ArchetypeLibrary; saved/loaded; displayed in StatPanel, CombatActionPanel, PartySheet)
 
 ---
 
@@ -35,7 +35,7 @@
 
 Like a Pokémon: the archetype is Pikachu, the character_name is whatever the trainer called it.
 
-**Fixed per archetype:** `unit_class`, `artwork_idle`, `artwork_attack`, `abilities`, `ability_pool` (starting set).
+**Fixed per archetype:** `kindred`, `unit_class`, `artwork_idle`, `artwork_attack`, `abilities`, `ability_pool` (starting set).
 
 **Randomized per instance (within archetype ranges):** `background`, all five core attributes, `armor_defense`, `qte_resolution`.
 
@@ -49,6 +49,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `character_name` | `String` | Display name; player-editable. |
 | `archetype_id` | `String` | Key into `ArchetypeLibrary.ARCHETYPES`. |
 | `is_player_unit` | `bool` | Team assignment; drives AI vs. player control. |
+| `kindred` | `String` | Species/ancestry (e.g. `"Human"`, `"Dwarf"`, `"Gnome"`, `"Half-Orc"`). Fixed per archetype; set in `create()` from `def["kindred"]` via `.get("kindred", "Unknown")`. Persisted to save. Old saves without this key default to `"Unknown"`. Flavor-only now; mechanical hooks deferred to Stage 2. |
 
 ### Background & Class
 | Field | Type | Notes |
@@ -119,13 +120,13 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 
 ### Defined Archetypes
 
-| ID | Class | STR | DEX | COG | WIL | VIT | Armor | Abilities | Consumable |
-|----|-------|-----|-----|-----|-----|-----|-------|-----------|------------|
-| `RogueFinder` | Custom | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 | strike, guard, fireball, sweep | `power_tonic` |
-| `archer_bandit` | Rogue | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 | quick_shot, gust, acid_splash, piercing_shot | — |
-| `grunt` | Barbarian | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 | heavy_strike, shove, sweep, taunt | — |
-| `alchemist` | Wizard | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 | smoke_bomb, fire_breath, acid_splash, healing_draught | `healing_potion` |
-| `elite_guard` | Warrior | 3–5 | 1–3 | 1–2 | 2–4 | 3–5 | 7–10 | shield_bash, yank, windblast, sweep | — |
+| ID | Class | Kindred | STR | DEX | COG | WIL | VIT | Armor | Abilities | Consumable |
+|----|-------|---------|-----|-----|-----|-----|-----|-------|-----------|------------|
+| `RogueFinder` | Custom | Human | 1–4 | 1–4 | 1–4 | 1–4 | 2–5 | 4–8 | strike, guard, fireball, sweep | `power_tonic` |
+| `archer_bandit` | Rogue | Human | 1–2 | 3–4 | 1–2 | 0–2 | 1–3 | 3–5 | quick_shot, gust, acid_splash, piercing_shot | — |
+| `grunt` | Barbarian | Half-Orc | 2–4 | 1–2 | 0–1 | 0–2 | 2–4 | 4–7 | heavy_strike, shove, sweep, taunt | — |
+| `alchemist` | Wizard | Gnome | 0–1 | 1–3 | 3–5 | 2–4 | 1–2 | 2–4 | smoke_bomb, fire_breath, acid_splash, healing_draught | `healing_potion` |
+| `elite_guard` | Warrior | Dwarf | 3–5 | 1–3 | 1–2 | 2–4 | 3–5 | 7–10 | shield_bash, yank, windblast, sweep | — |
 
 ### Public API
 
@@ -450,6 +451,7 @@ No production code calls `BackgroundLibrary` yet — it's infrastructure waiting
 
 | Date | Change |
 |---|---|
+| 2026-04-23 | S28 — Added `kindred: String` field to `CombatantData` (Identity section). Each archetype definition now includes a `"kindred"` key; `create()` sets `data.kindred = def.get("kindred", "Unknown")`. Assignments: RogueFinder→Human, archer_bandit→Human, grunt→Half-Orc, alchemist→Gnome, elite_guard→Dwarf. Persisted in `GameState._serialize_combatant()` / `_deserialize_combatant()` (old saves without the key default to `"Unknown"`). Displayed in StatPanel (between Archetype and Background), CombatActionPanel (small muted label below unit name, both player and enemy views), and PartySheet TOP-LEFT card section. GAME_BIBLE updated: Kindred listed first in Character Structure. |
 | 2026-04-20 | S23 — `ArchetypeLibrary`: added `pool_extras` key to archetype schema; `create()` now appends extras to `ability_pool` after seeding from `abilities` (deduped). Three archetypes have extras: RogueFinder (+4), archer_bandit (+4), grunt (+4). `alchemist` and `elite_guard` have no `pool_extras` (defaults to empty). Pool ⊇ Slots invariant still holds — extras supplement but never replace active slots. |
 | 2026-04-19 | Added `BackgroundData` resource + `BackgroundLibrary` static class — first CSV-sourced library. CSV lives at `rogue-finder/data/backgrounds.csv` (single source; read via `res://data/`). `get_background_by_name()` bridges the existing PascalCase display-string convention (`CombatantData.background`, `ArchetypeLibrary` pools) so the library is callable today without a snake_case-id migration. Dormant — no callers yet. |
 | 2026-04-19 | Slice 3 — `is_dead` now set by `CombatManager3D._on_unit_died()` (permadeath). `current_hp`/`current_energy` written back on combat victory. `Unit3D.setup()` seeds from `current_hp`/`current_energy` so a unit enters combat at its last saved HP. |

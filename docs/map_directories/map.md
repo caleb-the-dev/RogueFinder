@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-23 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 15 |
+| sessions_since_groom | 16 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -162,7 +162,7 @@ Static utility (`scripts/globals/RewardGenerator.gd`). Combines all `EquipmentLi
 See [Combat Action Panel](#combat-action-panel) above.
 
 ### Combatant Data Model
-Two-file system: `CombatantData` (Resource) stores identity, core attributes, slot data, and persistent run state (`ability_pool`, `current_hp`, `current_energy`, `is_dead`); all derived combat stats are computed properties. `ArchetypeLibrary` (static class) defines 5 archetypes and provides `create()` to instantiate randomized `CombatantData` with all persistent fields seeded. Pool ⊇ slots invariant: every non-empty active slot appears in `ability_pool`.
+Two-file system: `CombatantData` (Resource) stores identity (including `kindred`), core attributes, slot data, and persistent run state (`ability_pool`, `current_hp`, `current_energy`, `is_dead`); all derived combat stats are computed properties. `ArchetypeLibrary` (static class) defines 5 archetypes (each with a fixed `kindred`) and provides `create()` to instantiate randomized `CombatantData` with all persistent fields seeded. Pool ⊇ slots invariant: every non-empty active slot appears in `ability_pool`.
 
 ### Ability Data Model
 `AbilityData` (Resource) stores all fields for a single ability. `EffectData` (Resource) stores one effect within an ability. `TargetShape` enum: `SELF`, `SINGLE`, `CONE`, `LINE`, `RADIAL`. `EffectType` enum: `HARM`, `MEND`, `FORCE`, `TRAVEL`, `BUFF`, `DEBUFF`.
@@ -200,7 +200,7 @@ Autoload singleton. Map traversal, save/load, party roster, and party bag invent
 Interactive world map. 28 named nodes across 4 concentric rings (center hub Badurga + inner/middle/outer). Each node has a procedurally-drawn lore name (seeded per ring — not saved, regenerates from map_seed), a type (COMBAT, VENDOR, EVENT, BOSS, CITY) with distinct color/icon/hover label. Structured placement: inner ring = 4 COMBAT + 2 EVENT only; middle ring = 5 COMBAT + 3 EVENT + 1 VENDOR; outer ring = 7 COMBAT + 3 EVENT + 1 VENDOR + 1 BOSS. BOSS is placed after edges are built, guaranteed ≥ 2 ring-hops from any middle→outer bridge node. Exactly 2 VENDOR nodes per run (1 middle, 1 outer). Player traverses by clicking adjacent nodes; re-clicking enters the current node. Nodes display five visual states (CURRENT / REACHABLE / CLEARED / VISITED / LOCKED). Bridges use quadrant-aware placement (≥90° intra-pair gap, ≥30° cross-pair exclusion) to prevent straight corridors. Seeded from map_seed — deterministic on reload. HUD shows a fixed vertical threat bar (left side) with quadrant tick marks and fill color scaling from yellow to red. Lives in `scenes/map/MapScene.tscn` + `scripts/map/MapManager.gd`.
 
 ### Party Sheet
-Full-screen interactive overlay (CanvasLayer, layer 20). Opened by the "Party" button in MapManager UI chrome. Three-column layout: LEFT = inventory bag (drag source); MIDDLE = 3 member cards each divided into 4 quadrants (TL: name/class/bg/HP · TR: derived stats + attributes · BL: equipment 2×2 drop targets · BR: slotted abilities 2×2); RIGHT = TabContainer per member ("Abilities" pool list / "Feats" placeholder). Drag inventory items to matching equipment slots; click a filled slot to unequip. Dead members: slots disabled, card and tabs dimmed. All mutations write directly to `GameState.party[i]`; save deferred to next map travel. Stateless `_rebuild()` re-render. Lives in `scenes/party/PartySheet.tscn` + `scripts/party/PartySheet.gd`.
+Full-screen interactive overlay (CanvasLayer, layer 20). Opened by the "Party" button in MapManager UI chrome. Three-column layout (~30/40/30): LEFT = inventory bag (drag source, 376 px); MIDDLE = 3 member cards each divided into 4 quadrants (TL: name/class/bg/**kindred**/HP-inline · TR: derived stats + attributes · BL: equipment 2×2 drop targets · BR: slotted abilities 2×2, 500 px); RIGHT = TabContainer per member ("Abilities" pool list / "Feats" placeholder, 374 px). Drag inventory items to matching equipment slots; click a filled slot to unequip. Dead members: slots disabled, card and tabs dimmed. All mutations write directly to `GameState.party[i]`; save deferred to next map travel. Stateless `_rebuild()` re-render. Lives in `scenes/party/PartySheet.tscn` + `scripts/party/PartySheet.gd`.
 
 ---
 
@@ -297,6 +297,7 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-23 | CombatantData, ArchetypeLibrary, GameState, StatPanel, CombatActionPanel, PartySheet | S28 Kindreds: added `kindred: String` field to `CombatantData`. Each archetype definition now has a `"kindred"` key (RogueFinder/archer_bandit→Human, grunt→Half-Orc, alchemist→Gnome, elite_guard→Dwarf). Set in `ArchetypeLibrary.create()`; persisted in GameState save/load (old saves default `"Unknown"`). Shown in StatPanel (between Archetype and Background), CombatActionPanel (small muted label below name, player+enemy), and PartySheet TOP-LEFT card. PartySheet column widths rebalanced to 30/40/30. HP row restructured to inline text+bar. GAME_BIBLE updated with Kindred entry. |
 | 2026-04-23 | CombatManager3D, CombatActionPanel, UnitInfoBar | S26+S27 Combat UI overhaul: replaced radial ActionMenu with right slide-in CombatActionPanel (layer 12). Player panel: centered name/portrait, HP+EN bars, 2×2 ability grid, consumable button, stride hint with remaining tiles. Enemy panel: same layout, read-only abilities, no consumable/stride. Hover tooltips on all ability/consumable buttons (float left of panel). UnitInfoBar converted from click-persistent to hover-based via `_handle_unit_hover()` on mouse motion. Consumable use no longer closes panel (refreshes in-place). Panel refreshes after stride with updated remaining movement. Panel closes if its shown unit dies. `_hover_cell` var added to CM3D. ActionMenu.gd deleted. |
 | 2026-04-20 | MapManager | S25 Map node placement constraints: inner ring changed to 4 COMBAT + 2 EVENT (no VENDOR); outer ring to 7 COMBAT + 3 EVENT + 1 VENDOR + 1 BOSS. BOSS assignment extracted from `_assign_node_types()` to new `_assign_boss_type()` called after `_build_edge_data()`; bridge endpoints captured into `_outer_bridge_ids`; BOSS excluded from bridge node + 2 ring neighbors. `GameState.save()` moved from type assignment to boss assignment step. |
 | 2026-04-20 | MapManager | S24 Remove RECRUIT node type: RECRUIT scrubbed from all pools, color/icon/desc helpers, and docs. Outer pool COMBAT count unchanged (slot replaced with COMBAT). |

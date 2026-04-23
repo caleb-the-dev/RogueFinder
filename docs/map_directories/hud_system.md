@@ -35,7 +35,7 @@ Displays: portrait · name · class · HP bar · Energy bar.
 
 **Layer 8.** Opened on **double-click** of any unit. Closed by the **✕ button** or **ESC**.
 
-Displays: portrait · name · archetype · background · team · all attributes · derived stats · equipment · abilities. No artwork section. Content is scrollable.
+Displays: portrait · name · archetype · **kindred** · background · team · all attributes · derived stats · equipment · abilities. No artwork section. Content is scrollable.
 
 ### Public API
 
@@ -54,6 +54,7 @@ Displays: portrait · name · archetype · background · team · all attributes 
 
 Layout (top to bottom):
 - Unit name (centered, large)
+- **Kindred** (centered, small, muted blue-grey — shown for both player and enemy units)
 - Portrait (centered, `icon.svg` placeholder)
 - HP bar + EN bar with color-coded fill and numeric label
 - Status effects (BBCode colored chips)
