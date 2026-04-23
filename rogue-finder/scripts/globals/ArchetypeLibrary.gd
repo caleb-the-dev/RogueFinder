@@ -12,6 +12,7 @@ extends RefCounted
 
 ## --- Archetype definition schema ---
 ## "class"          : String            — fixed class label
+## "kindred"        : String            — species/ancestry (fixed per archetype)
 ## "artwork_idle"   : String            — res:// path placeholder
 ## "artwork_attack" : String            — res:// path placeholder
 ## "backgrounds"    : Array[String]     — pool; one is chosen at random
@@ -30,6 +31,7 @@ const ARCHETYPES: Dictionary = {
 	## RogueFinder — the player character. One per party; wide ranges for variety.
 	"RogueFinder": {
 		"class":          "Custom",
+		"kindred":        "Human",
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Noble", "Peasant", "Scholar", "Soldier", "Merchant"],
@@ -47,6 +49,7 @@ const ARCHETYPES: Dictionary = {
 	## Quick, nimble brigand. High dex, low strength. Backgrounds limited to criminal/military.
 	"archer_bandit": {
 		"class":          "Rogue",
+		"kindred":        "Human",
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Crook", "Soldier"],
@@ -64,6 +67,7 @@ const ARCHETYPES: Dictionary = {
 	## Brawny melee fighter. High strength and vitality, low cognition.
 	"grunt": {
 		"class":          "Barbarian",
+		"kindred":        "Half-Orc",
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Crook", "Soldier"],
@@ -81,6 +85,7 @@ const ARCHETYPES: Dictionary = {
 	## Crafty support caster. High cognition, low strength. Broad background pool.
 	"alchemist": {
 		"class":          "Wizard",
+		"kindred":        "Gnome",
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Baker", "Scholar", "Merchant"],
@@ -97,6 +102,7 @@ const ARCHETYPES: Dictionary = {
 	## Heavily armored veteran. High strength, willpower, and vitality. Disciplined background only.
 	"elite_guard": {
 		"class":          "Warrior",
+		"kindred":        "Dwarf",
 		"artwork_idle":   "",
 		"artwork_attack": "",
 		"backgrounds":    ["Soldier", "Noble"],
@@ -142,6 +148,7 @@ static func create(archetype_id: String, character_name: String = "",
 	data.archetype_id   = archetype_id
 	data.is_player_unit = is_player
 	data.unit_class     = def["class"]
+	data.kindred        = def.get("kindred", "Unknown")
 	data.artwork_idle   = def["artwork_idle"]
 	data.artwork_attack = def["artwork_attack"]
 

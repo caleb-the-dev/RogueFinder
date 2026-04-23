@@ -106,6 +106,7 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 
 	# -- Identity --
 	lines.append("[b]Archetype:[/b]  %s" % d.archetype_id.replace("_", " ").capitalize())
+	lines.append("[b]Kindred:[/b]    %s" % _or(d.kindred))
 	lines.append("[b]Background:[/b] %s" % _or(d.background))
 	lines.append("[b]Team:[/b]       %s" % ("Player" if d.is_player_unit else "Enemy"))
 	lines.append("")

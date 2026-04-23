@@ -15,16 +15,16 @@ const COL_GAP:       float = 10.0
 
 ## Left inventory column
 const LEFT_X:        float = SIDE_M
-const LEFT_W:        float = 240.0
+const LEFT_W:        float = 376.0
 
 ## Middle (member cards) — spans the rest of the viewport
-const MID_X:         float = LEFT_X + LEFT_W + COL_GAP    ## = 258
-const MID_W:         float = VIEWPORT_W - MID_X - SIDE_M  ## = 1014
+const MID_X:         float = LEFT_X + LEFT_W + COL_GAP    ## = 394
+const MID_W:         float = VIEWPORT_W - MID_X - SIDE_M  ## = 878
 
 ## Within each member card: left 4-quadrant area | right ability pool tabs
-const STATS_BG_W:    float = 530.0
-const ABIL_OFFSET:   float = 534.0
-const ABIL_BG_W:     float = MID_W - ABIL_OFFSET  ## = 480
+const STATS_BG_W:    float = 500.0
+const ABIL_OFFSET:   float = 504.0
+const ABIL_BG_W:     float = MID_W - ABIL_OFFSET  ## = 374
 
 ## Member row sizing
 const MEMBER_H:      float = 215.0
@@ -432,7 +432,7 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	var inner_w: float = STATS_BG_W - 20.0   ## = 510
 	var is_dead: bool  = member.is_dead
 	var half_w: float  = inner_w * 0.5        ## = 255
-	var mid_y: float   = card_pos.y + 108.0   ## horizontal divider y
+	var mid_y: float   = card_pos.y + 118.0   ## horizontal divider y
 	var sep_color: Color = Color(0.55, 0.52, 0.44, 0.50)
 
 	# Full-card quadrant separators
@@ -481,25 +481,20 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	bg_lbl.add_theme_color_override("font_color",
 		Color(0.58, 0.74, 0.50).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
 	parent.add_child(bg_lbl)
-	tl_y += 22.0
+	tl_y += 18.0
 
-	var bar_w: float   = tl_w
-	var hp_fill: float = float(member.current_hp) / float(max(member.hp_max, 1))
-	var bar_bg := ColorRect.new()
-	bar_bg.color = Color(0.12, 0.06, 0.06)
-	bar_bg.size = Vector2(bar_w, 8.0)
-	bar_bg.position = Vector2(tl_x, tl_y)
-	bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(bar_bg)
-	if hp_fill > 0.0:
-		var fc: Color = Color(0.22, 0.68, 0.28) if hp_fill > 0.5 else Color(0.70, 0.38, 0.12)
-		var bar_fill := ColorRect.new()
-		bar_fill.color = fc
-		bar_fill.size = Vector2(bar_w * hp_fill, 8.0)
-		bar_fill.position = Vector2(tl_x, tl_y)
-		bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		parent.add_child(bar_fill)
-	tl_y += 10.0
+	var kindred_text: String = member.kindred if member.kindred != "" else "Unknown"
+	var kindred_lbl := Label.new()
+	kindred_lbl.text = "Kindred: %s" % kindred_text
+	kindred_lbl.position = Vector2(tl_x, tl_y)
+	kindred_lbl.add_theme_font_size_override("font_size", 13)
+	kindred_lbl.add_theme_color_override("font_color",
+		Color(0.55, 0.65, 0.78).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
+	parent.add_child(kindred_lbl)
+	tl_y += 18.0
+
+	# HP row: "HP x/x" text on the left, bar filling the remaining width
+	const HP_TEXT_W: float = 60.0
 	var hp_lbl := Label.new()
 	hp_lbl.text = "HP %d / %d" % [member.current_hp, member.hp_max]
 	hp_lbl.position = Vector2(tl_x, tl_y)
@@ -507,6 +502,24 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	hp_lbl.add_theme_color_override("font_color",
 		Color(0.70, 0.70, 0.70).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
 	parent.add_child(hp_lbl)
+
+	var bar_x: float   = tl_x + HP_TEXT_W
+	var bar_w: float   = tl_w - HP_TEXT_W
+	var hp_fill: float = float(member.current_hp) / float(max(member.hp_max, 1))
+	var bar_bg := ColorRect.new()
+	bar_bg.color = Color(0.12, 0.06, 0.06)
+	bar_bg.size = Vector2(bar_w, 8.0)
+	bar_bg.position = Vector2(bar_x, tl_y + 4.0)
+	bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(bar_bg)
+	if hp_fill > 0.0:
+		var fc: Color = Color(0.22, 0.68, 0.28) if hp_fill > 0.5 else Color(0.70, 0.38, 0.12)
+		var bar_fill := ColorRect.new()
+		bar_fill.color = fc
+		bar_fill.size = Vector2(bar_w * hp_fill, 8.0)
+		bar_fill.position = Vector2(bar_x, tl_y + 4.0)
+		bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		parent.add_child(bar_fill)
 
 	# === TOP RIGHT: Derived Stats (BLUE) + Base Attributes (YELLOW) ===
 	var tr_x: float = x + half_w + 8.0
