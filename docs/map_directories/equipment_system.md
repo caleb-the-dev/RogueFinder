@@ -1,6 +1,6 @@
 # System: Equipment & Consumables
 
-> Last updated: 2026-04-23 (S31 — ConsumableLibrary migrated to CSV)
+> Last updated: 2026-04-23 (S32 — EquipmentLibrary migrated to CSV)
 
 ---
 
@@ -21,7 +21,8 @@ Gear comes from rewards — no archetype starts with equipment. Consumables are 
 |------|------|
 | `resources/EquipmentData.gd` | Resource — one equipment item |
 | `resources/ConsumableData.gd` | Resource — one consumable item |
-| `scripts/globals/EquipmentLibrary.gd` | Static catalog — 6 items, `get_equipment()` / `all_equipment()` |
+| `scripts/globals/EquipmentLibrary.gd` | Static catalog — CSV-sourced (`res://data/equipment.csv`), `get_equipment()` / `all_equipment()` / `reload()` |
+| `data/equipment.csv` | Source of truth — 6 items; `stat_bonuses` as `stat:value\|stat:value` pipe pairs |
 | `scripts/globals/ConsumableLibrary.gd` | Static catalog — CSV-sourced (`res://data/consumables.csv`), `get_consumable()` / `all_consumables()` / `reload()` |
 | `data/consumables.csv` | Source of truth — 2 consumables; edit here |
 

@@ -61,11 +61,12 @@ func test_null_equipment_defense_no_regression() -> void:
 	print("  PASS test_null_equipment_defense_no_regression")
 
 func test_null_equipment_speed_no_regression() -> void:
+	# S29: speed = 1 + kindred_bonus; DEX no longer drives base speed.
 	var d := CombatantData.new()
 	d.dexterity = 4
-	assert(d.speed == 6, "speed with dex=4, no equip: expected 6, got %d" % d.speed)
+	assert(d.speed == 1, "speed with no kindred should be 1 regardless of dex, got %d" % d.speed)
 	d.dexterity = 0
-	assert(d.speed == 2, "speed with dex=0, no equip: expected 2, got %d" % d.speed)
+	assert(d.speed == 1, "speed with no kindred should be 1 regardless of dex, got %d" % d.speed)
 	print("  PASS test_null_equipment_speed_no_regression")
 
 func test_null_equipment_hp_max_no_regression() -> void:
@@ -105,9 +106,9 @@ func test_chain_mail_defense_plus_two_speed_minus_one() -> void:
 	# chain_mail: armor_defense +2, dexterity -1
 	assert(d.defense == 7,
 		"defense with chain_mail (ad+2) should be 7, got %d" % d.defense)
-	# speed = 2 + dex + dex_bonus_from_all_slots; chain_mail gives dex -1
-	assert(d.speed == 4,
-		"speed with dex=3, chain_mail (dex-1) should be 4, got %d" % d.speed)
+	# S29: speed = 1 + kindred_bonus; dex penalty from chain_mail has no effect on speed
+	assert(d.speed == 1,
+		"speed with no kindred + chain_mail should still be 1 (dex doesn't drive speed), got %d" % d.speed)
 	print("  PASS test_chain_mail_defense_plus_two_speed_minus_one")
 
 ## --- EquipmentLibrary ---

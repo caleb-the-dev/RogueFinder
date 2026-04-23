@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-23 (S31) |
+| last_updated | 2026-04-23 (S32) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 3 |
+| sessions_since_groom | 4 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -31,7 +31,7 @@
 | [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator / RunSummaryScene](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
 | [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active | Data |
 | [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (22 abilities) | Data |
-| [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (6 equipment; 2 consumables CSV-sourced S31) | Data |
+| [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (6 equipment CSV-sourced S32; 2 consumables CSV-sourced S31) | Data |
 | [Background System](background_system.md) | `background_system.md` | ✅ Active (dormant — CSV-sourced; 3 ability IDs fixed S30) | Data |
 | [Class Library](class_system.md) | `class_system.md` | ✅ Active (dormant — 4 classes, CSV-sourced, S30) | Data |
 | [Portrait Library](portrait_system.md) | `portrait_system.md` | ✅ Active (dormant — 6 placeholder portraits, CSV-sourced, S30) | Data |
@@ -137,7 +137,7 @@ rogue-finder/
 │   │   ├── BackgroundLibrary.gd        ← CSV-sourced (res://data/backgrounds.csv)
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); healing_potion, power_tonic
-│   │   ├── EquipmentLibrary.gd         ← 6 items, 2 per slot
+│   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 6 items
 │   │   ├── KindredLibrary.gd           ← per-kindred speed/HP bonuses + placeholder feats
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
@@ -167,6 +167,7 @@ rogue-finder/
 │   ├── backgrounds.csv                 ← 4 backgrounds; read via res://data/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
 │   ├── consumables.csv                 ← 2 consumables; read via res://data/
+│   ├── equipment.csv                   ← 6 items; stat_bonuses as stat:value|stat:value pairs
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
 │   ├── city/BadurgaScene.tscn
@@ -195,6 +196,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-23 | EquipmentLibrary, test_equipment | S32 — Data-library uniformity pass session 3: `EquipmentLibrary` migrated from const array to `equipment.csv` + CSV-native loader. `stat_bonuses` stored as `stat:value\|stat:value` pipe pairs. `reload()` added. Two stale speed tests in `test_equipment.gd` fixed (S29 kindred formula: dex no longer drives speed). |
 | 2026-04-23 | ConsumableLibrary, RewardGenerator, test_consumables | S31 — Data-library uniformity pass session 2: `ConsumableLibrary` migrated from const dict to `consumables.csv` + CSV-native loader. `all_consumables()` added; `CONSUMABLES` dict removed. `RewardGenerator` and `test_consumables` updated to use `all_consumables()`. |
 | 2026-04-23 | ClassLibrary, PortraitLibrary, backgrounds.csv | S30 — Data-library uniformity pass session 1: `ClassLibrary` + `ClassData` (4 classes, CSV-native); `PortraitLibrary` + `PortraitData` (6 placeholder portraits, CSV-native); fixed 3 broken `starting_ability_id` rows in `backgrounds.csv` (crook→smoke_bomb, scholar→acid_splash, baker→healing_draught). |
 | 2026-04-23 | CombatantData, KindredLibrary, StatPanel, GameState, MainMenuScene | S29 — Kindred mechanics: `speed` = `1 + kindred_bonus`; `hp_max` = `10 + kindred_bonus + VIT×6`. New `KindredLibrary.gd` (speed/HP/feat data for Human/Half-Orc/Gnome/Dwarf). `kindred_feat_id` added to CombatantData + save/load. StatPanel feat row. `MainMenuScene` / `MainMenuManager` added; `main.tscn` now boots to title screen. `RunSummaryManager` Main Menu button wired. |
