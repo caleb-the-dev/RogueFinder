@@ -107,9 +107,9 @@ func test_chain_mail_defense_plus_two_speed_minus_one() -> void:
 	# chain_mail: armor_defense +2, dexterity -1
 	assert(d.defense == 7,
 		"defense with chain_mail (ad+2) should be 7, got %d" % d.defense)
-	# S29: speed = 1 + kindred_bonus; dex penalty from chain_mail has no effect on speed
-	assert(d.speed == 1,
-		"speed with no kindred + chain_mail should still be 1 (dex doesn't drive speed), got %d" % d.speed)
+	# speed = 1 + kindred_bonus + equip_dex_bonus; chain_mail dex -1 → 1 + 0 + (-1) = 0
+	assert(d.speed == 0,
+		"speed with no kindred + chain_mail (dex-1) should be 0, got %d" % d.speed)
 	print("  PASS test_chain_mail_defense_plus_two_speed_minus_one")
 
 ## --- EquipmentLibrary ---
