@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-23 (S32) |
+| last_updated | 2026-04-23 (S33) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 4 |
+| sessions_since_groom | 5 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -35,7 +35,7 @@
 | [Background System](background_system.md) | `background_system.md` | ✅ Active (dormant — CSV-sourced; 3 ability IDs fixed S30) | Data |
 | [Class Library](class_system.md) | `class_system.md` | ✅ Active (dormant — 4 classes, CSV-sourced, S30) | Data |
 | [Portrait Library](portrait_system.md) | `portrait_system.md` | ✅ Active (dormant — 6 placeholder portraits, CSV-sourced, S30) | Data |
-| [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (speed + HP bonuses + placeholder feats) | Data |
+| [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (CSV-sourced S33; speed + HP bonuses + placeholder feats) | Data |
 | [Main Menu](hud_system.md) | `hud_system.md` | ✅ Active (title screen, continue/new run) | Presentation |
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
@@ -138,7 +138,7 @@ rogue-finder/
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); healing_potion, power_tonic
 │   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 6 items
-│   │   ├── KindredLibrary.gd           ← per-kindred speed/HP bonuses + placeholder feats
+│   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 4 kindreds
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
 │   │   └── GameState.gd                ← autoload
@@ -161,6 +161,7 @@ rogue-finder/
 │   ├── EquipmentData.gd                ← Slot enum, stat_bonuses, get_bonus()
 │   ├── BackgroundData.gd
 │   ├── ClassData.gd                    ← one playable class
+│   ├── KindredData.gd                  ← one kindred (speed/HP bonuses + feat)
 │   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
 ├── data/
@@ -168,6 +169,7 @@ rogue-finder/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
 │   ├── consumables.csv                 ← 2 consumables; read via res://data/
 │   ├── equipment.csv                   ← 6 items; stat_bonuses as stat:value|stat:value pairs
+│   ├── kindreds.csv                    ← 4 kindreds; read via res://data/
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
 │   ├── city/BadurgaScene.tscn
@@ -196,6 +198,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-23 | KindredLibrary, KindredData | S33 — Data-library uniformity pass session 4: `KindredLibrary` migrated from const dict to `kindreds.csv` + CSV-native loader. `KindredData.gd` resource added. All existing getter functions preserved unchanged; `get_kindred()` / `all_kindreds()` / `reload()` added. No caller changes required. |
 | 2026-04-23 | EquipmentLibrary, test_equipment | S32 — Data-library uniformity pass session 3: `EquipmentLibrary` migrated from const array to `equipment.csv` + CSV-native loader. `stat_bonuses` stored as `stat:value\|stat:value` pipe pairs. `reload()` added. Two stale speed tests in `test_equipment.gd` fixed (S29 kindred formula: dex no longer drives speed). |
 | 2026-04-23 | ConsumableLibrary, RewardGenerator, test_consumables | S31 — Data-library uniformity pass session 2: `ConsumableLibrary` migrated from const dict to `consumables.csv` + CSV-native loader. `all_consumables()` added; `CONSUMABLES` dict removed. `RewardGenerator` and `test_consumables` updated to use `all_consumables()`. |
 | 2026-04-23 | ClassLibrary, PortraitLibrary, backgrounds.csv | S30 — Data-library uniformity pass session 1: `ClassLibrary` + `ClassData` (4 classes, CSV-native); `PortraitLibrary` + `PortraitData` (6 placeholder portraits, CSV-native); fixed 3 broken `starting_ability_id` rows in `backgrounds.csv` (crook→smoke_bomb, scholar→acid_splash, baker→healing_draught). |
