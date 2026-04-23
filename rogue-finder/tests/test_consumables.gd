@@ -48,13 +48,13 @@ func _test_unknown_stub() -> void:
 
 func _test_all_archetype_consumables_resolve() -> void:
 	# Every non-empty consumable assigned in ArchetypeLibrary must exist in ConsumableLibrary.
-	for arch_id in ArchetypeLibrary.ARCHETYPES:
-		var con_id: String = ArchetypeLibrary.ARCHETYPES[arch_id].get("consumable", "")
+	for archetype in ArchetypeLibrary.all_archetypes():
+		var con_id: String = archetype.consumable
 		if con_id == "":
 			continue
 		var c: ConsumableData = ConsumableLibrary.get_consumable(con_id)
 		assert(c.consumable_id != "unknown",
-			"Archetype '%s' consumable '%s' not found in ConsumableLibrary" % [arch_id, con_id])
+			"Archetype '%s' consumable '%s' not found in ConsumableLibrary" % [archetype.archetype_id, con_id])
 
 func _test_mend_base_value() -> void:
 	# MEND consumables must have a positive base_value.

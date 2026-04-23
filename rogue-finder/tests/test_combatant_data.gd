@@ -182,33 +182,33 @@ func test_archetype_ally_auto_name_from_pool() -> void:
 
 func test_ability_pool_superset_of_slots() -> void:
 	# Every non-empty active slot must appear in ability_pool.
-	for archetype_id in ArchetypeLibrary.ARCHETYPES.keys():
-		var d: CombatantData = ArchetypeLibrary.create(archetype_id)
+	for archetype in ArchetypeLibrary.all_archetypes():
+		var d: CombatantData = ArchetypeLibrary.create(archetype.archetype_id)
 		for ab in d.abilities:
 			if ab != "":
 				assert(ab in d.ability_pool,
-					"%s: active slot '%s' missing from ability_pool" % [archetype_id, ab])
+					"%s: active slot '%s' missing from ability_pool" % [archetype.archetype_id, ab])
 	print("  PASS test_ability_pool_superset_of_slots")
 
 func test_fresh_hp_equals_hp_max() -> void:
-	for archetype_id in ArchetypeLibrary.ARCHETYPES.keys():
-		var d: CombatantData = ArchetypeLibrary.create(archetype_id)
+	for archetype in ArchetypeLibrary.all_archetypes():
+		var d: CombatantData = ArchetypeLibrary.create(archetype.archetype_id)
 		assert(d.current_hp == d.hp_max,
-			"%s: current_hp %d != hp_max %d" % [archetype_id, d.current_hp, d.hp_max])
+			"%s: current_hp %d != hp_max %d" % [archetype.archetype_id, d.current_hp, d.hp_max])
 	print("  PASS test_fresh_hp_equals_hp_max")
 
 func test_fresh_energy_equals_energy_max() -> void:
-	for archetype_id in ArchetypeLibrary.ARCHETYPES.keys():
-		var d: CombatantData = ArchetypeLibrary.create(archetype_id)
+	for archetype in ArchetypeLibrary.all_archetypes():
+		var d: CombatantData = ArchetypeLibrary.create(archetype.archetype_id)
 		assert(d.current_energy == d.energy_max,
-			"%s: current_energy %d != energy_max %d" % [archetype_id, d.current_energy, d.energy_max])
+			"%s: current_energy %d != energy_max %d" % [archetype.archetype_id, d.current_energy, d.energy_max])
 	print("  PASS test_fresh_energy_equals_energy_max")
 
 func test_is_dead_default_false() -> void:
-	for archetype_id in ArchetypeLibrary.ARCHETYPES.keys():
-		var d: CombatantData = ArchetypeLibrary.create(archetype_id)
+	for archetype in ArchetypeLibrary.all_archetypes():
+		var d: CombatantData = ArchetypeLibrary.create(archetype.archetype_id)
 		assert(d.is_dead == false,
-			"%s: is_dead should default false" % archetype_id)
+			"%s: is_dead should default false" % archetype.archetype_id)
 	print("  PASS test_is_dead_default_false")
 
 ## --- Kindred Stat Tests ---
