@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-23 |
+| last_updated | 2026-04-23 (S30) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 1 |
+| sessions_since_groom | 2 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -32,7 +32,9 @@
 | [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active | Data |
 | [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (22 abilities) | Data |
 | [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (6 equipment, 2 consumables) | Data |
-| [Background System](background_system.md) | `background_system.md` | ✅ Active (dormant — first CSV-sourced library) | Data |
+| [Background System](background_system.md) | `background_system.md` | ✅ Active (dormant — CSV-sourced; 3 ability IDs fixed S30) | Data |
+| [Class Library](class_system.md) | `class_system.md` | ✅ Active (dormant — 4 classes, CSV-sourced, S30) | Data |
+| [Portrait Library](portrait_system.md) | `portrait_system.md` | ✅ Active (dormant — 6 placeholder portraits, CSV-sourced, S30) | Data |
 | [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (speed + HP bonuses + placeholder feats) | Data |
 | [Main Menu](hud_system.md) | `hud_system.md` | ✅ Active (title screen, continue/new run) | Presentation |
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
@@ -133,9 +135,11 @@ rogue-finder/
 │   │   ├── AbilityLibrary.gd           ← 22 abilities
 │   │   ├── ArchetypeLibrary.gd         ← 5 archetypes
 │   │   ├── BackgroundLibrary.gd        ← CSV-sourced (res://data/backgrounds.csv)
+│   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
 │   │   ├── ConsumableLibrary.gd        ← healing_potion, power_tonic
 │   │   ├── EquipmentLibrary.gd         ← 6 items, 2 per slot
 │   │   ├── KindredLibrary.gd           ← per-kindred speed/HP bonuses + placeholder feats
+│   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
 │   │   └── GameState.gd                ← autoload
 │   ├── map/MapManager.gd
@@ -156,9 +160,13 @@ rogue-finder/
 │   ├── ConsumableData.gd
 │   ├── EquipmentData.gd                ← Slot enum, stat_bonuses, get_bonus()
 │   ├── BackgroundData.gd
+│   ├── ClassData.gd                    ← one playable class
+│   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
 ├── data/
-│   └── backgrounds.csv                 ← single source; read via res://data/
+│   ├── backgrounds.csv                 ← 4 backgrounds; read via res://data/
+│   ├── classes.csv                     ← 4 classes; read via res://data/
+│   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
 │   ├── city/BadurgaScene.tscn
 │   ├── combat/
@@ -186,6 +194,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-23 | ClassLibrary, PortraitLibrary, backgrounds.csv | S30 — Data-library uniformity pass session 1: `ClassLibrary` + `ClassData` (4 classes, CSV-native); `PortraitLibrary` + `PortraitData` (6 placeholder portraits, CSV-native); fixed 3 broken `starting_ability_id` rows in `backgrounds.csv` (crook→smoke_bomb, scholar→acid_splash, baker→healing_draught). |
 | 2026-04-23 | CombatantData, KindredLibrary, StatPanel, GameState, MainMenuScene | S29 — Kindred mechanics: `speed` = `1 + kindred_bonus`; `hp_max` = `10 + kindred_bonus + VIT×6`. New `KindredLibrary.gd` (speed/HP/feat data for Human/Half-Orc/Gnome/Dwarf). `kindred_feat_id` added to CombatantData + save/load. StatPanel feat row. `MainMenuScene` / `MainMenuManager` added; `main.tscn` now boots to title screen. `RunSummaryManager` Main Menu button wired. |
 | 2026-04-23 | docs | Map audit pass — docs/map_directories groomed against codebase. `combatant_data.md` split into 4 files (ability/equipment/background/core); `map_scene.md` split (PartySheet → `party_sheet.md`). ActionMenu refs purged. `EndCombatScreen.show_defeat` doc removed. Missing files added to file tree. |
 | 2026-04-23 | CombatantData, ArchetypeLibrary, GameState, StatPanel, CombatActionPanel, PartySheet | S28 Kindreds: added `kindred: String` to CombatantData. Fixed per archetype (Human/Human/Half-Orc/Gnome/Dwarf). Persisted in save/load (old saves default `"Unknown"`). Displayed in three places. PartySheet columns rebalanced to ~30/40/30; HP row restructured. |

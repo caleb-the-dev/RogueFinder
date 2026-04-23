@@ -1,0 +1,7 @@
+id,name,artwork_path,tags,notes
+portrait_human_m,Human (M),res://icon.svg,human|male,placeholder: replace with real portrait art when assets arrive
+portrait_human_f,Human (F),res://icon.svg,human|female,placeholder: replace with real portrait art when assets arrive
+portrait_half_orc,Half-Orc,res://icon.svg,half-orc,placeholder: replace with real portrait art when assets arrive
+portrait_gnome,Gnome,res://icon.svg,gnome,placeholder: replace with real portrait art when assets arrive
+portrait_dwarf,Dwarf,res://icon.svg,dwarf,placeholder: replace with real portrait art when assets arrive
+portrait_unknown,Unknown,res://icon.svg,,placeholder: fallback portrait for unassigned characters
