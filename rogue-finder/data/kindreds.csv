@@ -1,0 +1,5 @@
+id,speed_bonus,hp_bonus,feat_id,feat_name,feat_desc,notes
+Human,3,5,adaptive,Adaptive,Versatile survivors; no path is closed to them.,
+Half-Orc,2,12,relentless,Relentless,Fight harder when cornered — low-HP damage bonus (placeholder).,
+Gnome,4,2,tinkerer,Tinkerer,Find clever shortcuts — reduced ability costs (placeholder).,
+Dwarf,1,8,stonehide,Stonehide,Endure what others cannot — passive armor bonus (placeholder).,
