@@ -481,6 +481,16 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	bg_lbl.add_theme_color_override("font_color",
 		Color(0.58, 0.74, 0.50).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
 	parent.add_child(bg_lbl)
+	tl_y += 18.0
+
+	var kindred_text: String = member.kindred if member.kindred != "" else "Unknown"
+	var kindred_lbl := Label.new()
+	kindred_lbl.text = "Kindred: %s" % kindred_text
+	kindred_lbl.position = Vector2(tl_x, tl_y)
+	kindred_lbl.add_theme_font_size_override("font_size", 13)
+	kindred_lbl.add_theme_color_override("font_color",
+		Color(0.55, 0.65, 0.78).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
+	parent.add_child(kindred_lbl)
 	tl_y += 22.0
 
 	var bar_w: float   = tl_w

@@ -19,6 +19,8 @@ extends Resource
 ## artwork, and attribute ranges. "RogueFinder" is reserved for the player character.
 @export var archetype_id: String    = "generic"
 @export var is_player_unit: bool    = false
+## Species / ancestry (e.g. "Human", "Dwarf", "Gnome"). Fixed per archetype.
+@export var kindred: String         = ""
 
 ## ======================================================
 ## --- Background & Class (placeholder — CSV values TBD) ---

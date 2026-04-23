@@ -83,6 +83,7 @@ The NPC party system is the heart of the game. Think of it like Pokémon: your r
 
 ### Character Structure (applies to player character and all NPCs)
 Each character has:
+- **A Kindred** — the character's species or ancestry (e.g. Human, Dwarf, Gnome, Half-Orc, Griffin). Fixed at creation and tied to the archetype. Kindreds are flavor now and will gain mechanical hooks (passive traits, dialogue gates, faction reactions) in future stages.
 - **A Class** — defines ability progression and role
 - **A Background** — light flavor and a single starting feat/ability (DOS2-style); occassionally might branch event outcomes or gate content, but not frequently
 - **4 Equipment Slots:** Weapon, Armor, Consumable, Accessory

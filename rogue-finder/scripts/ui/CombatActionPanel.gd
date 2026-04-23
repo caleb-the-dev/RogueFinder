@@ -20,6 +20,7 @@ const VP_H:          float = 720.0
 var _panel:          PanelContainer  = null
 var _vbox:           VBoxContainer   = null
 var _name_label:     Label           = null
+var _kindred_label:  Label           = null
 var _portrait:       TextureRect     = null
 var _hp_bar_fill:    ColorRect       = null
 var _hp_text:        Label           = null
@@ -70,6 +71,14 @@ func _build_ui() -> void:
 	_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_name_label.add_theme_font_size_override("font_size", 15)
 	_vbox.add_child(_name_label)
+
+	# Kindred — centered, small, muted
+	_kindred_label = Label.new()
+	_kindred_label.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
+	_kindred_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_kindred_label.add_theme_font_size_override("font_size", 10)
+	_kindred_label.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
+	_vbox.add_child(_kindred_label)
 
 	# Portrait — centered
 	var portrait_center := CenterContainer.new()
@@ -272,6 +281,7 @@ func refresh(unit: Unit3D) -> void:
 func _populate(unit: Unit3D) -> void:
 	_name_label.text = unit.data.character_name if unit.data.character_name != "" \
 		else unit.data.archetype_id.replace("_", " ").capitalize()
+	_kindred_label.text = unit.data.kindred if unit.data.kindred != "" else "Unknown"
 
 	_portrait.texture = (unit.data.portrait as Texture2D) if unit.data.portrait \
 		else (load("res://icon.svg") as Texture2D)
