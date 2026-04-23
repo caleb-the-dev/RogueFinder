@@ -1,6 +1,6 @@
 # System: Background System
 
-> Last updated: 2026-04-23 (split from combatant_data.md during map audit)
+> Last updated: 2026-04-23 (S30 — fixed 3 broken starting_ability_id rows)
 
 ---
 
@@ -74,12 +74,16 @@ static func reload() -> void
 
 ### Defined Backgrounds (4 seed rows)
 
-| ID | Name | Starting Ability (placeholder) | Unlocked by Default | Tags |
-|----|------|--------------------------------|---------------------|------|
-| `crook` | Crook | `pickpocket` | `true` | `criminal`, `urban` |
+| ID | Name | Starting Ability | Unlocked by Default | Tags |
+|----|------|-----------------|---------------------|------|
+| `crook` | Crook | `smoke_bomb` | `true` | `criminal`, `urban` |
 | `soldier` | Soldier | `shield_bash` | `true` | `military`, `disciplined` |
-| `scholar` | Scholar | `identify` | `true` | `academic`, `urban` |
-| `baker` | Baker | `rally_feast` | `true` | `commoner`, `urban` |
+| `scholar` | Scholar | `acid_splash` | `true` | `academic`, `urban` |
+| `baker` | Baker | `healing_draught` | `true` | `commoner`, `urban` |
+
+> **S30 fix:** `crook` was `pickpocket`, `scholar` was `identify`, `baker` was `rally_feast` — none of these
+> exist in `AbilityLibrary`. Retargeted to real ability IDs. `soldier → shield_bash` was already correct.
+> Real flavor-specific abilities (pickpocket, identify, rally_feast) will be authored in a later AbilityLibrary session.
 
 ### Parsing Rules
 

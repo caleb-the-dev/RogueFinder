@@ -1,0 +1,5 @@
+id,name,description,starting_ability_id,unlocked_by_default,tags,notes
+rogue,Rogue,A cunning operative who favors speed and misdirection over brute force.,quick_shot,true,agile|stealthy,placeholder: real class feats + progression not yet defined
+barbarian,Barbarian,A fierce warrior who channels rage into devastating close-range attacks.,heavy_strike,true,melee|berserker,placeholder: real class feats + progression not yet defined
+wizard,Wizard,A studious spellcaster who harnesses arcane power from a distance.,fireball,true,arcane|ranged,placeholder: real class feats + progression not yet defined
+warrior,Warrior,A stalwart front-liner trained to protect allies and hold the line.,shield_bash,true,melee|defender,placeholder: real class feats + progression not yet defined
