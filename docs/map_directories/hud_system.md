@@ -70,10 +70,12 @@ Lives in `scripts/ui/CombatActionPanel.gd` + `scenes/ui/CombatActionPanel.tscn`.
 
 ### Public API
 
-| Method | Signature | Purpose |
+| Method / Property | Signature | Purpose |
 |--------|-----------|---------|
-| `open_for` | `(unit: Unit3D, camera: Camera3D) -> void` | Populate and slide in (`camera` kept for signature compat — unused) |
+| `open_for` | `(unit: Unit3D, camera: Camera3D) -> void` | Populate and slide in; if already open, kills any close tween and updates content in-place (`camera` kept for signature compat — unused) |
 | `close` | `() -> void` | Slide out and hide |
+| `refresh` | `(unit: Unit3D) -> void` | Update bars + status + consumable + stride without full rebuild (used mid-combat) |
+| `current_unit` | `Unit3D` (read-only property) | The unit currently displayed; `null` when panel is closed |
 
 ### Signals
 
@@ -81,6 +83,14 @@ Lives in `scripts/ui/CombatActionPanel.gd` + `scenes/ui/CombatActionPanel.tscn`.
 |--------|------|-----------|
 | `ability_selected` | `ability_id: String` | Player clicks an ability button |
 | `consumable_selected` | — | Player clicks the consumable button |
+
+### Gotchas
+
+- **Tween guard:** `open_for()` kills any in-flight tween before starting a new one. Calling `open_for()` while sliding out cancels the close and slides back in cleanly.
+- **Ability buttons are rebuilt** (`queue_free` + recreate) on every `open_for()` call. Do not hold external references to individual buttons.
+- **Consumable signal connected once** in `_build_ui()` using `_current_unit` in the handler — no repeated connections on refresh.
+- **HP fill uses `anchor_right`** (not pixel size). The bar fill is 0–1 anchored inside a `Control` wrapper, so it scales automatically with the panel width.
+- **No save state:** this system is pure presentation. No state survives scene transitions.
 
 ---
 

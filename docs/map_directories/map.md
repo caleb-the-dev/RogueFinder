@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-20 |
+| last_updated | 2026-04-23 |
 | last_groomed | 2026-04-18 |
-| sessions_since_groom | 13 |
+| sessions_since_groom | 15 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run a grooming pass:
@@ -30,8 +30,8 @@
 | [Camera System](#camera-system) | [camera_system.md](camera_system.md) | ✅ Active (3D only) | Presentation |
 | [HUD System](#hud-system) | [hud_system.md](hud_system.md) | ⚠️ Legacy 2D only | Presentation |
 | [Stat Panel](#stat-panel) | [hud_system.md](hud_system.md) | ✅ Active (double-click examine) | Presentation |
-| [Unit Info Bar](#unit-info-bar) | [hud_system.md](hud_system.md) | ✅ Active (single-click strip) | Presentation |
-| [Action Menu](#action-menu) | [hud_system.md](hud_system.md) | ✅ Active | Presentation |
+| [Unit Info Bar](#unit-info-bar) | [hud_system.md](hud_system.md) | ✅ Active (hover strip) | Presentation |
+| [Combat Action Panel](#combat-action-panel) | [hud_system.md](hud_system.md) | ✅ Active (right slide-in panel) | Presentation |
 | [End Combat Screen](#end-combat-screen) | [hud_system.md](hud_system.md) | ✅ Active (victory only) | Presentation |
 | [Run Summary Scene](#run-summary-scene) | [combat_manager.md](combat_manager.md) | ✅ Active | Presentation |
 | [Reward Generator](#reward-generator) | [hud_system.md](hud_system.md) | ✅ Active | Global |
@@ -59,9 +59,9 @@ CombatManager3D
   ├── Unit3D ×≤6       (HP/energy state, movement, animations; player units from GameState.party)
   ├── QTEBar           (skill-check overlay → accuracy float)
   ├── CameraController (built by CM3D; shake on hit)
-  ├── UnitInfoBar      (condensed strip; shown on single-click)
-  ├── StatPanel        (full examine window; shown on double-click)
-  ├── ActionMenu       (radial pop-up; signals ability_selected, consumable_selected)
+  ├── UnitInfoBar         (condensed strip; shown on hover via _handle_unit_hover)
+  ├── StatPanel           (full examine window; shown on double-click)
+  ├── CombatActionPanel   (right slide-in; player=interactive, enemy=read-only; signals ability_selected, consumable_selected)
   ├── EndCombatScreen  (victory overlay only; defeat bypasses it)
   ├── ArchetypeLibrary (creates CombatantData for enemy units only)
   ├── GameState        (party read at setup; save() on permadeath and combat end)
@@ -77,9 +77,9 @@ RewardGenerator
 Unit3D
   └── CombatantData    (stat source — replaces UnitData for 3D)
 
-ActionMenu
-  ├── AbilityLibrary      (looked up to build ability buttons)
-  └── ConsumableLibrary   (looked up to build consumable button label + tooltip)
+CombatActionPanel
+  ├── AbilityLibrary      (looked up to build ability buttons + tooltips)
+  └── ConsumableLibrary   (looked up to build consumable button + tooltip)
 
 StatPanel
   └── CombatantData    (reads all fields for display)
@@ -144,7 +144,10 @@ CanvasLayer that displays HP and energy as ASCII bars for all 6 units. Duck-type
 CanvasLayer overlay (layer 8) opened on double-click of any unit. Shows the complete `CombatantData`. Scrollable. Closed by ✕ or ESC. Lives in `scripts/ui/StatPanel.gd`.
 
 ### Unit Info Bar
-Condensed CanvasLayer strip (layer 4). Shown on single-click of any unit. Displays name, class, HP bar, energy bar, ATK/DEF/SPD. Hidden on deselect and combat end.
+Condensed CanvasLayer strip (layer 4). Shown on **hover** over any unit (driven by `CombatManager3D._handle_unit_hover()` on `InputEventMouseMotion`). Displays name, class, HP bar, energy bar. Hidden when cursor leaves all units.
+
+### Combat Action Panel
+CanvasLayer (layer 12) right-side slide-in panel (~0.15s cubic tween). Opens for **player units** (interactive: ability 2×2 grid, consumable button, stride hint) and **enemy units** (read-only: HP/EN bars, non-clickable abilities). Shows unit name, portrait, HP/EN bars with color-coded fill, status effect chips, and a dialogue stub box. Ability/consumable buttons show a floating tooltip on hover. Consumable use refreshes the panel in-place (no close). After stride, panel refreshes with updated remaining movement. Lives in `scripts/ui/CombatActionPanel.gd` + `scenes/ui/CombatActionPanel.tscn`.
 
 ### End Combat Screen
 CanvasLayer overlay (layer 15) shown on combat **victory only**. Shows a "VICTORY" header + 3 reward buttons from `RewardGenerator.roll(3)` — picking one immediately appends the node to `GameState.cleared_nodes`, saves, and returns to `MapScene.tscn`. The defeat path now bypasses EndCombatScreen entirely (see Run Summary Scene). Lives in `scripts/ui/EndCombatScreen.gd`.
@@ -155,8 +158,8 @@ Shown after a run-ending defeat (full party wipe). Displays run stats read from 
 ### Reward Generator
 Static utility (`scripts/globals/RewardGenerator.gd`). Combines all `EquipmentLibrary` and `ConsumableLibrary` items into one pool, Fisher-Yates shuffles, and returns `count` distinct Dicts (`id`, `name`, `description`, `item_type`).
 
-### Action Menu
-CanvasLayer (layer 12) pop-up shown when a player unit is selected. D-pad layout: 4 ability buttons + 1 consumable center button. Projects the unit's 3D position to screen space. Emits `ability_selected(ability_id)` and `consumable_selected()`. Buttons grey out based on energy and `has_acted` state.
+### Combat Action Panel
+See [Combat Action Panel](#combat-action-panel) above.
 
 ### Combatant Data Model
 Two-file system: `CombatantData` (Resource) stores identity, core attributes, slot data, and persistent run state (`ability_pool`, `current_hp`, `current_energy`, `is_dead`); all derived combat stats are computed properties. `ArchetypeLibrary` (static class) defines 5 archetypes and provides `create()` to instantiate randomized `CombatantData` with all persistent fields seeded. Pool ⊇ slots invariant: every non-empty active slot appears in `ability_pool`.
@@ -240,11 +243,11 @@ res://
 │   │   ├── Unit.gd              ← legacy 2D
 │   │   └── Grid.gd              ← legacy 2D
 │   ├── ui/
-│   │   ├── ActionMenu.gd        ← radial action pop-up (player unit selection)
+│   │   ├── CombatActionPanel.gd ← right slide-in panel (player=interactive, enemy=read-only)
 │   │   ├── EndCombatScreen.gd   ← victory overlay (layer 15; defeat bypassed)
 │   │   ├── RunSummaryManager.gd ← run-end stats + new run / quit buttons
 │   │   ├── StatPanel.gd         ← full examine window (double-click)
-│   │   ├── UnitInfoBar.gd       ← condensed strip (single-click)
+│   │   ├── UnitInfoBar.gd       ← condensed strip (hover-based)
 │   │   └── HUD.gd               ← legacy 2D only
 │   └── globals/
 │       ├── AbilityLibrary.gd    ← ability factory (22 abilities)
@@ -266,6 +269,7 @@ res://
 ├── data/
 │   └── backgrounds.csv          ← CSV-backed catalog (single source; read via res://data/)
 ├── scenes/ui/
+│   ├── CombatActionPanel.tscn   ← right slide-in panel shell (root CanvasLayer + script only)
 │   └── RunSummaryScene.tscn     ← run-end stats scene (root CanvasLayer + script only)
 ├── scenes/party/
 │   └── PartySheet.tscn          ← party/inventory overlay shell (root CanvasLayer + script only)
@@ -293,6 +297,7 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-23 | CombatManager3D, CombatActionPanel, UnitInfoBar | S26+S27 Combat UI overhaul: replaced radial ActionMenu with right slide-in CombatActionPanel (layer 12). Player panel: centered name/portrait, HP+EN bars, 2×2 ability grid, consumable button, stride hint with remaining tiles. Enemy panel: same layout, read-only abilities, no consumable/stride. Hover tooltips on all ability/consumable buttons (float left of panel). UnitInfoBar converted from click-persistent to hover-based via `_handle_unit_hover()` on mouse motion. Consumable use no longer closes panel (refreshes in-place). Panel refreshes after stride with updated remaining movement. Panel closes if its shown unit dies. `_hover_cell` var added to CM3D. ActionMenu.gd deleted. |
 | 2026-04-20 | MapManager | S25 Map node placement constraints: inner ring changed to 4 COMBAT + 2 EVENT (no VENDOR); outer ring to 7 COMBAT + 3 EVENT + 1 VENDOR + 1 BOSS. BOSS assignment extracted from `_assign_node_types()` to new `_assign_boss_type()` called after `_build_edge_data()`; bridge endpoints captured into `_outer_bridge_ids`; BOSS excluded from bridge node + 2 ring neighbors. `GameState.save()` moved from type assignment to boss assignment step. |
 | 2026-04-20 | MapManager | S24 Remove RECRUIT node type: RECRUIT scrubbed from all pools, color/icon/desc helpers, and docs. Outer pool COMBAT count unchanged (slot replaced with COMBAT). |
 | 2026-04-20 | ArchetypeLibrary, PartySheet | S23 Ability Pool Swap: `pool_extras` key expands ability pools beyond the 4 active slots (RogueFinder, archer_bandit, grunt now have 4 extras each). Full interactive swap UI: drag from Abilities panel onto BOTTOM-RIGHT slots; right-click to unequip. Per-member sort/search/view in ability panel; inventory gets same treatment. Drag-compare panels for abilities, equipment, and consumables. Backwards-typing fix in search. `_wrap_tooltip()` + opaque tooltip theme. |
