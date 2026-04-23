@@ -1,6 +1,6 @@
 # System: Combat Manager
 
-> Last updated: 2026-04-19 (Slice 3 — GameState.party drives player unit spawning; permadeath + write-back wired)
+> Last updated: 2026-04-23 (S28 — kindred field displayed in CombatActionPanel; map audit grooming)
 
 ---
 
@@ -42,7 +42,7 @@ Does **NOT** own: grid math (see `grid_system.md`), unit visuals/HP state (see `
 | **CameraController** | Built by CM3D; `trigger_shake()` called on successful hit |
 | **UnitInfoBar** | `show_for(unit)` on single-click; `refresh(unit)` after damage; `hide_bar()` on deselect |
 | **StatPanel** | `show_for(unit)` on double-click; `hide_panel()` on deselect / combat end |
-| **ActionMenu** | `open_for(unit)` on player unit selection; listens for `ability_selected(id)` and `consumable_selected()` |
+| **CombatActionPanel** | `open_for(unit, camera)` on any unit click (player=interactive, enemy=read-only); listens for `ability_selected(id)` and `consumable_selected()`; internal var is `_action_menu` (legacy naming — not a separate class) |
 | **ArchetypeLibrary** | `create(archetype_id, name, is_player)` for enemy units only (player units come from `GameState.party`) |
 | **GameState** | `GameState.party` read in `_setup_units()`; `GameState.save()` called on permadeath and combat end |
 | **AbilityLibrary** | `get_ability(id)` to resolve `_pending_ability` before targeting |
@@ -76,8 +76,8 @@ IDLE
 
 STRIDE_MODE
   └─[click move tile]─────────────→ IDLE (unit moved; re-select to act)
-  └─[ActionMenu: ability]─────────→ ABILITY_TARGET_MODE
-  └─[ActionMenu: consumable]──────→ IDLE (consumable used)
+  └─[CombatActionPanel: ability]──→ ABILITY_TARGET_MODE
+  └─[CombatActionPanel: consumable]→ IDLE (consumable used; panel refreshes in-place)
   └─[click elsewhere]─────────────→ IDLE
 
 ABILITY_TARGET_MODE  (purple highlights; _selected_unit + _pending_ability set)
@@ -88,7 +88,7 @@ ABILITY_TARGET_MODE  (purple highlights; _selected_unit + _pending_ability set)
   └─[mouse motion, CONE/ARC/RADIAL]→ _handle_shape_hover() updates preview
 
 QTE_RUNNING  (blocks all input until qte_resolved fires)
-  └─[qte_resolved(accuracy)]──────→ _on_qte_resolved:
+  └─[qte_resolved(multiplier)]────→ _on_qte_resolved:
         TRAVEL effect?  → TRAVEL_DESTINATION
         AoE?            → STRIDE_MODE / IDLE (after shape effects applied)
         Single?         → STRIDE_MODE / IDLE (after effects applied)
@@ -104,9 +104,9 @@ TRAVEL_DESTINATION  (blue tiles; player picks where to land)
 
 | Signal | Source | Handler |
 |--------|--------|---------|
-| `qte_resolved(accuracy)` | QTEBar | `_on_qte_resolved(accuracy)` |
-| `ability_selected(ability_id)` | ActionMenu | `_on_ability_selected(ability_id)` |
-| `consumable_selected()` | ActionMenu | `_on_consumable_selected()` |
+| `qte_resolved(multiplier: float)` | QTEBar | `_on_qte_resolved(multiplier)` — tiered values 0.25 / 0.75 / 1.0 / 1.25 |
+| `ability_selected(ability_id)` | CombatActionPanel | `_on_ability_selected(ability_id)` |
+| `consumable_selected()` | CombatActionPanel | `_on_consumable_selected()` |
 
 *(CM3D emits no external signals — it is the scene root.)*
 
@@ -130,8 +130,8 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_try_ability_target(cell)` | SINGLE → `_initiate_action`; AoE shapes → store `_aoe_origin`, call `_initiate_aoe_action` |
 | `_initiate_action(attacker, target)` | Stores `_attack_target`; starts QTE |
 | `_initiate_aoe_action(attacker, origin_world)` | Sets `_attack_target = null`; starts QTE for AoE paths |
-| `_on_qte_resolved(accuracy)` | Detects TRAVEL → enters TRAVEL_DESTINATION; detects AoE → `_get_shape_cells` + `_get_units_in_cells` + `_apply_effects`; single → `_apply_effects` |
-| `_apply_effects(ability, caster, target, accuracy, blast_origin)` | Loops `ability.effects`; dispatches by EffectType. `blast_origin` passed from `_aoe_origin` for FORCE/RADIAL direction. |
+| `_on_qte_resolved(multiplier)` | Detects TRAVEL → enters TRAVEL_DESTINATION; detects AoE → `_get_shape_cells` + `_get_units_in_cells` + `_apply_effects`; single → `_apply_effects` |
+| `_apply_effects(ability, caster, target, multiplier, blast_origin)` | Loops `ability.effects`; dispatches by EffectType. `blast_origin` passed from `_aoe_origin` for FORCE/RADIAL direction. |
 | `_apply_stat_delta(unit, stat, delta)` | Modifies `unit.data.<stat>`, clamps [0,5], calls `unit.add_stat_effect()` to record named status |
 | `_apply_force(caster, target, effect, blast_origin)` | Slides target along computed direction for `base_value` tiles; stops at wall/unit. Tracks full path; applies 2 HP hazard damage for **every** hazard cell traversed (including landing cell). Direction from `effect.force_type` (PUSH/PULL/LEFT/RIGHT/RADIAL). |
 | `_get_shape_cells(caster_pos, origin_pos, ability)` | Returns all cells in the ability's AoE footprint, respecting `passthrough` for CONE and RADIAL |
@@ -157,19 +157,22 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 
 ## Effect Formulas
 
+`multiplier` is the tiered QTE result — one of `0.25` (miss), `0.75` (weak), `1.0` (good), `1.25` (perfect). See `qte_system.md` for derivation.
+
 ```
 # HARM / MEND
-value = max(1, round(accuracy × (base_value + caster.attribute_value)))
+value = max(1, round(multiplier * (base_value + caster.attribute_value)))
 
 # BUFF / DEBUFF
-flat base_value applied; accuracy < 0.3 = miss
+flat base_value applied; multiplier == 0.25 = miss (no effect)
 
 # FORCE
 slides target along ForceType direction; stops at wall or occupied cell
-base_value = max tiles to travel; accuracy < 0.3 = miss
+base_value = max tiles to travel; multiplier == 0.25 = miss
 
 # TRAVEL
-player picks destination from highlighted tiles; QTE accuracy unused for distance
+player picks destination from highlighted tiles; multiplier unused for distance
+(multiplier == 0.25 cancels the reposition; energy already spent)
 ```
 
 `attribute_value` → `caster.data.strength / dexterity / cognition / vitality / willpower`
@@ -227,6 +230,8 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-23 | S28 Kindred display — CombatActionPanel renders a small muted kindred label below unit name for both player and enemy views (`_kindred_label`). No CombatManager3D behavior change. |
+| 2026-04-20 | S26+S27 UI overhaul — radial ActionMenu deleted; replaced by right slide-in `CombatActionPanel` (layer 12). CM3D's internal var is still named `_action_menu` (legacy) but the type is `CombatActionPanel`. `_handle_unit_hover()` added for `InputEventMouseMotion` → UnitInfoBar hover (replaced click-persistent info bar). `_hover_cell` field added. Consumable use no longer closes the panel — CM3D calls `_action_menu.open_for()` again to refresh in place. |
 | 2026-04-19 | Permadeath rules, PC revival, run-end flow, debug menu — allies die permanently in `_on_unit_died()`; PC death deferred to `_end_combat()`. Victory: PC downed → revives at 1 HP. Defeat: PC `is_dead = true` → `_capture_run_summary()` → 3-second overlay → `RunSummaryScene`. `_attr_snapshots` restored on both outcomes. T key toggles in-combat debug menu (Kill PC / Kill Allies / Kill Enemies / Kill Party / Damage PC -20). |
 | 2026-04-19 | Slice 3 — `_setup_units()` rewritten to spawn player units from `GameState.party` (shared resource references, not fresh instances); dead members skipped. `_attr_snapshots` dict records per-unit attribute baseline at setup. Victory path writes `current_hp`/`current_energy` back to party members. `Unit3D.setup()` now seeds from `data.current_hp`/`data.current_energy` instead of max. |
 | 2026-04-17 | Pathfinding + movement reservation: `_try_move()` now uses `Grid3D.find_path()` for cell-by-cell tween traversal (~0.12s per cell); hazard damage fires on each cell entered. Unit3D `has_moved` replaced by `remaining_move: int` (initialized to `data.speed` on `setup()`/`reset_turn()`); stride can be used multiple times per turn until budget reaches 0. `_select_unit()` and enemy stride both pass `unit.remaining_move` to `get_move_range()`. Enemy stride updated to use same cell-by-cell traversal. |

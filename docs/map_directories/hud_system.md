@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-18 (Session 13 grooming — EndCombatScreen no-Onward flow)
+> Last updated: 2026-04-23 (map audit — EndCombatScreen.show_defeat() removed; defeat path moved to CombatManager3D._show_run_end_overlay())
 
 ---
 
@@ -97,27 +97,27 @@ Lives in `scripts/ui/CombatActionPanel.gd` + `scenes/ui/CombatActionPanel.tscn`.
 
 ## EndCombatScreen
 
-**Layer 15.** Shown when combat ends (victory or defeat). Full-screen semi-transparent overlay. Built in code; no scene file.
+**Layer 15.** Shown on **combat victory only**. Full-screen semi-transparent overlay. Built in code; no scene file.
+
+The defeat path bypasses this system entirely — `CombatManager3D._end_combat(false)` calls `_capture_run_summary()` → `_show_run_end_overlay()` → `change_scene_to_file("res://scenes/ui/RunSummaryScene.tscn")`. See `combat_manager.md`.
 
 ### Public API
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
 | `show_victory` | `(reward_items: Array) -> void` | Displays VICTORY header + 3 reward buttons |
-| `show_defeat` | `() -> void` | Displays DEFEAT header + "Return to Map" button |
 
 Victory flow: 3 reward buttons (item name + description). Clicking one:
-1. Disables all reward buttons, highlights chosen with `✓` prefix.
-2. Appends `GameState.current_combat_node_id` to `GameState.cleared_nodes` (if not already present).
-3. If the defeated node's type is `"BOSS"` (checked via `GameState.node_types.get(...)`), resets `GameState.threat_level = 0.0`.
-4. Calls `GameState.save()`.
-5. Calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
+1. Calls `GameState.add_to_inventory(item)` (via `has_method()` guard).
+2. Disables all reward buttons, highlights chosen with `✓` prefix.
+3. Appends `GameState.current_combat_node_id` to `GameState.cleared_nodes` (if not already present).
+4. If the defeated node's type is `"BOSS"` (checked via `GameState.node_types.get(...)`), resets `GameState.threat_level = 0.0`.
+5. Calls `GameState.save()`.
+6. Calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
 
 There is no intermediate "Onward..." step — reward selection is the final input.
 
-Defeat flow: single "Return to Map" button → `_return_to_map()` → `MapScene.tscn`. The node is **not** added to `cleared_nodes` on defeat, so it remains re-enterable. Subtitle text: *"Return to the map and try again."*
-
-Both paths return to the map, not combat. The constant is `MAP_SCENE_PATH`; the method is `_return_to_map()` (renamed from `_reload_combat()` in Feature 3).
+The constant is `MAP_SCENE_PATH`; the method is `_return_to_map()` (renamed from `_reload_combat()` in Feature 3).
 
 Reward items come from `RewardGenerator.roll(3)` — plain Dicts with keys `id`, `name`, `description`, `item_type`.
 
