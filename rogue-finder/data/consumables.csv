@@ -1,0 +1,3 @@
+id,name,effect_type,base_value,target_stat,description,notes
+healing_potion,Healing Potion,MEND,15,,Restore 15 HP.,
+power_tonic,Power Tonic,BUFF,2,STRENGTH,Boost Strength by 2 for this battle.,
