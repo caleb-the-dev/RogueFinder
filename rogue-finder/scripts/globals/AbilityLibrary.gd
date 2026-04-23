@@ -2,356 +2,187 @@ class_name AbilityLibrary
 extends RefCounted
 
 ## --- AbilityLibrary ---
-## Static definitions for all abilities in the game.
-## Each entry has full effect data. A future CSV import will replace ABILITIES
-## without changing the get_ability() signature.
-##
-## Adding an ability: add one entry to ABILITIES; nothing else changes.
+## CSV-native ability catalog. Migrated from inline const dict in S35
+## (data-library uniformity pass session 6).
+## Data source: res://data/abilities.csv (22 rows).
+## get_ability() signature preserved unchanged.
 
-## --- Schema ---
-## "name"         : String
-## "attribute"    : AbilityData.Attribute
-## "target"       : AbilityData.TargetShape
-## "applicable_to": AbilityData.ApplicableTo
-## "range"        : int  (-1 = whole map)
-## "passthrough"  : bool (optional, default false)
-## "cost"         : int
-## "description"  : String
-## "effects"      : Array[Dictionary]
-##   Each effect dict keys:
-##     "type"       : EffectData.EffectType  (required)
-##     "base_value" : int                    (required)
-##     "pool"       : EffectData.PoolType    (HARM / MEND only)
-##     "stat"       : AbilityData.Attribute  (BUFF / DEBUFF only)
-##     "move"       : EffectData.MoveType    (TRAVEL only)
-##     "force"      : EffectData.ForceType   (FORCE only)
+const CSV_PATH := "res://data/abilities.csv"
 
-const ABILITIES: Dictionary = {
-	"strike": {
-		"name":          "Strike",
-		"attribute":     AbilityData.Attribute.STRENGTH,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         1,
-		"cost":          2,
-		"description":   "Step into range and put your weight behind the blow — deal damage to one adjacent enemy.",
-		"effects": [
-			{ "type": EffectData.EffectType.HARM, "base_value": 5, "pool": EffectData.PoolType.HP },
-		],
-	},
-	"heavy_strike": {
-		"name":          "Heavy Strike",
-		"attribute":     AbilityData.Attribute.STRENGTH,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         1,
-		"cost":          4,
-		"description":   "Wind up and swing with everything you have — hit one adjacent enemy for serious damage.",
-		"effects": [
-			{ "type": EffectData.EffectType.HARM, "base_value": 9, "pool": EffectData.PoolType.HP },
-		],
-	},
-	"quick_shot": {
-		"name":          "Quick Shot",
-		"attribute":     AbilityData.Attribute.DEXTERITY,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         3,
-		"cost":          2,
-		"description":   "Draw and loose before the moment passes — deal damage to one enemy within 3 tiles.",
-		"effects": [
-			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
-		],
-	},
-	"disengage": {
-		"name":          "Disengage",
-		"attribute":     AbilityData.Attribute.DEXTERITY,
-		"target":        AbilityData.TargetShape.SELF,
-		"applicable_to": AbilityData.ApplicableTo.ANY,
-		"range":         1,
-		"cost":          2,
-		"description":   "Step back with practiced care — reposition 1 tile without triggering opportunity attacks.",
-		"effects": [
-			{ "type": EffectData.EffectType.TRAVEL, "base_value": 1, "move": EffectData.MoveType.FREE },
-		],
-	},
-	"acid_splash": {
-		"name":          "Acid Splash",
-		"attribute":     AbilityData.Attribute.COGNITION,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         3,
-		"cost":          3,
-		"description":   "Hurl a flask of sizzling reagent — damages on contact and eats through the target's dexterity.",
-		"effects": [
-			{ "type": EffectData.EffectType.HARM,   "base_value": 3, "pool": EffectData.PoolType.HP },
-			{ "type": EffectData.EffectType.DEBUFF, "base_value": 1, "stat": AbilityData.Attribute.DEXTERITY },
-		],
-	},
-	"smoke_bomb": {
-		"name":          "Smoke Bomb",
-		"attribute":     AbilityData.Attribute.COGNITION,
-		"target":        AbilityData.TargetShape.RADIAL,
-		"applicable_to": AbilityData.ApplicableTo.ANY,
-		"range":         2,
-		"cost":          2,
-		"description":   "Shatter a smoke-filled vial — all units in the blast radius lose footing and dexterity.",
-		"effects": [
-			{ "type": EffectData.EffectType.DEBUFF, "base_value": 1, "stat": AbilityData.Attribute.DEXTERITY },
-		],
-	},
-	"healing_draught": {
-		"name":          "Healing Draught",
-		"attribute":     AbilityData.Attribute.VITALITY,
-		"target":        AbilityData.TargetShape.SELF,
-		"applicable_to": AbilityData.ApplicableTo.ANY,
-		"range":         0,
-		"cost":          3,
-		"description":   "Uncork a bitter medicinal brew and down it — restore a measure of your own health.",
-		"effects": [
-			{ "type": EffectData.EffectType.MEND, "base_value": 5, "pool": EffectData.PoolType.HP },
-		],
-	},
-	"shield_bash": {
-		"name":          "Shield Bash",
-		"attribute":     AbilityData.Attribute.STRENGTH,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         1,
-		"cost":          3,
-		"description":   "Lead with the rim of your shield — deal damage and disrupt the target's offensive strength.",
-		"effects": [
-			{ "type": EffectData.EffectType.HARM,   "base_value": 3, "pool": EffectData.PoolType.HP },
-			{ "type": EffectData.EffectType.DEBUFF, "base_value": 1, "stat": AbilityData.Attribute.STRENGTH },
-		],
-	},
-	"counter": {
-		"name":          "Counter",
-		"attribute":     AbilityData.Attribute.WILLPOWER,
-		"target":        AbilityData.TargetShape.SELF,
-		"applicable_to": AbilityData.ApplicableTo.ANY,
-		"range":         0,
-		"cost":          2,
-		"description":   "Plant your feet and channel your resolve — temporarily sharpen your offensive strength.",
-		"effects": [
-			{ "type": EffectData.EffectType.BUFF, "base_value": 2, "stat": AbilityData.Attribute.STRENGTH },
-		],
-	},
-	"taunt": {
-		"name":          "Taunt",
-		"attribute":     AbilityData.Attribute.WILLPOWER,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         3,
-		"cost":          1,
-		"description":   "Bark choice insults at a nearby enemy — sap their resolve and force their attention onto you.",
-		"effects": [
-			{ "type": EffectData.EffectType.DEBUFF, "base_value": 1, "stat": AbilityData.Attribute.WILLPOWER },
-		],
-	},
-	"inspire": {
-		"name":          "Inspire",
-		"attribute":     AbilityData.Attribute.WILLPOWER,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ALLY,
-		"range":         3,
-		"cost":          3,
-		"description":   "Shout a rallying cry — bolster one ally's strength for the fight ahead.",
-		"effects": [
-			{ "type": EffectData.EffectType.BUFF, "base_value": 1, "stat": AbilityData.Attribute.STRENGTH },
-		],
-	},
-	"guard": {
-		"name":          "Guard",
-		"attribute":     AbilityData.Attribute.VITALITY,
-		"target":        AbilityData.TargetShape.SELF,
-		"applicable_to": AbilityData.ApplicableTo.ANY,
-		"range":         0,
-		"cost":          2,
-		"description":   "Adopt a defensive stance — bolster your vitality to weather incoming blows.",
-		"effects": [
-			{ "type": EffectData.EffectType.BUFF, "base_value": 2, "stat": AbilityData.Attribute.VITALITY },
-		],
-	},
-	"sweep": {
-		"name":          "Sweep",
-		"attribute":     AbilityData.Attribute.STRENGTH,
-		"target":        AbilityData.TargetShape.ARC,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         1,
-		"cost":          3,
-		"description":   "Drag your weapon in a wide arc — hits every enemy in a 3-wide arc directly in front of you.",
-		"effects": [
-			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
-		],
-	},
-	## --- Fireball: RADIAL + ANY + HARM (hurts allies and enemies; passthrough=false) ---
-	"fireball": {
-		"name":          "Fireball",
-		"attribute":     AbilityData.Attribute.COGNITION,
-		"target":        AbilityData.TargetShape.RADIAL,
-		"applicable_to": AbilityData.ApplicableTo.ANY,
-		"range":         4,
-		"passthrough":   false,
-		"cost":          5,
-		"description":   "Hurl a sphere of roiling fire — scorches everything in the blast, allies included. Inner units shield those behind them.",
-		"effects": [
-			{ "type": EffectData.EffectType.HARM, "base_value": 6, "pool": EffectData.PoolType.HP },
-		],
-	},
-	## --- Heal Burst: RADIAL + ALLY + MEND ---
-	"heal_burst": {
-		"name":          "Heal Burst",
-		"attribute":     AbilityData.Attribute.WILLPOWER,
-		"target":        AbilityData.TargetShape.RADIAL,
-		"applicable_to": AbilityData.ApplicableTo.ALLY,
-		"range":         2,
-		"passthrough":   true,
-		"cost":          4,
-		"description":   "Release a wave of restorative energy — heals all allies caught in the pulse.",
-		"effects": [
-			{ "type": EffectData.EffectType.MEND, "base_value": 5, "pool": EffectData.PoolType.HP },
-		],
-	},
-	## --- Charge: SELF + TRAVEL/LINE (dash in a straight line) ---
-	"charge": {
-		"name":          "Charge",
-		"attribute":     AbilityData.Attribute.STRENGTH,
-		"target":        AbilityData.TargetShape.SELF,
-		"applicable_to": AbilityData.ApplicableTo.ANY,
-		"range":         3,
-		"cost":          2,
-		"description":   "Burst forward in a straight line — close the gap in one powerful rush.",
-		"effects": [
-			{ "type": EffectData.EffectType.TRAVEL, "base_value": 3, "move": EffectData.MoveType.LINE },
-		],
-	},
-	## --- Gust: SINGLE + ANY + FORCE/PUSH ---
-	"gust": {
-		"name":          "Gust",
-		"attribute":     AbilityData.Attribute.DEXTERITY,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ANY,
-		"range":         3,
-		"cost":          2,
-		"description":   "Blast a target with a focused burst of wind — knock them 2 tiles directly away.",
-		"effects": [
-			{ "type": EffectData.EffectType.FORCE, "base_value": 2, "force": EffectData.ForceType.PUSH },
-		],
-	},
-	## --- Yank: SINGLE + ANY + FORCE/PULL ---
-	"yank": {
-		"name":          "Yank",
-		"attribute":     AbilityData.Attribute.STRENGTH,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ANY,
-		"range":         3,
-		"cost":          2,
-		"description":   "Grab and haul a target 2 tiles toward you — close range on a retreating foe.",
-		"effects": [
-			{ "type": EffectData.EffectType.FORCE, "base_value": 2, "force": EffectData.ForceType.PULL },
-		],
-	},
-	## --- Shove: SINGLE + ENEMY + FORCE/PUSH (melee push — close-range knockback) ---
-	"shove": {
-		"name":          "Shove",
-		"attribute":     AbilityData.Attribute.STRENGTH,
-		"target":        AbilityData.TargetShape.SINGLE,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         1,
-		"cost":          3,
-		"description":   "Put your shoulder into it — slam an adjacent enemy back 2 tiles.",
-		"effects": [
-			{ "type": EffectData.EffectType.FORCE, "base_value": 2, "force": EffectData.ForceType.PUSH },
-		],
-	},
-	## --- Windblast: RADIAL + ENEMY + FORCE/RADIAL (push all outward from center) ---
-	"windblast": {
-		"name":          "Windblast",
-		"attribute":     AbilityData.Attribute.COGNITION,
-		"target":        AbilityData.TargetShape.RADIAL,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         3,
-		"passthrough":   true,
-		"cost":          3,
-		"description":   "Unleash a radial burst of force — blasts every enemy outward from the point of impact.",
-		"effects": [
-			{ "type": EffectData.EffectType.FORCE, "base_value": 2, "force": EffectData.ForceType.RADIAL },
-		],
-	},
-	"fire_breath": {
-		"name":          "Fire Breath",
-		"attribute":     AbilityData.Attribute.COGNITION,
-		"target":        AbilityData.TargetShape.CONE,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         1,
-		"cost":          4,
-		"description":   "Exhale a torrent of flame — scorches all enemies in an expanding triangle up to 3 tiles deep.",
-		"effects": [
-			{ "type": EffectData.EffectType.HARM, "base_value": 5, "pool": EffectData.PoolType.HP },
-		],
-	},
-	"piercing_shot": {
-		"name":          "Piercing Shot",
-		"attribute":     AbilityData.Attribute.DEXTERITY,
-		"target":        AbilityData.TargetShape.LINE,
-		"applicable_to": AbilityData.ApplicableTo.ENEMY,
-		"range":         4,
-		"passthrough":   true,
-		"cost":          3,
-		"description":   "Draw and loose with full force — the bolt punches through every enemy in a straight line.",
-		"effects": [
-			{ "type": EffectData.EffectType.HARM, "base_value": 4, "pool": EffectData.PoolType.HP },
-		],
-	},
+## Lazily populated on first access. Keyed by ability_id.
+static var _cache: Dictionary = {}
+
+## Cached icon — loaded once on first populate.
+static var _icon: Texture2D = null
+
+## --- Enum name → value lookup tables ---
+## Keyed by the string stored in each CSV cell; returns the enum int.
+const _ATTRIBUTE: Dictionary = {
+	"STRENGTH":  AbilityData.Attribute.STRENGTH,
+	"DEXTERITY": AbilityData.Attribute.DEXTERITY,
+	"COGNITION": AbilityData.Attribute.COGNITION,
+	"VITALITY":  AbilityData.Attribute.VITALITY,
+	"WILLPOWER": AbilityData.Attribute.WILLPOWER,
+	"NONE":      AbilityData.Attribute.NONE,
+}
+const _TARGET_SHAPE: Dictionary = {
+	"SELF":   AbilityData.TargetShape.SELF,
+	"SINGLE": AbilityData.TargetShape.SINGLE,
+	"CONE":   AbilityData.TargetShape.CONE,
+	"LINE":   AbilityData.TargetShape.LINE,
+	"RADIAL": AbilityData.TargetShape.RADIAL,
+	"ARC":    AbilityData.TargetShape.ARC,
+}
+const _APPLICABLE_TO: Dictionary = {
+	"ALLY":  AbilityData.ApplicableTo.ALLY,
+	"ENEMY": AbilityData.ApplicableTo.ENEMY,
+	"ANY":   AbilityData.ApplicableTo.ANY,
+}
+const _EFFECT_TYPE: Dictionary = {
+	"HARM":   EffectData.EffectType.HARM,
+	"MEND":   EffectData.EffectType.MEND,
+	"FORCE":  EffectData.EffectType.FORCE,
+	"TRAVEL": EffectData.EffectType.TRAVEL,
+	"BUFF":   EffectData.EffectType.BUFF,
+	"DEBUFF": EffectData.EffectType.DEBUFF,
+}
+const _POOL_TYPE: Dictionary = {
+	"HP":     EffectData.PoolType.HP,
+	"ENERGY": EffectData.PoolType.ENERGY,
+}
+const _MOVE_TYPE: Dictionary = {
+	"FREE": EffectData.MoveType.FREE,
+	"LINE": EffectData.MoveType.LINE,
+}
+const _FORCE_TYPE: Dictionary = {
+	"PUSH":   EffectData.ForceType.PUSH,
+	"PULL":   EffectData.ForceType.PULL,
+	"LEFT":   EffectData.ForceType.LEFT,
+	"RIGHT":  EffectData.ForceType.RIGHT,
+	"RADIAL": EffectData.ForceType.RADIAL,
 }
 
-## Cached Godot icon — loaded once on first ability lookup.
-static var _icon: Texture2D = null
+## ======================================================
+## Public API
+## ======================================================
+
+## Returns a populated AbilityData for the given ID.
+## Never returns null — falls back to a blank stub for unknown IDs.
+static func get_ability(ability_id: String) -> AbilityData:
+	_ensure_loaded()
+	if _cache.has(ability_id):
+		return _cache[ability_id]
+	var stub := AbilityData.new()
+	stub.ability_id   = "unknown"
+	stub.ability_name = "Unknown"
+	stub.description  = "No ability data found for ID: " + ability_id
+	stub.ability_icon = _get_icon()
+	return stub
+
+## Returns every loaded ability. Use for validation, UI lists, etc.
+static func all_abilities() -> Array[AbilityData]:
+	_ensure_loaded()
+	var result: Array[AbilityData] = []
+	for key in _cache.keys():
+		result.append(_cache[key])
+	return result
+
+## Force reload from disk — for tests and dev-time CSV edits.
+static func reload() -> void:
+	_cache.clear()
+	_ensure_loaded()
+
+## --- Internal ---
 
 static func _get_icon() -> Texture2D:
 	if _icon == null:
 		_icon = load("res://icon.svg")
 	return _icon
 
-## Returns a populated AbilityData for the given ID.
-## Falls back to a blank stub if the ID is unknown — never returns null.
-static func get_ability(ability_id: String) -> AbilityData:
-	var godot_icon: Texture2D = _get_icon()
-	if not ABILITIES.has(ability_id):
-		var stub := AbilityData.new()
-		stub.ability_id   = "unknown"
-		stub.ability_name = "Unknown"
-		stub.description  = "No ability data found for ID: " + ability_id
-		stub.ability_icon = godot_icon
-		return stub
+static func _ensure_loaded() -> void:
+	if not _cache.is_empty():
+		return
+	var icon: Texture2D = _get_icon()
+	var file := FileAccess.open(CSV_PATH, FileAccess.READ)
+	if file == null:
+		push_error("AbilityLibrary: could not open %s (err %d)" % [CSV_PATH, FileAccess.get_open_error()])
+		return
+	var header := file.get_csv_line(",")
+	if header.size() == 0 or header[0] == "":
+		push_error("AbilityLibrary: %s has no header row" % CSV_PATH)
+		return
+	var row_num := 1
+	while not file.eof_reached():
+		var row := file.get_csv_line(",")
+		row_num += 1
+		if row.size() == 1 and row[0] == "":
+			continue
+		if row.size() != header.size():
+			push_error("AbilityLibrary: row %d has %d cells, header has %d — skipping" % [row_num, row.size(), header.size()])
+			continue
+		var ability := _row_to_data(header, row, row_num, icon)
+		if ability != null:
+			_cache[ability.ability_id] = ability
 
-	var def: Dictionary = ABILITIES[ability_id]
+static func _row_to_data(header: PackedStringArray, row: PackedStringArray,
+		row_num: int, icon: Texture2D) -> AbilityData:
 	var a := AbilityData.new()
-	a.ability_id    = ability_id
-	a.ability_name  = def["name"]
-	a.attribute     = def["attribute"]
-	a.target_shape  = def["target"]
-	a.applicable_to = def["applicable_to"]
-	a.tile_range    = def["range"]
-	a.passthrough   = def.get("passthrough", false)
-	a.energy_cost   = def["cost"]
-	a.description   = def["description"]
-	a.ability_icon  = godot_icon
-
-	## Build EffectData instances from nested dicts
-	for effect_def: Dictionary in def["effects"]:
-		var e := EffectData.new()
-		e.effect_type = effect_def["type"]
-		e.base_value  = effect_def.get("base_value", 0)
-		if effect_def.has("pool"):
-			e.target_pool = effect_def["pool"]
-		if effect_def.has("stat"):
-			e.target_stat = effect_def["stat"]
-		if effect_def.has("move"):
-			e.movement_type = effect_def["move"]
-		if effect_def.has("force"):
-			e.force_type = effect_def["force"]
-		a.effects.append(e)
-
+	for i in header.size():
+		var col := header[i]
+		var val := row[i]
+		match col:
+			"id":
+				a.ability_id = val
+			"name":
+				a.ability_name = val
+			"attribute":
+				a.attribute = _ATTRIBUTE.get(val, AbilityData.Attribute.NONE)
+			"target":
+				a.target_shape = _TARGET_SHAPE.get(val, AbilityData.TargetShape.SINGLE)
+			"applicable_to":
+				a.applicable_to = _APPLICABLE_TO.get(val, AbilityData.ApplicableTo.ENEMY)
+			"range":
+				a.tile_range = int(val)
+			"passthrough":
+				a.passthrough = (val == "true")
+			"cost":
+				a.energy_cost = int(val)
+			"description":
+				a.description = val
+			"effects":
+				a.effects = _parse_effects(val, row_num)
+			"notes":
+				pass  # designer free-text; intentionally ignored
+			_:
+				push_warning("AbilityLibrary: unknown column '%s' at row %d" % [col, row_num])
+	if a.ability_id == "":
+		push_error("AbilityLibrary: row %d missing id — skipping" % row_num)
+		return null
+	a.ability_icon = icon
 	return a
+
+static func _parse_effects(effects_str: String, row_num: int) -> Array[EffectData]:
+	if effects_str == "":
+		return []
+	var parsed: Variant = JSON.parse_string(effects_str)
+	if not (parsed is Array):
+		push_error("AbilityLibrary: row %d — invalid effects JSON: %s" % [row_num, effects_str])
+		return []
+	var result: Array[EffectData] = []
+	for item: Variant in (parsed as Array):
+		if not (item is Dictionary):
+			continue
+		var d: Dictionary = item
+		var e := EffectData.new()
+		e.effect_type = _EFFECT_TYPE.get(d.get("type", "HARM"), EffectData.EffectType.HARM)
+		e.base_value  = int(d.get("base_value", 0))
+		if d.has("pool"):
+			e.target_pool = _POOL_TYPE.get(d.get("pool", "HP"), EffectData.PoolType.HP)
+		if d.has("stat"):
+			e.target_stat = _ATTRIBUTE.get(d.get("stat", "NONE"), AbilityData.Attribute.NONE)
+		if d.has("move"):
+			e.movement_type = _MOVE_TYPE.get(d.get("move", "FREE"), EffectData.MoveType.FREE)
+		if d.has("force"):
+			e.force_type = _FORCE_TYPE.get(d.get("force", "PUSH"), EffectData.ForceType.PUSH)
+		result.append(e)
+	return result

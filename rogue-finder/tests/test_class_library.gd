@@ -61,7 +61,7 @@ func test_reload_reparses() -> void:
 
 func test_known_ability_ids_are_valid() -> void:
 	for c in ClassLibrary.all_classes():
-		assert(AbilityLibrary.ABILITIES.has(c.starting_ability_id),
+		assert(AbilityLibrary.get_ability(c.starting_ability_id).ability_id != "unknown",
 			"%s: starting_ability_id '%s' not found in AbilityLibrary" % [c.class_id, c.starting_ability_id])
 	print("  PASS test_known_ability_ids_are_valid")
 

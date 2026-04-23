@@ -76,16 +76,16 @@ func _test_all_archetype_abilities_resolve() -> void:
 
 func _test_archetype_library_updates() -> void:
 	var rogue: CombatantData = ArchetypeLibrary.create("RogueFinder", "Vael", true)
-	assert(rogue.consumable == "Smoke Vial",
-		"RogueFinder consumable should be 'Smoke Vial', got: " + rogue.consumable)
+	assert(rogue.consumable == "power_tonic",
+		"RogueFinder consumable should be 'power_tonic', got: " + rogue.consumable)
 	assert(rogue.abilities[0] == "strike",
 		"RogueFinder abilities[0] should be 'strike', got: " + rogue.abilities[0])
 
 	var alch: CombatantData = ArchetypeLibrary.create("alchemist", "", false)
-	assert(alch.consumable == "Healing Potion",
-		"alchemist consumable should be 'Healing Potion', got: " + alch.consumable)
-	assert(alch.abilities[0] == "acid_splash",
-		"alchemist abilities[0] should be 'acid_splash', got: " + alch.abilities[0])
+	assert(alch.consumable == "healing_potion",
+		"alchemist consumable should be 'healing_potion', got: " + alch.consumable)
+	assert(alch.abilities[0] == "smoke_bomb",
+		"alchemist abilities[0] should be 'smoke_bomb', got: " + alch.abilities[0])
 
 	var grunt: CombatantData = ArchetypeLibrary.create("grunt", "", false)
 	assert(grunt.consumable == "",
