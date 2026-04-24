@@ -4,23 +4,21 @@ extends CanvasLayer
 ## --- CharacterCreationManager ---
 ## Single-screen character creation. Player picks name, kindred, class,
 ## background, and portrait. Builds CombatantData and hands off to MapScene.
-## B2: OptionButton controls. B3 will replace with Dial widgets.
+## B2: inline slot-wheel columns. B3 will extract these into a reusable Dial component.
 
 const MAP_SCENE_PATH := "res://scenes/map/MapScene.tscn"
 
-## Parallel arrays: index N in _xxx_ids matches item N in its OptionButton.
-var _kindred_ids:      Array[String] = []
-var _class_ids:        Array[String] = []
-var _class_display:    Array[String] = []
-var _bg_ids:           Array[String] = []
-var _bg_display:       Array[String] = []
-var _portrait_ids:     Array[String] = []
-var _portrait_display: Array[String] = []
+var _kindred_ids:   Array[String] = []
+var _class_ids:     Array[String] = []
+var _class_display: Array[String] = []
+var _bg_ids:        Array[String] = []
+var _bg_display:    Array[String] = []
+var _portrait_ids:  Array[String] = []
 
-var _name_field:  LineEdit     = null
-var _kindred_opt: OptionButton = null
-var _class_opt:   OptionButton = null
-var _bg_opt:      OptionButton = null
+var _name_field:  LineEdit = null
+var _kindred_idx: int = 0
+var _class_idx:   int = 0
+var _bg_idx:      int = 0
 
 func _ready() -> void:
 	_load_data()
@@ -37,49 +35,153 @@ func _load_data() -> void:
 		_bg_display.append(b.background_name)
 	for p in PortraitLibrary.all_portraits():
 		_portrait_ids.append(p.portrait_id)
-		_portrait_display.append(p.portrait_name)
 
 func _build_ui() -> void:
-	var vbox := VBoxContainer.new()
-	add_child(vbox)
+	var full := Control.new()
+	full.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(full)
 
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	full.add_child(center)
+
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 12)
+	root.custom_minimum_size = Vector2(640, 0)
+	center.add_child(root)
+
+	var name_row := HBoxContainer.new()
+	root.add_child(name_row)
 	_name_field = LineEdit.new()
 	_name_field.placeholder_text = "Character name"
-	vbox.add_child(_name_field)
+	_name_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_row.add_child(_name_field)
+	var dice_btn := Button.new()
+	dice_btn.text = "🎲"
+	dice_btn.pressed.connect(_on_dice_name)
+	name_row.add_child(dice_btn)
 
-	var dice_name := Button.new()
-	dice_name.text = "🎲 Name"
-	dice_name.pressed.connect(_on_dice_name)
-	vbox.add_child(dice_name)
+	var dials := HBoxContainer.new()
+	dials.add_theme_constant_override("separation", 8)
+	root.add_child(dials)
 
-	_kindred_opt = OptionButton.new()
-	for k in KindredLibrary.all_kindreds():
-		_kindred_opt.add_item(k.kindred_id)
-	_kindred_opt.item_selected.connect(func(_i): _on_pick_changed())
-	vbox.add_child(_kindred_opt)
-
-	_class_opt = OptionButton.new()
-	for i in range(_class_ids.size()):
-		_class_opt.add_item(_class_display[i])
-	_class_opt.item_selected.connect(func(_i): _on_pick_changed())
-	vbox.add_child(_class_opt)
-
-	_bg_opt = OptionButton.new()
-	for i in range(_bg_ids.size()):
-		_bg_opt.add_item(_bg_display[i])
-	_bg_opt.item_selected.connect(func(_i): _on_pick_changed())
-	vbox.add_child(_bg_opt)
+	dials.add_child(_build_text_dial("Kindred", _kindred_ids, _kindred_ids,
+		func(i: int): _kindred_idx = i))
+	dials.add_child(_build_text_dial("Class", _class_ids, _class_display,
+		func(i: int): _class_idx = i))
+	dials.add_child(_build_text_dial("Background", _bg_ids, _bg_display,
+		func(i: int): _bg_idx = i))
+	dials.add_child(_build_portrait_dial())
 
 	var confirm := Button.new()
 	confirm.text = "Begin Run"
 	confirm.pressed.connect(_on_confirm)
-	vbox.add_child(confirm)
+	root.add_child(confirm)
+
+func _build_text_dial(header: String, ids: Array[String], display: Array[String],
+		on_select: Callable) -> PanelContainer:
+	# Array used as a mutable int ref — GDScript 4 closures capture locals by value,
+	# so a plain int would reset to 0 on every press.
+	var idx: Array[int] = [0]
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(140, 0)
+	_apply_drum_style(panel)
+
+	var col := VBoxContainer.new()
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 6)
+	panel.add_child(col)
+
+	var header_lbl := Label.new()
+	header_lbl.text = header
+	header_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(header_lbl)
+
+	var up_btn := Button.new()
+	up_btn.text = "▲"
+	up_btn.disabled = ids.size() <= 1
+	col.add_child(up_btn)
+
+	var item_lbl := Label.new()
+	item_lbl.text = display[0] if not display.is_empty() else ""
+	item_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	item_lbl.custom_minimum_size = Vector2(0, 48)
+	item_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	col.add_child(item_lbl)
+
+	var down_btn := Button.new()
+	down_btn.text = "▼"
+	down_btn.disabled = ids.size() <= 1
+	col.add_child(down_btn)
+
+	up_btn.pressed.connect(func():
+		idx[0] = (idx[0] - 1 + ids.size()) % ids.size()
+		item_lbl.text = display[idx[0]]
+		on_select.call(idx[0])
+		_on_pick_changed()
+	)
+	down_btn.pressed.connect(func():
+		idx[0] = (idx[0] + 1) % ids.size()
+		item_lbl.text = display[idx[0]]
+		on_select.call(idx[0])
+		_on_pick_changed()
+	)
+
+	return panel
+
+func _build_portrait_dial() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(140, 0)
+	_apply_drum_style(panel)
+
+	var col := VBoxContainer.new()
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 6)
+	panel.add_child(col)
+
+	var header_lbl := Label.new()
+	header_lbl.text = "Portrait"
+	header_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(header_lbl)
+
+	var up_btn := Button.new()
+	up_btn.text = "▲"
+	up_btn.disabled = true
+	col.add_child(up_btn)
+
+	var icon := TextureRect.new()
+	icon.texture = load("res://icon.svg")
+	icon.custom_minimum_size = Vector2(64, 64)
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(icon)
+
+	var down_btn := Button.new()
+	down_btn.text = "▼"
+	down_btn.disabled = true
+	col.add_child(down_btn)
+
+	return panel
+
+func _apply_drum_style(panel: PanelContainer) -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.14, 1.0)
+	style.set_border_width_all(2)
+	style.border_color = Color(0.45, 0.45, 0.5, 1.0)
+	style.set_corner_radius_all(4)
+	style.content_margin_left   = 8.0
+	style.content_margin_right  = 8.0
+	style.content_margin_top    = 6.0
+	style.content_margin_bottom = 6.0
+	panel.add_theme_stylebox_override("panel", style)
 
 func _on_pick_changed() -> void:
 	_calc_preview()
 
 func _on_dice_name() -> void:
-	var kindred_id: String = _kindred_ids[_kindred_opt.selected] if not _kindred_ids.is_empty() else ""
+	var kindred_id: String = _kindred_ids[_kindred_idx] if not _kindred_ids.is_empty() else ""
 	var pool: Array[String] = KindredLibrary.get_name_pool(kindred_id)
 	if pool.is_empty():
 		_name_field.text = "Unit"
@@ -87,10 +189,10 @@ func _on_dice_name() -> void:
 	_name_field.text = pool[randi() % pool.size()]
 
 func _on_confirm() -> void:
-	var kindred_id: String  = _kindred_ids[_kindred_opt.selected]  if not _kindred_ids.is_empty()  else ""
-	var class_id: String    = _class_ids[_class_opt.selected]      if not _class_ids.is_empty()    else ""
-	var bg_id: String       = _bg_ids[_bg_opt.selected]            if not _bg_ids.is_empty()       else ""
-	var portrait_id: String = _portrait_ids[0] if not _portrait_ids.is_empty() else ""
+	var kindred_id: String  = _kindred_ids[_kindred_idx] if not _kindred_ids.is_empty() else ""
+	var class_id: String    = _class_ids[_class_idx]     if not _class_ids.is_empty()   else ""
+	var bg_id: String       = _bg_ids[_bg_idx]           if not _bg_ids.is_empty()      else ""
+	var portrait_id: String = _portrait_ids[0]           if not _portrait_ids.is_empty() else ""
 	var pc := _build_pc(_name_field.text, kindred_id, class_id, bg_id, portrait_id)
 	GameState.party.append(pc)
 	get_tree().change_scene_to_file(MAP_SCENE_PATH)
