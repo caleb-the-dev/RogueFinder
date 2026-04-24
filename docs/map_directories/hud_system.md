@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-23 (S29 — StatPanel feat row added; MainMenuScene added)
+> Last updated: 2026-04-24 (B4 — CharacterCreationScene live preview panel)
 
 ---
 
@@ -141,10 +141,11 @@ Static utility class (`scripts/globals/RewardGenerator.gd`). Builds a shuffled p
 
 **Entry point.** `main.tscn` now instances `MainMenuScene.tscn` (was `MapScene.tscn` directly). Lives at `scenes/ui/MainMenuScene.tscn` + `scripts/ui/MainMenuManager.gd`.
 
-Displays: title · subtitle · three buttons (Continue, Start New Run, Quit).
+Displays: title · subtitle · four buttons (Continue, Start New Run, Test New Run, Quit).
 
 - **Continue** — disabled when `user://save.json` does not exist. Calls `GameState.load_save()` then `change_scene_to_file(MAP_SCENE_PATH)`.
 - **Start New Run** — calls `GameState.delete_save()` + `GameState.reset()` then transitions to **CharacterCreationScene** (not MapScene directly — B2 wired this 2026-04-24).
+- **Test New Run** (dev shortcut) — calls `delete_save()` + `reset()` then seeds `GameState.party` with three fully-randomized PCs (random kindred, class, background, portrait, and name pulled from the chosen kindred's name pool) via `CharacterCreationManager._build_pc()`. Transitions directly to `MapScene`, bypassing character creation. Muted purple tint to signal dev affordance.
 - **Quit** — `get_tree().quit()`.
 
 `RunSummaryManager._on_main_menu()` now routes to `MainMenuScene.tscn` (was silently calling `_on_new_run()`).
@@ -152,6 +153,7 @@ Displays: title · subtitle · three buttons (Continue, Start New Run, Quit).
 ### Gotchas
 - **No CanvasLayer child nodes** — all UI built in `_ready()` / `_build_ui()`. `main.tscn` is a `Node3D` root instancing the scene; the CanvasLayer sits inside.
 - **Continue button state is set once at `_ready()`** — if a save is written during the same session, the button state won't update without a scene reload (not a real issue in normal flow).
+- **Test New Run depends on `CharacterCreationManager._build_pc()`** — the static builder is the single source of truth for PC construction. If you change `_build_pc()`'s signature, update `_on_test_new_run()` too. Kept static so this shortcut does not need to instance the creation scene.
 
 ---
 
@@ -163,16 +165,19 @@ Lives at `scenes/ui/CharacterCreationScene.tscn` + `scripts/ui/CharacterCreation
 
 **On exit:** appends the built PC to `GameState.party`, then routes to `MapScene`. `MapManager._ready()` calls `GameState.init_party()` as a safety fallback — the guard fires immediately because `party` is already non-empty.
 
-### What it does (B2)
+### What it does (B2 + B4)
 
 Single-screen character creation. Player picks name, kindred, class, background, and portrait. On Confirm, builds a `CombatantData` from scratch (not via `ArchetypeLibrary.create()`) and appends it to `GameState.party`.
 
-Layout (all built in `_ready()`):
-- `LineEdit` (name) + 🎲 button (random name from active kindred's pool; "Unit" fallback on empty pool)
-- Four slot-wheel dial columns: Kindred · Class · Background · Portrait
-- "Begin Run" confirm button
+Layout — two-column body inside a full-rect `MarginContainer` (40 px margins). `HBoxContainer` splits into a 3:2 stretch-ratio pair:
 
-Each dial column shows the current selection (20 px, light highlight panel) flanked by ghost neighbours at 25% opacity / 12 px. All children built in `_build_ui()`; centered via a full-rect `CenterContainer`.
+- **Left column (3)** — all the interactive controls:
+  - `LineEdit` (name) + 🎲 button (random name from active kindred's pool; "Unit" fallback on empty pool)
+  - Four slot-wheel dial columns: Kindred · Class · Background · Portrait
+  - "Begin Run" confirm button
+- **Right column (2)** — live preview `PanelContainer` (B4) showing HP range, Speed, per-attribute row (STR / DEX / COG / WIL / VIT — all "1–4" since every attribute rolls the same range at creation), class ability name + description, background ability name + description, kindred feat name. Updates live from `_calc_preview()` on every dial change. Read-only — no interactive elements.
+
+Each dial column shows the current selection (20 px, light highlight panel) flanked by ghost neighbours at 25% opacity / 12 px. All children built in `_build_ui()`.
 
 ### Public API / Key Methods
 
@@ -183,9 +188,11 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_build_ui()` | Constructs name row + four dial columns + confirm button |
 | `_build_text_dial(header, ids, display, on_select)` | Returns a `PanelContainer` drum column with ▲/▼ and three visible text rows (prev ghost, current highlighted, next ghost). `idx` stored in a single-element `Array[int]` — required because GDScript 4 closures capture locals by value, so a plain `int` would reset to 0 on every press. |
 | `_build_portrait_dial()` | Same drum column shape but shows `TextureRect` (icon.svg) for current + smaller greyed icons for prev/next. Arrows disabled (1 portrait option until art ships). |
+| `_build_preview_panel()` | Returns a `PanelContainer` (drum style) holding the live preview — HP + Speed strip, per-attribute row (STR/DEX/COG/WIL/VIT, all "1–4" literal), class ability name+desc, background ability name+desc, kindred feat name. Stores seven label refs as instance vars for `_calc_preview()` to push to. Per-attribute labels are built once without refs since every attribute rolls the same 1–4 range regardless of picks. |
+| `_make_stat_label(text)` | Small helper — one-line `Label` with font size 14 used for the preview panel's stat strip. |
 | `_on_dice_name()` | Reads active kindred's name pool via `KindredLibrary.get_name_pool()`; falls back to "Unit" on empty pool |
 | `_on_confirm()` | Calls `_build_pc()`, appends to `GameState.party`, transitions to `MapScene` |
-| `_calc_preview()` | Stub — returns `{}`. B4 will populate stat-range preview labels here. |
+| `_calc_preview()` | Returns a `Dictionary` of preview values AND pushes them into the eight preview labels. Reads `_kindred_idx` / `_class_idx` / `_bg_idx`. `hp_min = 10 + kindred_hp_bonus + 6`, `hp_max = 10 + kindred_hp_bonus + 24`, `speed = 1 + kindred_speed_bonus`. Called from `_on_pick_changed()` on every dial spin + once from `_build_ui()` to seed initial values. Signature stays `-> Dictionary` so a future `CharacterCreationPreview` component can consume the same data without a live UI. |
 | `static _build_pc(char_name, kindred_id, class_id, bg_id, _portrait_id)` | Builds `CombatantData` field-by-field from picks. **Static** so unit tests call it without a live scene. See _build_pc details below. |
 
 ### _build_pc field assignments
@@ -222,6 +229,13 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_kindred_idx` | `int` | Current kindred dial selection index |
 | `_class_idx` | `int` | Current class dial selection index |
 | `_bg_idx` | `int` | Current background dial selection index |
+| `_preview_hp_lbl` | `Label` | Preview strip — "HP: min–max" |
+| `_preview_speed_lbl` | `Label` | Preview strip — "Speed: N" |
+| `_preview_class_name` | `Label` | "Class Ability — <name>" row |
+| `_preview_class_desc` | `Label` | Class ability description (autowrap, 75% opacity) |
+| `_preview_bg_name` | `Label` | "Background Ability — <name>" row |
+| `_preview_bg_desc` | `Label` | Background ability description (autowrap, 75% opacity) |
+| `_preview_feat_lbl` | `Label` | "Kindred Feat — <name>" row (no description per B4 spec) |
 
 ### Known Inconsistency
 
@@ -229,16 +243,17 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 
 ### Dependencies
 
-- `KindredLibrary` — name pool, feat id
+- `KindredLibrary` — name pool, feat id, feat name, speed bonus, hp bonus
 - `ClassLibrary` — class list, starting ability, display name
 - `BackgroundLibrary` — background list, starting ability
 - `PortraitLibrary` — portrait list (used for id only; texture not set at v1)
+- `AbilityLibrary` — resolves class + background starting abilities for preview name/description (B4)
 - `GameState` — appends PC to `GameState.party` on confirm
 - `CombatantData` — constructed by `_build_pc()`
 
 ### Tests
 
-`tests/test_character_creation.gd` / `test_character_creation.tscn` — 9 unit tests covering `_build_pc()` correctness (all headless; no live scene required). Run via:
+`tests/test_character_creation.gd` / `test_character_creation.tscn` — 9 unit tests covering `_build_pc()` correctness (all headless; no live scene required). B4 adds no new tests — preview is pure derived display (reads library data, pushes to labels) and has no logic worth testing headlessly. Run via:
 ```
 godot --headless --path rogue-finder res://tests/test_character_creation.tscn
 ```
@@ -248,12 +263,15 @@ godot --headless --path rogue-finder res://tests/test_character_creation.tscn
 - **`_build_pc()` is static** — keeps unit tests simple. Do not add instance-var access inside it.
 - **Closure int capture** — `_build_text_dial()` uses `Array[int]` (single element) as a mutable index. Replacing with a plain `int` will break cycling (resets to 0 on every button press).
 - **Portrait not serialized** — `CombatantData.portrait` is `Texture2D` (not JSON-serializable). All portrait options are `icon.svg` at v1 so the loss is invisible. When real art ships: add `portrait_id: String` to `CombatantData`, serialize in `_serialize_combatant()` / `_deserialize_combatant()`, restore texture on load.
-- **B4 preview stub** — `_calc_preview()` returns `{}` and is called on every pick change. B4 will add rendering here without touching the manager's other methods.
+- **Preview signature reserved** — `_calc_preview() -> Dictionary` returns the derived preview data even though the inline UI pushes values into labels directly. Signature is preserved so a future `CharacterCreationPreview` component can consume the dict without a live UI (e.g. for tooltip previews on hover, or headless tests if formulas grow complex). Do not collapse it to `-> void`.
+- **Preview nil-guard** — `_calc_preview()` checks `_preview_hp_lbl != null` before pushing label text. This allows calling `_calc_preview()` from static/test contexts without crashing (labels only exist after `_build_preview_panel()` runs).
+- **B4 preview is read-only** — no interactive elements. Preview labels are driven entirely by dial state + library lookups; `_build_pc()` still sources stats from `rng.randi_range()` at confirm time (preview shows range, not the actual rolled values).
 
 ### Recent Changes
 
 | Date | Change |
 |---|---|
+| 2026-04-24 | B4 — Live preview panel. Read-only `PanelContainer` rendered below the dial row showing HP range (`10 + kindred_hp + [6..24]`), Speed (`1 + kindred_speed`), Stats (fixed "1–4"), class ability name+description, background ability name+description, and kindred feat name. `_calc_preview()` fleshed out from stub — still returns `Dictionary` but now also pushes values into eight label refs stored as instance vars. New helpers `_build_preview_panel()` and `_make_stat_label()`. `AbilityLibrary` added as a dependency. No new tests (pure derived display). Existing 9 headless tests untouched. |
 | 2026-04-24 | B1+B2 — Character creation scene added. `MainMenuManager._on_new_run()` now routes to `CharacterCreationScene` instead of `MapScene`. `_build_pc()` builds `CombatantData` from picks. Slot-wheel dial columns with ghost neighbours (▲/▼, prev/next at 25% opacity). Portrait dial shows icon.svg placeholder; portrait picker hidden until real art ships. 9 unit tests green. |
 
 ---
