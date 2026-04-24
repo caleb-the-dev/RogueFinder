@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-24 (character creation — Back button + stat reroll) |
+| last_updated | 2026-04-24 (events Slice 1 — EventLibrary data foundation) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 11 |
+| sessions_since_groom | 12 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -42,6 +42,7 @@
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay, layer 20) | Presentation |
+| [Event System](event_system.md) | `event_system.md` | ⚙️ Partial — data layer only (Slice 1); overlay + dispatch in Slices 3–4 | Data / World Map |
 
 ---
 
@@ -154,6 +155,7 @@ rogue-finder/
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); healing_potion, power_tonic
 │   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 6 items
+│   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 3 smoke events
 │   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 4 kindreds
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
@@ -179,16 +181,20 @@ rogue-finder/
 │   ├── ArchetypeData.gd                ← one archetype (stat ranges + ability/background pools)
 │   ├── BackgroundData.gd
 │   ├── ClassData.gd                    ← one playable class
+│   ├── EventChoiceData.gd              ← one event choice (label, conditions, effects, result_text)
+│   ├── EventData.gd                    ← one non-combat event (id, title, body, ring_eligibility, choices)
 │   ├── KindredData.gd                  ← one kindred (speed/HP bonuses + feat)
 │   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
 ├── data/
+│   ├── abilities.csv                   ← 22 abilities; effects as JSON arrays; read via res://data/
+│   ├── archetypes.csv                  ← 5 archetypes; read via res://data/
 │   ├── backgrounds.csv                 ← 4 backgrounds; read via res://data/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
 │   ├── consumables.csv                 ← 2 consumables; read via res://data/
 │   ├── equipment.csv                   ← 6 items; stat_bonuses as stat:value|stat:value pairs
-│   ├── abilities.csv                   ← 22 abilities; effects as JSON arrays; read via res://data/
-│   ├── archetypes.csv                  ← 5 archetypes; read via res://data/
+│   ├── event_choices.csv               ← 7 choice rows; joined to events by event_id; effects as JSON arrays
+│   ├── events.csv                      ← 3 smoke events; ring_eligibility as pipe list
 │   ├── kindreds.csv                    ← 4 kindreds; read via res://data/
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
@@ -208,7 +214,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 20 test files; see `tests/test_combatant_data.tscn` for the runner pattern
+└── tests/                              ← 22 test files (including test_event_library.gd/.tscn); see `tests/test_combatant_data.tscn` for the runner pattern
 ```
 
 ---
@@ -219,6 +225,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-24 | EventLibrary, EventData, EventChoiceData | **Events Slice 1 — data library foundation.** `EventData` + `EventChoiceData` resources; `events.csv` (3 smoke events: `chest_rusty`, `wounded_traveler`, `merchant_stall`) + `event_choices.csv` (7 choices covering full effect vocabulary: item_gain, heal/player_pick target, open_vendor nav, threat_delta, no-op). `EventLibrary` loads both CSVs, joins choices by `event_id`+`order`, exposes `get_event`/`all_events`/`all_events_for_ring`/`reload`; stub fallback on unknown id, never null. 12 headless tests. Two-CSV relational split is intentional deviation from single-CSV library convention — events are the first data type with repeating child rows. |
 | 2026-04-24 | CharacterCreationManager, MainMenuManager | **Back button + stat reroll.** Left column now has a "← Back to Main Menu" button that returns to MainMenu without mutating save state. To make Back a clean cancel, `delete_save()` + `reset()` were moved from `MainMenuManager._on_new_run()` into `CharacterCreationManager._on_confirm()`. Stats are rolled at `_ready()` and shown concrete in the preview (HP + STR/DEX/COG/WIL/VIT + AC) with a 🎲 Reroll Stats button in the preview panel. `_build_pc()` signature extended with `rolled_stats: Dictionary = {}` — populated dict wins verbatim, empty dict falls back to internal rolling (preserves Test New Run + existing 9 tests). 2 new tests (11 total). |
 | 2026-04-24 | MainMenuManager | Added **Test New Run** button — dev shortcut that skips character creation and seeds `GameState.party` with three fully-randomized PCs via `CharacterCreationManager._build_pc()` (random kindred / class / background / portrait / name from kindred pool). Transitions directly to `MapScene`. Muted purple tint to signal dev affordance. 4-button layout still fits 1280×720. |
 | 2026-04-24 | CharacterCreationManager | Character creation B4 — Live preview panel added below the dial row. Read-only `PanelContainer` renders HP range (`10 + kindred_hp + [6..24]`), Speed (`1 + kindred_speed`), Stats ("1–4" flat), selected class ability name+description, selected background ability name+description, and kindred feat name. Updates live on every dial spin via `_on_pick_changed()` → `_calc_preview()`. `_calc_preview()` upgraded from `{}` stub to a dict-returning function that also pushes values into eight instance-var `Label` refs. New helpers `_build_preview_panel()` + `_make_stat_label()`. `AbilityLibrary` added as a dependency. No new tests (pure derived display); existing 43 headless tests green. |
