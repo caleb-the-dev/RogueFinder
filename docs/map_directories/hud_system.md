@@ -167,13 +167,15 @@ Lives at `scenes/ui/CharacterCreationScene.tscn` + `scripts/ui/CharacterCreation
 
 Single-screen character creation. Player picks name, kindred, class, background, and portrait. On Confirm, builds a `CombatantData` from scratch (not via `ArchetypeLibrary.create()`) and appends it to `GameState.party`.
 
-Layout (all built in `_ready()`):
-- `LineEdit` (name) + 🎲 button (random name from active kindred's pool; "Unit" fallback on empty pool)
-- Four slot-wheel dial columns: Kindred · Class · Background · Portrait
-- **Preview panel** (B4) — read-only `PanelContainer` below the dials showing HP range, Speed, Stats range, class ability name + description, background ability name + description, kindred feat name. Updates live from `_calc_preview()` on every dial change.
-- "Begin Run" confirm button
+Layout — two-column body inside a full-rect `MarginContainer` (40 px margins). `HBoxContainer` splits into a 3:2 stretch-ratio pair:
 
-Each dial column shows the current selection (20 px, light highlight panel) flanked by ghost neighbours at 25% opacity / 12 px. All children built in `_build_ui()`; centered via a full-rect `CenterContainer`.
+- **Left column (3)** — all the interactive controls:
+  - `LineEdit` (name) + 🎲 button (random name from active kindred's pool; "Unit" fallback on empty pool)
+  - Four slot-wheel dial columns: Kindred · Class · Background · Portrait
+  - "Begin Run" confirm button
+- **Right column (2)** — live preview `PanelContainer` (B4) showing HP range, Speed, Stats range, class ability name + description, background ability name + description, kindred feat name. Updates live from `_calc_preview()` on every dial change. Read-only — no interactive elements.
+
+Each dial column shows the current selection (20 px, light highlight panel) flanked by ghost neighbours at 25% opacity / 12 px. All children built in `_build_ui()`.
 
 ### Public API / Key Methods
 

@@ -47,21 +47,34 @@ func _load_data() -> void:
 		_portrait_ids.append(p.portrait_id)
 
 func _build_ui() -> void:
-	var full := Control.new()
+	var full := MarginContainer.new()
 	full.set_anchors_preset(Control.PRESET_FULL_RECT)
+	full.add_theme_constant_override("margin_left",   40)
+	full.add_theme_constant_override("margin_right",  40)
+	full.add_theme_constant_override("margin_top",    40)
+	full.add_theme_constant_override("margin_bottom", 40)
 	add_child(full)
 
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	full.add_child(center)
+	# Two-column body: left = name + dials + Begin Run · right = live preview panel.
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 24)
+	full.add_child(body)
 
-	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 12)
-	root.custom_minimum_size = Vector2(640, 0)
-	center.add_child(root)
+	var left_col := VBoxContainer.new()
+	left_col.add_theme_constant_override("separation", 12)
+	left_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_col.size_flags_stretch_ratio = 3.0
+	body.add_child(left_col)
 
+	var right_col := VBoxContainer.new()
+	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_col.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	right_col.size_flags_stretch_ratio = 2.0
+	body.add_child(right_col)
+
+	# --- Left column: name row + dial row + Begin Run ---
 	var name_row := HBoxContainer.new()
-	root.add_child(name_row)
+	left_col.add_child(name_row)
 	_name_field = LineEdit.new()
 	_name_field.placeholder_text = "Character name"
 	_name_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -73,7 +86,7 @@ func _build_ui() -> void:
 
 	var dials := HBoxContainer.new()
 	dials.add_theme_constant_override("separation", 8)
-	root.add_child(dials)
+	left_col.add_child(dials)
 
 	dials.add_child(_build_text_dial("Kindred", _kindred_ids, _kindred_ids,
 		func(i: int): _kindred_idx = i))
@@ -83,13 +96,16 @@ func _build_ui() -> void:
 		func(i: int): _bg_idx = i))
 	dials.add_child(_build_portrait_dial())
 
-	root.add_child(_build_preview_panel())
-	_calc_preview()
-
 	var confirm := Button.new()
 	confirm.text = "Begin Run"
 	confirm.pressed.connect(_on_confirm)
-	root.add_child(confirm)
+	left_col.add_child(confirm)
+
+	# --- Right column: live preview ---
+	var preview := _build_preview_panel()
+	preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_col.add_child(preview)
+	_calc_preview()
 
 func _build_text_dial(header: String, ids: Array[String], display: Array[String],
 		on_select: Callable) -> PanelContainer:
