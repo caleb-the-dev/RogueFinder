@@ -48,7 +48,10 @@ var _sort_ascs:     Array[bool]   = [true, true, true]
 var _search_texts:  Array[String] = ["", "", ""]
 var _focus_search_mi:    int      = -1
 var _active_search_edit: LineEdit = null
-var _abil_views_wide: Array[bool] = [false, false, false]  ## false=1-per-row, true=2-per-row
+var _abil_views_wide:   Array[bool]   = [false, false, false]  ## false=1-per-row, true=2-per-row
+var _feat_views_wide:   Array[bool]   = [false, false, false]
+var _feat_sort_ascs:    Array[bool]   = [true, true, true]
+var _feat_search_texts: Array[String] = ["", "", ""]
 
 ## --- Inventory sort / search / view state ---
 var _inv_search_text:   String   = ""
@@ -996,18 +999,133 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 					Callable()
 				)
 
-	var feats_panel := VBoxContainer.new()
-	feats_panel.name = "Feats"
-	feats_panel.add_theme_constant_override("separation", 4)
-	tabs.add_child(feats_panel)
+	# --- Feats tab: mirrors the Abilities tab layout ---
+	var feats_tab := VBoxContainer.new()
+	feats_tab.name = "Feats"
+	feats_tab.add_theme_constant_override("separation", 2)
+	tabs.add_child(feats_tab)
 
-	var kindred_feat: FeatData = FeatLibrary.get_feat(member.kindred_feat_id)
-	var feat_name_lbl := Label.new()
-	feat_name_lbl.text         = kindred_feat.name
-	feat_name_lbl.tooltip_text = kindred_feat.description
-	feat_name_lbl.add_theme_font_size_override("font_size", 13)
-	feat_name_lbl.add_theme_color_override("font_color", Color(0.80, 0.76, 0.60))
-	feats_panel.add_child(feat_name_lbl)
+	# Top bar: view toggle
+	var feat_top_bar := HBoxContainer.new()
+	feat_top_bar.add_theme_constant_override("separation", 6)
+	feats_tab.add_child(feat_top_bar)
+	var feat_spacer := Control.new()
+	feat_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	feat_top_bar.add_child(feat_spacer)
+	var feat_view_btn := Button.new()
+	feat_view_btn.text = "2×" if not _feat_views_wide[member_idx] else "1×"
+	feat_view_btn.flat = false
+	feat_view_btn.add_theme_font_size_override("font_size", 10)
+	feat_view_btn.add_theme_color_override("font_color", Color(0.42, 0.68, 0.48))
+	feat_view_btn.tooltip_text = "Toggle 1 or 2 feats per row"
+	var mi_fv: int = member_idx
+	feat_view_btn.pressed.connect(func() -> void:
+		_feat_views_wide[mi_fv] = not _feat_views_wide[mi_fv]
+		_rebuild()
+	)
+	feat_top_bar.add_child(feat_view_btn)
+
+	# Sort row (name only — toggle asc/desc)
+	var feat_sort_row := HBoxContainer.new()
+	feat_sort_row.add_theme_constant_override("separation", 3)
+	feats_tab.add_child(feat_sort_row)
+	var feat_sort_hdr := Label.new()
+	feat_sort_hdr.text = "Sort:"
+	feat_sort_hdr.add_theme_font_size_override("font_size", 9)
+	feat_sort_hdr.add_theme_color_override("font_color", Color(0.50, 0.48, 0.42))
+	feat_sort_row.add_child(feat_sort_hdr)
+	var feat_name_arrow: String = " ▲" if _feat_sort_ascs[member_idx] else " ▼"
+	var feat_sort_btn := Button.new()
+	feat_sort_btn.text = "Name" + feat_name_arrow
+	feat_sort_btn.flat = false
+	feat_sort_btn.add_theme_font_size_override("font_size", 9)
+	feat_sort_btn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.45))
+	var mi_fs: int = member_idx
+	feat_sort_btn.pressed.connect(func() -> void:
+		_feat_sort_ascs[mi_fs] = not _feat_sort_ascs[mi_fs]
+		_rebuild()
+	)
+	feat_sort_row.add_child(feat_sort_btn)
+
+	# Search bar
+	var feat_search := LineEdit.new()
+	feat_search.placeholder_text = "search feats…"
+	feat_search.text = _feat_search_texts[member_idx]
+	feat_search.add_theme_font_size_override("font_size", 11)
+	feats_tab.add_child(feat_search)
+	var mi_fsrch: int = member_idx
+	feat_search.text_changed.connect(func(new_text: String) -> void:
+		_feat_search_texts[mi_fsrch] = new_text
+		_rebuild()
+	)
+
+	# Scrollable feat list
+	var feat_scroll := ScrollContainer.new()
+	feat_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	feat_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	feat_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
+	feats_tab.add_child(feat_scroll)
+
+	var feat_container: Control
+	if _feat_views_wide[member_idx]:
+		var fg := GridContainer.new()
+		fg.columns = 2
+		fg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		fg.add_theme_constant_override("h_separation", 3)
+		fg.add_theme_constant_override("v_separation", 3)
+		feat_scroll.add_child(fg)
+		feat_container = fg
+	else:
+		var fv := VBoxContainer.new()
+		fv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		fv.add_theme_constant_override("separation", 3)
+		feat_scroll.add_child(fv)
+		feat_container = fv
+
+	# Build + filter feat id list (kindred_feat_id is the sole source until Slice 4)
+	var feat_ids: Array[String] = [member.kindred_feat_id]
+	if not _feat_sort_ascs[member_idx]:
+		feat_ids.reverse()
+	var fq: String = _feat_search_texts[member_idx].strip_edges().to_lower()
+	if fq != "":
+		feat_ids = feat_ids.filter(func(fid: String) -> bool:
+			return FeatLibrary.get_feat(fid).name.to_lower().contains(fq)
+		)
+
+	if feat_ids.is_empty():
+		var no_match := Label.new()
+		no_match.text = "No matches." if fq != "" else "No feats."
+		no_match.add_theme_font_size_override("font_size", 11)
+		no_match.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		feat_container.add_child(no_match)
+	else:
+		var feat_wide: bool = _feat_views_wide[member_idx]
+		for feat_id: String in feat_ids:
+			var feat: FeatData = FeatLibrary.get_feat(feat_id)
+			var tip: String = _wrap_tooltip("%s\n\n%s" % [feat.name, feat.description])
+
+			var fpnl := PanelContainer.new()
+			var fsbox := StyleBoxFlat.new()
+			fsbox.bg_color = Color(0.12, 0.12, 0.15, 0.80)
+			fsbox.border_width_bottom = 1
+			fsbox.border_color = Color(0.25, 0.25, 0.30, 0.60)
+			fsbox.set_corner_radius_all(2)
+			fpnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			fpnl.add_theme_stylebox_override("panel", fsbox)
+			fpnl.tooltip_text = tip
+			feat_container.add_child(fpnl)
+
+			var finner := VBoxContainer.new()
+			finner.add_theme_constant_override("separation", 1)
+			fpnl.add_child(finner)
+
+			var fnl := Label.new()
+			fnl.text = feat.name
+			fnl.add_theme_font_size_override("font_size", 11 if feat_wide else 12)
+			fnl.add_theme_color_override("font_color", Color(0.80, 0.76, 0.60))
+			fnl.tooltip_text = tip
+			fnl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			finner.add_child(fnl)
 
 ## --- Drag Compare Overlay ---
 ## Lives directly on the CanvasLayer so it survives _rebuild(). Cleared by _process
