@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-23 (S35) |
+| last_updated | 2026-04-23 (name-pool migration) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 7 |
+| sessions_since_groom | 8 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -35,7 +35,7 @@
 | [Background System](background_system.md) | `background_system.md` | ✅ Active (dormant — CSV-sourced; 3 ability IDs fixed S30) | Data |
 | [Class Library](class_system.md) | `class_system.md` | ✅ Active (dormant — 4 classes, CSV-sourced, S30) | Data |
 | [Portrait Library](portrait_system.md) | `portrait_system.md` | ✅ Active (dormant — 6 placeholder portraits, CSV-sourced, S30) | Data |
-| [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (CSV-sourced S33; speed + HP bonuses + placeholder feats) | Data |
+| [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (CSV-sourced S33; speed + HP bonuses + placeholder feats + name pools) | Data |
 | [Main Menu](hud_system.md) | `hud_system.md` | ✅ Active (title screen, continue/new run) | Presentation |
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
@@ -119,7 +119,7 @@ GameState (autoload)
 
 ```
 rogue-finder/
-├── main.tscn                           ← entry point; instances MapScene.tscn
+├── main.tscn                           ← entry point; instances MainMenuScene.tscn
 ├── scripts/
 │   ├── camera/CameraController.gd
 │   ├── city/BadurgaManager.gd
@@ -201,12 +201,12 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-23 | ArchetypeLibrary, KindredLibrary, KindredData | Name-pool migration — `_NAME_POOLS` const dict removed from `ArchetypeLibrary.gd`. Flavor names now live on `KindredData.name_pool` (`Array[String]`) sourced from the new `name_pool` column in `kindreds.csv`. `ArchetypeLibrary.create()` auto-names via `KindredLibrary.get_name_pool(kindred)`; empty pool → `"Unit"` fallback. Closes the last inline-const-dict exception in the data-library uniformity pass. Per-kindred names unchanged (Human ← old archer_bandit pool; Half-Orc ← grunt; Gnome ← alchemist; Dwarf ← elite_guard). Tests: +2 kindred name-pool tests; existing `test_archetype_ally_auto_name_from_pool` unchanged and still green. |
 | 2026-04-23 | AbilityLibrary | S35 — Data-library uniformity pass session 6: `AbilityLibrary` migrated from inline `const ABILITIES` dict to `abilities.csv` + CSV-native loader. Effects encoded as JSON arrays in each row. `all_abilities()` / `reload()` added; `get_ability()` signature unchanged. `ABILITIES` dict removed; one caller in `test_class_library.gd` updated. Stale assertions in `test_ability_library.gd` fixed. |
 | 2026-04-23 | ArchetypeLibrary, ArchetypeData | S34 — Data-library uniformity pass session 5: `ArchetypeLibrary` migrated from inline `const ARCHETYPES` dict to `archetypes.csv` + CSV-native loader. `ArchetypeData.gd` resource added. `ARCHETYPES` dict removed; callers updated to `all_archetypes()` / `get_archetype()`. `create()` signature unchanged. |
 | 2026-04-23 | KindredLibrary, KindredData | S33 — Data-library uniformity pass session 4: `KindredLibrary` migrated from const dict to `kindreds.csv` + CSV-native loader. `KindredData.gd` resource added. All existing getter functions preserved unchanged; `get_kindred()` / `all_kindreds()` / `reload()` added. No caller changes required. |
 | 2026-04-23 | EquipmentLibrary, test_equipment | S32 — Data-library uniformity pass session 3: `EquipmentLibrary` migrated from const array to `equipment.csv` + CSV-native loader. `stat_bonuses` stored as `stat:value\|stat:value` pipe pairs. `reload()` added. Two stale speed tests in `test_equipment.gd` fixed (S29 kindred formula: dex no longer drives speed). |
 | 2026-04-23 | ConsumableLibrary, RewardGenerator, test_consumables | S31 — Data-library uniformity pass session 2: `ConsumableLibrary` migrated from const dict to `consumables.csv` + CSV-native loader. `all_consumables()` added; `CONSUMABLES` dict removed. `RewardGenerator` and `test_consumables` updated to use `all_consumables()`. |
-| 2026-04-23 | ClassLibrary, PortraitLibrary, backgrounds.csv | S30 — Data-library uniformity pass session 1: `ClassLibrary` + `ClassData` (4 classes, CSV-native); `PortraitLibrary` + `PortraitData` (6 placeholder portraits, CSV-native); fixed 3 broken `starting_ability_id` rows in `backgrounds.csv` (crook→smoke_bomb, scholar→acid_splash, baker→healing_draught). |
 | 2026-04-23 | CombatantData, KindredLibrary, StatPanel, GameState, MainMenuScene | S29 — Kindred mechanics: `speed` = `1 + kindred_bonus`; `hp_max` = `10 + kindred_bonus + VIT×6`. New `KindredLibrary.gd` (speed/HP/feat data for Human/Half-Orc/Gnome/Dwarf). `kindred_feat_id` added to CombatantData + save/load. StatPanel feat row. `MainMenuScene` / `MainMenuManager` added; `main.tscn` now boots to title screen. `RunSummaryManager` Main Menu button wired. |
 | 2026-04-23 | docs | Map audit pass — docs/map_directories groomed against codebase. `combatant_data.md` split into 4 files (ability/equipment/background/core); `map_scene.md` split (PartySheet → `party_sheet.md`). ActionMenu refs purged. `EndCombatScreen.show_defeat` doc removed. Missing files added to file tree. |
 | 2026-04-23 | CombatantData, ArchetypeLibrary, GameState, StatPanel, CombatActionPanel, PartySheet | S28 Kindreds: added `kindred: String` to CombatantData. Fixed per archetype (Human/Human/Half-Orc/Gnome/Dwarf). Persisted in save/load (old saves default `"Unknown"`). Displayed in three places. PartySheet columns rebalanced to ~30/40/30; HP row restructured. |

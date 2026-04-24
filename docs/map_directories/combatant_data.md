@@ -25,7 +25,7 @@
 | `resources/CombatantData.gd` | Resource: identity, attributes, equipment, ability pool. Derived stats are computed properties. |
 | `resources/ArchetypeData.gd` | Resource: one archetype's fixed data and stat ranges. Populated by ArchetypeLibrary from archetypes.csv. |
 | `scripts/globals/ArchetypeLibrary.gd` | CSV-native factory: loads `archetypes.csv`, exposes `create()` / `get_archetype()` / `all_archetypes()` / `reload()`. |
-| `scripts/globals/KindredLibrary.gd` | Static class: per-kindred mechanical data (speed bonus, HP bonus, feat id/name/desc). Single source of truth — referenced by `CombatantData` computed properties. |
+| `scripts/globals/KindredLibrary.gd` | Static class: per-kindred mechanical data (speed bonus, HP bonus, feat id/name/desc, flavor name pool). CSV-sourced (`res://data/kindreds.csv`). Single source of truth — referenced by `CombatantData` computed properties and by `ArchetypeLibrary.create()` for auto-naming. |
 | `data/archetypes.csv` | Data source: 5 archetype rows. Single source of truth for all archetype stat ranges, ability pools, and backgrounds. |
 
 ---
@@ -166,7 +166,7 @@ static func reload() -> void                             # cache-clear for tests
 | Dependent | On |
 |-----------|----|
 | `CombatantData` | `EquipmentData` (equipment slots), `KindredLibrary` (speed + HP computed props) |
-| `ArchetypeLibrary` | `CombatantData`, `KindredLibrary` (sets `kindred_feat_id` in `create()`) |
+| `ArchetypeLibrary` | `CombatantData`, `KindredLibrary` (sets `kindred_feat_id` + auto-name via `get_name_pool()` in `create()`) |
 | `Unit3D` | `CombatantData` (via `@export var data`) |
 | `StatPanel` | `CombatantData`, `Unit3D`, `KindredLibrary` (feat name lookup) |
 | `CombatActionPanel` | `CombatantData` (via `Unit3D.data`) |
