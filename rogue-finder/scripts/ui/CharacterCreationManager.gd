@@ -109,19 +109,33 @@ func _build_text_dial(header: String, ids: Array[String], display: Array[String]
 	prev_lbl.text = display[(n - 1) % n] if n > 1 else ""
 	prev_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	prev_lbl.modulate = Color(1.0, 1.0, 1.0, 0.25)
+	prev_lbl.add_theme_font_size_override("font_size", 12)
 	col.add_child(prev_lbl)
+
+	var highlight := PanelContainer.new()
+	var hl_style := StyleBoxFlat.new()
+	hl_style.bg_color = Color(0.32, 0.32, 0.38, 1.0)
+	hl_style.set_corner_radius_all(3)
+	hl_style.content_margin_left   = 8.0
+	hl_style.content_margin_right  = 8.0
+	hl_style.content_margin_top    = 6.0
+	hl_style.content_margin_bottom = 6.0
+	highlight.add_theme_stylebox_override("panel", hl_style)
+	col.add_child(highlight)
 
 	var item_lbl := Label.new()
 	item_lbl.text = display[0] if n > 0 else ""
 	item_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	item_lbl.custom_minimum_size = Vector2(0, 40)
 	item_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	col.add_child(item_lbl)
+	item_lbl.custom_minimum_size = Vector2(0, 36)
+	item_lbl.add_theme_font_size_override("font_size", 20)
+	highlight.add_child(item_lbl)
 
 	var next_lbl := Label.new()
 	next_lbl.text = display[1 % n] if n > 1 else ""
 	next_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	next_lbl.modulate = Color(1.0, 1.0, 1.0, 0.25)
+	next_lbl.add_theme_font_size_override("font_size", 12)
 	col.add_child(next_lbl)
 
 	var down_btn := Button.new()
@@ -173,22 +187,33 @@ func _build_portrait_dial() -> PanelContainer:
 
 	var prev_icon := TextureRect.new()
 	prev_icon.texture = portrait_tex
-	prev_icon.custom_minimum_size = Vector2(48, 48)
+	prev_icon.custom_minimum_size = Vector2(40, 40)
 	prev_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	prev_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	prev_icon.modulate = Color(1.0, 1.0, 1.0, 0.25)
 	col.add_child(prev_icon)
 
+	var portrait_highlight := PanelContainer.new()
+	var ph_style := StyleBoxFlat.new()
+	ph_style.bg_color = Color(0.32, 0.32, 0.38, 1.0)
+	ph_style.set_corner_radius_all(3)
+	ph_style.content_margin_left   = 8.0
+	ph_style.content_margin_right  = 8.0
+	ph_style.content_margin_top    = 6.0
+	ph_style.content_margin_bottom = 6.0
+	portrait_highlight.add_theme_stylebox_override("panel", ph_style)
+	portrait_highlight.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(portrait_highlight)
+
 	var icon := TextureRect.new()
 	icon.texture = portrait_tex
 	icon.custom_minimum_size = Vector2(64, 64)
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	col.add_child(icon)
+	portrait_highlight.add_child(icon)
 
 	var next_icon := TextureRect.new()
 	next_icon.texture = portrait_tex
-	next_icon.custom_minimum_size = Vector2(48, 48)
+	next_icon.custom_minimum_size = Vector2(40, 40)
 	next_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	next_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	next_icon.modulate = Color(1.0, 1.0, 1.0, 0.25)
