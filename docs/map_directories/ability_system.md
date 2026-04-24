@@ -137,7 +137,7 @@ CSV-native lazy-loaded class. Same pattern as all other data libraries. `ABILITI
 | `inspire` | Inspire | WIL | 3 | 3 | Single | Ally | BUFF 1 STR |
 | `guard` | Guard | VIT | 2 | 0 | Self | Any | BUFF 2 VIT |
 | `sweep` | Sweep | STR | 3 | 1 | Arc | Enemy | HARM 4 HP |
-| `piercing_shot` | Piercing Shot | DEX | 3 | 6 | Line | Enemy | HARM 4 HP (passthrough) |
+| `piercing_shot` | Piercing Shot | DEX | 3 | 4 | Line | Enemy | HARM 4 HP (passthrough) |
 | `fire_breath` | Fire Breath | COG | 4 | 1 | Cone | Enemy | HARM 5 HP |
 | `fireball` | Fireball | COG | 5 | 4 | Radial | Any | HARM 6 HP (passthrough=false) |
 | `heal_burst` | Heal Burst | WIL | 4 | 2 | Radial | Ally | MEND 5 HP (passthrough=true) |

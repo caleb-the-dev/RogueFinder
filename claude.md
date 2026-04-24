@@ -20,7 +20,7 @@
 - **Stage:** Stage 1.5 — 3D combat prototype + traversable world map
 - **Entry point:** `main.tscn` → MainMenuScene (title screen with Continue / Start New Run; transitions to MapScene)
 - **Live systems:** 3D combat loop · traversable world map with 5 node types (COMBAT, VENDOR, EVENT, BOSS, CITY) + structured placement rules · save/load · reward system · Badurga city shell (placeholder sections) · threat escalation counter + HUD bar · persistent party (HP/energy carry-over, ally permadeath, run-end summary screen) · party bag inventory (all reward items land in shared bag; equipment + consumables stored as raw dicts) · party sheet overlay (interactive 4-quadrant equip UI, layer 20, full ability pool swap with drag-compare) · CombatActionPanel (right slide-in, player + enemy view, tooltips) · **Kindreds** (species/ancestry + mechanical bonuses — speed/HP driven by KindredLibrary; placeholder feats assigned per kindred; shown in StatPanel/CombatActionPanel/PartySheet) · **MainMenuScene** (title screen; Continue grayed when no save exists; Start New Run wipes state)
-- **Last session (S29):** Kindred mechanics live — speed formula changed to `1 + kindred_bonus` (DEX removed, reserved for dodge/evasion); HP formula changed to `10 + kindred_bonus + VIT×6`. New `KindredLibrary.gd` is single source of truth (Human/Half-Orc/Gnome/Dwarf data). `kindred_feat_id` added to CombatantData + save/load. StatPanel shows feat name row. `MainMenuScene` / `MainMenuManager` added; `main.tscn` now boots to title. `RunSummaryManager` Main Menu button wired to real scene.
+- **Last session (S35):** Data-library uniformity pass complete — `ArchetypeLibrary` (S34) and `AbilityLibrary` (S35) migrated from inline const dicts to CSV-native lazy-loaded loaders. `archetypes.csv` (5 rows) + `ArchetypeData.gd` added. `abilities.csv` (22 rows, JSON effects arrays) added. `ARCHETYPES` and `ABILITIES` const dicts removed. All six data libraries now uniform. Two pre-existing stale test assertions fixed (`test_ability_library.gd`, `test_consumables.gd`).
 - **Deferred:** Badurga section content (all 6 buttons are stubs), Vendor/Event scene content (NodeStub placeholder), per-ability QTE styles, ability effects are placeholder, boss difficulty scaling from threat quadrants (Feature 8), Feats tab in PartySheet (placeholder), kindred feat mechanical effects (all feats named but have no gameplay effect yet)
 
 For current feature-by-feature status and history, read `docs/map_directories/map.md` and the bucket files it links. For planned work, read `docs/backlog.md` (only when asked).
@@ -37,6 +37,24 @@ For current feature-by-feature status and history, read `docs/map_directories/ma
 - Section headers: `## --- Section Name ---`; comment the *why*, not the *what*
 - All `.tscn` files stay **minimal** (root + script only) — build children in `_ready()`
 - Signals named as past-tense events: `unit_moved`, `qte_resolved`
+
+---
+
+## Data Libraries
+
+All per-row game data (kindreds, classes, backgrounds, abilities, equipment, consumables, portraits, feats, enemies, etc.) lives in `rogue-finder/data/<name>.csv` with a matching `rogue-finder/scripts/globals/<Name>Library.gd` loader. **Uniform across datasets — no inline `const` dicts of game content.**
+
+**Template:** `BackgroundLibrary.gd`. New libraries mirror its shape:
+- `const CSV_PATH := "res://data/<name>.csv"`
+- `static var _cache: Dictionary = {}` — lazy-populated
+- `static func _ensure_loaded()` — parses once
+- `static func get_<name>(id) -> <DataType>` — stub fallback on unknown, never null
+- `static func all_<names>() -> Array[<DataType>]`
+- `static func reload()` — clear + re-parse (dev/test helper)
+
+**Cell conventions:** pipe-separated for string arrays (`feat_pool = a|b|c`); pipe-separated for ranges (`str_range = 1|4`); JSON for nested structures (`effects = [{"type":"HARM","base_value":5}]`).
+
+**Uniformity pass complete (S30–S35).** All six game-data libraries now source from CSV: `BackgroundLibrary`, `ClassLibrary`, `PortraitLibrary`, `ConsumableLibrary`, `EquipmentLibrary`, `KindredLibrary`, `ArchetypeLibrary`, `AbilityLibrary`. Next new data set (enemies, feats, etc.) must follow the same pattern from day one.
 
 ---
 
