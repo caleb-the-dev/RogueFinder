@@ -20,6 +20,16 @@ var _kindred_idx: int = 0
 var _class_idx:   int = 0
 var _bg_idx:      int = 0
 
+# Preview panel label refs — populated in _build_preview_panel(), pushed by _calc_preview().
+var _preview_hp_lbl:        Label = null
+var _preview_speed_lbl:     Label = null
+var _preview_stats_lbl:     Label = null
+var _preview_class_name:    Label = null
+var _preview_class_desc:    Label = null
+var _preview_bg_name:       Label = null
+var _preview_bg_desc:       Label = null
+var _preview_feat_lbl:      Label = null
+
 func _ready() -> void:
 	_load_data()
 	_build_ui()
@@ -72,6 +82,9 @@ func _build_ui() -> void:
 	dials.add_child(_build_text_dial("Background", _bg_ids, _bg_display,
 		func(i: int): _bg_idx = i))
 	dials.add_child(_build_portrait_dial())
+
+	root.add_child(_build_preview_panel())
+	_calc_preview()
 
 	var confirm := Button.new()
 	confirm.text = "Begin Run"
@@ -238,6 +251,73 @@ func _apply_drum_style(panel: PanelContainer) -> void:
 	style.content_margin_bottom = 6.0
 	panel.add_theme_stylebox_override("panel", style)
 
+func _build_preview_panel() -> PanelContainer:
+	var panel := PanelContainer.new()
+	_apply_drum_style(panel)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	panel.add_child(col)
+
+	var header_lbl := Label.new()
+	header_lbl.text = "Preview"
+	header_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	header_lbl.add_theme_font_size_override("font_size", 16)
+	col.add_child(header_lbl)
+
+	# Stat strip: HP range · Speed · Stats (1–4)
+	var stats_row := HBoxContainer.new()
+	stats_row.add_theme_constant_override("separation", 16)
+	stats_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_child(stats_row)
+
+	_preview_hp_lbl    = _make_stat_label("HP: —")
+	_preview_speed_lbl = _make_stat_label("Speed: —")
+	_preview_stats_lbl = _make_stat_label("Stats: 1–4")
+	stats_row.add_child(_preview_hp_lbl)
+	stats_row.add_child(_preview_speed_lbl)
+	stats_row.add_child(_preview_stats_lbl)
+
+	col.add_child(HSeparator.new())
+
+	# Class ability name + description
+	_preview_class_name = Label.new()
+	_preview_class_name.add_theme_font_size_override("font_size", 14)
+	col.add_child(_preview_class_name)
+
+	_preview_class_desc = Label.new()
+	_preview_class_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_preview_class_desc.modulate = Color(1.0, 1.0, 1.0, 0.75)
+	col.add_child(_preview_class_desc)
+
+	col.add_child(HSeparator.new())
+
+	# Background ability name + description
+	_preview_bg_name = Label.new()
+	_preview_bg_name.add_theme_font_size_override("font_size", 14)
+	col.add_child(_preview_bg_name)
+
+	_preview_bg_desc = Label.new()
+	_preview_bg_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_preview_bg_desc.modulate = Color(1.0, 1.0, 1.0, 0.75)
+	col.add_child(_preview_bg_desc)
+
+	col.add_child(HSeparator.new())
+
+	# Kindred feat name (no description per B4 spec)
+	_preview_feat_lbl = Label.new()
+	_preview_feat_lbl.add_theme_font_size_override("font_size", 14)
+	col.add_child(_preview_feat_lbl)
+
+	return panel
+
+func _make_stat_label(text: String) -> Label:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 14)
+	return lbl
+
 func _on_pick_changed() -> void:
 	_calc_preview()
 
@@ -258,8 +338,50 @@ func _on_confirm() -> void:
 	GameState.party.append(pc)
 	get_tree().change_scene_to_file(MAP_SCENE_PATH)
 
+## Computes the live preview values for the current dial selections and pushes
+## them into the preview panel labels. Returns the same data as a Dictionary so
+## a future CharacterCreationPreview component can consume it without a live UI.
 func _calc_preview() -> Dictionary:
-	return {}
+	var kindred_id: String = _kindred_ids[_kindred_idx] if not _kindred_ids.is_empty() else ""
+	var class_id: String   = _class_ids[_class_idx]     if not _class_ids.is_empty()   else ""
+	var bg_id: String      = _bg_ids[_bg_idx]           if not _bg_ids.is_empty()      else ""
+
+	var hp_bonus: int    = KindredLibrary.get_hp_bonus(kindred_id)
+	var speed_bonus: int = KindredLibrary.get_speed_bonus(kindred_id)
+	# VIT rolls 1–4 at creation; hp_max = 10 + kindred_hp_bonus + VIT × 6 (see CombatantData).
+	var hp_min: int = 10 + hp_bonus + 1 * 6
+	var hp_max: int = 10 + hp_bonus + 4 * 6
+	var speed: int  = 1 + speed_bonus
+
+	var class_ab_id: String = ClassLibrary.get_class_data(class_id).starting_ability_id
+	var bg_ab_id: String    = BackgroundLibrary.get_background(bg_id).starting_ability_id
+	var class_ab := AbilityLibrary.get_ability(class_ab_id)
+	var bg_ab    := AbilityLibrary.get_ability(bg_ab_id)
+	var feat_name: String = KindredLibrary.get_feat_name(kindred_id)
+
+	var data := {
+		"hp_min": hp_min,
+		"hp_max": hp_max,
+		"speed": speed,
+		"stats_range": "1–4",
+		"class_ability_name": class_ab.ability_name,
+		"class_ability_desc": class_ab.description,
+		"bg_ability_name":    bg_ab.ability_name,
+		"bg_ability_desc":    bg_ab.description,
+		"feat_name":          feat_name,
+	}
+
+	if _preview_hp_lbl != null:
+		_preview_hp_lbl.text    = "HP: %d–%d" % [hp_min, hp_max]
+		_preview_speed_lbl.text = "Speed: %d" % speed
+		_preview_stats_lbl.text = "Stats: 1–4"
+		_preview_class_name.text = "Class Ability — %s" % class_ab.ability_name
+		_preview_class_desc.text = class_ab.description
+		_preview_bg_name.text    = "Background Ability — %s" % bg_ab.ability_name
+		_preview_bg_desc.text    = bg_ab.description
+		_preview_feat_lbl.text   = "Kindred Feat — %s" % feat_name
+
+	return data
 
 ## Builds a CombatantData for the PC from the given picks.
 ## Static so unit tests can call it without a live scene.
