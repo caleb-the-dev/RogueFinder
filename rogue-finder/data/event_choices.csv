@@ -1,0 +1,8 @@
+event_id,order,label,conditions,effects,result_text
+chest_rusty,0,Kick it open (STR 4),stat_ge:STR:4,"[{""type"":""item_gain"",""item_id"":""rusted_dagger""}]","The lid gives. Inside: a dagger."
+chest_rusty,1,Leave it.,,[],"Not worth the trouble."
+wounded_traveler,0,Tend to the worst-off.,,"[{""type"":""heal"",""target"":""player_pick"",""value"":5}]","You bandage the worst wound."
+wounded_traveler,1,Press on.,,[],"You leave them where they sit."
+merchant_stall,0,Browse the goods.,,"[{""type"":""open_vendor""}]",
+merchant_stall,1,Ask about local routes.,,"[{""type"":""threat_delta"",""value"":-1}]","The merchant shares routes that ease your journey."
+merchant_stall,2,Move on.,,[],"You continue down the road."

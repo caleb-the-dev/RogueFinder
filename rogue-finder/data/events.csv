@@ -1,0 +1,4 @@
+id,title,body,ring_eligibility
+chest_rusty,Rusted Chest,"A chest sits in the corner, lid half-rusted shut.",outer|middle
+wounded_traveler,Wounded Traveler,"A traveler slumps against a stone, bleeding from a gash.",outer|middle|inner
+merchant_stall,Wandering Merchant,"A merchant has arranged goods along a low wall.",outer|middle
