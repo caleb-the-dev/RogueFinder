@@ -42,14 +42,13 @@ func remove_from_inventory(item_id: String) -> bool:
 			return true
 	return false
 
-## Populates party with the PC + 2 allies. Guard ensures it is idempotent — safe to
+## Populates party with a default PC. Guard ensures it is idempotent — safe to
 ## call from MapManager._ready() after load_save() regardless of save state.
+## After character creation is live this path fires only as a safety fallback.
 func init_party() -> void:
 	if not party.is_empty():
 		return
 	party.append(ArchetypeLibrary.create("RogueFinder", "Hero", true))
-	party.append(ArchetypeLibrary.create("archer_bandit", "", true))
-	party.append(ArchetypeLibrary.create("grunt", "", true))
 
 # threat_level feeds into boss difficulty scaling — see Feature 8
 func get_threat_level() -> float:
