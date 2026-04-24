@@ -70,7 +70,12 @@ EndCombatScreen
 
 MainMenuManager
   ├── GameState                   (load_save / reset / delete_save on button press)
-  └── CharacterCreationScene      (new-run path routes here instead of MapScene directly)
+  ├── CharacterCreationScene      (new-run path routes here instead of MapScene directly)
+  ├── CharacterCreationManager    (Test New Run calls static _build_pc() to seed 3 random PCs)
+  ├── KindredLibrary              (Test New Run — random kindred + name pool)
+  ├── ClassLibrary                (Test New Run — random class)
+  ├── BackgroundLibrary           (Test New Run — random background)
+  └── PortraitLibrary             (Test New Run — random portrait id)
 
 CharacterCreationManager
   ├── KindredLibrary              (name pool, feat id+name, speed/HP bonuses)
@@ -214,6 +219,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-24 | MainMenuManager | Added **Test New Run** button — dev shortcut that skips character creation and seeds `GameState.party` with three fully-randomized PCs via `CharacterCreationManager._build_pc()` (random kindred / class / background / portrait / name from kindred pool). Transitions directly to `MapScene`. Muted purple tint to signal dev affordance. 4-button layout still fits 1280×720. |
 | 2026-04-24 | CharacterCreationManager | Character creation B4 — Live preview panel added below the dial row. Read-only `PanelContainer` renders HP range (`10 + kindred_hp + [6..24]`), Speed (`1 + kindred_speed`), Stats ("1–4" flat), selected class ability name+description, selected background ability name+description, and kindred feat name. Updates live on every dial spin via `_on_pick_changed()` → `_calc_preview()`. `_calc_preview()` upgraded from `{}` stub to a dict-returning function that also pushes values into eight instance-var `Label` refs. New helpers `_build_preview_panel()` + `_make_stat_label()`. `AbilityLibrary` added as a dependency. No new tests (pure derived display); existing 43 headless tests green. |
 | 2026-04-24 | CharacterCreationScene, GameState, MainMenuManager | Character creation B1+B2 — `MainMenuManager._on_new_run()` routes to `CharacterCreationScene` instead of `MapScene`. `CharacterCreationManager` builds `CombatantData` from player picks (kindred/class/background/portrait/name) via static `_build_pc()`. `GameState.init_party()` revised to spawn only the PC (safety fallback; creation screen is the primary populator). UI: slot-wheel dial columns with ghost prev/next neighbours, highlight panel on selection, centered via `CenterContainer`. Portrait picker deferred (icon.svg placeholder; 1 option). 9 unit tests for `_build_pc()` + updated party tests (43 total green). |
 | 2026-04-23 | ArchetypeLibrary, KindredLibrary, KindredData | Name-pool migration — `_NAME_POOLS` const dict removed from `ArchetypeLibrary.gd`. Flavor names now live on `KindredData.name_pool` (`Array[String]`) sourced from the new `name_pool` column in `kindreds.csv`. `ArchetypeLibrary.create()` auto-names via `KindredLibrary.get_name_pool(kindred)`; empty pool → `"Unit"` fallback. Closes the last inline-const-dict exception in the data-library uniformity pass. Per-kindred names unchanged (Human ← old archer_bandit pool; Half-Orc ← grunt; Gnome ← alchemist; Dwarf ← elite_guard). Tests: +2 kindred name-pool tests; existing `test_archetype_ally_auto_name_from_pool` unchanged and still green. |

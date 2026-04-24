@@ -52,7 +52,13 @@ func _build_ui() -> void:
 	var new_btn := _make_button("Start New Run", center - btn_w * 0.5, top_y + btn_h + gap, btn_w, btn_h, _on_new_run)
 	add_child(new_btn)
 
-	var quit_btn := _make_button("Quit", center - btn_w * 0.5, top_y + (btn_h + gap) * 2.0, btn_w, btn_h, _on_quit)
+	# Dev-only shortcut: skips character creation and fills the party with 3
+	# randomized PCs so the main game loop can be exercised quickly.
+	var test_btn := _make_button("Test New Run", center - btn_w * 0.5, top_y + (btn_h + gap) * 2.0, btn_w, btn_h, _on_test_new_run)
+	test_btn.add_theme_color_override("font_color", Color(0.75, 0.6, 0.95))
+	add_child(test_btn)
+
+	var quit_btn := _make_button("Quit", center - btn_w * 0.5, top_y + (btn_h + gap) * 3.0, btn_w, btn_h, _on_quit)
 	quit_btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	add_child(quit_btn)
 
@@ -73,6 +79,41 @@ func _on_new_run() -> void:
 	GameState.delete_save()
 	GameState.reset()
 	get_tree().change_scene_to_file(CREATION_SCENE_PATH)
+
+## Dev shortcut — skip character creation and seed `GameState.party` with 3
+## fully-randomized PCs (random kindred / class / background / portrait / name).
+## Delegates row-level construction to `CharacterCreationManager._build_pc()`
+## (static), so any future changes to how a PC is built stay in one place.
+func _on_test_new_run() -> void:
+	GameState.delete_save()
+	GameState.reset()
+
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+
+	var kindred_ids: Array[String] = []
+	for k in KindredLibrary.all_kindreds():
+		kindred_ids.append(k.kindred_id)
+	var class_ids: Array[String] = []
+	for c in ClassLibrary.all_classes():
+		class_ids.append(c.class_id)
+	var bg_ids: Array[String] = []
+	for b in BackgroundLibrary.all_backgrounds():
+		bg_ids.append(b.background_id)
+	var portrait_ids: Array[String] = []
+	for p in PortraitLibrary.all_portraits():
+		portrait_ids.append(p.portrait_id)
+
+	for i in 3:
+		var k_id: String = kindred_ids[rng.randi() % kindred_ids.size()] if not kindred_ids.is_empty() else ""
+		var c_id: String = class_ids[rng.randi() % class_ids.size()]       if not class_ids.is_empty()   else ""
+		var b_id: String = bg_ids[rng.randi() % bg_ids.size()]             if not bg_ids.is_empty()      else ""
+		var p_id: String = portrait_ids[rng.randi() % portrait_ids.size()] if not portrait_ids.is_empty() else ""
+		var pool: Array[String] = KindredLibrary.get_name_pool(k_id)
+		var member_name: String = pool[rng.randi() % pool.size()] if not pool.is_empty() else "Test%d" % (i + 1)
+		GameState.party.append(CharacterCreationManager._build_pc(member_name, k_id, c_id, b_id, p_id))
+
+	get_tree().change_scene_to_file(MAP_SCENE_PATH)
 
 func _on_quit() -> void:
 	get_tree().quit()

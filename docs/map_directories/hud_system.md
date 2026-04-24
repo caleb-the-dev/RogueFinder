@@ -141,10 +141,11 @@ Static utility class (`scripts/globals/RewardGenerator.gd`). Builds a shuffled p
 
 **Entry point.** `main.tscn` now instances `MainMenuScene.tscn` (was `MapScene.tscn` directly). Lives at `scenes/ui/MainMenuScene.tscn` + `scripts/ui/MainMenuManager.gd`.
 
-Displays: title · subtitle · three buttons (Continue, Start New Run, Quit).
+Displays: title · subtitle · four buttons (Continue, Start New Run, Test New Run, Quit).
 
 - **Continue** — disabled when `user://save.json` does not exist. Calls `GameState.load_save()` then `change_scene_to_file(MAP_SCENE_PATH)`.
 - **Start New Run** — calls `GameState.delete_save()` + `GameState.reset()` then transitions to **CharacterCreationScene** (not MapScene directly — B2 wired this 2026-04-24).
+- **Test New Run** (dev shortcut) — calls `delete_save()` + `reset()` then seeds `GameState.party` with three fully-randomized PCs (random kindred, class, background, portrait, and name pulled from the chosen kindred's name pool) via `CharacterCreationManager._build_pc()`. Transitions directly to `MapScene`, bypassing character creation. Muted purple tint to signal dev affordance.
 - **Quit** — `get_tree().quit()`.
 
 `RunSummaryManager._on_main_menu()` now routes to `MainMenuScene.tscn` (was silently calling `_on_new_run()`).
@@ -152,6 +153,7 @@ Displays: title · subtitle · three buttons (Continue, Start New Run, Quit).
 ### Gotchas
 - **No CanvasLayer child nodes** — all UI built in `_ready()` / `_build_ui()`. `main.tscn` is a `Node3D` root instancing the scene; the CanvasLayer sits inside.
 - **Continue button state is set once at `_ready()`** — if a save is written during the same session, the button state won't update without a scene reload (not a real issue in normal flow).
+- **Test New Run depends on `CharacterCreationManager._build_pc()`** — the static builder is the single source of truth for PC construction. If you change `_build_pc()`'s signature, update `_on_test_new_run()` too. Kept static so this shortcut does not need to instance the creation scene.
 
 ---
 
