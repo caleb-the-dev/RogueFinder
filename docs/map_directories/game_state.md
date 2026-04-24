@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-04-19 (S19 — inventory field added; add_to_inventory() / remove_from_inventory() live; save/load/reset extended)
+> Last updated: 2026-04-24 (B1 — init_party() revised to spawn PC only; CharacterCreationManager added as dependent)
 
 ---
 
@@ -54,7 +54,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `is_visited` | `(node_id: String) -> bool` | Returns `true` if the node is in `visited_nodes` |
 | `is_adjacent_to_player` | `(node_id: String, adjacency: Dictionary) -> bool` | Returns `true` if `node_id` is in the adjacency list for `player_node_id`. The `adjacency` dict is passed in from `MapManager` to keep `GameState` decoupled from map-building data. |
 | `get_threat_level` | `() -> float` | Returns `threat_level`. Stub hookpoint for Feature 8 boss difficulty scaling — annotated with a comment pointing there. |
-| `init_party` | `() -> void` | Seeds `party` with PC (RogueFinder/"Hero") + 2 allies (archer_bandit, grunt). Guard: no-ops if `party` is already populated — safe to call after `load_save()`. |
+| `init_party` | `() -> void` | **Safety fallback only** — seeds `party` with a single default PC (RogueFinder/"Hero"). Guard: no-ops if `party` is already populated. On the new-run path, `CharacterCreationManager._on_confirm()` appends the real PC before `MapManager._ready()` fires, so the guard triggers immediately and `init_party()` is a no-op. Only executes substantively if the game somehow reaches `MapScene` with an empty party (e.g., skipping the creation scene in dev). |
 | `add_to_inventory` | `(item: Dictionary) -> void` | Appends the reward dict to the party bag. No routing — both equipment and consumables land here. |
 | `remove_from_inventory` | `(item_id: String) -> bool` | Removes the first bag entry whose `id` matches `item_id`. Returns `true` if found and removed, `false` if not present. |
 
@@ -92,6 +92,7 @@ Note: `pending_node_type` and `current_combat_node_id` are **not** saved — the
 
 ## Dependencies
 
+- **CharacterCreationManager** appends the newly built PC to `GameState.party` in `_on_confirm()` before transitioning to MapScene. This is the primary populator of `party` on a new run; `init_party()` acts as a fallback guard only.
 - **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `init_party()` on fresh runs (after `load_save()` if `party.is_empty()`); increments `threat_level` by 0.05 (capped at 1.0) on every `_move_player_to()` call (travel increment) and again in `_enter_current_node()` for non-cleared nodes (entry increment); calls `save()` after each increment and after `_assign_node_types()`; calls `load_save()` at startup; calls `delete_save()` + `reset()` from the debug button; sets `pending_node_type` before transitioning to NodeStub; sets `current_combat_node_id` before transitioning to CombatScene3D; reads `cleared_nodes` in `_refresh_all_node_visuals()` and `_on_node_clicked()`; reads `threat_level` in `_add_threat_meter()` to render the HUD bar.
 - **NodeStub** reads and clears `GameState.pending_node_type` in `_ready()`
 - **EndCombatScreen** reads `current_combat_node_id` and appends to `cleared_nodes` immediately on reward selection; resets `threat_level = 0.0` if the defeated node was a BOSS; calls `GameState.save()` then returns to map. Calls `GameState.add_to_inventory(item)` via `has_method()` guard — method is live, reward dict lands in the party bag on every pickup.

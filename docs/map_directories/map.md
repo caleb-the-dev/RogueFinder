@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-23 (name-pool migration) |
+| last_updated | 2026-04-24 (character creation B1+B2) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 8 |
+| sessions_since_groom | 9 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -37,6 +37,7 @@
 | [Portrait Library](portrait_system.md) | `portrait_system.md` | ✅ Active (dormant — 6 placeholder portraits, CSV-sourced, S30) | Data |
 | [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (CSV-sourced S33; speed + HP bonuses + placeholder feats + name pools) | Data |
 | [Main Menu](hud_system.md) | `hud_system.md` | ✅ Active (title screen, continue/new run) | Presentation |
+| [Character Creation](hud_system.md) | `hud_system.md` | ✅ Active (B2 — slot-wheel dials, _build_pc(), 9 tests) | Presentation |
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
@@ -68,7 +69,16 @@ EndCombatScreen
   └── RewardGenerator → EquipmentLibrary + ConsumableLibrary
 
 MainMenuManager
-  └── GameState             (load_save / reset / delete_save on button press)
+  ├── GameState                   (load_save / reset / delete_save on button press)
+  └── CharacterCreationScene      (new-run path routes here instead of MapScene directly)
+
+CharacterCreationManager
+  ├── KindredLibrary              (name pool, feat id)
+  ├── ClassLibrary                (class list, display name, starting ability)
+  ├── BackgroundLibrary           (background list, display name, starting ability)
+  ├── PortraitLibrary             (portrait id list)
+  ├── CombatantData               (built by _build_pc())
+  └── GameState                   (appends PC to party on confirm)
 
 MapManager
   ├── GameState             (load_save/init_party at startup; travel + entry increments; sets pending_node_type / current_combat_node_id)
@@ -84,7 +94,7 @@ NodeStub          → GameState (reads + clears pending_node_type)
 BadurgaManager    → standalone (no deps; returns to MapScene on back)
 
 GameState (autoload)
-  ├── ArchetypeLibrary      (init_party() creates PC + 2 allies)
+  ├── ArchetypeLibrary      (init_party() safety-fallback creates default PC)
   └── EquipmentLibrary      (load_save resolves equipment slot ids)
 ```
 
@@ -146,6 +156,7 @@ rogue-finder/
 │   ├── misc/NodeStub.gd                ← placeholder stub screen
 │   ├── party/PartySheet.gd             ← interactive overlay, layer 20
 │   └── ui/
+│       ├── CharacterCreationManager.gd ← character creation (B2); slot-wheel dials; _build_pc()
 │       ├── CombatActionPanel.gd        ← right slide-in (layer 12)
 │       ├── EndCombatScreen.gd          ← victory overlay (layer 15)
 │       ├── MainMenuManager.gd          ← title screen (entry point)
@@ -186,11 +197,12 @@ rogue-finder/
 │   ├── misc/NodeStub.tscn
 │   ├── party/PartySheet.tscn
 │   └── ui/
+│       ├── CharacterCreationScene.tscn ← root CanvasLayer + script only; children built in _ready()
 │       ├── CombatActionPanel.tscn
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 18 test files; see `tests/test_combatant_data.tscn` for the runner pattern
+└── tests/                              ← 20 test files; see `tests/test_combatant_data.tscn` for the runner pattern
 ```
 
 ---
@@ -201,6 +213,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-24 | CharacterCreationScene, GameState, MainMenuManager | Character creation B1+B2 — `MainMenuManager._on_new_run()` routes to `CharacterCreationScene` instead of `MapScene`. `CharacterCreationManager` builds `CombatantData` from player picks (kindred/class/background/portrait/name) via static `_build_pc()`. `GameState.init_party()` revised to spawn only the PC (safety fallback; creation screen is the primary populator). UI: slot-wheel dial columns with ghost prev/next neighbours, highlight panel on selection, centered via `CenterContainer`. Portrait picker deferred (icon.svg placeholder; 1 option). 9 unit tests for `_build_pc()` + updated party tests (43 total green). |
 | 2026-04-23 | ArchetypeLibrary, KindredLibrary, KindredData | Name-pool migration — `_NAME_POOLS` const dict removed from `ArchetypeLibrary.gd`. Flavor names now live on `KindredData.name_pool` (`Array[String]`) sourced from the new `name_pool` column in `kindreds.csv`. `ArchetypeLibrary.create()` auto-names via `KindredLibrary.get_name_pool(kindred)`; empty pool → `"Unit"` fallback. Closes the last inline-const-dict exception in the data-library uniformity pass. Per-kindred names unchanged (Human ← old archer_bandit pool; Half-Orc ← grunt; Gnome ← alchemist; Dwarf ← elite_guard). Tests: +2 kindred name-pool tests; existing `test_archetype_ally_auto_name_from_pool` unchanged and still green. |
 | 2026-04-23 | AbilityLibrary | S35 — Data-library uniformity pass session 6: `AbilityLibrary` migrated from inline `const ABILITIES` dict to `abilities.csv` + CSV-native loader. Effects encoded as JSON arrays in each row. `all_abilities()` / `reload()` added; `get_ability()` signature unchanged. `ABILITIES` dict removed; one caller in `test_class_library.gd` updated. Stale assertions in `test_ability_library.gd` fixed. |
 | 2026-04-23 | ArchetypeLibrary, ArchetypeData | S34 — Data-library uniformity pass session 5: `ArchetypeLibrary` migrated from inline `const ARCHETYPES` dict to `archetypes.csv` + CSV-native loader. `ArchetypeData.gd` resource added. `ARCHETYPES` dict removed; callers updated to `all_archetypes()` / `get_archetype()`. `create()` signature unchanged. |

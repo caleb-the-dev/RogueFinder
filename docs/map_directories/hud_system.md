@@ -144,7 +144,7 @@ Static utility class (`scripts/globals/RewardGenerator.gd`). Builds a shuffled p
 Displays: title · subtitle · three buttons (Continue, Start New Run, Quit).
 
 - **Continue** — disabled when `user://save.json` does not exist. Calls `GameState.load_save()` then `change_scene_to_file(MAP_SCENE_PATH)`.
-- **Start New Run** — calls `GameState.delete_save()` + `GameState.reset()` then transitions to MapScene.
+- **Start New Run** — calls `GameState.delete_save()` + `GameState.reset()` then transitions to **CharacterCreationScene** (not MapScene directly — B2 wired this 2026-04-24).
 - **Quit** — `get_tree().quit()`.
 
 `RunSummaryManager._on_main_menu()` now routes to `MainMenuScene.tscn` (was silently calling `_on_new_run()`).
@@ -152,6 +152,109 @@ Displays: title · subtitle · three buttons (Continue, Start New Run, Quit).
 ### Gotchas
 - **No CanvasLayer child nodes** — all UI built in `_ready()` / `_build_ui()`. `main.tscn` is a `Node3D` root instancing the scene; the CanvasLayer sits inside.
 - **Continue button state is set once at `_ready()`** — if a save is written during the same session, the button state won't update without a scene reload (not a real issue in normal flow).
+
+---
+
+## CharacterCreationScene
+
+Lives at `scenes/ui/CharacterCreationScene.tscn` + `scripts/ui/CharacterCreationManager.gd`.
+
+**Reached via:** `MainMenuManager._on_new_run()` → `change_scene_to_file(CREATION_SCENE_PATH)` after `delete_save()` + `reset()`. `GameState.party` is `[]` on entry.
+
+**On exit:** appends the built PC to `GameState.party`, then routes to `MapScene`. `MapManager._ready()` calls `GameState.init_party()` as a safety fallback — the guard fires immediately because `party` is already non-empty.
+
+### What it does (B2)
+
+Single-screen character creation. Player picks name, kindred, class, background, and portrait. On Confirm, builds a `CombatantData` from scratch (not via `ArchetypeLibrary.create()`) and appends it to `GameState.party`.
+
+Layout (all built in `_ready()`):
+- `LineEdit` (name) + 🎲 button (random name from active kindred's pool; "Unit" fallback on empty pool)
+- Four slot-wheel dial columns: Kindred · Class · Background · Portrait
+- "Begin Run" confirm button
+
+Each dial column shows the current selection (20 px, light highlight panel) flanked by ghost neighbours at 25% opacity / 12 px. All children built in `_build_ui()`; centered via a full-rect `CenterContainer`.
+
+### Public API / Key Methods
+
+| Method | Notes |
+|--------|-------|
+| `_ready()` | Calls `_load_data()` then `_build_ui()` |
+| `_load_data()` | Populates parallel id/display arrays from all four libraries |
+| `_build_ui()` | Constructs name row + four dial columns + confirm button |
+| `_build_text_dial(header, ids, display, on_select)` | Returns a `PanelContainer` drum column with ▲/▼ and three visible text rows (prev ghost, current highlighted, next ghost). `idx` stored in a single-element `Array[int]` — required because GDScript 4 closures capture locals by value, so a plain `int` would reset to 0 on every press. |
+| `_build_portrait_dial()` | Same drum column shape but shows `TextureRect` (icon.svg) for current + smaller greyed icons for prev/next. Arrows disabled (1 portrait option until art ships). |
+| `_on_dice_name()` | Reads active kindred's name pool via `KindredLibrary.get_name_pool()`; falls back to "Unit" on empty pool |
+| `_on_confirm()` | Calls `_build_pc()`, appends to `GameState.party`, transitions to `MapScene` |
+| `_calc_preview()` | Stub — returns `{}`. B4 will populate stat-range preview labels here. |
+| `static _build_pc(char_name, kindred_id, class_id, bg_id, _portrait_id)` | Builds `CombatantData` field-by-field from picks. **Static** so unit tests call it without a live scene. See _build_pc details below. |
+
+### _build_pc field assignments
+
+| Field | Source |
+|-------|--------|
+| `archetype_id` | `"RogueFinder"` (fixed) |
+| `is_player_unit` | `true` |
+| `character_name` | name input; `""` → `"Unit"` |
+| `kindred` | kindred_id (e.g. `"dwarf"`) |
+| `kindred_feat_id` | `KindredLibrary.get_feat_id(kindred_id)` |
+| `unit_class` | `ClassLibrary.get_class_data(class_id).display_name` |
+| `background` | bg_id (snake_case ID — differs from ally background format which stores PascalCase display strings) |
+| `abilities` | `[class.starting_ability_id, bg.starting_ability_id, "", ""]` — always 4 slots |
+| `ability_pool` | class + bg ability ids, deduped |
+| `strength/dex/cog/wil/vit` | `randi_range(1, 4)` (placeholder) |
+| `armor_defense` | `randi_range(4, 8)` |
+| `qte_resolution` | `0.5` (fixed — player doesn't auto-resolve) |
+| `current_hp` | `hp_max` (computed property) |
+| `current_energy` | `energy_max` (computed property) |
+| `portrait` | Not set — remains `null` (all portraits are icon.svg placeholder; serialization deferred to art pass) |
+
+### Instance Variables
+
+| Var | Type | Notes |
+|-----|------|-------|
+| `_kindred_ids` | `Array[String]` | Parallel to kindred OptionButton/dial items |
+| `_class_ids` | `Array[String]` | |
+| `_class_display` | `Array[String]` | Display names for class dial |
+| `_bg_ids` | `Array[String]` | |
+| `_bg_display` | `Array[String]` | `BackgroundData.background_name` (not `display_name`) |
+| `_portrait_ids` | `Array[String]` | Loaded but portrait dial always uses index 0 |
+| `_name_field` | `LineEdit` | |
+| `_kindred_idx` | `int` | Current kindred dial selection index |
+| `_class_idx` | `int` | Current class dial selection index |
+| `_bg_idx` | `int` | Current background dial selection index |
+
+### Known Inconsistency
+
+`CombatantData.background` stores the snake_case `background_id` for PC-created characters but PascalCase display strings for ally characters created by `ArchetypeLibrary.create()`. `BackgroundLibrary.get_background_by_name()` bridges old code. Migration deferred.
+
+### Dependencies
+
+- `KindredLibrary` — name pool, feat id
+- `ClassLibrary` — class list, starting ability, display name
+- `BackgroundLibrary` — background list, starting ability
+- `PortraitLibrary` — portrait list (used for id only; texture not set at v1)
+- `GameState` — appends PC to `GameState.party` on confirm
+- `CombatantData` — constructed by `_build_pc()`
+
+### Tests
+
+`tests/test_character_creation.gd` / `test_character_creation.tscn` — 9 unit tests covering `_build_pc()` correctness (all headless; no live scene required). Run via:
+```
+godot --headless --path rogue-finder res://tests/test_character_creation.tscn
+```
+
+### Gotchas
+
+- **`_build_pc()` is static** — keeps unit tests simple. Do not add instance-var access inside it.
+- **Closure int capture** — `_build_text_dial()` uses `Array[int]` (single element) as a mutable index. Replacing with a plain `int` will break cycling (resets to 0 on every button press).
+- **Portrait not serialized** — `CombatantData.portrait` is `Texture2D` (not JSON-serializable). All portrait options are `icon.svg` at v1 so the loss is invisible. When real art ships: add `portrait_id: String` to `CombatantData`, serialize in `_serialize_combatant()` / `_deserialize_combatant()`, restore texture on load.
+- **B4 preview stub** — `_calc_preview()` returns `{}` and is called on every pick change. B4 will add rendering here without touching the manager's other methods.
+
+### Recent Changes
+
+| Date | Change |
+|---|---|
+| 2026-04-24 | B1+B2 — Character creation scene added. `MainMenuManager._on_new_run()` now routes to `CharacterCreationScene` instead of `MapScene`. `_build_pc()` builds `CombatantData` from picks. Slot-wheel dial columns with ghost neighbours (▲/▼, prev/next at 25% opacity). Portrait dial shows icon.svg placeholder; portrait picker hidden until real art ships. 9 unit tests green. |
 
 ---
 
