@@ -35,10 +35,10 @@ func _load_data() -> void:
 		_class_display.append(c.display_name)
 	for b in BackgroundLibrary.all_backgrounds():
 		_bg_ids.append(b.background_id)
-		_bg_display.append(b.display_name)
+		_bg_display.append(b.background_name)
 	for p in PortraitLibrary.all_portraits():
 		_portrait_ids.append(p.portrait_id)
-		_portrait_display.append(p.display_name)
+		_portrait_display.append(p.portrait_name)
 
 func _build_ui() -> void:
 	var vbox := VBoxContainer.new()
