@@ -5,8 +5,9 @@ extends CanvasLayer
 ## Title screen. Two paths: continue an existing save or wipe and start fresh.
 ## "Continue" is disabled when no save file exists.
 
-const MAP_SCENE_PATH  := "res://scenes/map/MapScene.tscn"
-const SAVE_PATH       := "user://save.json"
+const MAP_SCENE_PATH      := "res://scenes/map/MapScene.tscn"
+const CREATION_SCENE_PATH := "res://scenes/ui/CharacterCreationScene.tscn"
+const SAVE_PATH           := "user://save.json"
 
 var _continue_btn: Button = null
 
@@ -71,7 +72,7 @@ func _on_continue() -> void:
 func _on_new_run() -> void:
 	GameState.delete_save()
 	GameState.reset()
-	get_tree().change_scene_to_file(MAP_SCENE_PATH)
+	get_tree().change_scene_to_file(CREATION_SCENE_PATH)
 
 func _on_quit() -> void:
 	get_tree().quit()
