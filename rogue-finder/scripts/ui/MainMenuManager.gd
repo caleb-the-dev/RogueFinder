@@ -75,9 +75,11 @@ func _on_continue() -> void:
 	GameState.load_save()
 	get_tree().change_scene_to_file(MAP_SCENE_PATH)
 
+## Routes to character creation. Save is NOT deleted here — the player can
+## hit Back on the creation screen without nuking their existing run. The
+## commit point is `CharacterCreationManager._on_confirm()` which resets
+## state before building the PC.
 func _on_new_run() -> void:
-	GameState.delete_save()
-	GameState.reset()
 	get_tree().change_scene_to_file(CREATION_SCENE_PATH)
 
 ## Dev shortcut — skip character creation and seed `GameState.party` with 3

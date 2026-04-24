@@ -15,6 +15,8 @@ func _ready() -> void:
 	test_ability_pool_superset_of_slots()
 	test_ability_pool_deduplicated()
 	test_hp_and_energy_seeded_at_max()
+	test_build_pc_uses_rolled_stats_when_provided()
+	test_build_pc_rolls_internally_when_stats_empty()
 	print("=== All character creation tests passed ===")
 
 func test_archetype_and_player_flag() -> void:
@@ -87,3 +89,30 @@ func test_hp_and_energy_seeded_at_max() -> void:
 	assert(pc.current_energy == pc.energy_max,
 		"current_energy must equal energy_max (got %d, max %d)" % [pc.current_energy, pc.energy_max])
 	print("  PASS test_hp_and_energy_seeded_at_max")
+
+func test_build_pc_uses_rolled_stats_when_provided() -> void:
+	# When the manager has pre-rolled stats (via Reroll button), _build_pc must
+	# honor them exactly so "what you see is what you get" at the commit point.
+	var stats := {"str": 4, "dex": 3, "cog": 2, "wil": 1, "vit": 4, "armor": 7}
+	var pc := CharacterCreationManager._build_pc("Tess", "Human", "wizard", "crook", "portrait_human_f", stats)
+	assert(pc.strength      == 4, "strength must use rolled 4, got %d" % pc.strength)
+	assert(pc.dexterity     == 3, "dexterity must use rolled 3, got %d" % pc.dexterity)
+	assert(pc.cognition     == 2, "cognition must use rolled 2, got %d" % pc.cognition)
+	assert(pc.willpower     == 1, "willpower must use rolled 1, got %d" % pc.willpower)
+	assert(pc.vitality      == 4, "vitality must use rolled 4, got %d" % pc.vitality)
+	assert(pc.armor_defense == 7, "armor_defense must use rolled 7, got %d" % pc.armor_defense)
+	print("  PASS test_build_pc_uses_rolled_stats_when_provided")
+
+func test_build_pc_rolls_internally_when_stats_empty() -> void:
+	# Back-compat path: omitting the rolled_stats param must still produce a
+	# valid PC with stats in the 1–4 range (existing callers + Test New Run
+	# button rely on this — Test New Run does its own randomization per member).
+	var pc := CharacterCreationManager._build_pc("Tess", "Human", "wizard", "crook", "portrait_human_f")
+	assert(pc.strength  >= 1 and pc.strength  <= 4, "strength out of range: %d" % pc.strength)
+	assert(pc.dexterity >= 1 and pc.dexterity <= 4, "dexterity out of range: %d" % pc.dexterity)
+	assert(pc.cognition >= 1 and pc.cognition <= 4, "cognition out of range: %d" % pc.cognition)
+	assert(pc.willpower >= 1 and pc.willpower <= 4, "willpower out of range: %d" % pc.willpower)
+	assert(pc.vitality  >= 1 and pc.vitality  <= 4, "vitality out of range: %d" % pc.vitality)
+	assert(pc.armor_defense >= 4 and pc.armor_defense <= 8,
+		"armor_defense out of range: %d" % pc.armor_defense)
+	print("  PASS test_build_pc_rolls_internally_when_stats_empty")

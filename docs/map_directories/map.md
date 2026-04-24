@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-24 (character creation B4 — live preview panel) |
+| last_updated | 2026-04-24 (character creation — Back button + stat reroll) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 10 |
+| sessions_since_groom | 11 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -37,7 +37,7 @@
 | [Portrait Library](portrait_system.md) | `portrait_system.md` | ✅ Active (dormant — 6 placeholder portraits, CSV-sourced, S30) | Data |
 | [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (CSV-sourced S33; speed + HP bonuses + placeholder feats + name pools) | Data |
 | [Main Menu](hud_system.md) | `hud_system.md` | ✅ Active (title screen, continue/new run) | Presentation |
-| [Character Creation](hud_system.md) | `hud_system.md` | ✅ Active (B2 + B4 — slot-wheel dials, live preview panel, _build_pc(), 9 tests) | Presentation |
+| [Character Creation](hud_system.md) | `hud_system.md` | ✅ Active (B2 + B4 — slot-wheel dials, live preview with concrete rolled stats, Reroll + Back buttons, _build_pc(), 11 tests) | Presentation |
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
@@ -219,6 +219,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-24 | CharacterCreationManager, MainMenuManager | **Back button + stat reroll.** Left column now has a "← Back to Main Menu" button that returns to MainMenu without mutating save state. To make Back a clean cancel, `delete_save()` + `reset()` were moved from `MainMenuManager._on_new_run()` into `CharacterCreationManager._on_confirm()`. Stats are rolled at `_ready()` and shown concrete in the preview (HP + STR/DEX/COG/WIL/VIT + AC) with a 🎲 Reroll Stats button in the preview panel. `_build_pc()` signature extended with `rolled_stats: Dictionary = {}` — populated dict wins verbatim, empty dict falls back to internal rolling (preserves Test New Run + existing 9 tests). 2 new tests (11 total). |
 | 2026-04-24 | MainMenuManager | Added **Test New Run** button — dev shortcut that skips character creation and seeds `GameState.party` with three fully-randomized PCs via `CharacterCreationManager._build_pc()` (random kindred / class / background / portrait / name from kindred pool). Transitions directly to `MapScene`. Muted purple tint to signal dev affordance. 4-button layout still fits 1280×720. |
 | 2026-04-24 | CharacterCreationManager | Character creation B4 — Live preview panel added below the dial row. Read-only `PanelContainer` renders HP range (`10 + kindred_hp + [6..24]`), Speed (`1 + kindred_speed`), Stats ("1–4" flat), selected class ability name+description, selected background ability name+description, and kindred feat name. Updates live on every dial spin via `_on_pick_changed()` → `_calc_preview()`. `_calc_preview()` upgraded from `{}` stub to a dict-returning function that also pushes values into eight instance-var `Label` refs. New helpers `_build_preview_panel()` + `_make_stat_label()`. `AbilityLibrary` added as a dependency. No new tests (pure derived display); existing 43 headless tests green. |
 | 2026-04-24 | CharacterCreationScene, GameState, MainMenuManager | Character creation B1+B2 — `MainMenuManager._on_new_run()` routes to `CharacterCreationScene` instead of `MapScene`. `CharacterCreationManager` builds `CombatantData` from player picks (kindred/class/background/portrait/name) via static `_build_pc()`. `GameState.init_party()` revised to spawn only the PC (safety fallback; creation screen is the primary populator). UI: slot-wheel dial columns with ghost prev/next neighbours, highlight panel on selection, centered via `CenterContainer`. Portrait picker deferred (icon.svg placeholder; 1 option). 9 unit tests for `_build_pc()` + updated party tests (43 total green). |
