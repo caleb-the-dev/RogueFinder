@@ -1003,17 +1003,11 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 
 	var kindred_feat: FeatData = FeatLibrary.get_feat(member.kindred_feat_id)
 	var feat_name_lbl := Label.new()
-	feat_name_lbl.text = kindred_feat.name
+	feat_name_lbl.text         = kindred_feat.name
+	feat_name_lbl.tooltip_text = kindred_feat.description
 	feat_name_lbl.add_theme_font_size_override("font_size", 13)
 	feat_name_lbl.add_theme_color_override("font_color", Color(0.80, 0.76, 0.60))
 	feats_panel.add_child(feat_name_lbl)
-
-	var feat_desc_lbl := Label.new()
-	feat_desc_lbl.text = kindred_feat.description
-	feat_desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	feat_desc_lbl.add_theme_font_size_override("font_size", 11)
-	feat_desc_lbl.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
-	feats_panel.add_child(feat_desc_lbl)
 
 ## --- Drag Compare Overlay ---
 ## Lives directly on the CanvasLayer so it survives _rebuild(). Cleared by _process
