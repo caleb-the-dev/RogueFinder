@@ -96,7 +96,7 @@ On Confirm: build `CombatantData` → `GameState.party = [pc]` → MapScene.
    - `ClassLibrary.all_classes()`
    - `BackgroundLibrary.all_backgrounds()`
    - `PortraitLibrary.all_portraits()`
-   Defaults: first item of each list. Name field starts empty.
+   Defaults: first item of each list. Name field starts empty. Empty name on Confirm → `character_name = "Unit"` (matches existing auto-name fallback behavior).
 
 3. **Player interacts** — changes picks, types or 🎲-generates a name.
 
