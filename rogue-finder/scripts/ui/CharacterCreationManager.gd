@@ -6,7 +6,8 @@ extends CanvasLayer
 ## background, and portrait. Builds CombatantData and hands off to MapScene.
 ## B2: inline slot-wheel columns. B3 will extract these into a reusable Dial component.
 
-const MAP_SCENE_PATH := "res://scenes/map/MapScene.tscn"
+const MAP_SCENE_PATH       := "res://scenes/map/MapScene.tscn"
+const MAIN_MENU_SCENE_PATH := "res://scenes/ui/MainMenuScene.tscn"
 
 var _kindred_ids:   Array[String] = []
 var _class_ids:     Array[String] = []
@@ -20,9 +21,20 @@ var _kindred_idx: int = 0
 var _class_idx:   int = 0
 var _bg_idx:      int = 0
 
+## Rolled attributes — seeded once in `_ready()`, re-seeded by the Reroll Stats
+## button, and handed to `_build_pc()` at confirm time so the stats the player
+## saw are the stats that persist. Keys: str / dex / cog / wil / vit / armor.
+var _rolled_stats: Dictionary = {}
+
 # Preview panel label refs — populated in _build_preview_panel(), pushed by _calc_preview().
 var _preview_hp_lbl:        Label = null
 var _preview_speed_lbl:     Label = null
+var _preview_str_lbl:       Label = null
+var _preview_dex_lbl:       Label = null
+var _preview_cog_lbl:       Label = null
+var _preview_wil_lbl:       Label = null
+var _preview_vit_lbl:       Label = null
+var _preview_ac_lbl:        Label = null
 var _preview_class_name:    Label = null
 var _preview_class_desc:    Label = null
 var _preview_bg_name:       Label = null
@@ -31,6 +43,7 @@ var _preview_feat_lbl:      Label = null
 
 func _ready() -> void:
 	_load_data()
+	_roll_stats()
 	_build_ui()
 
 func _load_data() -> void:
@@ -71,7 +84,14 @@ func _build_ui() -> void:
 	right_col.size_flags_stretch_ratio = 2.0
 	body.add_child(right_col)
 
-	# --- Left column: name row + dial row + Begin Run ---
+	# --- Left column: back · name row · dials · Begin Run ---
+	var back_btn := Button.new()
+	back_btn.text = "← Back to Main Menu"
+	back_btn.add_theme_color_override("font_color", Color(0.7, 0.7, 0.8))
+	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	back_btn.pressed.connect(_on_back)
+	left_col.add_child(back_btn)
+
 	var name_row := HBoxContainer.new()
 	left_col.add_child(name_row)
 	_name_field = LineEdit.new()
@@ -281,7 +301,7 @@ func _build_preview_panel() -> PanelContainer:
 	header_lbl.add_theme_font_size_override("font_size", 16)
 	col.add_child(header_lbl)
 
-	# Top strip: HP range · Speed
+	# Top strip: HP · Speed (both concrete since stats are rolled at _ready())
 	var stats_row := HBoxContainer.new()
 	stats_row.add_theme_constant_override("separation", 16)
 	stats_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -292,17 +312,31 @@ func _build_preview_panel() -> PanelContainer:
 	stats_row.add_child(_preview_hp_lbl)
 	stats_row.add_child(_preview_speed_lbl)
 
-	# Attributes row — all five roll 1–4 at creation regardless of picks.
+	# Reroll button — re-rolls _rolled_stats and pushes new values into labels.
+	var reroll_btn := Button.new()
+	reroll_btn.text = "🎲 Reroll Stats"
+	reroll_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	reroll_btn.pressed.connect(_on_reroll_stats)
+	col.add_child(reroll_btn)
+
+	# Attributes row — concrete values from _rolled_stats (seeded in _ready()).
 	var attr_row := HBoxContainer.new()
-	attr_row.add_theme_constant_override("separation", 12)
+	attr_row.add_theme_constant_override("separation", 10)
 	attr_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	col.add_child(attr_row)
 
-	attr_row.add_child(_make_stat_label("STR: 1–4"))
-	attr_row.add_child(_make_stat_label("DEX: 1–4"))
-	attr_row.add_child(_make_stat_label("COG: 1–4"))
-	attr_row.add_child(_make_stat_label("WIL: 1–4"))
-	attr_row.add_child(_make_stat_label("VIT: 1–4"))
+	_preview_str_lbl = _make_stat_label("STR: —")
+	_preview_dex_lbl = _make_stat_label("DEX: —")
+	_preview_cog_lbl = _make_stat_label("COG: —")
+	_preview_wil_lbl = _make_stat_label("WIL: —")
+	_preview_vit_lbl = _make_stat_label("VIT: —")
+	_preview_ac_lbl  = _make_stat_label("AC: —")
+	attr_row.add_child(_preview_str_lbl)
+	attr_row.add_child(_preview_dex_lbl)
+	attr_row.add_child(_preview_cog_lbl)
+	attr_row.add_child(_preview_wil_lbl)
+	attr_row.add_child(_preview_vit_lbl)
+	attr_row.add_child(_preview_ac_lbl)
 
 	col.add_child(HSeparator.new())
 
@@ -346,6 +380,27 @@ func _make_stat_label(text: String) -> Label:
 func _on_pick_changed() -> void:
 	_calc_preview()
 
+## Fills `_rolled_stats` with fresh 1–4 attribute rolls and a 4–8 armor roll.
+## Called from `_ready()` (initial seed) and from the Reroll button.
+func _roll_stats() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	_rolled_stats = {
+		"str":   rng.randi_range(1, 4),
+		"dex":   rng.randi_range(1, 4),
+		"cog":   rng.randi_range(1, 4),
+		"wil":   rng.randi_range(1, 4),
+		"vit":   rng.randi_range(1, 4),
+		"armor": rng.randi_range(4, 8),
+	}
+
+func _on_reroll_stats() -> void:
+	_roll_stats()
+	_calc_preview()
+
+func _on_back() -> void:
+	get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
+
 func _on_dice_name() -> void:
 	var kindred_id: String = _kindred_ids[_kindred_idx] if not _kindred_ids.is_empty() else ""
 	var pool: Array[String] = KindredLibrary.get_name_pool(kindred_id)
@@ -354,18 +409,25 @@ func _on_dice_name() -> void:
 		return
 	_name_field.text = pool[randi() % pool.size()]
 
+## Commit point — this is where the old save is nuked and a fresh run begins.
+## MainMenuManager._on_new_run() intentionally leaves save state alone so the
+## player can hit Back without losing an existing run.
 func _on_confirm() -> void:
 	var kindred_id: String  = _kindred_ids[_kindred_idx] if not _kindred_ids.is_empty() else ""
 	var class_id: String    = _class_ids[_class_idx]     if not _class_ids.is_empty()   else ""
 	var bg_id: String       = _bg_ids[_bg_idx]           if not _bg_ids.is_empty()      else ""
 	var portrait_id: String = _portrait_ids[0]           if not _portrait_ids.is_empty() else ""
-	var pc := _build_pc(_name_field.text, kindred_id, class_id, bg_id, portrait_id)
+
+	GameState.delete_save()
+	GameState.reset()
+	var pc := _build_pc(_name_field.text, kindred_id, class_id, bg_id, portrait_id, _rolled_stats)
 	GameState.party.append(pc)
 	get_tree().change_scene_to_file(MAP_SCENE_PATH)
 
-## Computes the live preview values for the current dial selections and pushes
-## them into the preview panel labels. Returns the same data as a Dictionary so
-## a future CharacterCreationPreview component can consume it without a live UI.
+## Computes the live preview values for the current dial selections + the
+## currently-rolled stats, and pushes them into the preview panel labels.
+## Returns the same data as a Dictionary so a future CharacterCreationPreview
+## component can consume it without a live UI.
 func _calc_preview() -> Dictionary:
 	var kindred_id: String = _kindred_ids[_kindred_idx] if not _kindred_ids.is_empty() else ""
 	var class_id: String   = _class_ids[_class_idx]     if not _class_ids.is_empty()   else ""
@@ -373,10 +435,10 @@ func _calc_preview() -> Dictionary:
 
 	var hp_bonus: int    = KindredLibrary.get_hp_bonus(kindred_id)
 	var speed_bonus: int = KindredLibrary.get_speed_bonus(kindred_id)
-	# VIT rolls 1–4 at creation; hp_max = 10 + kindred_hp_bonus + VIT × 6 (see CombatantData).
-	var hp_min: int = 10 + hp_bonus + 1 * 6
-	var hp_max: int = 10 + hp_bonus + 4 * 6
-	var speed: int  = 1 + speed_bonus
+	var vit: int = int(_rolled_stats.get("vit", 1))
+	# hp_max = 10 + kindred_hp_bonus + VIT × 6 (see CombatantData).
+	var hp: int    = 10 + hp_bonus + vit * 6
+	var speed: int = 1 + speed_bonus
 
 	var class_ab_id: String = ClassLibrary.get_class_data(class_id).starting_ability_id
 	var bg_ab_id: String    = BackgroundLibrary.get_background(bg_id).starting_ability_id
@@ -385,10 +447,9 @@ func _calc_preview() -> Dictionary:
 	var feat_name: String = KindredLibrary.get_feat_name(kindred_id)
 
 	var data := {
-		"hp_min": hp_min,
-		"hp_max": hp_max,
+		"hp": hp,
 		"speed": speed,
-		"stats_range": "1–4",
+		"stats": _rolled_stats.duplicate(),
 		"class_ability_name": class_ab.ability_name,
 		"class_ability_desc": class_ab.description,
 		"bg_ability_name":    bg_ab.ability_name,
@@ -397,8 +458,14 @@ func _calc_preview() -> Dictionary:
 	}
 
 	if _preview_hp_lbl != null:
-		_preview_hp_lbl.text    = "HP: %d–%d" % [hp_min, hp_max]
+		_preview_hp_lbl.text    = "HP: %d" % hp
 		_preview_speed_lbl.text = "Speed: %d" % speed
+		_preview_str_lbl.text   = "STR: %d" % int(_rolled_stats.get("str",   1))
+		_preview_dex_lbl.text   = "DEX: %d" % int(_rolled_stats.get("dex",   1))
+		_preview_cog_lbl.text   = "COG: %d" % int(_rolled_stats.get("cog",   1))
+		_preview_wil_lbl.text   = "WIL: %d" % int(_rolled_stats.get("wil",   1))
+		_preview_vit_lbl.text   = "VIT: %d" % vit
+		_preview_ac_lbl.text    = "AC: %d"  % int(_rolled_stats.get("armor", 4))
 		_preview_class_name.text = "Class Ability — %s" % class_ab.ability_name
 		_preview_class_desc.text = class_ab.description
 		_preview_bg_name.text    = "Background Ability — %s" % bg_ab.ability_name
@@ -409,8 +476,13 @@ func _calc_preview() -> Dictionary:
 
 ## Builds a CombatantData for the PC from the given picks.
 ## Static so unit tests can call it without a live scene.
+## `rolled_stats` (optional) — dict with keys str/dex/cog/wil/vit/armor. When
+## empty, rolls fresh internally (tests rely on this path). When populated,
+## uses the provided values verbatim so the manager's pre-rolled + shown
+## stats become the persisted stats.
 static func _build_pc(char_name: String, kindred_id: String, class_id: String,
-		bg_id: String, _portrait_id: String) -> CombatantData:
+		bg_id: String, _portrait_id: String,
+		rolled_stats: Dictionary = {}) -> CombatantData:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var d := CombatantData.new()
@@ -429,12 +501,20 @@ static func _build_pc(char_name: String, kindred_id: String, class_id: String,
 		d.ability_pool.append(class_ab)
 	if bg_ab != "" and not d.ability_pool.has(bg_ab):
 		d.ability_pool.append(bg_ab)
-	d.strength       = rng.randi_range(1, 4)
-	d.dexterity      = rng.randi_range(1, 4)
-	d.cognition      = rng.randi_range(1, 4)
-	d.willpower      = rng.randi_range(1, 4)
-	d.vitality       = rng.randi_range(1, 4)
-	d.armor_defense  = rng.randi_range(4, 8)
+	if rolled_stats.is_empty():
+		d.strength       = rng.randi_range(1, 4)
+		d.dexterity      = rng.randi_range(1, 4)
+		d.cognition      = rng.randi_range(1, 4)
+		d.willpower      = rng.randi_range(1, 4)
+		d.vitality       = rng.randi_range(1, 4)
+		d.armor_defense  = rng.randi_range(4, 8)
+	else:
+		d.strength       = int(rolled_stats.get("str",   1))
+		d.dexterity      = int(rolled_stats.get("dex",   1))
+		d.cognition      = int(rolled_stats.get("cog",   1))
+		d.willpower      = int(rolled_stats.get("wil",   1))
+		d.vitality       = int(rolled_stats.get("vit",   1))
+		d.armor_defense  = int(rolled_stats.get("armor", 4))
 	d.qte_resolution = 0.5
 	d.current_hp     = d.hp_max
 	d.current_energy = d.energy_max

@@ -144,7 +144,7 @@ Static utility class (`scripts/globals/RewardGenerator.gd`). Builds a shuffled p
 Displays: title · subtitle · four buttons (Continue, Start New Run, Test New Run, Quit).
 
 - **Continue** — disabled when `user://save.json` does not exist. Calls `GameState.load_save()` then `change_scene_to_file(MAP_SCENE_PATH)`.
-- **Start New Run** — calls `GameState.delete_save()` + `GameState.reset()` then transitions to **CharacterCreationScene** (not MapScene directly — B2 wired this 2026-04-24).
+- **Start New Run** — just transitions to **CharacterCreationScene**. Save is **not** deleted here — the player can hit Back on the creation screen without losing an existing run. Commit + reset happen in `CharacterCreationManager._on_confirm()`.
 - **Test New Run** (dev shortcut) — calls `delete_save()` + `reset()` then seeds `GameState.party` with three fully-randomized PCs (random kindred, class, background, portrait, and name pulled from the chosen kindred's name pool) via `CharacterCreationManager._build_pc()`. Transitions directly to `MapScene`, bypassing character creation. Muted purple tint to signal dev affordance.
 - **Quit** — `get_tree().quit()`.
 
@@ -161,9 +161,11 @@ Displays: title · subtitle · four buttons (Continue, Start New Run, Test New R
 
 Lives at `scenes/ui/CharacterCreationScene.tscn` + `scripts/ui/CharacterCreationManager.gd`.
 
-**Reached via:** `MainMenuManager._on_new_run()` → `change_scene_to_file(CREATION_SCENE_PATH)` after `delete_save()` + `reset()`. `GameState.party` is `[]` on entry.
+**Reached via:** `MainMenuManager._on_new_run()` → `change_scene_to_file(CREATION_SCENE_PATH)`. No state is touched on entry — the player can abort with the Back button without nuking an existing save.
 
-**On exit:** appends the built PC to `GameState.party`, then routes to `MapScene`. `MapManager._ready()` calls `GameState.init_party()` as a safety fallback — the guard fires immediately because `party` is already non-empty.
+**On exit (Begin Run):** `_on_confirm()` calls `GameState.delete_save()` + `GameState.reset()`, builds the PC via `_build_pc(..., _rolled_stats)`, appends to `GameState.party`, then routes to `MapScene`. `MapManager._ready()` calls `GameState.init_party()` as a safety fallback — the guard fires immediately because `party` is already non-empty.
+
+**On exit (Back):** `_on_back()` simply changes scene to `MainMenuScene`. No state touched.
 
 ### What it does (B2 + B4)
 
@@ -172,10 +174,11 @@ Single-screen character creation. Player picks name, kindred, class, background,
 Layout — two-column body inside a full-rect `MarginContainer` (40 px margins). `HBoxContainer` splits into a 3:2 stretch-ratio pair:
 
 - **Left column (3)** — all the interactive controls:
+  - "← Back to Main Menu" button (top-left, muted)
   - `LineEdit` (name) + 🎲 button (random name from active kindred's pool; "Unit" fallback on empty pool)
   - Four slot-wheel dial columns: Kindred · Class · Background · Portrait
   - "Begin Run" confirm button
-- **Right column (2)** — live preview `PanelContainer` (B4) showing HP range, Speed, per-attribute row (STR / DEX / COG / WIL / VIT — all "1–4" since every attribute rolls the same range at creation), class ability name + description, background ability name + description, kindred feat name. Updates live from `_calc_preview()` on every dial change. Read-only — no interactive elements.
+- **Right column (2)** — live preview `PanelContainer` showing concrete HP (from rolled VIT), Speed (from kindred), a **🎲 Reroll Stats** button, per-attribute row (STR / DEX / COG / WIL / VIT / AC — **concrete rolled values**, not ranges), class ability name + description, background ability name + description, kindred feat name. Updates live from `_calc_preview()` on every dial change and every reroll. Read-only text rows; the only interactive control inside the panel is the Reroll button.
 
 Each dial column shows the current selection (20 px, light highlight panel) flanked by ghost neighbours at 25% opacity / 12 px. All children built in `_build_ui()`.
 
@@ -188,12 +191,15 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_build_ui()` | Constructs name row + four dial columns + confirm button |
 | `_build_text_dial(header, ids, display, on_select)` | Returns a `PanelContainer` drum column with ▲/▼ and three visible text rows (prev ghost, current highlighted, next ghost). `idx` stored in a single-element `Array[int]` — required because GDScript 4 closures capture locals by value, so a plain `int` would reset to 0 on every press. |
 | `_build_portrait_dial()` | Same drum column shape but shows `TextureRect` (icon.svg) for current + smaller greyed icons for prev/next. Arrows disabled (1 portrait option until art ships). |
-| `_build_preview_panel()` | Returns a `PanelContainer` (drum style) holding the live preview — HP + Speed strip, per-attribute row (STR/DEX/COG/WIL/VIT, all "1–4" literal), class ability name+desc, background ability name+desc, kindred feat name. Stores seven label refs as instance vars for `_calc_preview()` to push to. Per-attribute labels are built once without refs since every attribute rolls the same 1–4 range regardless of picks. |
+| `_build_preview_panel()` | Returns a `PanelContainer` (drum style) holding the live preview — HP + Speed strip, Reroll Stats button, per-attribute row (STR/DEX/COG/WIL/VIT/AC — concrete numbers), class ability name+desc, background ability name+desc, kindred feat name. Stores thirteen label refs as instance vars for `_calc_preview()` to push to. |
 | `_make_stat_label(text)` | Small helper — one-line `Label` with font size 14 used for the preview panel's stat strip. |
+| `_roll_stats()` | Populates `_rolled_stats` dict with fresh `randi_range(1, 4)` values for STR/DEX/COG/WIL/VIT and `randi_range(4, 8)` for armor. Called from `_ready()` (initial seed before UI is built) and from the Reroll button. |
+| `_on_reroll_stats()` | Calls `_roll_stats()` then `_calc_preview()` to push new numbers into labels. |
+| `_on_back()` | Changes scene to `MainMenuScene`. No state mutation — save survives. |
 | `_on_dice_name()` | Reads active kindred's name pool via `KindredLibrary.get_name_pool()`; falls back to "Unit" on empty pool |
-| `_on_confirm()` | Calls `_build_pc()`, appends to `GameState.party`, transitions to `MapScene` |
-| `_calc_preview()` | Returns a `Dictionary` of preview values AND pushes them into the eight preview labels. Reads `_kindred_idx` / `_class_idx` / `_bg_idx`. `hp_min = 10 + kindred_hp_bonus + 6`, `hp_max = 10 + kindred_hp_bonus + 24`, `speed = 1 + kindred_speed_bonus`. Called from `_on_pick_changed()` on every dial spin + once from `_build_ui()` to seed initial values. Signature stays `-> Dictionary` so a future `CharacterCreationPreview` component can consume the same data without a live UI. |
-| `static _build_pc(char_name, kindred_id, class_id, bg_id, _portrait_id)` | Builds `CombatantData` field-by-field from picks. **Static** so unit tests call it without a live scene. See _build_pc details below. |
+| `_on_confirm()` | **Commit point.** Calls `GameState.delete_save()` + `GameState.reset()` first (moved from `MainMenuManager._on_new_run()` so Back can be a clean cancel), then `_build_pc(..., _rolled_stats)`, appends to `GameState.party`, transitions to `MapScene`. |
+| `_calc_preview()` | Returns a `Dictionary` of preview values AND pushes them into the thirteen preview labels. Reads `_kindred_idx` / `_class_idx` / `_bg_idx` and `_rolled_stats`. `hp = 10 + kindred_hp_bonus + VIT × 6` (concrete, using rolled VIT), `speed = 1 + kindred_speed_bonus`. Called from `_on_pick_changed()` on every dial spin, from `_on_reroll_stats()`, and once from `_build_ui()` to seed initial values. Signature stays `-> Dictionary` so a future `CharacterCreationPreview` component can consume the same data without a live UI. |
+| `static _build_pc(char_name, kindred_id, class_id, bg_id, _portrait_id, rolled_stats = {})` | Builds `CombatantData` field-by-field from picks. **Static** so unit tests call it without a live scene. `rolled_stats` (optional) — dict with keys `str/dex/cog/wil/vit/armor`; when empty, rolls fresh internally (existing tests rely on this); when populated, uses values verbatim (production commit path). See _build_pc details below. |
 
 ### _build_pc field assignments
 
@@ -208,8 +214,8 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `background` | bg_id (snake_case ID — differs from ally background format which stores PascalCase display strings) |
 | `abilities` | `[class.starting_ability_id, bg.starting_ability_id, "", ""]` — always 4 slots |
 | `ability_pool` | class + bg ability ids, deduped |
-| `strength/dex/cog/wil/vit` | `randi_range(1, 4)` (placeholder) |
-| `armor_defense` | `randi_range(4, 8)` |
+| `strength/dex/cog/wil/vit` | `rolled_stats` dict when provided (production commit path); `randi_range(1, 4)` fallback when dict is empty (back-compat + Test New Run path) |
+| `armor_defense` | `rolled_stats.armor` when provided; `randi_range(4, 8)` fallback |
 | `qte_resolution` | `0.5` (fixed — player doesn't auto-resolve) |
 | `current_hp` | `hp_max` (computed property) |
 | `current_energy` | `energy_max` (computed property) |
@@ -229,8 +235,10 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_kindred_idx` | `int` | Current kindred dial selection index |
 | `_class_idx` | `int` | Current class dial selection index |
 | `_bg_idx` | `int` | Current background dial selection index |
-| `_preview_hp_lbl` | `Label` | Preview strip — "HP: min–max" |
+| `_preview_hp_lbl` | `Label` | Preview strip — "HP: N" (concrete, from rolled VIT) |
 | `_preview_speed_lbl` | `Label` | Preview strip — "Speed: N" |
+| `_preview_str_lbl` / `_dex` / `_cog` / `_wil` / `_vit` / `_ac` | `Label` × 6 | Per-attribute row labels — concrete rolled values pushed by `_calc_preview()` |
+| `_rolled_stats` | `Dictionary` | `{str, dex, cog, wil, vit, armor}` — seeded in `_ready()`, overwritten on Reroll, consumed by `_on_confirm()` → `_build_pc(..., _rolled_stats)`. Dict values are `int`. |
 | `_preview_class_name` | `Label` | "Class Ability — <name>" row |
 | `_preview_class_desc` | `Label` | Class ability description (autowrap, 75% opacity) |
 | `_preview_bg_name` | `Label` | "Background Ability — <name>" row |
@@ -253,7 +261,7 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 
 ### Tests
 
-`tests/test_character_creation.gd` / `test_character_creation.tscn` — 9 unit tests covering `_build_pc()` correctness (all headless; no live scene required). B4 adds no new tests — preview is pure derived display (reads library data, pushes to labels) and has no logic worth testing headlessly. Run via:
+`tests/test_character_creation.gd` / `test_character_creation.tscn` — 11 unit tests covering `_build_pc()` correctness (all headless; no live scene required). The two newest tests cover the `rolled_stats` param path: one confirms values are used verbatim when provided, the other confirms the internal-roll fallback stays in range when omitted. Run via:
 ```
 godot --headless --path rogue-finder res://tests/test_character_creation.tscn
 ```
@@ -265,12 +273,15 @@ godot --headless --path rogue-finder res://tests/test_character_creation.tscn
 - **Portrait not serialized** — `CombatantData.portrait` is `Texture2D` (not JSON-serializable). All portrait options are `icon.svg` at v1 so the loss is invisible. When real art ships: add `portrait_id: String` to `CombatantData`, serialize in `_serialize_combatant()` / `_deserialize_combatant()`, restore texture on load.
 - **Preview signature reserved** — `_calc_preview() -> Dictionary` returns the derived preview data even though the inline UI pushes values into labels directly. Signature is preserved so a future `CharacterCreationPreview` component can consume the dict without a live UI (e.g. for tooltip previews on hover, or headless tests if formulas grow complex). Do not collapse it to `-> void`.
 - **Preview nil-guard** — `_calc_preview()` checks `_preview_hp_lbl != null` before pushing label text. This allows calling `_calc_preview()` from static/test contexts without crashing (labels only exist after `_build_preview_panel()` runs).
-- **B4 preview is read-only** — no interactive elements. Preview labels are driven entirely by dial state + library lookups; `_build_pc()` still sources stats from `rng.randi_range()` at confirm time (preview shows range, not the actual rolled values).
+- **Stats are rolled at `_ready()` before `_build_ui()`** — so `_rolled_stats` is populated by the time the preview panel tries to render initial values. If you reorder `_ready()` to build UI first, the first `_calc_preview()` call will see an empty dict and every stat will display as the `1`/`4` fallback.
+- **Commit side-effects live in `_on_confirm()`** — `delete_save()` + `reset()` used to run in `MainMenuManager._on_new_run()`. They were moved here so the Back button is a true cancel (save intact until the player actually commits). If you add another entry path to MapScene that bypasses `_on_confirm()`, make sure it also handles the reset — e.g. `MainMenuManager._on_test_new_run()` does its own `delete_save()` + `reset()` for this reason.
+- **Previewed stats = persisted stats** — the manager pre-rolls stats and passes them to `_build_pc()` as the `rolled_stats` dict. If you later add a code path that calls `_build_pc()` directly (like Test New Run does), you must decide whether to feed it pre-rolled stats or let it roll internally. Both paths are supported and covered by tests.
 
 ### Recent Changes
 
 | Date | Change |
 |---|---|
+| 2026-04-24 | **Back button + stat reroll.** Back button in the left column returns to MainMenu without mutating save state (`delete_save()` + `reset()` moved from `MainMenuManager._on_new_run()` into `CharacterCreationManager._on_confirm()` so Back is a clean cancel). Stats are now rolled at `_ready()` time and shown as concrete values in the preview (HP + STR/DEX/COG/WIL/VIT + AC). 🎲 Reroll Stats button in the preview panel re-rolls. `_build_pc()` signature extended with optional `rolled_stats: Dictionary = {}` — populated dict is used verbatim, empty dict falls back to internal rolls (preserves Test New Run + existing 9 tests). 2 new tests added (11 total). |
 | 2026-04-24 | B4 — Live preview panel. Read-only `PanelContainer` rendered below the dial row showing HP range (`10 + kindred_hp + [6..24]`), Speed (`1 + kindred_speed`), Stats (fixed "1–4"), class ability name+description, background ability name+description, and kindred feat name. `_calc_preview()` fleshed out from stub — still returns `Dictionary` but now also pushes values into eight label refs stored as instance vars. New helpers `_build_preview_panel()` and `_make_stat_label()`. `AbilityLibrary` added as a dependency. No new tests (pure derived display). Existing 9 headless tests untouched. |
 | 2026-04-24 | B1+B2 — Character creation scene added. `MainMenuManager._on_new_run()` now routes to `CharacterCreationScene` instead of `MapScene`. `_build_pc()` builds `CombatantData` from picks. Slot-wheel dial columns with ghost neighbours (▲/▼, prev/next at 25% opacity). Portrait dial shows icon.svg placeholder; portrait picker hidden until real art ships. 9 unit tests green. |
 
