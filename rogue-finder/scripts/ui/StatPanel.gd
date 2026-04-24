@@ -16,6 +16,7 @@ var _title: Label           = null
 var _scroll: ScrollContainer = null
 var _rtl: RichTextLabel     = null
 var _close_btn: Button      = null
+var _feat_lbl: Label        = null
 
 func _ready() -> void:
 	layer = 8
@@ -56,11 +57,12 @@ func _build_ui() -> void:
 	_title.add_theme_font_size_override("font_size", 14)
 	_panel.add_child(_title)
 
-	# ScrollContainer + RichTextLabel for all stat content
+	# ScrollContainer + RichTextLabel for scrollable stat content.
+	# 30px reserved at the bottom for the pinned feat label.
 	var content_y: float = 34.0 + PORTRAIT_SZ + 34.0
 	_scroll = ScrollContainer.new()
 	_scroll.position               = Vector2(6.0, content_y)
-	_scroll.size                   = Vector2(PANEL_W - 12.0, PANEL_H - content_y - 6.0)
+	_scroll.size                   = Vector2(PANEL_W - 12.0, PANEL_H - content_y - 32.0)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
 	_panel.add_child(_scroll)
@@ -74,6 +76,16 @@ func _build_ui() -> void:
 	_rtl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rtl.add_theme_font_size_override("normal_font_size", 12)
 	_scroll.add_child(_rtl)
+
+	# Feat — pinned at panel bottom. mouse_filter PASS lets hover reach this label
+	# so Godot's built-in tooltip_text fires on hover.
+	_feat_lbl = Label.new()
+	_feat_lbl.position     = Vector2(8.0, PANEL_H - 28.0)
+	_feat_lbl.size         = Vector2(PANEL_W - 16.0, 22.0)
+	_feat_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+	_feat_lbl.add_theme_font_size_override("font_size", 12)
+	_feat_lbl.add_theme_color_override("font_color", Color(0.80, 0.76, 0.60))
+	_panel.add_child(_feat_lbl)
 
 ## --- Public API ---
 
@@ -94,6 +106,11 @@ func show_for(unit: Unit3D) -> void:
 
 	_rtl.text = _format(d, unit)
 	_scroll.scroll_vertical = 0  # reset scroll to top on each open
+
+	var _feat: FeatData = FeatLibrary.get_feat(d.kindred_feat_id)
+	_feat_lbl.text         = "Feat:  %s" % _or(_feat.name)
+	_feat_lbl.tooltip_text = _feat.description
+
 	visible = true
 
 func hide_panel() -> void:
@@ -109,10 +126,6 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	lines.append("[b]Kindred:[/b]    %s" % _or(d.kindred))
 	lines.append("[b]Background:[/b] %s" % _or(d.background))
 	lines.append("[b]Team:[/b]       %s" % ("Player" if d.is_player_unit else "Enemy"))
-	var _feat: FeatData = FeatLibrary.get_feat(d.kindred_feat_id)
-	lines.append("[b]Feat:[/b]       %s" % _or(_feat.name))
-	if _feat.description != "":
-		lines.append("              %s" % _feat.description)
 	lines.append("")
 
 	# -- Live State --
