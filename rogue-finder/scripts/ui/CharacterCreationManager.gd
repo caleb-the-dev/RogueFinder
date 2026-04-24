@@ -23,7 +23,6 @@ var _bg_idx:      int = 0
 # Preview panel label refs — populated in _build_preview_panel(), pushed by _calc_preview().
 var _preview_hp_lbl:        Label = null
 var _preview_speed_lbl:     Label = null
-var _preview_stats_lbl:     Label = null
 var _preview_class_name:    Label = null
 var _preview_class_desc:    Label = null
 var _preview_bg_name:       Label = null
@@ -282,7 +281,7 @@ func _build_preview_panel() -> PanelContainer:
 	header_lbl.add_theme_font_size_override("font_size", 16)
 	col.add_child(header_lbl)
 
-	# Stat strip: HP range · Speed · Stats (1–4)
+	# Top strip: HP range · Speed
 	var stats_row := HBoxContainer.new()
 	stats_row.add_theme_constant_override("separation", 16)
 	stats_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -290,10 +289,20 @@ func _build_preview_panel() -> PanelContainer:
 
 	_preview_hp_lbl    = _make_stat_label("HP: —")
 	_preview_speed_lbl = _make_stat_label("Speed: —")
-	_preview_stats_lbl = _make_stat_label("Stats: 1–4")
 	stats_row.add_child(_preview_hp_lbl)
 	stats_row.add_child(_preview_speed_lbl)
-	stats_row.add_child(_preview_stats_lbl)
+
+	# Attributes row — all five roll 1–4 at creation regardless of picks.
+	var attr_row := HBoxContainer.new()
+	attr_row.add_theme_constant_override("separation", 12)
+	attr_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_child(attr_row)
+
+	attr_row.add_child(_make_stat_label("STR: 1–4"))
+	attr_row.add_child(_make_stat_label("DEX: 1–4"))
+	attr_row.add_child(_make_stat_label("COG: 1–4"))
+	attr_row.add_child(_make_stat_label("WIL: 1–4"))
+	attr_row.add_child(_make_stat_label("VIT: 1–4"))
 
 	col.add_child(HSeparator.new())
 
@@ -390,7 +399,6 @@ func _calc_preview() -> Dictionary:
 	if _preview_hp_lbl != null:
 		_preview_hp_lbl.text    = "HP: %d–%d" % [hp_min, hp_max]
 		_preview_speed_lbl.text = "Speed: %d" % speed
-		_preview_stats_lbl.text = "Stats: 1–4"
 		_preview_class_name.text = "Class Ability — %s" % class_ab.ability_name
 		_preview_class_desc.text = class_ab.description
 		_preview_bg_name.text    = "Background Ability — %s" % bg_ab.ability_name

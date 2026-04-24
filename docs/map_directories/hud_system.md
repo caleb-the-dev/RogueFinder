@@ -173,7 +173,7 @@ Layout — two-column body inside a full-rect `MarginContainer` (40 px margins).
   - `LineEdit` (name) + 🎲 button (random name from active kindred's pool; "Unit" fallback on empty pool)
   - Four slot-wheel dial columns: Kindred · Class · Background · Portrait
   - "Begin Run" confirm button
-- **Right column (2)** — live preview `PanelContainer` (B4) showing HP range, Speed, Stats range, class ability name + description, background ability name + description, kindred feat name. Updates live from `_calc_preview()` on every dial change. Read-only — no interactive elements.
+- **Right column (2)** — live preview `PanelContainer` (B4) showing HP range, Speed, per-attribute row (STR / DEX / COG / WIL / VIT — all "1–4" since every attribute rolls the same range at creation), class ability name + description, background ability name + description, kindred feat name. Updates live from `_calc_preview()` on every dial change. Read-only — no interactive elements.
 
 Each dial column shows the current selection (20 px, light highlight panel) flanked by ghost neighbours at 25% opacity / 12 px. All children built in `_build_ui()`.
 
@@ -186,7 +186,7 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_build_ui()` | Constructs name row + four dial columns + confirm button |
 | `_build_text_dial(header, ids, display, on_select)` | Returns a `PanelContainer` drum column with ▲/▼ and three visible text rows (prev ghost, current highlighted, next ghost). `idx` stored in a single-element `Array[int]` — required because GDScript 4 closures capture locals by value, so a plain `int` would reset to 0 on every press. |
 | `_build_portrait_dial()` | Same drum column shape but shows `TextureRect` (icon.svg) for current + smaller greyed icons for prev/next. Arrows disabled (1 portrait option until art ships). |
-| `_build_preview_panel()` | Returns a `PanelContainer` (drum style) holding the live preview — HP / Speed / Stats strip, class ability name+desc, background ability name+desc, kindred feat name. Stores eight label refs as instance vars for `_calc_preview()` to push to. |
+| `_build_preview_panel()` | Returns a `PanelContainer` (drum style) holding the live preview — HP + Speed strip, per-attribute row (STR/DEX/COG/WIL/VIT, all "1–4" literal), class ability name+desc, background ability name+desc, kindred feat name. Stores seven label refs as instance vars for `_calc_preview()` to push to. Per-attribute labels are built once without refs since every attribute rolls the same 1–4 range regardless of picks. |
 | `_make_stat_label(text)` | Small helper — one-line `Label` with font size 14 used for the preview panel's stat strip. |
 | `_on_dice_name()` | Reads active kindred's name pool via `KindredLibrary.get_name_pool()`; falls back to "Unit" on empty pool |
 | `_on_confirm()` | Calls `_build_pc()`, appends to `GameState.party`, transitions to `MapScene` |
@@ -229,7 +229,6 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_bg_idx` | `int` | Current background dial selection index |
 | `_preview_hp_lbl` | `Label` | Preview strip — "HP: min–max" |
 | `_preview_speed_lbl` | `Label` | Preview strip — "Speed: N" |
-| `_preview_stats_lbl` | `Label` | Preview strip — fixed "Stats: 1–4" (all core stats roll 1–4 at creation) |
 | `_preview_class_name` | `Label` | "Class Ability — <name>" row |
 | `_preview_class_desc` | `Label` | Class ability description (autowrap, 75% opacity) |
 | `_preview_bg_name` | `Label` | "Background Ability — <name>" row |
