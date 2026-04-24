@@ -39,6 +39,7 @@ var _preview_class_desc:    Label = null
 var _preview_bg_name:       Label = null
 var _preview_bg_desc:       Label = null
 var _preview_feat_lbl:      Label = null
+var _preview_feat_desc:     Label = null
 
 func _ready() -> void:
 	_load_data()
@@ -361,10 +362,15 @@ func _build_preview_panel() -> PanelContainer:
 
 	col.add_child(HSeparator.new())
 
-	# Kindred feat name (no description per B4 spec)
+	# Kindred feat name + description
 	_preview_feat_lbl = Label.new()
 	_preview_feat_lbl.add_theme_font_size_override("font_size", 14)
 	col.add_child(_preview_feat_lbl)
+
+	_preview_feat_desc = Label.new()
+	_preview_feat_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_preview_feat_desc.modulate = Color(1.0, 1.0, 1.0, 0.75)
+	col.add_child(_preview_feat_desc)
 
 	return panel
 
@@ -441,7 +447,7 @@ func _calc_preview() -> Dictionary:
 	var bg_ab_id: String    = BackgroundLibrary.get_background(bg_id).starting_ability_id
 	var class_ab := AbilityLibrary.get_ability(class_ab_id)
 	var bg_ab    := AbilityLibrary.get_ability(bg_ab_id)
-	var feat_name: String = KindredLibrary.get_feat_name(kindred_id)
+	var feat_data: FeatData = FeatLibrary.get_feat(KindredLibrary.get_feat_id(kindred_id))
 
 	var data := {
 		"hp": hp,
@@ -451,7 +457,8 @@ func _calc_preview() -> Dictionary:
 		"class_ability_desc": class_ab.description,
 		"bg_ability_name":    bg_ab.ability_name,
 		"bg_ability_desc":    bg_ab.description,
-		"feat_name":          feat_name,
+		"feat_name":          feat_data.name,
+		"feat_desc":          feat_data.description,
 	}
 
 	if _preview_hp_lbl != null:
@@ -466,7 +473,8 @@ func _calc_preview() -> Dictionary:
 		_preview_class_desc.text = class_ab.description
 		_preview_bg_name.text    = "Background Ability — %s" % bg_ab.ability_name
 		_preview_bg_desc.text    = bg_ab.description
-		_preview_feat_lbl.text   = "Kindred Feat — %s" % feat_name
+		_preview_feat_lbl.text   = "Kindred Feat — %s" % feat_data.name
+		_preview_feat_desc.text  = feat_data.description
 
 	return data
 
