@@ -178,7 +178,7 @@ Layout — two-column body inside a full-rect `MarginContainer` (40 px margins).
   - `LineEdit` (name) + 🎲 button (random name from active kindred's pool; "Unit" fallback on empty pool)
   - Four slot-wheel dial columns: Kindred · Class · Background · Portrait
   - "Begin Run" confirm button
-- **Right column (2)** — live preview `PanelContainer` showing concrete HP (from rolled VIT), Speed (from kindred), a **🎲 Reroll Stats** button, per-attribute row (STR / DEX / COG / WIL / VIT / AC — **concrete rolled values**, not ranges), class ability name + description, background ability name + description, kindred feat name. Updates live from `_calc_preview()` on every dial change and every reroll. Read-only text rows; the only interactive control inside the panel is the Reroll button.
+- **Right column (2)** — live preview `PanelContainer` showing concrete HP (from rolled VIT), Speed (from kindred), a **🎲 Reroll Stats** button, per-attribute row (STR / DEX / COG / WIL / VIT — **concrete rolled values**, not ranges), class ability name + description, background ability name + description, kindred feat name. Updates live from `_calc_preview()` on every dial change and every reroll. Read-only text rows; the only interactive control inside the panel is the Reroll button. (Armor/defense is rolled behind the scenes by Reroll but not surfaced — it's a gear-driven stat everywhere else in the game and starting armor is uniform enough that a visible roll would be noise.)
 
 Each dial column shows the current selection (20 px, light highlight panel) flanked by ghost neighbours at 25% opacity / 12 px. All children built in `_build_ui()`.
 
@@ -191,7 +191,7 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_build_ui()` | Constructs name row + four dial columns + confirm button |
 | `_build_text_dial(header, ids, display, on_select)` | Returns a `PanelContainer` drum column with ▲/▼ and three visible text rows (prev ghost, current highlighted, next ghost). `idx` stored in a single-element `Array[int]` — required because GDScript 4 closures capture locals by value, so a plain `int` would reset to 0 on every press. |
 | `_build_portrait_dial()` | Same drum column shape but shows `TextureRect` (icon.svg) for current + smaller greyed icons for prev/next. Arrows disabled (1 portrait option until art ships). |
-| `_build_preview_panel()` | Returns a `PanelContainer` (drum style) holding the live preview — HP + Speed strip, Reroll Stats button, per-attribute row (STR/DEX/COG/WIL/VIT/AC — concrete numbers), class ability name+desc, background ability name+desc, kindred feat name. Stores thirteen label refs as instance vars for `_calc_preview()` to push to. |
+| `_build_preview_panel()` | Returns a `PanelContainer` (drum style) holding the live preview — HP + Speed strip, Reroll Stats button, per-attribute row (STR/DEX/COG/WIL/VIT — concrete numbers), class ability name+desc, background ability name+desc, kindred feat name. Stores twelve label refs as instance vars for `_calc_preview()` to push to. |
 | `_make_stat_label(text)` | Small helper — one-line `Label` with font size 14 used for the preview panel's stat strip. |
 | `_roll_stats()` | Populates `_rolled_stats` dict with fresh `randi_range(1, 4)` values for STR/DEX/COG/WIL/VIT and `randi_range(4, 8)` for armor. Called from `_ready()` (initial seed before UI is built) and from the Reroll button. |
 | `_on_reroll_stats()` | Calls `_roll_stats()` then `_calc_preview()` to push new numbers into labels. |
@@ -237,8 +237,8 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_bg_idx` | `int` | Current background dial selection index |
 | `_preview_hp_lbl` | `Label` | Preview strip — "HP: N" (concrete, from rolled VIT) |
 | `_preview_speed_lbl` | `Label` | Preview strip — "Speed: N" |
-| `_preview_str_lbl` / `_dex` / `_cog` / `_wil` / `_vit` / `_ac` | `Label` × 6 | Per-attribute row labels — concrete rolled values pushed by `_calc_preview()` |
-| `_rolled_stats` | `Dictionary` | `{str, dex, cog, wil, vit, armor}` — seeded in `_ready()`, overwritten on Reroll, consumed by `_on_confirm()` → `_build_pc(..., _rolled_stats)`. Dict values are `int`. |
+| `_preview_str_lbl` / `_dex` / `_cog` / `_wil` / `_vit` | `Label` × 5 | Per-attribute row labels — concrete rolled values pushed by `_calc_preview()` |
+| `_rolled_stats` | `Dictionary` | `{str, dex, cog, wil, vit, armor}` — seeded in `_ready()`, overwritten on Reroll, consumed by `_on_confirm()` → `_build_pc(..., _rolled_stats)`. Dict values are `int`. `armor` is rolled + persisted but not rendered in the preview. |
 | `_preview_class_name` | `Label` | "Class Ability — <name>" row |
 | `_preview_class_desc` | `Label` | Class ability description (autowrap, 75% opacity) |
 | `_preview_bg_name` | `Label` | "Background Ability — <name>" row |
@@ -281,7 +281,7 @@ godot --headless --path rogue-finder res://tests/test_character_creation.tscn
 
 | Date | Change |
 |---|---|
-| 2026-04-24 | **Back button + stat reroll.** Back button in the left column returns to MainMenu without mutating save state (`delete_save()` + `reset()` moved from `MainMenuManager._on_new_run()` into `CharacterCreationManager._on_confirm()` so Back is a clean cancel). Stats are now rolled at `_ready()` time and shown as concrete values in the preview (HP + STR/DEX/COG/WIL/VIT + AC). 🎲 Reroll Stats button in the preview panel re-rolls. `_build_pc()` signature extended with optional `rolled_stats: Dictionary = {}` — populated dict is used verbatim, empty dict falls back to internal rolls (preserves Test New Run + existing 9 tests). 2 new tests added (11 total). |
+| 2026-04-24 | **Back button + stat reroll.** Back button in the left column returns to MainMenu without mutating save state (`delete_save()` + `reset()` moved from `MainMenuManager._on_new_run()` into `CharacterCreationManager._on_confirm()` so Back is a clean cancel). Stats are now rolled at `_ready()` time and shown as concrete values in the preview (HP + STR/DEX/COG/WIL/VIT). 🎲 Reroll Stats button in the preview panel re-rolls. Armor is rolled + persisted but not surfaced in the preview — gear drives defense in the rest of the UI, so a visible armor roll would be noise. `_build_pc()` signature extended with optional `rolled_stats: Dictionary = {}` — populated dict is used verbatim, empty dict falls back to internal rolls (preserves Test New Run + existing 9 tests). 2 new tests added (11 total). |
 | 2026-04-24 | B4 — Live preview panel. Read-only `PanelContainer` rendered below the dial row showing HP range (`10 + kindred_hp + [6..24]`), Speed (`1 + kindred_speed`), Stats (fixed "1–4"), class ability name+description, background ability name+description, and kindred feat name. `_calc_preview()` fleshed out from stub — still returns `Dictionary` but now also pushes values into eight label refs stored as instance vars. New helpers `_build_preview_panel()` and `_make_stat_label()`. `AbilityLibrary` added as a dependency. No new tests (pure derived display). Existing 9 headless tests untouched. |
 | 2026-04-24 | B1+B2 — Character creation scene added. `MainMenuManager._on_new_run()` now routes to `CharacterCreationScene` instead of `MapScene`. `_build_pc()` builds `CombatantData` from picks. Slot-wheel dial columns with ghost neighbours (▲/▼, prev/next at 25% opacity). Portrait dial shows icon.svg placeholder; portrait picker hidden until real art ships. 9 unit tests green. |
 

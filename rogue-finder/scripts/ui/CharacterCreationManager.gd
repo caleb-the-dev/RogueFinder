@@ -34,7 +34,6 @@ var _preview_dex_lbl:       Label = null
 var _preview_cog_lbl:       Label = null
 var _preview_wil_lbl:       Label = null
 var _preview_vit_lbl:       Label = null
-var _preview_ac_lbl:        Label = null
 var _preview_class_name:    Label = null
 var _preview_class_desc:    Label = null
 var _preview_bg_name:       Label = null
@@ -330,13 +329,11 @@ func _build_preview_panel() -> PanelContainer:
 	_preview_cog_lbl = _make_stat_label("COG: —")
 	_preview_wil_lbl = _make_stat_label("WIL: —")
 	_preview_vit_lbl = _make_stat_label("VIT: —")
-	_preview_ac_lbl  = _make_stat_label("AC: —")
 	attr_row.add_child(_preview_str_lbl)
 	attr_row.add_child(_preview_dex_lbl)
 	attr_row.add_child(_preview_cog_lbl)
 	attr_row.add_child(_preview_wil_lbl)
 	attr_row.add_child(_preview_vit_lbl)
-	attr_row.add_child(_preview_ac_lbl)
 
 	col.add_child(HSeparator.new())
 
@@ -465,7 +462,6 @@ func _calc_preview() -> Dictionary:
 		_preview_cog_lbl.text   = "COG: %d" % int(_rolled_stats.get("cog",   1))
 		_preview_wil_lbl.text   = "WIL: %d" % int(_rolled_stats.get("wil",   1))
 		_preview_vit_lbl.text   = "VIT: %d" % vit
-		_preview_ac_lbl.text    = "AC: %d"  % int(_rolled_stats.get("armor", 4))
 		_preview_class_name.text = "Class Ability — %s" % class_ab.ability_name
 		_preview_class_desc.text = class_ab.description
 		_preview_bg_name.text    = "Background Ability — %s" % bg_ab.ability_name
