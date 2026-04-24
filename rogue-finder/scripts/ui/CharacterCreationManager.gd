@@ -17,11 +17,10 @@ var _bg_display:       Array[String] = []
 var _portrait_ids:     Array[String] = []
 var _portrait_display: Array[String] = []
 
-var _name_field:   LineEdit     = null
-var _kindred_opt:  OptionButton = null
-var _class_opt:    OptionButton = null
-var _bg_opt:       OptionButton = null
-var _portrait_opt: OptionButton = null
+var _name_field:  LineEdit     = null
+var _kindred_opt: OptionButton = null
+var _class_opt:   OptionButton = null
+var _bg_opt:      OptionButton = null
 
 func _ready() -> void:
 	_load_data()
@@ -71,12 +70,6 @@ func _build_ui() -> void:
 	_bg_opt.item_selected.connect(func(_i): _on_pick_changed())
 	vbox.add_child(_bg_opt)
 
-	_portrait_opt = OptionButton.new()
-	for i in range(_portrait_ids.size()):
-		_portrait_opt.add_item(_portrait_display[i])
-	_portrait_opt.item_selected.connect(func(_i): _on_pick_changed())
-	vbox.add_child(_portrait_opt)
-
 	var confirm := Button.new()
 	confirm.text = "Begin Run"
 	confirm.pressed.connect(_on_confirm)
@@ -97,7 +90,7 @@ func _on_confirm() -> void:
 	var kindred_id: String  = _kindred_ids[_kindred_opt.selected]  if not _kindred_ids.is_empty()  else ""
 	var class_id: String    = _class_ids[_class_opt.selected]      if not _class_ids.is_empty()    else ""
 	var bg_id: String       = _bg_ids[_bg_opt.selected]            if not _bg_ids.is_empty()       else ""
-	var portrait_id: String = _portrait_ids[_portrait_opt.selected] if not _portrait_ids.is_empty() else ""
+	var portrait_id: String = _portrait_ids[0] if not _portrait_ids.is_empty() else ""
 	var pc := _build_pc(_name_field.text, kindred_id, class_id, bg_id, portrait_id)
 	GameState.party.append(pc)
 	get_tree().change_scene_to_file(MAP_SCENE_PATH)
