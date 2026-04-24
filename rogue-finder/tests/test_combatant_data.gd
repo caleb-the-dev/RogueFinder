@@ -33,6 +33,8 @@ func _ready() -> void:
 	test_kindred_hp_formula()
 	test_kindred_feat_assignment()
 	test_kindred_unknown_defaults_safe()
+	test_kindred_name_pool_loaded()
+	test_kindred_name_pool_unknown_safe()
 	print("=== All CombatantData tests passed ===")
 
 ## --- Derived Stat Tests ---
@@ -264,6 +266,30 @@ func test_kindred_unknown_defaults_safe() -> void:
 	assert(KindredLibrary.get_feat_name("Unknown") == "",
 		"Unknown kindred feat_name should be empty string")
 	print("  PASS test_kindred_unknown_defaults_safe")
+
+## Every known kindred must load a non-empty name pool with a known flavor name —
+## proves the CSV `name_pool` column parses correctly and reaches get_name_pool().
+func test_kindred_name_pool_loaded() -> void:
+	var expected_member: Dictionary = {
+		"Human":    "Kale",
+		"Half-Orc": "Brak",
+		"Gnome":    "Finch",
+		"Dwarf":    "Sven",
+	}
+	for kindred in expected_member.keys():
+		var pool: Array[String] = KindredLibrary.get_name_pool(kindred)
+		assert(not pool.is_empty(),
+			"%s: name_pool should not be empty" % kindred)
+		assert(expected_member[kindred] in pool,
+			"%s: expected '%s' in name_pool, got %s" % [kindred, expected_member[kindred], str(pool)])
+	print("  PASS test_kindred_name_pool_loaded")
+
+## Unknown kindred returns an empty pool — ArchetypeLibrary.create() falls back to "Unit".
+func test_kindred_name_pool_unknown_safe() -> void:
+	var pool: Array[String] = KindredLibrary.get_name_pool("NotAKindred")
+	assert(pool.is_empty(),
+		"Unknown kindred name_pool should be empty, got %s" % str(pool))
+	print("  PASS test_kindred_name_pool_unknown_safe")
 
 func test_ability_pool_size_all_archetypes() -> void:
 	# RogueFinder / archer_bandit / grunt have 4 active + 4 pool_extras = 8.

@@ -54,7 +54,7 @@ All per-row game data (kindreds, classes, backgrounds, abilities, equipment, con
 
 **Cell conventions:** pipe-separated for string arrays (`feat_pool = a|b|c`); pipe-separated for ranges (`str_range = 1|4`); JSON for nested structures (`effects = [{"type":"HARM","base_value":5}]`).
 
-**Uniformity pass complete (S30–S35).** All six game-data libraries now source from CSV: `BackgroundLibrary`, `ClassLibrary`, `PortraitLibrary`, `ConsumableLibrary`, `EquipmentLibrary`, `KindredLibrary`, `ArchetypeLibrary`, `AbilityLibrary`. Next new data set (enemies, feats, etc.) must follow the same pattern from day one.
+**Uniformity pass complete (S30–S35 + name-pool migration).** All eight game-data libraries now source from CSV with no inline `const` game-content dicts remaining: `BackgroundLibrary`, `ClassLibrary`, `PortraitLibrary`, `ConsumableLibrary`, `EquipmentLibrary`, `KindredLibrary`, `ArchetypeLibrary`, `AbilityLibrary`. Flavor name pools live on `KindredData.name_pool` (not archetype). Next new data set (enemies, feats, etc.) must follow the same pattern from day one.
 
 ---
 

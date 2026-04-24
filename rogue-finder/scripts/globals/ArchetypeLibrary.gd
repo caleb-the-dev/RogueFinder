@@ -12,15 +12,9 @@ const CSV_PATH := "res://data/archetypes.csv"
 ## Lazily populated on first access. Keyed by archetype_id.
 static var _cache: Dictionary = {}
 
-## Flavor name pools — UI/flavor data only; not worth a CSV row.
-## Enemies are never auto-named; player allies draw from here when no name is given.
-const _NAME_POOLS: Dictionary = {
-	"RogueFinder":   ["Hero"],
-	"archer_bandit": ["Kale", "Sora", "Wren", "Dax", "Mira", "Fenn"],
-	"grunt":         ["Brak", "Mord", "Thug", "Krak", "Uge", "Dorn"],
-	"alchemist":     ["Finch", "Alda", "Quill", "Senna", "Pip", "Loris"],
-	"elite_guard":   ["Sven", "Holt", "Cara", "Brix", "Edda", "Vale"],
-}
+## Flavor names live on the kindred (see KindredLibrary.get_name_pool) — archetypes
+## no longer carry their own pool. Enemies stay unnamed; player allies draw from
+## their kindred's pool when no explicit name is supplied.
 
 ## ======================================================
 ## Public API
@@ -110,8 +104,11 @@ static func create(archetype_id: String, character_name: String = "",
 	if character_name != "":
 		data.character_name = character_name
 	elif is_player:
-		var pool: Array = _NAME_POOLS.get(archetype_id, ["Unit"])
-		data.character_name = pool[rng.randi_range(0, pool.size() - 1)]
+		var pool: Array[String] = KindredLibrary.get_name_pool(data.kindred)
+		if pool.is_empty():
+			data.character_name = "Unit"
+		else:
+			data.character_name = pool[rng.randi_range(0, pool.size() - 1)]
 	else:
 		data.character_name = ""
 
