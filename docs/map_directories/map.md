@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-23 (S34) |
+| last_updated | 2026-04-23 (S35) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 6 |
+| sessions_since_groom | 7 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -30,7 +30,7 @@
 | [Camera System](camera_system.md) | `camera_system.md` | ✅ Active (3D only) | Presentation |
 | [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator / RunSummaryScene](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
 | [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34) | Data |
-| [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (22 abilities) | Data |
+| [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (22 abilities, CSV-sourced S35) | Data |
 | [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (6 equipment CSV-sourced S32; 2 consumables CSV-sourced S31) | Data |
 | [Background System](background_system.md) | `background_system.md` | ✅ Active (dormant — CSV-sourced; 3 ability IDs fixed S30) | Data |
 | [Class Library](class_system.md) | `class_system.md` | ✅ Active (dormant — 4 classes, CSV-sourced, S30) | Data |
@@ -132,7 +132,7 @@ rogue-finder/
 │   │   ├── Unit.gd                     ← legacy 2D
 │   │   └── Grid.gd                     ← legacy 2D
 │   ├── globals/
-│   │   ├── AbilityLibrary.gd           ← 22 abilities
+│   │   ├── AbilityLibrary.gd           ← CSV-sourced (res://data/abilities.csv); 22 abilities
 │   │   ├── ArchetypeLibrary.gd         ← CSV-sourced (res://data/archetypes.csv); 5 archetypes
 │   │   ├── BackgroundLibrary.gd        ← CSV-sourced (res://data/backgrounds.csv)
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
@@ -170,6 +170,7 @@ rogue-finder/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
 │   ├── consumables.csv                 ← 2 consumables; read via res://data/
 │   ├── equipment.csv                   ← 6 items; stat_bonuses as stat:value|stat:value pairs
+│   ├── abilities.csv                   ← 22 abilities; effects as JSON arrays; read via res://data/
 │   ├── archetypes.csv                  ← 5 archetypes; read via res://data/
 │   ├── kindreds.csv                    ← 4 kindreds; read via res://data/
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
@@ -200,6 +201,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-23 | AbilityLibrary | S35 — Data-library uniformity pass session 6: `AbilityLibrary` migrated from inline `const ABILITIES` dict to `abilities.csv` + CSV-native loader. Effects encoded as JSON arrays in each row. `all_abilities()` / `reload()` added; `get_ability()` signature unchanged. `ABILITIES` dict removed; one caller in `test_class_library.gd` updated. Stale assertions in `test_ability_library.gd` fixed. |
 | 2026-04-23 | ArchetypeLibrary, ArchetypeData | S34 — Data-library uniformity pass session 5: `ArchetypeLibrary` migrated from inline `const ARCHETYPES` dict to `archetypes.csv` + CSV-native loader. `ArchetypeData.gd` resource added. `ARCHETYPES` dict removed; callers updated to `all_archetypes()` / `get_archetype()`. `create()` signature unchanged. |
 | 2026-04-23 | KindredLibrary, KindredData | S33 — Data-library uniformity pass session 4: `KindredLibrary` migrated from const dict to `kindreds.csv` + CSV-native loader. `KindredData.gd` resource added. All existing getter functions preserved unchanged; `get_kindred()` / `all_kindreds()` / `reload()` added. No caller changes required. |
 | 2026-04-23 | EquipmentLibrary, test_equipment | S32 — Data-library uniformity pass session 3: `EquipmentLibrary` migrated from const array to `equipment.csv` + CSV-native loader. `stat_bonuses` stored as `stat:value\|stat:value` pipe pairs. `reload()` added. Two stale speed tests in `test_equipment.gd` fixed (S29 kindred formula: dex no longer drives speed). |

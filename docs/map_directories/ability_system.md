@@ -1,6 +1,6 @@
 # System: Ability System
 
-> Last updated: 2026-04-23 (split from combatant_data.md during map audit)
+> Last updated: 2026-04-23 (S35 — AbilityLibrary migrated from inline const dict to abilities.csv + CSV-native loader)
 
 ---
 
@@ -22,7 +22,8 @@ One QTE fires per ability. The resulting `multiplier` float is shared across eve
 |------|------|
 | `resources/AbilityData.gd` | Ability resource — identity, targeting shape, cost, effects array |
 | `resources/EffectData.gd` | Sub-resource — one effect within an ability |
-| `scripts/globals/AbilityLibrary.gd` | Static factory — 22 abilities, `get_ability()` API |
+| `scripts/globals/AbilityLibrary.gd` | CSV-native loader — 22 abilities, `get_ability()` / `all_abilities()` / `reload()` API |
+| `data/abilities.csv` | Data source — 22 ability rows; `effects` column is a JSON array of effect objects |
 
 ---
 
@@ -117,7 +118,7 @@ One QTE fires per ability. The resulting `multiplier: float` is shared across al
 
 ## AbilityLibrary
 
-Static class. Same pattern as `ConsumableLibrary` / `EquipmentLibrary` / `BackgroundLibrary`. Inline `const ABILITIES: Dictionary`; future CSV migration will replace the dictionary without changing the API.
+CSV-native lazy-loaded class. Same pattern as all other data libraries. `ABILITIES` const dict removed; data now sourced from `abilities.csv`. Effects column stores a JSON array — each object has `type` (string), `base_value` (int), and type-specific optional keys (`pool`, `stat`, `move`, `force`).
 
 ### Defined Abilities (22)
 
@@ -151,6 +152,8 @@ Static class. Same pattern as `ConsumableLibrary` / `EquipmentLibrary` / `Backgr
 ```gdscript
 ## Returns a populated AbilityData. Never returns null — falls back to a stub for unknown IDs.
 static func get_ability(ability_id: String) -> AbilityData
+static func all_abilities() -> Array[AbilityData]   # replaces ABILITIES iteration
+static func reload() -> void                         # cache-clear for tests/dev
 ```
 
 ---
@@ -179,4 +182,4 @@ static func get_ability(ability_id: String) -> AbilityData
 
 - **`get_ability()` never returns null** — safe to call without nil checks. Unknown IDs return a stub AbilityData.
 - **One QTE per ability, not per effect** — `AbilityData.effects` can contain multiple entries (e.g. `acid_splash`: HARM + DEBUFF); they all receive the same `multiplier`.
-- **Future CSV migration** — the `const ABILITIES: Dictionary` block is the only thing that needs replacing; the API stays the same.
+- **CSV effects format** — each row's `effects` cell is a JSON array. String enum names (e.g. `"HARM"`, `"DEXTERITY"`) are mapped to int values by lookup tables inside `AbilityLibrary`. Edit the CSV in a spreadsheet; the `""` escaping of double quotes is standard CSV and handled transparently.
