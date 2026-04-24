@@ -83,6 +83,8 @@ func _build_text_dial(header: String, ids: Array[String], display: Array[String]
 	# Array used as a mutable int ref — GDScript 4 closures capture locals by value,
 	# so a plain int would reset to 0 on every press.
 	var idx: Array[int] = [0]
+	var n: int = ids.size()
+
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.custom_minimum_size = Vector2(140, 0)
@@ -90,7 +92,7 @@ func _build_text_dial(header: String, ids: Array[String], display: Array[String]
 
 	var col := VBoxContainer.new()
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	col.add_theme_constant_override("separation", 6)
+	col.add_theme_constant_override("separation", 4)
 	panel.add_child(col)
 
 	var header_lbl := Label.new()
@@ -100,30 +102,46 @@ func _build_text_dial(header: String, ids: Array[String], display: Array[String]
 
 	var up_btn := Button.new()
 	up_btn.text = "▲"
-	up_btn.disabled = ids.size() <= 1
+	up_btn.disabled = n <= 1
 	col.add_child(up_btn)
 
+	var prev_lbl := Label.new()
+	prev_lbl.text = display[(n - 1) % n] if n > 1 else ""
+	prev_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prev_lbl.modulate = Color(1.0, 1.0, 1.0, 0.25)
+	col.add_child(prev_lbl)
+
 	var item_lbl := Label.new()
-	item_lbl.text = display[0] if not display.is_empty() else ""
+	item_lbl.text = display[0] if n > 0 else ""
 	item_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	item_lbl.custom_minimum_size = Vector2(0, 48)
+	item_lbl.custom_minimum_size = Vector2(0, 40)
 	item_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	col.add_child(item_lbl)
 
+	var next_lbl := Label.new()
+	next_lbl.text = display[1 % n] if n > 1 else ""
+	next_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	next_lbl.modulate = Color(1.0, 1.0, 1.0, 0.25)
+	col.add_child(next_lbl)
+
 	var down_btn := Button.new()
 	down_btn.text = "▼"
-	down_btn.disabled = ids.size() <= 1
+	down_btn.disabled = n <= 1
 	col.add_child(down_btn)
 
 	up_btn.pressed.connect(func():
-		idx[0] = (idx[0] - 1 + ids.size()) % ids.size()
+		idx[0] = (idx[0] - 1 + n) % n
+		prev_lbl.text = display[(idx[0] - 1 + n) % n] if n > 1 else ""
 		item_lbl.text = display[idx[0]]
+		next_lbl.text = display[(idx[0] + 1) % n] if n > 1 else ""
 		on_select.call(idx[0])
 		_on_pick_changed()
 	)
 	down_btn.pressed.connect(func():
-		idx[0] = (idx[0] + 1) % ids.size()
+		idx[0] = (idx[0] + 1) % n
+		prev_lbl.text = display[(idx[0] - 1 + n) % n] if n > 1 else ""
 		item_lbl.text = display[idx[0]]
+		next_lbl.text = display[(idx[0] + 1) % n] if n > 1 else ""
 		on_select.call(idx[0])
 		_on_pick_changed()
 	)
@@ -131,6 +149,8 @@ func _build_text_dial(header: String, ids: Array[String], display: Array[String]
 	return panel
 
 func _build_portrait_dial() -> PanelContainer:
+	var portrait_tex: Texture2D = load("res://icon.svg")
+
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.custom_minimum_size = Vector2(140, 0)
@@ -138,7 +158,7 @@ func _build_portrait_dial() -> PanelContainer:
 
 	var col := VBoxContainer.new()
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	col.add_theme_constant_override("separation", 6)
+	col.add_theme_constant_override("separation", 4)
 	panel.add_child(col)
 
 	var header_lbl := Label.new()
@@ -151,12 +171,28 @@ func _build_portrait_dial() -> PanelContainer:
 	up_btn.disabled = true
 	col.add_child(up_btn)
 
+	var prev_icon := TextureRect.new()
+	prev_icon.texture = portrait_tex
+	prev_icon.custom_minimum_size = Vector2(48, 48)
+	prev_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	prev_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	prev_icon.modulate = Color(1.0, 1.0, 1.0, 0.25)
+	col.add_child(prev_icon)
+
 	var icon := TextureRect.new()
-	icon.texture = load("res://icon.svg")
+	icon.texture = portrait_tex
 	icon.custom_minimum_size = Vector2(64, 64)
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	col.add_child(icon)
+
+	var next_icon := TextureRect.new()
+	next_icon.texture = portrait_tex
+	next_icon.custom_minimum_size = Vector2(48, 48)
+	next_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	next_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	next_icon.modulate = Color(1.0, 1.0, 1.0, 0.25)
+	col.add_child(next_icon)
 
 	var down_btn := Button.new()
 	down_btn.text = "▼"
