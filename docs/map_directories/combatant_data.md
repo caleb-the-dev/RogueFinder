@@ -49,8 +49,8 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 ### Identity
 | Field | Type | Notes |
 |-------|------|-------|
-| `character_name` | `String` | Display name; player-editable. |
-| `archetype_id` | `String` | Key into `ArchetypeLibrary.ARCHETYPES`. |
+| `character_name` | `String` | Display name; player-editable. When `is_player=true` and no explicit name is supplied to `ArchetypeLibrary.create()`, auto-drawn from the character's kindred name pool via `KindredLibrary.get_name_pool()`. Falls back to `"Unit"` if the kindred's pool is empty. |
+| `archetype_id` | `String` | Key into `ArchetypeLibrary` (via `get_archetype()` → `archetypes.csv`). |
 | `is_player_unit` | `bool` | Team assignment; drives AI vs. player control. |
 | `kindred` | `String` | Species/ancestry (e.g. `"Human"`, `"Dwarf"`, `"Gnome"`, `"Half-Orc"`). Fixed per archetype; set in `create()` from `def["kindred"]` via `.get("kindred", "Unknown")`. Persisted to save. Old saves default to `"Unknown"`. **Mechanically active:** drives `speed` and `hp_max` via `KindredLibrary`. |
 | `kindred_feat_id` | `String` | ID of the kindred's passive feat (e.g. `"adaptive"`, `"relentless"`). Set in `create()` via `KindredLibrary.get_feat_id(kindred)`. Persisted to save; old saves default to `""`. Placeholder — no mechanical effect yet. Displayed as feat name in StatPanel. |
@@ -197,6 +197,7 @@ static func reload() -> void                             # cache-clear for tests
 
 | Date | Change |
 |---|---|
+| 2026-04-23 | Name-pool migration — `_NAME_POOLS` const dict removed from `ArchetypeLibrary.gd`. Flavor names now live on `KindredData.name_pool` (new `Array[String]` field) sourced from the new `name_pool` column in `kindreds.csv`. `ArchetypeLibrary.create()` pulls from `KindredLibrary.get_name_pool(data.kindred)` when auto-naming player allies; empty pool → fallback `"Unit"`. Closes the last inline-const-dict exception in the data-library uniformity pass. Names themselves unchanged per-kindred (Human pool = old archer_bandit names; Half-Orc = grunt; Gnome = alchemist; Dwarf = elite_guard). Added `test_kindred_name_pool_loaded` + `test_kindred_name_pool_unknown_safe` to `test_combatant_data.gd`. |
 | 2026-04-23 | S34 — ArchetypeLibrary migrated from inline `const ARCHETYPES` dict to `archetypes.csv` + CSV-native loader. `ArchetypeData.gd` resource added with all fields as typed `@export` vars. `ARCHETYPES` dict removed; `all_archetypes()` / `get_archetype()` / `reload()` added to public API. `create()` signature unchanged — unknown ids still fall back to grunt definition. `test_combatant_data.gd` (4 tests) and `test_consumables.gd` (1 test) updated from `ARCHETYPES.keys()` to `all_archetypes()`. |
 | 2026-04-23 | S29 — Kindred mechanics live. `hp_max` formula changed to `10 + kindred_hp_bonus + VIT×6 + equip`; `speed` formula changed to `1 + kindred_speed_bonus + equip("dexterity")`. DEX removed from speed (reserved for future dodge/evasion). Added `kindred_feat_id: String` field; set in `create()` via `KindredLibrary.get_feat_id()`, persisted to save (old saves default `""`). New `KindredLibrary.gd` holds all per-kindred data. StatPanel feat row added. `test_combatant_data.gd` updated + 4 new kindred tests. |
 | 2026-04-23 | S28 — Added `kindred: String` to `CombatantData` (Identity section). Each archetype definition includes a `"kindred"` key; `create()` sets `data.kindred = def.get("kindred", "Unknown")`. Assignments: RogueFinder→Human, archer_bandit→Human, grunt→Half-Orc, alchemist→Gnome, elite_guard→Dwarf. Persisted in `GameState._serialize_combatant()` / `_deserialize_combatant()` (old saves default `"Unknown"`). Displayed in StatPanel, CombatActionPanel, and PartySheet. |

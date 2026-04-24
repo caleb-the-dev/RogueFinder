@@ -30,6 +30,12 @@ static func get_feat_name(kindred: String) -> String:
 static func get_feat_desc(kindred: String) -> String:
 	return get_kindred(kindred).feat_desc
 
+## Returns the flavor name pool for the given kindred. Empty array if unknown.
+## Consumed by ArchetypeLibrary.create() for auto-naming player allies; will
+## back the 🎲 random-name button on the character creation screen (S36).
+static func get_name_pool(kindred: String) -> Array[String]:
+	return get_kindred(kindred).name_pool
+
 ## --- New catalog API ---
 
 static func get_kindred(id: String) -> KindredData:
@@ -95,6 +101,8 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				k.feat_name = val
 			"feat_desc":
 				k.feat_desc = val
+			"name_pool":
+				k.name_pool = _split_pipe(val)
 			"notes":
 				pass
 			_:
@@ -103,3 +111,11 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 		push_error("KindredLibrary: row %d missing id — skipping" % row_num)
 		return null
 	return k
+
+static func _split_pipe(val: String) -> Array[String]:
+	if val == "":
+		return []
+	var parts: Array[String] = []
+	for p in val.split("|", false):
+		parts.append(p)
+	return parts
