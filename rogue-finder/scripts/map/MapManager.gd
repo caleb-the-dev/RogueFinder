@@ -984,9 +984,13 @@ func _get_ring(node_id: String) -> String:
 	return "outer"  # fallback for badurga or unrecognized
 
 func _on_event_finished() -> void:
+	if not GameState.cleared_nodes.has(GameState.player_node_id):
+		GameState.cleared_nodes.append(GameState.player_node_id)
 	_refresh_all_node_visuals()
 
 func _on_event_nav(dest: String) -> void:
+	if not GameState.cleared_nodes.has(GameState.player_node_id):
+		GameState.cleared_nodes.append(GameState.player_node_id)
 	GameState.save()
 	GameState.pending_node_type = dest
 	get_tree().change_scene_to_file("res://scenes/misc/NodeStub.tscn")
