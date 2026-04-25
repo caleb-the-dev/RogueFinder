@@ -32,6 +32,7 @@ var run_summary: Dictionary = {}      # populated before run-end transition; cle
 var inventory: Array = []
 
 func add_to_inventory(item: Dictionary) -> void:
+	item["seen"] = false
 	inventory.append(item)
 	print("[Inventory] Added '%s' (%s) — bag size: %d" % [item.get("id", "?"), item.get("item_type", "?"), inventory.size()])
 

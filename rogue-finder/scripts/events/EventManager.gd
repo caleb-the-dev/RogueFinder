@@ -8,6 +8,7 @@ extends CanvasLayer
 
 signal event_finished
 signal event_nav(dest: String)
+signal target_picked(target: CombatantData)
 
 ## --- UI Nodes ---
 
@@ -18,6 +19,7 @@ var _body_label: Label
 var _choices_container: VBoxContainer
 var _result_panel: VBoxContainer
 var _result_label: Label
+var _picker_centering: CenterContainer = null
 
 ## --- Lifecycle ---
 
@@ -155,12 +157,76 @@ func _on_choice_pressed(choice: EventChoiceData) -> void:
 				event_nav.emit("BENCH")
 				return
 
+	# Pre-scan for player_pick; if found, pause dispatch and show picker
+	var needs_pick := false
 	for effect: Dictionary in choice.effects:
-		dispatch_effect(effect, GameState.party)
+		if effect.get("target", "") == "player_pick":
+			needs_pick = true
+			break
+
+	var picked_target: CombatantData = null
+	if needs_pick:
+		_choices_container.visible = false
+		_show_picker()
+		picked_target = await target_picked
+		_hide_picker()
+
+	for effect: Dictionary in choice.effects:
+		dispatch_effect(effect, GameState.party, picked_target)
 
 	_result_label.text = choice.result_text
 	_choices_container.visible = false
 	_result_panel.visible = true
+
+## --- Picker Overlay ---
+## Dynamically built and freed; blocks choice buttons while waiting for player input.
+
+func _show_picker() -> void:
+	_picker_centering = CenterContainer.new()
+	_picker_centering.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_picker_centering.mouse_filter = Control.MOUSE_FILTER_PASS
+	add_child(_picker_centering)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(500.0, 200.0)
+	var psbox := StyleBoxFlat.new()
+	psbox.bg_color = Color(0.05, 0.06, 0.08, 0.97)
+	psbox.border_width_left = 2; psbox.border_width_right  = 2
+	psbox.border_width_top  = 2; psbox.border_width_bottom = 2
+	psbox.border_color = Color(0.40, 0.55, 0.72)
+	psbox.set_corner_radius_all(6)
+	psbox.content_margin_left = 20.0; psbox.content_margin_right  = 20.0
+	psbox.content_margin_top  = 16.0; psbox.content_margin_bottom = 16.0
+	panel.add_theme_stylebox_override("panel", psbox)
+	_picker_centering.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	var prompt := Label.new()
+	prompt.text = "Choose a target:"
+	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt.add_theme_font_size_override("font_size", 16)
+	prompt.add_theme_color_override("font_color", Color(0.85, 0.90, 0.95))
+	vbox.add_child(prompt)
+
+	for member: CombatantData in GameState.party:
+		if member.is_dead:
+			continue
+		var btn := Button.new()
+		btn.text = "%s  —  HP %d / %d  [%s]" % [
+			member.character_name, member.current_hp, member.hp_max, member.unit_class]
+		btn.custom_minimum_size = Vector2(0.0, 38.0)
+		btn.add_theme_font_size_override("font_size", 14)
+		var m: CombatantData = member
+		btn.pressed.connect(func() -> void: target_picked.emit(m))
+		vbox.add_child(btn)
+
+func _hide_picker() -> void:
+	if _picker_centering != null and is_instance_valid(_picker_centering):
+		_picker_centering.queue_free()
+	_picker_centering = null
 
 func _on_continue_pressed() -> void:
 	GameState.save()
@@ -261,8 +327,11 @@ static func resolve_target(target: String, party: Array[CombatantData]) -> Comba
 			return party[0]
 
 ## --- Static: Effect Dispatch ---
+## forced_target: when non-null and the effect target is "player_pick", use this member
+##   instead of resolve_target. Keeps dispatch static + headless-testable.
 
-static func dispatch_effect(effect: Dictionary, party: Array[CombatantData]) -> void:
+static func dispatch_effect(effect: Dictionary, party: Array[CombatantData],
+		forced_target: CombatantData = null) -> void:
 	var effect_type: String = effect.get("type", "")
 	match effect_type:
 		"item_gain":
@@ -275,12 +344,12 @@ static func dispatch_effect(effect: Dictionary, party: Array[CombatantData]) -> 
 		"item_remove":
 			GameState.remove_from_inventory(effect.get("item_id", ""))
 		"harm":
-			var t := resolve_target(effect.get("target", "PC"), party)
+			var t := _resolve_with_override(effect.get("target", "PC"), party, forced_target)
 			if t == null:
 				return
 			t.current_hp = maxi(0, t.current_hp - int(effect.get("value", 0)))
 		"heal":
-			var t := resolve_target(effect.get("target", "PC"), party)
+			var t := _resolve_with_override(effect.get("target", "PC"), party, forced_target)
 			if t == null:
 				return
 			t.current_hp = mini(t.hp_max, t.current_hp + int(effect.get("value", 0)))
@@ -291,7 +360,7 @@ static func dispatch_effect(effect: Dictionary, party: Array[CombatantData]) -> 
 				GameState.threat_level + float(int(effect.get("value", 0))) / 100.0,
 				0.0, 1.0)
 		"feat_grant":
-			var t := resolve_target(effect.get("target", "PC"), party)
+			var t := _resolve_with_override(effect.get("target", "PC"), party, forced_target)
 			if t == null:
 				return
 			var feat_id: String = effect.get("feat_id", "")
@@ -302,6 +371,13 @@ static func dispatch_effect(effect: Dictionary, party: Array[CombatantData]) -> 
 		_:
 			if not effect_type.is_empty():
 				push_warning("EventManager: unknown effect type '%s'" % effect_type)
+
+## Uses forced_target when the effect target is "player_pick" and a resolved member is available.
+static func _resolve_with_override(target: String, party: Array[CombatantData],
+		forced_target: CombatantData) -> CombatantData:
+	if target == "player_pick" and forced_target != null:
+		return forced_target
+	return resolve_target(target, party)
 
 ## Looks up item in EquipmentLibrary first, then ConsumableLibrary.
 ## Returns empty dict if not found in either.
