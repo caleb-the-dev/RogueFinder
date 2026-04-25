@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-04-24 (B1 — init_party() revised to spawn PC only; CharacterCreationManager added as dependent)
+> Last updated: 2026-04-24 (Slice 3 — used_event_ids field + EventSelector wiring)
 
 ---
 
@@ -44,6 +44,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `current_combat_node_id` | `String` | `""` | Set by `MapManager._enter_current_node()` immediately before transitioning to `CombatScene3D`. Read by `EndCombatScreen._on_reward_chosen()` to know which node to append to `cleared_nodes`. **NOT saved to disk** (transient handoff, like `pending_node_type`). |
 | `cleared_nodes` | `Array[String]` | `[]` | Nodes where the player completed combat AND collected a reward. Show a `✗` stamp on the map; traversable as pass-through. **Saved to disk.** |
 | `threat_level` | `float` | `0.0` | Run-wide danger gauge. Range 0.0–1.0 (0%–100%). Incremented by MapManager on both travel (+0.05) and node entry (+0.05); capped at 1.0 via `minf()`. Reset to `0.0` by EndCombatScreen when a BOSS node is defeated. Displayed as a vertical bar in the map HUD. **Saved to disk.** |
+| `used_event_ids` | `Array[String]` | `[]` | Event ids already drawn this run. Appended to by `EventSelector.pick_for_node()` whenever an EVENT node is entered. Used to filter the candidate pool so the same event doesn't repeat until all ring events are exhausted. **Saved to disk.** |
 | `party` | `Array[CombatantData]` | `[]` | Active party roster. index 0 = PC. Empty = not yet initialized (freshness check for `init_party()`). **Saved to disk.** |
 | `run_summary` | `Dictionary` | `{}` | Snapshot of run stats written by `CombatManager3D._capture_run_summary()` immediately before a run-end transition. Keys: `pc_name`, `nodes_visited`, `nodes_cleared`, `threat_level`, `fallen_allies`. Read by `RunSummaryManager`. Cleared by `reset()`. **NOT saved to disk** — survives the scene transition only because GameState is an autoload. |
 | `inventory` | `Array` | `[]` | Shared party bag. Holds raw reward dicts `{id, name, description, item_type}` for both equipment and consumables. `item_type` is used by the bag UI (Stage 2) to filter into tabs (All / Weapons / Armor / Accessories / Consumables). Nothing is auto-assigned on pickup — the player assigns from the bag manually. Cleared by `reset()`. **Saved to disk.** |
@@ -65,7 +66,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `save` | `() -> void` | Serializes all persistent fields (including `party`) to `user://save.json` as indented JSON. Party members are written as plain dicts with equipment slots serialized as their `equipment_id` string. Called by: **MapManager** after travel increments, node entry, and `_assign_node_types()`; **EndCombatScreen** on reward selection; **CombatManager3D** on ally permadeath (`_on_unit_died()`), on victory write-back, and on run-end (defeat). |
 | `load_save` | `() -> bool` | Reads and deserializes `user://save.json`. Returns `true` if a valid save was found and loaded, `false` on a fresh run or corrupt file. Called by **MapManager** at the start of `_ready()`, before any map data is built. Typed arrays are converted via `Array(raw, TYPE_STRING, "", null)`. Equipment slots resolve via `EquipmentLibrary.get_equipment(id)`; `""` id → `null` slot. |
 | `delete_save` | `() -> void` | Removes `user://save.json` if it exists. Called by **MapManager**'s debug "Delete Save" button before resetting in-memory state. |
-| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "badurga"`, `visited_nodes = ["badurga"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`, `current_combat_node_id = ""`, `cleared_nodes = []`, `threat_level = 0.0`, `party = []`, `run_summary = {}`, `inventory = []`). Must be called alongside `delete_save()` when wiping a save mid-session. |
+| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "badurga"`, `visited_nodes = ["badurga"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`, `current_combat_node_id = ""`, `cleared_nodes = []`, `threat_level = 0.0`, `used_event_ids = []`, `party = []`, `run_summary = {}`, `inventory = []`). Must be called alongside `delete_save()` when wiping a save mid-session. |
 
 ---
 
@@ -79,10 +80,11 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `node_types` | `GameState.node_types` | JSON Object (id → type string) — values already strings from JSON, no conversion needed |
 | `cleared_nodes` | `GameState.cleared_nodes` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load |
 | `threat_level` | `GameState.threat_level` | float — read back via `float(parsed.get("threat_level", 0.0))` (no typed-array conversion needed) |
+| `used_event_ids` | `GameState.used_event_ids` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load; defaults to `[]` if key absent (old saves) |
 | `party` | `GameState.party` | JSON Array of dicts — each dict holds all scalar fields (including `kindred: String`) + `abilities`/`ability_pool` as string arrays + `weapon_id`/`armor_id`/`accessory_id` as strings. Deserialized back to `Array[CombatantData]` by `_deserialize_combatant()`. Missing `kindred` key (old saves) defaults to `"Unknown"`. |
 | `inventory` | `GameState.inventory` | JSON Array of reward dicts `{id, name, description, item_type}`. Stored and loaded as-is — no resolution step needed. |
 
-**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, party roster (all CombatantData fields including persistent run state), inventory (equipment item ids).
+**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, party roster (all CombatantData fields including persistent run state), inventory (equipment item ids).
 
 Note: `pending_node_type` and `current_combat_node_id` are **not** saved — they are transient handoffs consumed within a single scene transition.
 
@@ -93,6 +95,7 @@ Note: `pending_node_type` and `current_combat_node_id` are **not** saved — the
 ## Dependencies
 
 - **CharacterCreationManager** appends the newly built PC to `GameState.party` in `_on_confirm()` before transitioning to MapScene. This is the primary populator of `party` on a new run; `init_party()` acts as a fallback guard only.
+- **EventSelector** appends to `used_event_ids` in `pick_for_node()`. Does not call `save()` — MapManager owns persistence.
 - **MapManager** reads and writes GameState for traversal (`move_player`, `is_visited`, `is_adjacent_to_player`); calls `init_party()` on fresh runs (after `load_save()` if `party.is_empty()`); increments `threat_level` by 0.05 (capped at 1.0) on every `_move_player_to()` call (travel increment) and again in `_enter_current_node()` for non-cleared nodes (entry increment); calls `save()` after each increment and after `_assign_node_types()`; calls `load_save()` at startup; calls `delete_save()` + `reset()` from the debug button; sets `pending_node_type` before transitioning to NodeStub; sets `current_combat_node_id` before transitioning to CombatScene3D; reads `cleared_nodes` in `_refresh_all_node_visuals()` and `_on_node_clicked()`; reads `threat_level` in `_add_threat_meter()` to render the HUD bar.
 - **NodeStub** reads and clears `GameState.pending_node_type` in `_ready()`
 - **EndCombatScreen** reads `current_combat_node_id` and appends to `cleared_nodes` immediately on reward selection; resets `threat_level = 0.0` if the defeated node was a BOSS; calls `GameState.save()` then returns to map. Calls `GameState.add_to_inventory(item)` via `has_method()` guard — method is live, reward dict lands in the party bag on every pickup.

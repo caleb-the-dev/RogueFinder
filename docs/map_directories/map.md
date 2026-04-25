@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-24 (feats Slice 2 — FeatLibrary + display migration) |
+| last_updated | 2026-04-24 (events Slice 3 — EventSelector + used_event_ids) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 13 |
+| sessions_since_groom | 14 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -42,7 +42,7 @@
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay, layer 20) | Presentation |
-| [Event System](event_system.md) | `event_system.md` | ⚙️ Partial — data layer only (Slice 1); overlay + dispatch in Slices 3–4 | Data / World Map |
+| [Event System](event_system.md) | `event_system.md` | ⚙️ Partial — data layer (Slice 1) + EventSelector (Slice 3); overlay + dispatch in Slice 4 | Data / World Map |
 | [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ⚙️ Partial — data layer + display (Slice 2); no mechanical effects yet | Data |
 
 ---
@@ -90,8 +90,12 @@ CharacterCreationManager
   └── GameState                   (appends PC to party on confirm)
 
 MapManager
-  ├── GameState             (load_save/init_party at startup; travel + entry increments; sets pending_node_type / current_combat_node_id)
+  ├── GameState             (load_save/init_party at startup; travel + entry increments; sets pending_node_type / current_combat_node_id; save() after post-tween dispatch)
   └── PartySheet            (instantiated as child; Party button calls show_sheet())
+
+EventSelector (static)
+  ├── EventLibrary          (all_events_for_ring — ring pool source)
+  └── GameState             (used_event_ids — read for filter, append chosen id)
 
 PartySheet
   ├── GameState             (party + inventory on every show_sheet())
@@ -159,6 +163,7 @@ rogue-finder/
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); healing_potion, power_tonic
 │   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 6 items
 │   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 3 smoke events
+│   │   ├── EventSelector.gd            ← static picker; ring filter + exhaustion fallback; appends to GameState.used_event_ids
 │   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 4 kindred feats
 │   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 4 kindreds
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
@@ -220,7 +225,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 24 test files (including test_event_library.gd/.tscn, test_feat_library.gd/.tscn); see `tests/test_combatant_data.tscn` for the runner pattern
+└── tests/                              ← 26 test files (70 tests total); includes test_event_selector.gd/.tscn, test_game_state_save.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern
 ```
 
 ---
@@ -231,6 +236,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-24 | EventSelector, GameState, MapManager | **Events Slice 3 — EventSelector + used_event_ids persistence.** `GameState.used_event_ids` (`Array[String]`) added with full save/load/reset wiring (typed-array pattern matching `cleared_nodes`). `EventSelector.gd` created: static `pick_for_node(ring)` filters already-seen ids, exhaustion-falls-back to full ring pool, pushes warning + returns stub for rings with no authored events, appends chosen id to `GameState.used_event_ids`, never calls `save()`. `MapManager._move_player_to()` gains a trailing `GameState.save()` after post-tween dispatch, covering VENDOR/CITY "Keep Moving" path. 7 new headless tests (70 total): 5 EventSelector + 2 GameState save round-trip. EVENT nodes still route to NodeStub — EventScene overlay is Slice 4. |
 | 2026-04-24 | FeatLibrary, FeatData, StatPanel, CharacterCreationManager, PartySheet | **Feats Slice 2 — FeatLibrary data foundation + display migration.** `FeatData.gd` resource + `FeatLibrary.gd` (CSV-native, `get_feat()`/`all_feats()`/`reload()`, never-null stub). `feats.csv` seeds 4 kindred feats (`adaptive`, `relentless`, `tinkerer`, `stonehide`). All display surfaces migrated from `KindredLibrary.get_feat_name()` to `FeatLibrary.get_feat(kindred_feat_id)`. StatPanel: `── Feats ──` section in RTL after Abilities, numbered entries. CharacterCreationManager preview: feat name + description label. PartySheet Feats tab: full Abilities-tab-style UI — 1×/2× toggle, Name sort, search bar, `PanelContainer` cards with hover tooltip. 8 new headless tests (63 total). |
 | 2026-04-24 | EventLibrary, EventData, EventChoiceData | **Events Slice 1 — data library foundation.** `EventData` + `EventChoiceData` resources; `events.csv` (3 smoke events: `chest_rusty`, `wounded_traveler`, `merchant_stall`) + `event_choices.csv` (7 choices covering full effect vocabulary: item_gain, heal/player_pick target, open_vendor nav, threat_delta, no-op). `EventLibrary` loads both CSVs, joins choices by `event_id`+`order`, exposes `get_event`/`all_events`/`all_events_for_ring`/`reload`; stub fallback on unknown id, never null. 12 headless tests. Two-CSV relational split is intentional deviation from single-CSV library convention — events are the first data type with repeating child rows. |
 | 2026-04-24 | CharacterCreationManager, MainMenuManager | **Back button + stat reroll.** Left column now has a "← Back to Main Menu" button that returns to MainMenu without mutating save state. To make Back a clean cancel, `delete_save()` + `reset()` were moved from `MainMenuManager._on_new_run()` into `CharacterCreationManager._on_confirm()`. Stats are rolled at `_ready()` and shown concrete in the preview (HP + STR/DEX/COG/WIL/VIT + AC) with a 🎲 Reroll Stats button in the preview panel. `_build_pc()` signature extended with `rolled_stats: Dictionary = {}` — populated dict wins verbatim, empty dict falls back to internal rolling (preserves Test New Run + existing 9 tests). 2 new tests (11 total). |

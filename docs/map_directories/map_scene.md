@@ -161,6 +161,7 @@ Guards cleared nodes first — returns immediately if `GameState.cleared_nodes.h
 - Calls `GameState.save()`.
 - Tweens marker position over 0.25 s.
 - After tween: cleared nodes return early; `COMBAT`/`BOSS`/`EVENT` auto-enter; `VENDOR`/`CITY` show a yes/no prompt.
+- After dispatch: `GameState.save()` always fires at the end of the method (covers VENDOR/CITY "Keep Moving" path where `_enter_current_node()` is never called).
 
 ### Node Prompt
 
@@ -281,6 +282,7 @@ Result: 2–3 forced bottleneck passages between each ring pair, no straight cut
 | Date | Session | What changed |
 |---|---|---|
 | 2026-04-23 | S28 | Doc split — PartySheet section moved to `party_sheet.md`. No `MapManager` behavior change. |
+| 2026-04-24 | Events Slice 3 | `_move_player_to()`: `GameState.save()` added at end of method after dispatch block, covering VENDOR/CITY "Keep Moving" path. |
 | 2026-04-20 | S24+S25 | RECRUIT removed. Inner ring → 4 COMBAT + 2 EVENT. Outer → 1 BOSS + 7 COMBAT + 3 EVENT + 1 VENDOR. BOSS assignment extracted to `_assign_boss_type()`; bridge endpoints captured into `_outer_bridge_ids`. |
 | 2026-04-20 | S20 | PartySheet instantiated in `_ready()` before `_build_scene()`. Party button added to UI chrome. |
 | 2026-04-18 | S12–S15 | Feature 4/6/7 landed: `cleared_nodes` + CLEARED visual state + pass-through; CITY → BadurgaScene; travel + entry threat increments with `_add_threat_meter()` bar; `current_combat_node_id` transient field. `_connect_gateways_v2()` replaces `_connect_gateways()` (seeded topology); BOSS glow pulse; EVENT auto-starts, VENDOR/CITY show prompt. |

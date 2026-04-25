@@ -1,6 +1,6 @@
 # Event System
 
-> Non-combat EVENT node system. This doc covers the **data layer only** (Slice 1). Scene overlay, selector, effect dispatch, and condition evaluator are documented here as they land in later slices.
+> Non-combat EVENT node system. Data layer (Slice 1) and EventSelector (Slice 3) are live. Scene overlay, effect dispatch, and condition evaluator land in Slices 4+.
 
 ---
 
@@ -9,7 +9,7 @@
 | Layer | Status |
 |---|---|
 | Data library (EventLibrary + CSVs) | ✅ Active (3 smoke events, 12 tests) |
-| EventSelector (ring filter + no-repeat) | 🔲 Stub — Slice 3 |
+| EventSelector (ring filter + no-repeat) | ✅ Active — Slice 3 (5 tests) |
 | EventScene overlay + EventManager | 🔲 Stub — Slice 4 |
 | Effect dispatch + condition evaluator | 🔲 Stub — Slice 4 |
 | player_pick picker + new-item glow | 🔲 Stub — Slice 5 |
@@ -21,6 +21,7 @@
 
 | File | Purpose |
 |---|---|
+| `rogue-finder/scripts/globals/EventSelector.gd` | Static picker — draws from unseen ring pool; exhaustion fallback; appends to `GameState.used_event_ids` |
 | `rogue-finder/scripts/globals/EventLibrary.gd` | Static loader — parses events.csv + event_choices.csv, joins by event_id, exposes public API |
 | `rogue-finder/resources/EventData.gd` | One non-combat event (id, title, body, ring_eligibility, choices) |
 | `rogue-finder/resources/EventChoiceData.gd` | One choice within an event (label, conditions, effects, result_text) |
@@ -64,6 +65,20 @@ All methods are `static`. No instantiation required.
 | `all_events()` | `Array[EventData]` | Returns every loaded event. |
 | `all_events_for_ring(ring: String)` | `Array[EventData]` | Returns events whose `ring_eligibility` contains `ring`. Used by EventSelector (Slice 3). |
 | `reload()` | `void` | Clears cache and re-parses both CSVs. Dev/test helper. |
+
+---
+
+---
+
+## Public API — EventSelector
+
+All methods are `static`. No instantiation required.
+
+| Method | Returns | Description |
+|---|---|---|
+| `pick_for_node(ring: String)` | `EventData` | Picks one event for the given ring. Filters out ids already in `GameState.used_event_ids`; if all ring events are exhausted, silently falls back to the full ring pool. Appends the chosen id to `GameState.used_event_ids`. **Never returns null.** Pushes a warning + returns the stub if no events are authored for the ring. |
+
+**Important:** `pick_for_node` does NOT call `GameState.save()`. The caller (EventManager, Slice 4) owns persistence. Only appends to the in-memory `GameState.used_event_ids` array.
 
 ---
 
@@ -143,8 +158,9 @@ All methods are `static`. No instantiation required.
 | Direction | System |
 |---|---|
 | EventLibrary depends on | nothing (pure data, no autoloads) |
-| Will depend on (Slice 3+) | GameState (`used_event_ids`), MapManager (ring resolution) |
-| Depended on by (Slice 3+) | EventSelector, EventManager |
+| EventSelector depends on | EventLibrary (ring pool), GameState (`used_event_ids`) |
+| Will depend on (Slice 4+) | EventManager depends on EventSelector + EventLibrary |
+| Depended on by (Slice 4+) | EventManager calls `EventSelector.pick_for_node()` |
 
 ---
 
@@ -152,4 +168,5 @@ All methods are `static`. No instantiation required.
 
 | Date | Change |
 |---|---|
+| 2026-04-24 | **Slice 3** — `EventSelector.gd` created. `pick_for_node(ring)`: filters `GameState.used_event_ids`, exhaustion fallback to full pool, never-null, warning on missing ring data. Does not call `GameState.save()` — caller owns persistence. 5 headless tests. |
 | 2026-04-24 | **Slice 1** — EventData, EventChoiceData, EventLibrary created. events.csv (3 smoke events) + event_choices.csv (7 choices covering full effect vocabulary). 12 headless tests. |
