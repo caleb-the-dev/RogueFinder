@@ -796,6 +796,7 @@ func _move_player_to(node_id: String) -> void:
 		_enter_current_node()
 	else:
 		_show_node_prompt(node_id)
+	GameState.save()
 
 ## --- Node Prompt ---
 
