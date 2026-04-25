@@ -775,10 +775,15 @@ func _add_cleared_stamp(btn: Button, nd: Dictionary) -> void:
 	nd["cleared_stamp_added"] = true
 	var stamp := Label.new()
 	stamp.text = "✗"
-	stamp.position = Vector2(2.0, -2.0)
+	stamp.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stamp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stamp.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var s := LabelSettings.new()
-	s.font_size = 11
-	s.font_color = Color(0.75, 0.25, 0.20)
+	s.font_size = 18
+	s.font_color = Color(1.0, 0.18, 0.12)
+	s.outline_size = 2
+	s.outline_color = Color(0.0, 0.0, 0.0, 0.7)
 	stamp.label_settings = s
 	btn.add_child(stamp)
 
