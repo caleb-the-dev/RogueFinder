@@ -2,6 +2,7 @@ id,name,slot,stat_bonuses,description,notes
 leather_armor,Leather Armor,ARMOR,armor_defense:1,Light protection.,
 chain_mail,Chain Mail,ARMOR,armor_defense:2|dexterity:-1,Heavier. Slower.,
 short_sword,Short Sword,WEAPON,strength:1,A simple blade.,
+rusted_dagger,Rusted Dagger,WEAPON,,A dagger eaten by rust. Still sharp enough.,
 hunters_bow,Hunter's Bow,WEAPON,dexterity:1,Better range.,
 iron_ring,Iron Ring,ACCESSORY,vitality:1,Adds constitution.,
 lucky_charm,Lucky Charm,ACCESSORY,willpower:1,Luck of the draw.,

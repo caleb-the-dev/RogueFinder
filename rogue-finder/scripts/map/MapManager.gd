@@ -63,6 +63,7 @@ var _outer_bridge_ids: Array[String] = []
 
 var _node_prompt: Control = null
 var _party_sheet: PartySheet = null
+var _event_manager: EventManager = null
 
 var _is_panning: bool = false
 var _pan_start_mouse: Vector2 = Vector2.ZERO
@@ -84,12 +85,18 @@ func _ready() -> void:
 	_assign_boss_type()
 	_party_sheet = PartySheet.new()
 	add_child(_party_sheet)
+	_event_manager = preload("res://scenes/events/EventScene.tscn").instantiate()
+	add_child(_event_manager)
+	_event_manager.event_finished.connect(_on_event_finished)
+	_event_manager.event_nav.connect(_on_event_nav)
 	_build_scene()
 
 # _input (not _unhandled_input) so drag is captured even when the press starts on a Button
 func _input(event: InputEvent) -> void:
-	# Party sheet is a CanvasLayer overlay — block all map input while it is open
+	# Block all map input while any CanvasLayer overlay is open
 	if _party_sheet != null and _party_sheet.visible:
+		return
+	if _event_manager != null and _event_manager.visible:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
@@ -711,6 +718,8 @@ func _refresh_all_node_visuals() -> void:
 			style.border_width_top    = 3
 			style.border_width_bottom = 3
 			btn.modulate = Color(1, 1, 1, 1)
+			if is_cleared:
+				_add_cleared_stamp(btn, nd)
 		elif is_reachable:
 			style.bg_color = base_color
 			style.border_color = Color(0.25, 0.18, 0.10)
@@ -766,10 +775,15 @@ func _add_cleared_stamp(btn: Button, nd: Dictionary) -> void:
 	nd["cleared_stamp_added"] = true
 	var stamp := Label.new()
 	stamp.text = "✗"
-	stamp.position = Vector2(2.0, -2.0)
+	stamp.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stamp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stamp.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var s := LabelSettings.new()
-	s.font_size = 11
-	s.font_color = Color(0.75, 0.25, 0.20)
+	s.font_size = 18
+	s.font_color = Color(1.0, 0.18, 0.12)
+	s.outline_size = 2
+	s.outline_color = Color(0.0, 0.0, 0.0, 0.7)
 	stamp.label_settings = s
 	btn.add_child(stamp)
 
@@ -939,7 +953,7 @@ func _on_node_clicked(node_id: String) -> void:
 	if _drag_moved:
 		return
 	if node_id == GameState.player_node_id:
-		if _node_prompt == null:
+		if _node_prompt == null and (_event_manager == null or not _event_manager.visible):
 			_enter_current_node()
 		return
 	if not GameState.is_adjacent_to_player(node_id, _adjacency):
@@ -959,9 +973,34 @@ func _enter_current_node() -> void:
 			get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
 		"CITY":
 			get_tree().change_scene_to_file("res://scenes/city/BadurgaScene.tscn")
+		"EVENT":
+			var ring := _get_ring(GameState.player_node_id)
+			var event_data := EventSelector.pick_for_node(ring)
+			_event_manager.show_event(event_data)
 		_:
 			GameState.pending_node_type = node_type
 			get_tree().change_scene_to_file("res://scenes/misc/NodeStub.tscn")
+
+func _get_ring(node_id: String) -> String:
+	if "node_i" in node_id:
+		return "inner"
+	elif "node_m" in node_id:
+		return "middle"
+	elif "node_o" in node_id:
+		return "outer"
+	return "outer"  # fallback for badurga or unrecognized
+
+func _on_event_finished() -> void:
+	if not GameState.cleared_nodes.has(GameState.player_node_id):
+		GameState.cleared_nodes.append(GameState.player_node_id)
+	_refresh_all_node_visuals()
+
+func _on_event_nav(dest: String) -> void:
+	if not GameState.cleared_nodes.has(GameState.player_node_id):
+		GameState.cleared_nodes.append(GameState.player_node_id)
+	GameState.save()
+	GameState.pending_node_type = dest
+	get_tree().change_scene_to_file("res://scenes/misc/NodeStub.tscn")
 
 func _on_debug_delete_save_pressed() -> void:
 	GameState.delete_save()

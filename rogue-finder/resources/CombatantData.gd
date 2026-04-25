@@ -89,6 +89,9 @@ extends Resource
 ## Kept separate from `abilities` so the 4-slot active list is undisturbed when the pool grows.
 @export var ability_pool: Array[String] = []
 
+## Feats granted to this unit during the run (e.g. via events). Persisted to disk.
+@export var feats: Array[String] = []
+
 ## Live HP that persists between combats. Seeded to hp_max at creation.
 @export var current_hp: int = 0
 
