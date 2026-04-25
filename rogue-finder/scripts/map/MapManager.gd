@@ -93,8 +93,10 @@ func _ready() -> void:
 
 # _input (not _unhandled_input) so drag is captured even when the press starts on a Button
 func _input(event: InputEvent) -> void:
-	# Party sheet is a CanvasLayer overlay — block all map input while it is open
+	# Block all map input while any CanvasLayer overlay is open
 	if _party_sheet != null and _party_sheet.visible:
+		return
+	if _event_manager != null and _event_manager.visible:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
@@ -944,7 +946,7 @@ func _on_node_clicked(node_id: String) -> void:
 	if _drag_moved:
 		return
 	if node_id == GameState.player_node_id:
-		if _node_prompt == null:
+		if _node_prompt == null and (_event_manager == null or not _event_manager.visible):
 			_enter_current_node()
 		return
 	if not GameState.is_adjacent_to_player(node_id, _adjacency):
