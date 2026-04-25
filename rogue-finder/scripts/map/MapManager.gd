@@ -718,6 +718,8 @@ func _refresh_all_node_visuals() -> void:
 			style.border_width_top    = 3
 			style.border_width_bottom = 3
 			btn.modulate = Color(1, 1, 1, 1)
+			if is_cleared:
+				_add_cleared_stamp(btn, nd)
 		elif is_reachable:
 			style.bg_color = base_color
 			style.border_color = Color(0.25, 0.18, 0.10)
