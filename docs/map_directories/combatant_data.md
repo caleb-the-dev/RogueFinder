@@ -168,7 +168,7 @@ static func reload() -> void                             # cache-clear for tests
 | `CombatantData` | `EquipmentData` (equipment slots), `KindredLibrary` (speed + HP computed props) |
 | `ArchetypeLibrary` | `CombatantData`, `KindredLibrary` (sets `kindred_feat_id` + auto-name via `get_name_pool()` in `create()`) |
 | `Unit3D` | `CombatantData` (via `@export var data`) |
-| `StatPanel` | `CombatantData`, `Unit3D`, `KindredLibrary` (feat name lookup) |
+| `StatPanel` | `CombatantData`, `Unit3D`, `FeatLibrary` (feat name lookup via `kindred_feat_id`) |
 | `CombatActionPanel` | `CombatantData` (via `Unit3D.data`) |
 | `CombatManager3D` | `ArchetypeLibrary`, `CombatantData` |
 | `GameState` | `CombatantData` (party roster; serialize / deserialize) |

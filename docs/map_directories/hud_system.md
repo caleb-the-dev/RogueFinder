@@ -35,9 +35,9 @@ Displays: portrait · name · class · HP bar · Energy bar.
 
 **Layer 8.** Opened on **double-click** of any unit. Closed by the **✕ button** or **ESC**.
 
-Displays: portrait · name · archetype · **kindred** · **kindred feat name** · background · team · all attributes · derived stats · equipment · abilities. No artwork section. Content is scrollable.
+Displays: portrait · name · archetype · kindred · background · team · live state · attributes · derived stats · equipment · abilities · **feats**. No artwork section. Content is scrollable.
 
-Feat name resolved at display time via `KindredLibrary.get_feat_name(d.kindred)` — not stored on `CombatantData`. Speed label reads `(1 + kindred)` since S29.
+Sections (in order): Identity → Live State → Attributes → Derived Stats → Equipment → Abilities → **Feats**. Feats appear as a `[b]── Feats ──[/b]` RTL section immediately after Abilities, with numbered entries (`1. Adaptive`). Feat resolved via `FeatLibrary.get_feat(d.kindred_feat_id)`. Speed label reads `(1 + kindred)` since S29.
 
 ### Public API
 
@@ -45,6 +45,12 @@ Feat name resolved at display time via `KindredLibrary.get_feat_name(d.kindred)`
 |--------|-----------|---------|
 | `show_for` | `(unit: Unit3D) -> void` | Populate and show the panel for this unit |
 | `hide_panel` | `() -> void` | Hide the examine window |
+
+### Recent Changes (StatPanel)
+
+| Date | Change |
+|------|--------|
+| 2026-04-24 | **Slice 2.** Feats section added to the RTL after Abilities (`── Feats ──` bold header, `1. <FeatName>` numbered entry). Resolved via `FeatLibrary.get_feat(d.kindred_feat_id)` — no longer calls `KindredLibrary.get_feat_name()`. `FeatLibrary` is now a dependency. |
 
 ---
 
@@ -243,7 +249,8 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_preview_class_desc` | `Label` | Class ability description (autowrap, 75% opacity) |
 | `_preview_bg_name` | `Label` | "Background Ability — <name>" row |
 | `_preview_bg_desc` | `Label` | Background ability description (autowrap, 75% opacity) |
-| `_preview_feat_lbl` | `Label` | "Kindred Feat — <name>" row (no description per B4 spec) |
+| `_preview_feat_lbl` | `Label` | "Kindred Feat — \<name\>" row |
+| `_preview_feat_desc` | `Label` | Feat description (autowrap, 75% opacity) — added Slice 2 |
 
 ### Known Inconsistency
 
@@ -251,7 +258,8 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 
 ### Dependencies
 
-- `KindredLibrary` — name pool, feat id, feat name, speed bonus, hp bonus
+- `KindredLibrary` — name pool, feat id, speed bonus, hp bonus
+- `FeatLibrary` — feat name + description for preview panel (Slice 2)
 - `ClassLibrary` — class list, starting ability, display name
 - `BackgroundLibrary` — background list, starting ability
 - `PortraitLibrary` — portrait list (used for id only; texture not set at v1)
@@ -282,6 +290,7 @@ godot --headless --path rogue-finder res://tests/test_character_creation.tscn
 | Date | Change |
 |---|---|
 | 2026-04-24 | **Back button + stat reroll.** Back button in the left column returns to MainMenu without mutating save state (`delete_save()` + `reset()` moved from `MainMenuManager._on_new_run()` into `CharacterCreationManager._on_confirm()` so Back is a clean cancel). Stats are now rolled at `_ready()` time and shown as concrete values in the preview (HP + STR/DEX/COG/WIL/VIT). 🎲 Reroll Stats button in the preview panel re-rolls. Armor is rolled + persisted but not surfaced in the preview — gear drives defense in the rest of the UI, so a visible armor roll would be noise. `_build_pc()` signature extended with optional `rolled_stats: Dictionary = {}` — populated dict is used verbatim, empty dict falls back to internal rolls (preserves Test New Run + existing 9 tests). 2 new tests added (11 total). |
+| 2026-04-24 | **Slice 2 — FeatLibrary migration.** `_calc_preview()` now resolves feat via `FeatLibrary.get_feat(KindredLibrary.get_feat_id(kindred_id))` instead of `KindredLibrary.get_feat_name()`. Preview panel gains a `_preview_feat_desc` label below the feat name (autowrap, 75% opacity). `FeatLibrary` added as a dependency. |
 | 2026-04-24 | B4 — Live preview panel. Read-only `PanelContainer` rendered below the dial row showing HP range (`10 + kindred_hp + [6..24]`), Speed (`1 + kindred_speed`), Stats (fixed "1–4"), class ability name+description, background ability name+description, and kindred feat name. `_calc_preview()` fleshed out from stub — still returns `Dictionary` but now also pushes values into eight label refs stored as instance vars. New helpers `_build_preview_panel()` and `_make_stat_label()`. `AbilityLibrary` added as a dependency. No new tests (pure derived display). Existing 9 headless tests untouched. |
 | 2026-04-24 | B1+B2 — Character creation scene added. `MainMenuManager._on_new_run()` now routes to `CharacterCreationScene` instead of `MapScene`. `_build_pc()` builds `CombatantData` from picks. Slot-wheel dial columns with ghost neighbours (▲/▼, prev/next at 25% opacity). Portrait dial shows icon.svg placeholder; portrait picker hidden until real art ships. 9 unit tests green. |
 

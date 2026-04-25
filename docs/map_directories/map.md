@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-24 (events Slice 1 — EventLibrary data foundation) |
+| last_updated | 2026-04-24 (feats Slice 2 — FeatLibrary + display migration) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 12 |
+| sessions_since_groom | 13 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -43,6 +43,7 @@
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay, layer 20) | Presentation |
 | [Event System](event_system.md) | `event_system.md` | ⚙️ Partial — data layer only (Slice 1); overlay + dispatch in Slices 3–4 | Data / World Map |
+| [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ⚙️ Partial — data layer + display (Slice 2); no mechanical effects yet | Data |
 
 ---
 
@@ -79,11 +80,12 @@ MainMenuManager
   └── PortraitLibrary             (Test New Run — random portrait id)
 
 CharacterCreationManager
-  ├── KindredLibrary              (name pool, feat id+name, speed/HP bonuses)
+  ├── KindredLibrary              (name pool, feat id, speed/HP bonuses)
   ├── ClassLibrary                (class list, display name, starting ability)
   ├── BackgroundLibrary           (background list, display name, starting ability)
   ├── PortraitLibrary             (portrait id list)
   ├── AbilityLibrary              (resolves class + bg starting abilities for preview panel)
+  ├── FeatLibrary                 (feat name + description for preview panel)
   ├── CombatantData               (built by _build_pc())
   └── GameState                   (appends PC to party on confirm)
 
@@ -95,7 +97,8 @@ PartySheet
   ├── GameState             (party + inventory on every show_sheet())
   ├── EquipmentLibrary      (item id resolution)
   ├── ConsumableLibrary     (id resolution for tooltip / compare)
-  └── AbilityLibrary        (id resolution for pool + slot labels)
+  ├── AbilityLibrary        (id resolution for pool + slot labels)
+  └── FeatLibrary           (feat name + description for Feats tab)
 
 NodeStub          → GameState (reads + clears pending_node_type)
 BadurgaManager    → standalone (no deps; returns to MapScene on back)
@@ -156,6 +159,7 @@ rogue-finder/
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); healing_potion, power_tonic
 │   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 6 items
 │   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 3 smoke events
+│   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 4 kindred feats
 │   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 4 kindreds
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
@@ -183,6 +187,7 @@ rogue-finder/
 │   ├── ClassData.gd                    ← one playable class
 │   ├── EventChoiceData.gd              ← one event choice (label, conditions, effects, result_text)
 │   ├── EventData.gd                    ← one non-combat event (id, title, body, ring_eligibility, choices)
+│   ├── FeatData.gd                     ← one feat (id, name, description)
 │   ├── KindredData.gd                  ← one kindred (speed/HP bonuses + feat)
 │   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
@@ -195,6 +200,7 @@ rogue-finder/
 │   ├── equipment.csv                   ← 6 items; stat_bonuses as stat:value|stat:value pairs
 │   ├── event_choices.csv               ← 7 choice rows; joined to events by event_id; effects as JSON arrays
 │   ├── events.csv                      ← 3 smoke events; ring_eligibility as pipe list
+│   ├── feats.csv                       ← 4 kindred feats; read via res://data/
 │   ├── kindreds.csv                    ← 4 kindreds; read via res://data/
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
@@ -214,7 +220,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 22 test files (including test_event_library.gd/.tscn); see `tests/test_combatant_data.tscn` for the runner pattern
+└── tests/                              ← 24 test files (including test_event_library.gd/.tscn, test_feat_library.gd/.tscn); see `tests/test_combatant_data.tscn` for the runner pattern
 ```
 
 ---
@@ -225,6 +231,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-24 | FeatLibrary, FeatData, StatPanel, CharacterCreationManager, PartySheet | **Feats Slice 2 — FeatLibrary data foundation + display migration.** `FeatData.gd` resource + `FeatLibrary.gd` (CSV-native, `get_feat()`/`all_feats()`/`reload()`, never-null stub). `feats.csv` seeds 4 kindred feats (`adaptive`, `relentless`, `tinkerer`, `stonehide`). All display surfaces migrated from `KindredLibrary.get_feat_name()` to `FeatLibrary.get_feat(kindred_feat_id)`. StatPanel: `── Feats ──` section in RTL after Abilities, numbered entries. CharacterCreationManager preview: feat name + description label. PartySheet Feats tab: full Abilities-tab-style UI — 1×/2× toggle, Name sort, search bar, `PanelContainer` cards with hover tooltip. 8 new headless tests (63 total). |
 | 2026-04-24 | EventLibrary, EventData, EventChoiceData | **Events Slice 1 — data library foundation.** `EventData` + `EventChoiceData` resources; `events.csv` (3 smoke events: `chest_rusty`, `wounded_traveler`, `merchant_stall`) + `event_choices.csv` (7 choices covering full effect vocabulary: item_gain, heal/player_pick target, open_vendor nav, threat_delta, no-op). `EventLibrary` loads both CSVs, joins choices by `event_id`+`order`, exposes `get_event`/`all_events`/`all_events_for_ring`/`reload`; stub fallback on unknown id, never null. 12 headless tests. Two-CSV relational split is intentional deviation from single-CSV library convention — events are the first data type with repeating child rows. |
 | 2026-04-24 | CharacterCreationManager, MainMenuManager | **Back button + stat reroll.** Left column now has a "← Back to Main Menu" button that returns to MainMenu without mutating save state. To make Back a clean cancel, `delete_save()` + `reset()` were moved from `MainMenuManager._on_new_run()` into `CharacterCreationManager._on_confirm()`. Stats are rolled at `_ready()` and shown concrete in the preview (HP + STR/DEX/COG/WIL/VIT + AC) with a 🎲 Reroll Stats button in the preview panel. `_build_pc()` signature extended with `rolled_stats: Dictionary = {}` — populated dict wins verbatim, empty dict falls back to internal rolling (preserves Test New Run + existing 9 tests). 2 new tests (11 total). |
 | 2026-04-24 | MainMenuManager | Added **Test New Run** button — dev shortcut that skips character creation and seeds `GameState.party` with three fully-randomized PCs via `CharacterCreationManager._build_pc()` (random kindred / class / background / portrait / name from kindred pool). Transitions directly to `MapScene`. Muted purple tint to signal dev affordance. 4-button layout still fits 1280×720. |

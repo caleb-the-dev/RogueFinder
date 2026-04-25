@@ -29,6 +29,7 @@ Runs on `CanvasLayer` at layer 20 — above every other overlay in the map scene
 | `EquipmentLibrary` | Resolves equipment ids (when a slot holds an id string rather than an `EquipmentData` instance) |
 | `ConsumableLibrary` | Resolves consumable ids for tooltip + compare panels |
 | `AbilityLibrary` | Resolves ability ids for the ability pool tab and slot labels |
+| `FeatLibrary` | Resolves `kindred_feat_id` to `FeatData` (name + description) for the Feats tab |
 | `MapManager` | Owns the `PartySheet` instance; the `_input()` guard blocks map pan/zoom while the sheet is visible |
 
 ---
@@ -56,6 +57,9 @@ Runs on `CanvasLayer` at layer 20 — above every other overlay in the map scene
 | `_search_texts[3]` | `Array[String]` | Per-member ability search query |
 | `_focus_search_mi` | `int` | Which member's search `LineEdit` gets focus after next rebuild (-1 = none) |
 | `_abil_views_wide[3]` | `Array[bool]` | Per-member ability view mode (false=1-per-row, true=2-per-row GridContainer) |
+| `_feat_views_wide[3]` | `Array[bool]` | Per-member feat view mode (mirrors ability toggle) |
+| `_feat_sort_ascs[3]` | `Array[bool]` | Per-member feat sort direction (Name asc/desc) |
+| `_feat_search_texts[3]` | `Array[String]` | Per-member feat search query |
 | `_inv_search_text` | `String` | Inventory search query |
 | `_inv_sort_field` | `String` | Inventory sort key (`"name"` or `"type"`) |
 | `_inv_sort_asc` | `bool` | Inventory sort direction |
@@ -81,7 +85,7 @@ Each card divided into 4 quadrants by 50%-alpha separators:
 
 ### RIGHT (374 px) — TabContainer per member card
 - **Abilities tab:** Top bar with `1×/2×` view toggle + "drag to slot →" hint. Sort row: Name / Type / EN (per-member, independent). Search bar with live filter (focus restored after each rebuild via `grab_focus.call_deferred()` + `set_caret_column.call_deferred()` — prevents the backwards-typing bug). Scrollable pool list in `VBoxContainer` (1-per-row) or `GridContainer` (2-per-row). Slotted abilities show gold highlight + `●` prefix + `[s1]`–`[s4]` slot badge. In 2-per-row mode the EN/type sub-line is hidden (tooltip still shows it).
-- **Feats tab:** Placeholder label.
+- **Feats tab:** Mirrors the Abilities tab layout — 1×/2× view toggle, Name sort (asc/desc toggle), search bar, scrollable list of `PanelContainer` feat cards (gold name label, hover tooltip with full description). Source: `member.kindred_feat_id` as a single-element list (Slice 4 will extend to `member.feats`). Per-member state: `_feat_views_wide`, `_feat_sort_ascs`, `_feat_search_texts`.
 
 ---
 
@@ -138,6 +142,7 @@ All mutations write directly to the live `CombatantData` instance in `GameState.
 
 | Date | Session | What changed |
 |---|---|---|
+| 2026-04-24 | Slice 2 | **Feats tab upgraded from placeholder.** Full Abilities-tab-style layout: 1×/2× toggle, Name sort, search bar, scrollable `PanelContainer` feat cards with hover tooltip. Three new per-member state arrays (`_feat_views_wide`, `_feat_sort_ascs`, `_feat_search_texts`). `FeatLibrary` added as dependency. Source is `member.kindred_feat_id` only — Slice 4 extends when `CombatantData.feats` lands. |
 | 2026-04-23 | S28 | Kindred label (blue-grey, 13 px) added to TOP-LEFT card below Background. HP row restructured: "HP x/x" text now left-aligned on the same row as the bar. Column widths rebalanced: LEFT 240→376 px, MIDDLE 530→500 px, RIGHT 480→374 px (~30/40/30). Horizontal divider moved y+108→y+118 for the extra text line. |
 | 2026-04-20 | S23 | Ability Pool Swap. Drag from Abilities tab onto BOTTOM-RIGHT slots; right-click to clear. Per-member sort/search/view in ability panel (backwards-typing bug fixed via focus+caret restoration). Inventory column upgraded with sort/search/view. Drag-compare panels for all three categories (ability, equipment, consumable) via shared helpers. Opaque tooltip theme + `_wrap_tooltip()`. `_process()` auto-clears compare overlay when drag ends. |
 | 2026-04-20 | S22 | Layout redesign. 4-quadrant card layout with full-height + full-width 50%-alpha separators. TOP-LEFT name/class/bg/HP. TOP-RIGHT derived + attrs. BOTTOM-LEFT equipment 2×2. BOTTOM-RIGHT slotted abilities 2×2. Right panel replaced with `TabContainer` (Abilities + Feats placeholder). `_detail_open` pattern removed — fully stateless `_rebuild()`. |
