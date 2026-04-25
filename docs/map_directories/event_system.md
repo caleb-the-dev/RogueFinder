@@ -1,6 +1,6 @@
 # Event System
 
-> Non-combat EVENT node system. Data layer (Slice 1) and EventSelector (Slice 3) are live. Scene overlay, effect dispatch, and condition evaluator land in Slices 4+.
+> Non-combat EVENT node system. Data layer (Slice 1), EventSelector (Slice 3), and EventScene overlay + effect dispatch (Slice 4) are live.
 
 ---
 
@@ -10,8 +10,8 @@
 |---|---|
 | Data library (EventLibrary + CSVs) | ✅ Active (3 smoke events, 12 tests) |
 | EventSelector (ring filter + no-repeat) | ✅ Active — Slice 3 (5 tests) |
-| EventScene overlay + EventManager | 🔲 Stub — Slice 4 |
-| Effect dispatch + condition evaluator | 🔲 Stub — Slice 4 |
+| EventScene overlay + EventManager | ✅ Active — Slice 4 (19 tests) |
+| Effect dispatch + condition evaluator | ✅ Active — Slice 4 |
 | player_pick picker + new-item glow | 🔲 Stub — Slice 5 |
 | Authoring pass (13+ real events) | 🔲 Stub — Slice 6 |
 
@@ -23,12 +23,16 @@
 |---|---|
 | `rogue-finder/scripts/globals/EventSelector.gd` | Static picker — draws from unseen ring pool; exhaustion fallback; appends to `GameState.used_event_ids` |
 | `rogue-finder/scripts/globals/EventLibrary.gd` | Static loader — parses events.csv + event_choices.csv, joins by event_id, exposes public API |
+| `rogue-finder/scripts/events/EventManager.gd` | CanvasLayer (layer 10) overlay — show/hide event UI, condition evaluator, effect dispatcher (all static) |
+| `rogue-finder/scenes/events/EventScene.tscn` | Minimal scene (root CanvasLayer + EventManager script) |
 | `rogue-finder/resources/EventData.gd` | One non-combat event (id, title, body, ring_eligibility, choices) |
 | `rogue-finder/resources/EventChoiceData.gd` | One choice within an event (label, conditions, effects, result_text) |
 | `rogue-finder/data/events.csv` | Event rows — id, title, body, ring_eligibility |
 | `rogue-finder/data/event_choices.csv` | Choice rows — event_id, order, label, conditions, effects, result_text |
 | `rogue-finder/tests/test_event_library.gd` | 12 headless tests |
 | `rogue-finder/tests/test_event_library.tscn` | Test runner scene |
+| `rogue-finder/tests/test_event_manager.gd` | 19 headless tests (condition evaluator, effect dispatch, persistence, target resolution) |
+| `rogue-finder/tests/test_event_manager.tscn` | Test runner scene |
 
 ---
 
@@ -67,6 +71,77 @@ All methods are `static`. No instantiation required.
 | `reload()` | `void` | Clears cache and re-parses both CSVs. Dev/test helper. |
 
 ---
+
+---
+
+## Public API — EventManager
+
+`EventManager` extends `CanvasLayer` (layer 10). Instantiated as a child of `MapManager` in `_ready()`. All condition / target / effect logic is `static` — headless-testable without a scene.
+
+### Instance Methods
+
+| Method | Description |
+|---|---|
+| `show_event(event_data: EventData) -> void` | Populates title/body, builds choice buttons (disabled+dimmed if conditions fail), shows overlay. |
+| `hide_event() -> void` | Hides overlay, frees choice button children, resets result panel visibility. |
+
+### Signals
+
+| Signal | Args | When emitted |
+|---|---|---|
+| `event_finished` | — | Player clicked "Continue" on the result panel (non-nav choice). `GameState.save()` is called before emit. |
+| `event_nav` | `dest: String` | A nav effect (`open_vendor` → `"VENDOR"`, `open_bench` → `"BENCH"`) was chosen. No result panel; `hide_event()` called first. |
+
+### Static: `evaluate_condition(condition, party) -> bool`
+
+Returns `true` if ANY party member satisfies the condition. Supported forms:
+
+| Form | Logic |
+|---|---|
+| `stat_ge:STAT:N` | Any member's stat ≥ N. Stat map: STR→strength, DEX→dexterity, COG→cognition, WIL→willpower, VIT→vitality |
+| `kindred:ID` | Any member's `kindred == ID` |
+| `class:ID` | Any member's `unit_class == ID` |
+| `background:ID` | Any member's `background == ID` |
+| `feat:ID` | Any member's `feats` array contains ID |
+| `item:ID` | Any entry in `GameState.inventory` has `id == ID` |
+
+Unknown form → `push_warning` + return `true` (fail open — never silently gate a choice).
+
+A choice whose `conditions` array is empty is always enabled (loop never runs).
+
+### Static: `resolve_target(target, party) -> CombatantData`
+
+| target | Resolution |
+|---|---|
+| `"PC"` | `party[0]` |
+| `"random_ally"` | Random alive non-PC member. Degrades to `party[0]` + `push_warning` if no alive allies. |
+| `"random_party"` | Random alive member from full party. |
+| `"player_pick"` | `party[0]` + `push_warning("player_pick not yet implemented")` (Slice 5). |
+
+"Alive" = `not is_dead`. Always falls back to `party[0]` if resolved pool is empty.
+
+### Static: `dispatch_effect(effect, party) -> void`
+
+| `type` | Behavior |
+|---|---|
+| `item_gain` | Looks up `item_id` in EquipmentLibrary then ConsumableLibrary; calls `GameState.add_to_inventory(dict)`. push_warning + no-op if not found in either. |
+| `item_remove` | `GameState.remove_from_inventory(item_id)` |
+| `harm` | `resolve_target` → `target.current_hp = maxi(0, current_hp - value)` |
+| `heal` | `resolve_target` → `target.current_hp = mini(hp_max, current_hp + value)` |
+| `xp_grant` | `print("[EventEffect] xp_grant %d — stub")` — no-op until XP system exists |
+| `threat_delta` | `GameState.threat_level = clampf(threat_level + float(value) / 100.0, 0.0, 1.0)` — value is signed int treated as percentage points |
+| `feat_grant` | `resolve_target` → appends `feat_id` to `target.feats` if not already present |
+| `open_vendor` / `open_bench` | **Not dispatched here** — handled in `_on_choice_pressed` as nav effects before dispatch loop runs |
+
+Unknown type → `push_warning` + skip.
+
+### UI Flow
+
+1. `show_event(event_data)` — populate title/body, build choice buttons (disabled+dimmed for failed conditions), show overlay.
+2. Player clicks a choice → `_on_choice_pressed(choice)`.
+3. Nav effect check first: if any effect is `open_vendor` or `open_bench` → `hide_event()` → `event_nav.emit(dest)`. MapManager handles routing. No result panel.
+4. Otherwise: dispatch all effects, show result panel with `choice.result_text`, hide choice buttons.
+5. Player clicks "Continue" → `GameState.save()` → `event_finished.emit()` → `hide_event()`.
 
 ---
 
@@ -159,8 +234,20 @@ All methods are `static`. No instantiation required.
 |---|---|
 | EventLibrary depends on | nothing (pure data, no autoloads) |
 | EventSelector depends on | EventLibrary (ring pool), GameState (`used_event_ids`) |
-| Will depend on (Slice 4+) | EventManager depends on EventSelector + EventLibrary |
-| Depended on by (Slice 4+) | EventManager calls `EventSelector.pick_for_node()` |
+| EventManager depends on | GameState (party, inventory, save, threat_level), EquipmentLibrary + ConsumableLibrary (item_gain lookup), EventChoiceData / EventData (data types) |
+| MapManager depends on | EventManager (instantiated in `_ready()`), EventSelector (called in EVENT branch of `_enter_current_node()`) |
+
+---
+
+## Key Patterns / Gotchas
+
+- **Event nodes become cleared after completion** — `MapManager._on_event_finished()` and `_on_event_nav()` both append `player_node_id` to `GameState.cleared_nodes`. The guard at the top of `_enter_current_node()` then prevents re-entry. Event nodes show the ✗ stamp immediately on completion.
+- **Nav effects short-circuit the result panel** — `open_vendor` / `open_bench` are detected before the dispatch loop in `_on_choice_pressed`. They call `hide_event()` then `event_nav.emit()` and return. No `result_text` is shown and `GameState.save()` is NOT called here — `_on_event_nav()` in MapManager owns the save.
+- **`dispatch_effect` is static** — call it from tests without a scene instance.
+- **`item_gain` lookup order** — EquipmentLibrary first (check `equipment_name != "Unknown"`), then ConsumableLibrary (check `consumable_id == item_id`). ConsumableLibrary stub sets `consumable_id = "unknown"` (not the queried id) — this distinguishes stub from real entry.
+- **`player_pick` degrades to PC** — `resolve_target("player_pick", party)` pushes a warning and returns `party[0]`. Full picker UI is Slice 5.
+- **Threat meter does not redraw dynamically** — `_add_threat_meter()` builds a static bar from `GameState.threat_level` at scene load. `threat_delta` effects correctly mutate `GameState.threat_level` in memory; the visual updates on next MapScene load.
+- **`GameState.save()` timing** — EventManager's Continue button calls `save()` before emitting `event_finished`. Nav effects do NOT call save here — `MapManager._on_event_nav()` calls `save()` before scene change.
 
 ---
 
@@ -168,5 +255,6 @@ All methods are `static`. No instantiation required.
 
 | Date | Change |
 |---|---|
+| 2026-04-25 | **Slice 4** — `EventManager.gd` + `EventScene.tscn` created. CanvasLayer (layer 10) overlay with `show_event`/`hide_event` API, condition-gated choice buttons (disabled+dimmed), result panel, Continue → save → `event_finished`. Static `evaluate_condition` (6 forms), `resolve_target` (4 values), `dispatch_effect` (7 types). MapManager wired: EVENT branch calls `EventSelector.pick_for_node()` + `show_event()` instead of NodeStub; `_on_event_finished` marks node cleared + refreshes visuals; `_on_event_nav` marks cleared + saves + routes to NodeStub. 19 headless tests (89 total). `rusted_dagger` added to equipment.csv. |
 | 2026-04-24 | **Slice 3** — `EventSelector.gd` created. `pick_for_node(ring)`: filters `GameState.used_event_ids`, exhaustion fallback to full pool, never-null, warning on missing ring data. Does not call `GameState.save()` — caller owns persistence. 5 headless tests. |
 | 2026-04-24 | **Slice 1** — EventData, EventChoiceData, EventLibrary created. events.csv (3 smoke events) + event_choices.csv (7 choices covering full effect vocabulary). 12 headless tests. |

@@ -118,13 +118,13 @@ Applied by `_refresh_all_node_visuals()`, called at end of `_build_scene()` and 
 
 | State | Condition | bg_color | Border | Modulate | Stamp |
 |---|---|---|---|---|---|
-| **CURRENT** | `id == GameState.player_node_id` | base color | gold `Color(0.9, 0.85, 0.3)`, 3 px | `(1,1,1,1)` | — |
+| **CURRENT** | `id == GameState.player_node_id` | base color | gold `Color(0.9, 0.85, 0.3)`, 3 px | `(1,1,1,1)` | ✗ if also CLEARED (font 18, bright red, outlined, centered) |
 | **REACHABLE** | adjacent to current node | base color | default `Color(0.25, 0.18, 0.10)`, 2 px | `(1,1,1,1)` | — |
-| **CLEARED** | `GameState.cleared_nodes.has(id)` (and not current) — checked before VISITED | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` | `✗` muted red `Color(0.75, 0.25, 0.20)` |
+| **CLEARED** | `GameState.cleared_nodes.has(id)` (and not current) — checked before VISITED | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` | `✗` bright red `Color(1.0, 0.18, 0.12)`, font 18, dark outline, centered |
 | **VISITED** | in `GameState.visited_nodes` (and not current, not cleared) | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` | `✓` `Color(0.9, 0.95, 0.7)` |
 | **LOCKED** | none of the above | `base.darkened(0.15)` | default, 2 px | `(1,1,1,0.5)` | — |
 
-CLEARED nodes are traversable — the player can move through them freely. `_enter_current_node()` returns early on cleared nodes so landing/re-clicking never re-starts combat. CLEARED takes priority over VISITED. Stamps are added once per session via `stamp_added` / `cleared_stamp_added` runtime flags (not persisted).
+CLEARED nodes are traversable — the player can move through them freely. `_enter_current_node()` returns early on cleared nodes so landing/re-clicking never re-starts combat. CLEARED takes priority over VISITED. Stamps are added once per session via `stamp_added` / `cleared_stamp_added` runtime flags (not persisted). The CURRENT+CLEARED case (player standing on a just-completed node) also renders the ✗ stamp so it appears immediately without requiring movement.
 
 ---
 
@@ -149,7 +149,8 @@ Guards cleared nodes first — returns immediately if `GameState.cleared_nodes.h
 |---|---|
 | `COMBAT` or `BOSS` | Sets `GameState.current_combat_node_id`, then `change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")` |
 | `CITY` | `change_scene_to_file("res://scenes/city/BadurgaScene.tscn")` |
-| `VENDOR`, `EVENT` | Sets `GameState.pending_node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
+| `EVENT` | Calls `_get_ring(player_node_id)` → `EventSelector.pick_for_node(ring)` → `_event_manager.show_event(event_data)`. Does NOT change scene. |
+| `VENDOR` | Sets `GameState.pending_node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
 
 "Keep Moving" from the node prompt avoids the entry increment (player never calls `_enter_current_node()`).
 
@@ -169,7 +170,7 @@ Shown for optional nodes (VENDOR, CITY). A `PanelContainer` anchored to the root
 
 ### `_ready()` order
 
-`load_save` → `init_party` (if empty) → seed `map_seed` (fresh run) → `_build_node_data` (calls `_assign_node_types`) → `_build_edge_data` (captures bridge endpoints) → `_build_adjacency` → `_assign_boss_type` (promotes one outer COMBAT, saves) → instantiate `PartySheet` → `_build_scene`.
+`load_save` → `init_party` (if empty) → seed `map_seed` (fresh run) → `_build_node_data` (calls `_assign_node_types`) → `_build_edge_data` (captures bridge endpoints) → `_build_adjacency` → `_assign_boss_type` (promotes one outer COMBAT, saves) → instantiate `PartySheet` → instantiate `EventManager` (connect `event_finished` + `event_nav`) → `_build_scene`.
 
 ---
 
@@ -251,6 +252,19 @@ Result: 2–3 forced bottleneck passages between each ring pair, no straight cut
 
 `MapManager` instantiates `PartySheet` as a programmatic child before `_build_scene()`. The Party button in UI chrome calls `_party_sheet.show_sheet()`. Full layout, drag-drop, compare panels, and persistence details: see `party_sheet.md`.
 
+## EventManager Dependency
+
+`MapManager` instantiates `EventScene.tscn` as a programmatic child after `PartySheet`, before `_build_scene()`. Stored as `_event_manager: EventManager`. Signals connected:
+
+| Signal | Handler | Behavior |
+|---|---|---|
+| `event_finished` | `_on_event_finished()` | Appends `player_node_id` to `cleared_nodes` (if not already there), calls `_refresh_all_node_visuals()`. |
+| `event_nav` | `_on_event_nav(dest: String)` | Appends `player_node_id` to `cleared_nodes`, calls `GameState.save()`, sets `pending_node_type = dest`, routes to NodeStub. |
+
+`_get_ring(node_id: String) -> String` — private helper used in the EVENT branch of `_enter_current_node()`. Returns `"inner"` if `"node_i"` in id, `"middle"` if `"node_m"` in id, `"outer"` if `"node_o"` in id, `"outer"` as fallback for Badurga or unrecognized ids.
+
+`_input()` also early-returns when `_event_manager.visible` is true, blocking pan/zoom while the overlay is open. `_on_node_clicked()` guards the same condition so clicking the current EVENT node while the overlay is showing does nothing.
+
 ---
 
 ## Gotchas
@@ -272,7 +286,7 @@ Result: 2–3 forced bottleneck passages between each ring pair, no straight cut
 ## Explicitly Deferred
 
 - Badurga section content — all 6 section buttons are stubs (`"[Badurga] <id> not yet implemented"`).
-- Vendor / Event scene content — `NodeStub` placeholder.
+- Vendor scene content — `NodeStub` placeholder.
 - Fog of war.
 
 ---
@@ -282,6 +296,7 @@ Result: 2–3 forced bottleneck passages between each ring pair, no straight cut
 | Date | Session | What changed |
 |---|---|---|
 | 2026-04-23 | S28 | Doc split — PartySheet section moved to `party_sheet.md`. No `MapManager` behavior change. |
+| 2026-04-25 | Events Slice 4 | `_event_manager: EventManager` field added. `_ready()` instantiates `EventScene.tscn` after `PartySheet`; connects `event_finished` → `_on_event_finished()` and `event_nav` → `_on_event_nav()`. `_enter_current_node()`: EVENT branch now calls `EventSelector.pick_for_node(_get_ring(...))` + `_event_manager.show_event()` instead of NodeStub. `_get_ring()` private helper added. `_input()` gains `_event_manager.visible` early-return guard. `_on_node_clicked()` guards same condition. Cleared stamp: CURRENT+CLEARED case now also renders ✗; stamp font size 18, bright red, dark outline, centered via PRESET_FULL_RECT. EVENT nodes appended to `cleared_nodes` by both `_on_event_finished` and `_on_event_nav`. |
 | 2026-04-24 | Events Slice 3 | `_move_player_to()`: `GameState.save()` added at end of method after dispatch block, covering VENDOR/CITY "Keep Moving" path. |
 | 2026-04-20 | S24+S25 | RECRUIT removed. Inner ring → 4 COMBAT + 2 EVENT. Outer → 1 BOSS + 7 COMBAT + 3 EVENT + 1 VENDOR. BOSS assignment extracted to `_assign_boss_type()`; bridge endpoints captured into `_outer_bridge_ids`. |
 | 2026-04-20 | S20 | PartySheet instantiated in `_ready()` before `_build_scene()`. Party button added to UI chrome. |
