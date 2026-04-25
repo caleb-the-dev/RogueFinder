@@ -106,6 +106,7 @@ func _serialize_combatant(d: CombatantData) -> Dictionary:
 		"qte_resolution": d.qte_resolution,
 		"abilities":      d.abilities,
 		"ability_pool":   d.ability_pool,
+		"feats":          d.feats,
 		"current_hp":     d.current_hp,
 		"current_energy": d.current_energy,
 		"is_dead":        d.is_dead,
@@ -166,6 +167,8 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 	d.abilities      = Array(raw_abilities, TYPE_STRING, "", null)
 	var raw_pool: Array = dict.get("ability_pool", [])
 	d.ability_pool   = Array(raw_pool, TYPE_STRING, "", null)
+	var raw_feats: Array = dict.get("feats", [])
+	d.feats          = Array(raw_feats, TYPE_STRING, "", null)
 	d.current_hp     = dict.get("current_hp", 0)
 	d.current_energy = dict.get("current_energy", 0)
 	d.is_dead        = dict.get("is_dead", false)

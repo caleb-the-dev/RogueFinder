@@ -63,6 +63,7 @@ var _outer_bridge_ids: Array[String] = []
 
 var _node_prompt: Control = null
 var _party_sheet: PartySheet = null
+var _event_manager: EventManager = null
 
 var _is_panning: bool = false
 var _pan_start_mouse: Vector2 = Vector2.ZERO
@@ -84,6 +85,10 @@ func _ready() -> void:
 	_assign_boss_type()
 	_party_sheet = PartySheet.new()
 	add_child(_party_sheet)
+	_event_manager = preload("res://scenes/events/EventScene.tscn").instantiate()
+	add_child(_event_manager)
+	_event_manager.event_finished.connect(_on_event_finished)
+	_event_manager.event_nav.connect(_on_event_nav)
 	_build_scene()
 
 # _input (not _unhandled_input) so drag is captured even when the press starts on a Button
@@ -959,9 +964,30 @@ func _enter_current_node() -> void:
 			get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
 		"CITY":
 			get_tree().change_scene_to_file("res://scenes/city/BadurgaScene.tscn")
+		"EVENT":
+			var ring := _get_ring(GameState.player_node_id)
+			var event_data := EventSelector.pick_for_node(ring)
+			_event_manager.show_event(event_data)
 		_:
 			GameState.pending_node_type = node_type
 			get_tree().change_scene_to_file("res://scenes/misc/NodeStub.tscn")
+
+func _get_ring(node_id: String) -> String:
+	if "node_i" in node_id:
+		return "inner"
+	elif "node_m" in node_id:
+		return "middle"
+	elif "node_o" in node_id:
+		return "outer"
+	return "outer"  # fallback for badurga or unrecognized
+
+func _on_event_finished() -> void:
+	_refresh_all_node_visuals()
+
+func _on_event_nav(dest: String) -> void:
+	GameState.save()
+	GameState.pending_node_type = dest
+	get_tree().change_scene_to_file("res://scenes/misc/NodeStub.tscn")
 
 func _on_debug_delete_save_pressed() -> void:
 	GameState.delete_save()
