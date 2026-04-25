@@ -17,6 +17,7 @@ var pending_node_type: String = "" # consumed by NodeStub on scene entry; NOT sa
 var current_combat_node_id: String = "" # transient handoff to EndCombatScreen; NOT saved to disk
 var cleared_nodes: Array[String] = []  # nodes where player won and collected reward; saved to disk
 var threat_level: float = 0.0          # 0.0–1.0; rises on travel + entry; resets to 0 on BOSS defeat
+var used_event_ids: Array[String] = [] # event ids drawn this run; used by EventSelector for no-repeat logic; saved to disk
 
 ## --- Party ---
 
@@ -80,6 +81,7 @@ func save() -> void:
 		"node_types": node_types,
 		"cleared_nodes": cleared_nodes,
 		"threat_level": threat_level,
+		"used_event_ids": used_event_ids,
 		"party": party_data,
 		"inventory": inventory,
 	}
@@ -130,6 +132,8 @@ func load_save() -> bool:
 	var raw_cleared: Array = parsed.get("cleared_nodes", [])
 	cleared_nodes = Array(raw_cleared, TYPE_STRING, "", null)
 	threat_level = float(parsed.get("threat_level", 0.0))
+	var raw_event_ids: Array = parsed.get("used_event_ids", [])
+	used_event_ids = Array(raw_event_ids, TYPE_STRING, "", null)
 	party.clear()
 	var raw_party: Array = parsed.get("party", [])
 	for dict in raw_party:
@@ -189,6 +193,7 @@ func reset() -> void:
 	current_combat_node_id = ""
 	cleared_nodes = []
 	threat_level = 0.0
+	used_event_ids = []
 	party = []
 	run_summary = {}
 	inventory = []
