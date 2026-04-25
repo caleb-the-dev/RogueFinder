@@ -107,7 +107,6 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	# -- Identity --
 	lines.append("[b]Archetype:[/b]  %s" % d.archetype_id.replace("_", " ").capitalize())
 	lines.append("[b]Kindred:[/b]    %s" % _or(d.kindred))
-	lines.append("[b]Feat:[/b]       %s" % _or(KindredLibrary.get_feat_name(d.kindred)))
 	lines.append("[b]Background:[/b] %s" % _or(d.background))
 	lines.append("[b]Team:[/b]       %s" % ("Player" if d.is_player_unit else "Enemy"))
 	lines.append("")
@@ -148,6 +147,12 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	for i in range(4):
 		var ab: String = d.abilities[i] if i < d.abilities.size() else ""
 		lines.append("%d. %s" % [i + 1, _slot(ab)])
+	lines.append("")
+
+	# -- Feats --
+	lines.append("[b]── Feats ──[/b]")
+	var feat: FeatData = FeatLibrary.get_feat(d.kindred_feat_id)
+	lines.append("1. %s" % _or(feat.name))
 
 	# -- Status Effects --
 	if not unit.stat_effects.is_empty():
