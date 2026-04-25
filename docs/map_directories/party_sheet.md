@@ -74,6 +74,8 @@ Runs on `CanvasLayer` at layer 20 — above every other overlay in the map scene
 ### LEFT (376 px) — Bag inventory
 Header row: "BAG" label + `1×/2×` view toggle. Sort row: Name / Type. Search bar. Scrollable `GridContainer` (1 or 2 columns). Each item row is a `PanelContainer` with drag forwarding producing `{"item": dict}`. In compact (2-column) mode: smaller icon (16 px), smaller text (10 px), no stat-bonus sub-line.
 
+**New-item glow (Slice 5):** Items with `seen == false` in their dict render with a gold/amber border (`Color(0.95, 0.80, 0.20)`, width 2) and a looping alpha pulse (`0.7 → 1.0 → 0.7`, 0.8 s, via `Tween`). On `mouse_entered`, the handler sets `item["seen"] = true` on the live dict and calls `_rebuild()`. The rebuilt card has no glow. The tween is created on the card node and dies with it on rebuild — no manual cleanup needed. Only unseen items get the `mouse_entered` connection; seen items have no hover handler.
+
 ### MIDDLE (500 px) — Three member cards stacked
 
 Each card divided into 4 quadrants by 50%-alpha separators:
@@ -142,6 +144,7 @@ All mutations write directly to the live `CombatantData` instance in `GameState.
 
 | Date | Session | What changed |
 |---|---|---|
+| 2026-04-25 | Slice 5 | **New-item glow.** `_build_draggable_item` checks `item.get("seen", true)`. Unseen items get gold border + looping alpha tween (0.7→1.0, 0.8 s). `mouse_entered` sets `seen = true` on the live dict (shared reference from `GameState.inventory` via shallow `Array.duplicate()`) and calls `_rebuild()`, clearing the glow. |
 | 2026-04-24 | Slice 2 | **Feats tab upgraded from placeholder.** Full Abilities-tab-style layout: 1×/2× toggle, Name sort, search bar, scrollable `PanelContainer` feat cards with hover tooltip. Three new per-member state arrays (`_feat_views_wide`, `_feat_sort_ascs`, `_feat_search_texts`). `FeatLibrary` added as dependency. Source is `member.kindred_feat_id` only — Slice 4 extends when `CombatantData.feats` lands. |
 | 2026-04-23 | S28 | Kindred label (blue-grey, 13 px) added to TOP-LEFT card below Background. HP row restructured: "HP x/x" text now left-aligned on the same row as the bar. Column widths rebalanced: LEFT 240→376 px, MIDDLE 530→500 px, RIGHT 480→374 px (~30/40/30). Horizontal divider moved y+108→y+118 for the extra text line. |
 | 2026-04-20 | S23 | Ability Pool Swap. Drag from Abilities tab onto BOTTOM-RIGHT slots; right-click to clear. Per-member sort/search/view in ability panel (backwards-typing bug fixed via focus+caret restoration). Inventory column upgraded with sort/search/view. Drag-compare panels for all three categories (ability, equipment, consumable) via shared helpers. Opaque tooltip theme + `_wrap_tooltip()`. `_process()` auto-clears compare overlay when drag ends. |

@@ -1,6 +1,6 @@
 # Event System
 
-> Non-combat EVENT node system. Data layer (Slice 1), EventSelector (Slice 3), and EventScene overlay + effect dispatch (Slice 4) are live.
+> Non-combat EVENT node system. Data layer (Slice 1), EventSelector (Slice 3), EventScene overlay + effect dispatch (Slice 4), and player_pick picker (Slice 5) are live.
 
 ---
 
@@ -12,7 +12,7 @@
 | EventSelector (ring filter + no-repeat) | ✅ Active — Slice 3 (5 tests) |
 | EventScene overlay + EventManager | ✅ Active — Slice 4 (19 tests) |
 | Effect dispatch + condition evaluator | ✅ Active — Slice 4 |
-| player_pick picker + new-item glow | 🔲 Stub — Slice 5 |
+| player_pick picker + new-item glow | ✅ Active — Slice 5 (7 tests) |
 | Authoring pass (13+ real events) | 🔲 Stub — Slice 6 |
 
 ---
@@ -91,6 +91,7 @@ All methods are `static`. No instantiation required.
 |---|---|---|
 | `event_finished` | — | Player clicked "Continue" on the result panel (non-nav choice). `GameState.save()` is called before emit. |
 | `event_nav` | `dest: String` | A nav effect (`open_vendor` → `"VENDOR"`, `open_bench` → `"BENCH"`) was chosen. No result panel; `hide_event()` called first. |
+| `target_picked` | `target: CombatantData` | Internal only — emitted by the picker overlay when the player clicks a party member button. Awaited in `_on_choice_pressed` to unblock the async dispatch flow. Not connected by external callers. |
 
 ### Static: `evaluate_condition(condition, party) -> bool`
 
@@ -116,32 +117,46 @@ A choice whose `conditions` array is empty is always enabled (loop never runs).
 | `"PC"` | `party[0]` |
 | `"random_ally"` | Random alive non-PC member. Degrades to `party[0]` + `push_warning` if no alive allies. |
 | `"random_party"` | Random alive member from full party. |
-| `"player_pick"` | `party[0]` + `push_warning("player_pick not yet implemented")` (Slice 5). |
+| `"player_pick"` | Degrades to `party[0]` + `push_warning` when called directly (e.g., from tests). In the normal flow, `_on_choice_pressed` intercepts `player_pick` before calling `dispatch_effect`, so `resolve_target` is bypassed via `forced_target` (see below). |
 
 "Alive" = `not is_dead`. Always falls back to `party[0]` if resolved pool is empty.
 
-### Static: `dispatch_effect(effect, party) -> void`
+### Static: `dispatch_effect(effect, party, forced_target) -> void`
+
+`forced_target: CombatantData = null` — optional override for `player_pick` effects. When non-null and the effect's `target` field is `"player_pick"`, `forced_target` is used directly instead of calling `resolve_target`. All other target strings ignore this parameter. Keeps `dispatch_effect` static + headless-testable.
 
 | `type` | Behavior |
 |---|---|
 | `item_gain` | Looks up `item_id` in EquipmentLibrary then ConsumableLibrary; calls `GameState.add_to_inventory(dict)`. push_warning + no-op if not found in either. |
 | `item_remove` | `GameState.remove_from_inventory(item_id)` |
-| `harm` | `resolve_target` → `target.current_hp = maxi(0, current_hp - value)` |
-| `heal` | `resolve_target` → `target.current_hp = mini(hp_max, current_hp + value)` |
+| `harm` | `_resolve_with_override` → `target.current_hp = maxi(0, current_hp - value)` |
+| `heal` | `_resolve_with_override` → `target.current_hp = mini(hp_max, current_hp + value)` |
 | `xp_grant` | `print("[EventEffect] xp_grant %d — stub")` — no-op until XP system exists |
 | `threat_delta` | `GameState.threat_level = clampf(threat_level + float(value) / 100.0, 0.0, 1.0)` — value is signed int treated as percentage points |
-| `feat_grant` | `resolve_target` → appends `feat_id` to `target.feats` if not already present |
+| `feat_grant` | `_resolve_with_override` → appends `feat_id` to `target.feats` if not already present |
 | `open_vendor` / `open_bench` | **Not dispatched here** — handled in `_on_choice_pressed` as nav effects before dispatch loop runs |
 
 Unknown type → `push_warning` + skip.
 
-### UI Flow
+### Static: `_resolve_with_override(target, party, forced_target) -> CombatantData`
+
+Private helper called by `dispatch_effect` for harm/heal/feat_grant. Routes to `forced_target` when `target == "player_pick"` and `forced_target != null`; otherwise delegates to `resolve_target`. Keeps the override logic in one place.
+
+### Instance: `_show_picker() / _hide_picker()`
+
+`_show_picker()` — builds a `CenterContainer` + `PanelContainer` overlay (~500×200 px, blue border, layer 10) dynamically as a child of the CanvasLayer. Shows a "Choose a target:" prompt and one `Button` per alive party member (displays `character_name`, HP, and class). Clicking a button emits `target_picked(member)`. The choice buttons are hidden before the picker appears to block concurrent input.
+
+`_hide_picker()` — frees the `CenterContainer` and nulls `_picker_centering`.
+
+### UI Flow (Slice 5 — updated)
 
 1. `show_event(event_data)` — populate title/body, build choice buttons (disabled+dimmed for failed conditions), show overlay.
-2. Player clicks a choice → `_on_choice_pressed(choice)`.
-3. Nav effect check first: if any effect is `open_vendor` or `open_bench` → `hide_event()` → `event_nav.emit(dest)`. MapManager handles routing. No result panel.
-4. Otherwise: dispatch all effects, show result panel with `choice.result_text`, hide choice buttons.
-5. Player clicks "Continue" → `GameState.save()` → `event_finished.emit()` → `hide_event()`.
+2. Player clicks a choice → `_on_choice_pressed(choice)` (coroutine — uses `await`).
+3. Nav effect check first: if any effect is `open_vendor` or `open_bench` → `hide_event()` → `event_nav.emit(dest)`. MapManager handles routing. No result panel. Returns immediately.
+4. **player_pick scan**: pre-scan `choice.effects` for any effect whose `target == "player_pick"`. If found: hide choice buttons → `_show_picker()` → `await target_picked` → `_hide_picker()`. The resolved `CombatantData` is stored as `picked_target`.
+5. Dispatch all effects via `dispatch_effect(effect, party, picked_target)`. For non-player_pick effects, `picked_target` is ignored.
+6. Show result panel with `choice.result_text`, hide choice buttons.
+7. Player clicks "Continue" → `GameState.save()` → `event_finished.emit()` → `hide_event()`.
 
 ---
 
@@ -202,7 +217,7 @@ All methods are `static`. No instantiation required.
 | `PC` | `GameState.party[0]` |
 | `random_ally` | Random non-PC alive member |
 | `random_party` | Random alive member including PC |
-| `player_pick` | Opens secondary picker panel (Slice 5); degrades to `PC` + warning in Slice 4 |
+| `player_pick` | Opens secondary picker panel; player selects an alive party member. Resolved via `forced_target` param in `dispatch_effect`. Degrades to `PC` + warning when called through `resolve_target` directly (e.g., headless tests). |
 
 ## Condition Vocabulary (authored in conditions pipe list, evaluated in Slice 4)
 
@@ -245,7 +260,7 @@ All methods are `static`. No instantiation required.
 - **Nav effects short-circuit the result panel** — `open_vendor` / `open_bench` are detected before the dispatch loop in `_on_choice_pressed`. They call `hide_event()` then `event_nav.emit()` and return. No `result_text` is shown and `GameState.save()` is NOT called here — `_on_event_nav()` in MapManager owns the save.
 - **`dispatch_effect` is static** — call it from tests without a scene instance.
 - **`item_gain` lookup order** — EquipmentLibrary first (check `equipment_name != "Unknown"`), then ConsumableLibrary (check `consumable_id == item_id`). ConsumableLibrary stub sets `consumable_id = "unknown"` (not the queried id) — this distinguishes stub from real entry.
-- **`player_pick` degrades to PC** — `resolve_target("player_pick", party)` pushes a warning and returns `party[0]`. Full picker UI is Slice 5.
+- **`player_pick` two-path resolution** — In the normal game flow, `_on_choice_pressed` pre-scans effects and shows the picker before dispatch, passing the chosen member as `forced_target` to `dispatch_effect`. The static `resolve_target("player_pick", party)` is therefore never called during live gameplay. It still degrades gracefully (returns `party[0]` + warning) for headless tests that call `dispatch_effect` without a `forced_target`.
 - **Threat meter does not redraw dynamically** — `_add_threat_meter()` builds a static bar from `GameState.threat_level` at scene load. `threat_delta` effects correctly mutate `GameState.threat_level` in memory; the visual updates on next MapScene load.
 - **`GameState.save()` timing** — EventManager's Continue button calls `save()` before emitting `event_finished`. Nav effects do NOT call save here — `MapManager._on_event_nav()` calls `save()` before scene change.
 
@@ -255,6 +270,7 @@ All methods are `static`. No instantiation required.
 
 | Date | Change |
 |---|---|
+| 2026-04-25 | **Slice 5** — `player_pick` picker overlay + `target_picked` signal. `_on_choice_pressed` is now a coroutine (`await`): pre-scans effects for `player_pick`, shows picker if needed, awaits `target_picked`, then dispatches with `forced_target`. `dispatch_effect` signature extended with optional `forced_target: CombatantData = null`; new `_resolve_with_override` helper routes it. Picker: `CenterContainer` + `PanelContainer` (~500×200 px), one button per alive party member, freed after pick. 7 new headless tests (96 total). |
 | 2026-04-25 | **Slice 4** — `EventManager.gd` + `EventScene.tscn` created. CanvasLayer (layer 10) overlay with `show_event`/`hide_event` API, condition-gated choice buttons (disabled+dimmed), result panel, Continue → save → `event_finished`. Static `evaluate_condition` (6 forms), `resolve_target` (4 values), `dispatch_effect` (7 types). MapManager wired: EVENT branch calls `EventSelector.pick_for_node()` + `show_event()` instead of NodeStub; `_on_event_finished` marks node cleared + refreshes visuals; `_on_event_nav` marks cleared + saves + routes to NodeStub. 19 headless tests (89 total). `rusted_dagger` added to equipment.csv. |
 | 2026-04-24 | **Slice 3** — `EventSelector.gd` created. `pick_for_node(ring)`: filters `GameState.used_event_ids`, exhaustion fallback to full pool, never-null, warning on missing ring data. Does not call `GameState.save()` — caller owns persistence. 5 headless tests. |
 | 2026-04-24 | **Slice 1** — EventData, EventChoiceData, EventLibrary created. events.csv (3 smoke events) + event_choices.csv (7 choices covering full effect vocabulary). 12 headless tests. |
