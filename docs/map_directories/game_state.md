@@ -47,7 +47,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `used_event_ids` | `Array[String]` | `[]` | Event ids already drawn this run. Appended to by `EventSelector.pick_for_node()` whenever an EVENT node is entered. Used to filter the candidate pool so the same event doesn't repeat until all ring events are exhausted. **Saved to disk.** |
 | `party` | `Array[CombatantData]` | `[]` | Active party roster. index 0 = PC. Empty = not yet initialized (freshness check for `init_party()`). **Saved to disk.** |
 | `run_summary` | `Dictionary` | `{}` | Snapshot of run stats written by `CombatManager3D._capture_run_summary()` immediately before a run-end transition. Keys: `pc_name`, `nodes_visited`, `nodes_cleared`, `threat_level`, `fallen_allies`. Read by `RunSummaryManager`. Cleared by `reset()`. **NOT saved to disk** — survives the scene transition only because GameState is an autoload. |
-| `inventory` | `Array` | `[]` | Shared party bag. Holds raw reward dicts `{id, name, description, item_type}` for both equipment and consumables. `item_type` is used by the bag UI (Stage 2) to filter into tabs (All / Weapons / Armor / Accessories / Consumables). Nothing is auto-assigned on pickup — the player assigns from the bag manually. Cleared by `reset()`. **Saved to disk.** |
+| `inventory` | `Array` | `[]` | Shared party bag. Holds raw reward dicts `{id, name, description, item_type, seen}` for both equipment and consumables. `item_type` is used by the bag UI (Stage 2) to filter into tabs. `seen: bool` drives the new-item glow in PartySheet — `add_to_inventory()` always stamps `false`; PartySheet sets it `true` on hover. Old saves without the `seen` key default to `true` via `.get("seen", true)` (no spurious glow on upgrade). Nothing is auto-assigned on pickup. Cleared by `reset()`. **Saved to disk.** |
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -56,7 +56,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `is_adjacent_to_player` | `(node_id: String, adjacency: Dictionary) -> bool` | Returns `true` if `node_id` is in the adjacency list for `player_node_id`. The `adjacency` dict is passed in from `MapManager` to keep `GameState` decoupled from map-building data. |
 | `get_threat_level` | `() -> float` | Returns `threat_level`. Stub hookpoint for Feature 8 boss difficulty scaling — annotated with a comment pointing there. |
 | `init_party` | `() -> void` | **Safety fallback only** — seeds `party` with a single default PC (RogueFinder/"Hero"). Guard: no-ops if `party` is already populated. On the new-run path, `CharacterCreationManager._on_confirm()` appends the real PC before `MapManager._ready()` fires, so the guard triggers immediately and `init_party()` is a no-op. Only executes substantively if the game somehow reaches `MapScene` with an empty party (e.g., skipping the creation scene in dev). |
-| `add_to_inventory` | `(item: Dictionary) -> void` | Appends the reward dict to the party bag. No routing — both equipment and consumables land here. |
+| `add_to_inventory` | `(item: Dictionary) -> void` | Stamps `item["seen"] = false` on the dict, then appends to the party bag. Always marks new — even unequipped items returning to the bag will glow until hovered. No routing — both equipment and consumables land here. |
 | `remove_from_inventory` | `(item_id: String) -> bool` | Removes the first bag entry whose `id` matches `item_id`. Returns `true` if found and removed, `false` if not present. |
 
 ### Save / Load
@@ -82,7 +82,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `threat_level` | `GameState.threat_level` | float — read back via `float(parsed.get("threat_level", 0.0))` (no typed-array conversion needed) |
 | `used_event_ids` | `GameState.used_event_ids` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load; defaults to `[]` if key absent (old saves) |
 | `party` | `GameState.party` | JSON Array of dicts — each dict holds all scalar fields (including `kindred: String`) + `abilities`/`ability_pool`/`feats` as string arrays + `weapon_id`/`armor_id`/`accessory_id` as strings. Deserialized back to `Array[CombatantData]` by `_deserialize_combatant()`. Missing `kindred` key (old saves) defaults to `"Unknown"`. Missing `feats` key (old saves) defaults to `[]`. |
-| `inventory` | `GameState.inventory` | JSON Array of reward dicts `{id, name, description, item_type}`. Stored and loaded as-is — no resolution step needed. |
+| `inventory` | `GameState.inventory` | JSON Array of reward dicts `{id, name, description, item_type, seen}`. Stored and loaded as-is — no resolution step needed. `seen` persists naturally in JSON; old saves without the key read as `true` via `.get("seen", true)`. |
 
 **What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, party roster (all CombatantData fields including persistent run state), inventory (equipment item ids).
 

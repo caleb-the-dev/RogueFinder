@@ -318,11 +318,13 @@ func _build_draggable_item(parent: Control, item: Dictionary, compact: bool = fa
 	if not compact:
 		row.custom_minimum_size = Vector2(LEFT_W - 14.0, 0.0)
 
+	var is_unseen: bool = not item.get("seen", true)
+
 	var sbox := StyleBoxFlat.new()
 	sbox.bg_color = Color(0.14, 0.12, 0.09, 0.90)
 	sbox.border_width_left = 2; sbox.border_width_top = 2
 	sbox.border_width_right = 2; sbox.border_width_bottom = 2
-	sbox.border_color = Color(0.36, 0.30, 0.20, 0.80)
+	sbox.border_color = Color(0.95, 0.80, 0.20) if is_unseen else Color(0.36, 0.30, 0.20, 0.80)
 	sbox.set_corner_radius_all(3)
 	row.add_theme_stylebox_override("panel", sbox)
 
@@ -375,6 +377,16 @@ func _build_draggable_item(parent: Control, item: Dictionary, compact: bool = fa
 			text_vbox.add_child(bonus_lbl)
 
 	parent.add_child(row)
+
+	if is_unseen:
+		var tween := row.create_tween()
+		tween.set_loops()
+		tween.tween_property(row, "modulate:a", 0.7, 0.4)
+		tween.tween_property(row, "modulate:a", 1.0, 0.4)
+		row.mouse_entered.connect(func() -> void:
+			item["seen"] = true
+			_rebuild()
+		)
 
 	var tip: String
 	if is_equipment:

@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-25 (events Slice 4 — EventManager overlay + effect dispatch) |
+| last_updated | 2026-04-25 (events Slice 5 — player_pick picker + new-item glow) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 15 |
+| sessions_since_groom | 16 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -42,7 +42,7 @@
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay, layer 20) | Presentation |
-| [Event System](event_system.md) | `event_system.md` | ⚙️ Partial — data + selector + overlay + dispatch live (Slices 1/3/4); player_pick picker in Slice 5 | Data / World Map |
+| [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker live (Slices 1/3/4/5); authoring pass in Slice 6 | Data / World Map |
 | [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ⚙️ Partial — data layer + display (Slice 2); no mechanical effects yet | Data |
 
 ---
@@ -235,7 +235,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 28 test files (89 tests total); includes test_event_manager.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern
+└── tests/                              ← 30 test files (96 tests total); includes test_event_manager.gd/.tscn + test_event_manager_slice5.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern
 ```
 
 ---
@@ -246,6 +246,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-25 | EventManager, GameState, PartySheet | **Events Slice 5 — player_pick picker overlay + new-item glow.** `_on_choice_pressed` is now async (coroutine): pre-scans choice effects for `player_pick` target, shows a centered picker panel (500×200 px, blue border) with one button per alive party member, awaits `target_picked` signal, then dispatches all effects with the resolved member via new `forced_target` param on `dispatch_effect`. `dispatch_effect` signature extended: `forced_target: CombatantData = null` — when non-null and effect target is `player_pick`, uses it directly (static + headless-testable). New `_resolve_with_override` helper. `GameState.add_to_inventory()` now stamps `seen = false` on every incoming dict. PartySheet item cards check `item.get("seen", true)`: unseen → gold border + looping alpha tween; `mouse_entered` sets `seen = true` on the live dict (shared ref) and calls `_rebuild()`. Old saves without `seen` key default to `true`. 7 new headless tests (96 total). |
 | 2026-04-25 | EventManager, MapManager, CombatantData, GameState | **Events Slice 4 — EventScene overlay, condition evaluator, effect dispatcher, feats field.** `EventManager.gd` + `EventScene.tscn` created (CanvasLayer layer 10). `show_event()`/`hide_event()` API; choice buttons disabled+dimmed when conditions fail; result panel + Continue flow; `event_finished` + `event_nav` signals. Static `evaluate_condition` (6 forms), `resolve_target` (4 values), `dispatch_effect` (7 types). `CombatantData.feats: Array[String]` added; serialized/deserialized in GameState via typed-array pattern; old saves default to `[]`. MapManager: EVENT branch calls `EventSelector.pick_for_node` + `show_event` instead of NodeStub; `_get_ring()` helper; `_on_event_finished` + `_on_event_nav` handlers mark node cleared + refresh map. `_input()` and `_on_node_clicked()` guard against re-entry while overlay is visible. Cleared stamp: CURRENT+CLEARED now renders ✗ immediately; stamp font 18, bright red, outlined, centered. `rusted_dagger` added to equipment.csv. 19 new headless tests (89 total). |
 | 2026-04-24 | EventSelector, GameState, MapManager | **Events Slice 3 — EventSelector + used_event_ids persistence.** `GameState.used_event_ids` (`Array[String]`) added with full save/load/reset wiring (typed-array pattern matching `cleared_nodes`). `EventSelector.gd` created: static `pick_for_node(ring)` filters already-seen ids, exhaustion-falls-back to full ring pool, pushes warning + returns stub for rings with no authored events, appends chosen id to `GameState.used_event_ids`, never calls `save()`. `MapManager._move_player_to()` gains a trailing `GameState.save()` after post-tween dispatch, covering VENDOR/CITY "Keep Moving" path. 7 new headless tests (70 total): 5 EventSelector + 2 GameState save round-trip. EVENT nodes still route to NodeStub — EventScene overlay is Slice 4. |
 | 2026-04-24 | FeatLibrary, FeatData, StatPanel, CharacterCreationManager, PartySheet | **Feats Slice 2 — FeatLibrary data foundation + display migration.** `FeatData.gd` resource + `FeatLibrary.gd` (CSV-native, `get_feat()`/`all_feats()`/`reload()`, never-null stub). `feats.csv` seeds 4 kindred feats (`adaptive`, `relentless`, `tinkerer`, `stonehide`). All display surfaces migrated from `KindredLibrary.get_feat_name()` to `FeatLibrary.get_feat(kindred_feat_id)`. StatPanel: `── Feats ──` section in RTL after Abilities, numbered entries. CharacterCreationManager preview: feat name + description label. PartySheet Feats tab: full Abilities-tab-style UI — 1×/2× toggle, Name sort, search bar, `PanelContainer` cards with hover tooltip. 8 new headless tests (63 total). |
