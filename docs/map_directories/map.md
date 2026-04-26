@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-26 (QTE Session B — world-space bar + camera focus) |
+| last_updated | 2026-04-26 (Camera overhaul — elevation Q/E, right-click drag, cursor capture) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 2 |
+| sessions_since_groom | 3 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -234,7 +234,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 24 test scripts + 13 scene runners; includes test_event_manager.gd/.tscn + test_event_manager_slice5.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern
+└── tests/                              ← 25 test scripts + 13 scene runners; includes test_event_manager.gd/.tscn + test_event_manager_slice5.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (3 headless assertions, extends SceneTree)
 ```
 
 ---
@@ -245,6 +245,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-26 | CameraController.gd, tests/ | **Camera overhaul — elevation Q/E + right-click drag rotation + cursor capture.** Q/E now control pitch (`_elevation`, 15°–80° clamped, 10°/press) instead of snapped yaw. Right-click drag rotates yaw continuously (`DRAG_SENSITIVITY = 0.4°/px`). Cursor captured (`MOUSE_MODE_CAPTURED`) while dragging, restored on release. `DEFAULT_ELEVATION` constant promoted to `_elevation: float` variable; `_apply_transform()` uses `_elevation` so focus_on/restore tweens maintain player-set pitch. Removed `ROTATE_STEP`; added `MIN_ELEVATION`, `MAX_ELEVATION`, `ELEVATION_STEP`, `DRAG_SENSITIVITY`, `_dragging`. New headless test suite `test_camera_controls.gd` (3 assertions: upper clamp, lower clamp, default value). |
 | 2026-04-26 | QTEBar.gd, CombatManager3D.gd, CameraController.gd, tests/ | **QTE Session B — world-space bar + camera focus.** `start_qte(energy_cost, attacker: Node3D)` — bar now floats above the attacker in world space each frame via `Camera3D.unproject_position(pos + Vector3(0,2,0))`. Full-screen dark overlay removed. `_attacker` cleared after `qte_resolved`. Attacker-death guard in `_process`. Camera smoothly focuses on the attacker before each QTE (0.5 s `focus_on` tween + 0.25 s settle), then restores to grid center after. `CameraController` gained `focus_on()`, `restore()`, `_set_pivot()`, `_home_position`, `_pivot_tween`. New headless test suite `test_qte_world_bar.gd` (3 assertions). |
 | 2026-04-26 | QTEBar.gd, CombatManager3D.gd, tests/ | **QTE Reactive Overhaul — Session A (logic).** QTE is now defender-driven and HARM-only. Hold/Target/Directional QTE styles deleted; only Slide remains, always 1 beat. `start_qte()` simplified to `(energy_cost: int)`. Non-HARM effects (MEND/BUFF/DEBUFF/FORCE/TRAVEL) auto-resolve at 1.0. New damage multiplier mapping: defender roll 1.25→0.5, 1.0→0.75, 0.75→1.0, 0.25→1.25. New HARM formula: `max(1, round(dmg_mult * (base_value + caster.attack)))`. Friendly fire (same-team AoE): dmg_mult fixed at 1.0, no QTE. TRAVEL always succeeds (enters destination mode immediately). AoE HARM: one QTE per hit defender, sequential. Player attacks enemies: enemy instant-sims defense (no bar shown). Enemy attacks player units: player sees dodge bar. Deleted `_on_qte_resolved`, `_apply_effects`. Added `_apply_non_harm_effects`, `_get_harm_effect`, `_run_harm_defenders`, `_defender_roll_to_dmg_multiplier`. CM3D uses `await _qte_bar.qte_resolved` inline (no signal handler). Deleted 3 stale test files; added `test_qte_reactive.gd` (6 test functions). Session B (world-space bar) deferred. |
 | 2026-04-25 | events.csv, event_choices.csv, MapManager.gd | **Events Slice 6 — full event pass + MapManager improvements.** 12 new events authored (outer: fallen_signpost, roadside_shrine, dry_well, abandoned_campfire, stray_dog, road_patrol; middle: mercenary_camp, burned_farmhouse, standing_stone, river_crossing; inner: mass_grave, ember_idol). Post-testing revision pass: 13 targeted changes including `wounded_traveler` → Wandering Medic, `survivor_in_the_dark` removed, `stray_dog` made recruit placeholder, road_patrol/bridge/farmhouse mechanics adjusted. MapManager: dev event test panel (CanvasLayer layer 30; "Events [DEV]" button; `_is_dev_event` flag prevents node clearing from panel-fired events including nav effects); live threat meter refresh (`_refresh_threat_meter()` called on traversal + event finish); CITY nodes excluded from cleared stamp. Final CSV counts: events.csv 15 rows, event_choices.csv 46 rows. |

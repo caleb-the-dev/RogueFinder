@@ -154,3 +154,12 @@ The pivot (`position` / `global_position`) is normally `Vector3(9, 0, 9)` (grid 
 - Right-click drag is used for yaw rotation because left-click is claimed by CombatManager3D for unit selection. Middle-click was considered but right-click is more ergonomic for orbit cameras.
 - `focus_on` / `restore` call `_set_pivot()` → `_apply_transform()` each frame, so they correctly maintain whatever `_elevation` and `_yaw` the player has set during the tween.
 - During a QTE focus tween, the player can still Q/E, drag, and scroll — those calls `_apply_transform()` directly and are additive on top of the moving pivot.
+
+---
+
+## Recent Changes
+
+| Date | What changed |
+|------|-------------|
+| 2026-04-26 | **Camera overhaul.** Q/E now control `_elevation` (pitch, 10°/press, clamped 15°–80°) instead of snapped yaw. Right-click drag rotates yaw continuously (`DRAG_SENSITIVITY = 0.4°/px`). Cursor captured (`MOUSE_MODE_CAPTURED`) on right-click down, restored to `MOUSE_MODE_VISIBLE` on release. `DEFAULT_ELEVATION` constant promoted to `_elevation: float` variable. Removed `ROTATE_STEP`; added `MIN_ELEVATION`, `MAX_ELEVATION`, `ELEVATION_STEP`, `DRAG_SENSITIVITY`, `_dragging`. `_apply_transform()` now reads `_elevation` instead of the constant. `test_camera_controls.gd` added (3 headless assertions). |
+| 2026-04-26 | **QTE camera focus / restore added.** `focus_on(world_pos)`, `restore()`, `_set_pivot()`, `_home_position`, `_pivot_tween` added. Camera smoothly tweens to attacker before each QTE (0.5 s), returns to grid center after (0.45 s, fire-and-forget). |
