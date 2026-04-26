@@ -1,14 +1,15 @@
 # System: Camera System
 
-> Last updated: 2026-04-26 (Session B — QTE camera focus / restore)
+> Last updated: 2026-04-26 (Camera overhaul — elevation Q/E, right-click drag rotation)
 
 ---
 
 ## Purpose
 
 The Camera System provides a **DOS2-style isometric orbit camera** for the 3D combat scene. It handles:
-- Fixed-elevation orbit around a pivot point (normally grid center)
-- Q/E key rotation in 45° snapped steps
+- Variable-elevation orbit around a pivot point (normally grid center)
+- Q/E keys adjust camera elevation (pitch), clamped 15°–80°
+- Right-click drag rotates the camera horizontally (yaw)
 - Mouse scroll wheel zoom
 - Procedural camera shake on combat events (hit feedback)
 - **Smooth QTE focus** — pivots to the attacker's world position before a QTE starts, then restores
@@ -62,10 +63,13 @@ None.
 | `DEFAULT_DISTANCE` | 16.0 | Default orbit radius |
 | `MIN_DISTANCE` | 8.0 | Minimum zoom distance |
 | `MAX_DISTANCE` | 28.0 | Maximum zoom distance |
-| `DEFAULT_ELEVATION` | 52.0° | Fixed camera pitch (isometric-style) |
+| `DEFAULT_ELEVATION` | 52.0° | Starting camera pitch |
+| `MIN_ELEVATION` | 15.0° | Lowest allowed pitch (near-horizon) |
+| `MAX_ELEVATION` | 80.0° | Highest allowed pitch (near-top-down) |
 | `DEFAULT_YAW` | 225.0° | Starting yaw angle |
-| `ROTATE_STEP` | 45.0° | Q/E rotation increment |
+| `ELEVATION_STEP` | 10.0° | Q/E elevation increment per press |
 | `ZOOM_STEP` | 2.0 | Scroll wheel zoom increment |
+| `DRAG_SENSITIVITY` | 0.4 | Yaw degrees per pixel of horizontal drag |
 | `SHAKE_DURATION` | 0.22 s | Duration of shake effect |
 | `SHAKE_MAGNITUDE` | 0.18 | Max displacement per shake tick |
 
@@ -75,8 +79,10 @@ None.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `_yaw` | `float` | `225.0` | Current orbit angle (degrees) |
+| `_yaw` | `float` | `225.0` | Current horizontal orbit angle (degrees) |
+| `_elevation` | `float` | `52.0` | Current camera pitch in degrees; clamped to MIN/MAX_ELEVATION |
 | `_distance` | `float` | `16.0` | Current orbit radius |
+| `_dragging` | `bool` | `false` | True while right mouse button is held; gates horizontal drag input |
 | `_shake_timer` | `float` | `0.0` | Countdown for shake; set by `trigger_shake()` |
 | `_shake_offset` | `Vector3` | `ZERO` | Additive shake displacement applied to Camera3D |
 | `_camera` | `Camera3D` | `null` | Child Camera3D; created in `_ready()` |
@@ -89,12 +95,13 @@ None.
 
 | Input | Action |
 |-------|--------|
-| `Q` | Rotate orbit left by 45° |
-| `E` | Rotate orbit right by 45° |
+| `Q` | Increase elevation by 10° (more top-down), clamped to 80° |
+| `E` | Decrease elevation by 10° (more horizon-facing), clamped to 15° |
+| `Right-click drag` | Rotate orbit horizontally; yaw tracks `event.relative.x * DRAG_SENSITIVITY` |
 | `ScrollUp` | Zoom in (decrease distance) |
 | `ScrollDown` | Zoom out (increase distance) |
 
-Rotation and zoom still respond during a QTE — the focus tween moves the pivot but doesn't lock input.
+Elevation, drag rotation, and zoom still respond during a QTE — the focus tween moves the pivot but doesn't lock input.
 
 ---
 
@@ -130,7 +137,7 @@ _camera_rig.restore()                                          # 0.45 s tween ba
 ## Transform Pipeline (`_apply_transform`)
 
 ```
-1. Compute camera local offset from _yaw, DEFAULT_ELEVATION, and _distance.
+1. Compute camera local offset from _yaw, _elevation, and _distance.
 2. Set _camera.position to that local offset + _shake_offset.
 3. Call _camera.look_at(global_position) so camera always points at the pivot.
 ```
@@ -143,6 +150,7 @@ The pivot (`position` / `global_position`) is normally `Vector3(9, 0, 9)` (grid 
 
 - `_home_position` is captured from `position` in `_ready()`. CM3D sets `_camera_rig.position = Vector3(9.0, 0.0, 9.0)` **before** `add_child()`, so `_ready()` sees the correct value. Do not change this ordering.
 - `get_camera()` returns null if called before `_ready()` fires.
-- `DEFAULT_ELEVATION` of 52° gives a near-isometric look — readable 3D battlefield without true 45° projection.
-- Q/E rotation snaps to 45° multiples (no smooth tween). A full camera overhaul (drag-to-rotate, Q/E = elevation) is planned for a future session.
-- During a QTE focus tween, the player can still Q/E and scroll — those calls `_apply_transform()` directly and are additive on top of the moving pivot.
+- `DEFAULT_ELEVATION` of 52° gives a near-isometric look — readable 3D battlefield without true 45° projection. Player can pitch up to 80° (top-down) or down to 15° (low horizon) via Q/E.
+- Right-click drag is used for yaw rotation because left-click is claimed by CombatManager3D for unit selection. Middle-click was considered but right-click is more ergonomic for orbit cameras.
+- `focus_on` / `restore` call `_set_pivot()` → `_apply_transform()` each frame, so they correctly maintain whatever `_elevation` and `_yaw` the player has set during the tween.
+- During a QTE focus tween, the player can still Q/E, drag, and scroll — those calls `_apply_transform()` directly and are additive on top of the moving pivot.
