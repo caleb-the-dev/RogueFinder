@@ -1,5 +1,5 @@
-id,speed_bonus,hp_bonus,feat_id,name_pool,notes
-Human,3,5,adaptive,Kale|Sora|Wren|Dax|Mira|Fenn,
-Half-Orc,2,12,relentless,Brak|Mord|Thug|Krak|Uge|Dorn,
-Gnome,4,2,tinkerer,Finch|Alda|Quill|Senna|Pip|Loris,
-Dwarf,1,8,stonehide,Sven|Holt|Cara|Brix|Edda|Vale,
+id,speed_bonus,hp_bonus,stat_bonuses,starting_ability_id,ability_pool,name_pool,notes
+Human,3,5,willpower:1,focused_strike,steadfast|quick_wit,Kale|Sora|Wren|Dax|Mira|Fenn,
+Half-Orc,2,12,strength:1,savage_blow,battle_surge|warcry,Brak|Mord|Thug|Krak|Uge|Dorn,
+Gnome,4,2,cognition:1,gadget_spark,tinker_boost|quick_wit,Finch|Alda|Quill|Senna|Pip|Loris,
+Dwarf,1,8,armor_defense:2,stone_fist,stone_guard|steadfast,Sven|Holt|Cara|Brix|Edda|Vale,

@@ -1,5 +1,5 @@
-id,name,starting_ability_id,feat_pool,unlocked_by_default,tags,description,notes
-crook,Crook,smoke_bomb,light_fingers|streetwise|back_alley_deal,true,criminal|urban,Grew up light-fingered in Badurga's alleys.,retargeted starting_ability to smoke_bomb (pickpocket does not exist); real flavor ability deferred
-soldier,Soldier,shield_bash,formation_drill|second_wind|veteran_instinct,true,military|disciplined,Served a tour under some banner that mattered once.,shield_bash real; feats not yet defined
-scholar,Scholar,acid_splash,arcane_primer|library_mind|linguist,true,academic|urban,Traded sunlight for ink and ancient texts.,retargeted starting_ability to acid_splash (identify does not exist); real flavor ability deferred
-baker,Baker,healing_draught,hearth_cheer|neighborly_reach|knead_and_mend,true,commoner|urban,Flour-dusted and endlessly patient.,retargeted starting_ability to healing_draught (rally_feast does not exist); real flavor ability deferred
+id,name,description,starting_feat_id,feat_pool,unlocked_by_default,tags,stat_bonuses,notes
+crook,Crook,Grew up light-fingered in Badurga's alleys.,street_smart,nimble_fingers|survival_instinct,true,criminal|urban,dexterity:1,
+soldier,Soldier,Served a tour under some banner that mattered once.,combat_training,disciplined_stance|unit_cohesion,true,military|disciplined,strength:1|vitality:1,
+scholar,Scholar,Traded sunlight for ink and ancient texts.,analytical_mind,focused_study|breadth_of_knowledge,true,academic|urban,cognition:2,
+baker,Baker,Flour-dusted and endlessly patient.,hearty_constitution,enduring_spirit|patient_resolve,true,commoner|urban,vitality:1|willpower:1,

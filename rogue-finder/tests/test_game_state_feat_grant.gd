@@ -55,13 +55,13 @@ func test_grant_feat_saves() -> void:
 	var member := _make_member()
 	GameState.party = [member]
 	GameState.map_seed = 1
-	GameState.grant_feat(0, "stonehide")
+	GameState.grant_feat(0, "street_smart")  # background feat — not stripped by migration
 	# Reload from disk and verify the feat survived
 	GameState.reset()
 	var loaded := GameState.load_save()
 	assert(loaded, "load_save should succeed after grant_feat save")
 	assert(GameState.party.size() == 1, "party should have 1 member")
-	assert(GameState.party[0].feat_ids.has("stonehide"),
-		"'stonehide' should survive save triggered by grant_feat")
+	assert(GameState.party[0].feat_ids.has("street_smart"),
+		"'street_smart' should survive save triggered by grant_feat")
 	GameState.reset()
 	print("  PASS test_grant_feat_saves")

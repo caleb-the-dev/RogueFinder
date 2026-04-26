@@ -82,6 +82,10 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				c.unlocked_by_default = (val == "true")
 			"tags":
 				c.tags = _split_pipe(val)
+			"stat_bonuses":
+				c.stat_bonuses = _parse_stat_bonuses(val)
+			"ability_pool":
+				c.ability_pool = _split_pipe(val)
 			"notes":
 				pass
 			_:
@@ -90,6 +94,17 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 		push_error("ClassLibrary: row %d missing id — skipping" % row_num)
 		return null
 	return c
+
+## Parses "str:1|vit:2" into {"str": 1, "vit": 2}. Empty string returns {}.
+static func _parse_stat_bonuses(val: String) -> Dictionary:
+	var result: Dictionary = {}
+	if val == "":
+		return result
+	for pair in val.split("|", false):
+		var parts := pair.split(":", false)
+		if parts.size() == 2:
+			result[parts[0]] = int(parts[1])
+	return result
 
 static func _split_pipe(val: String) -> Array[String]:
 	if val == "":

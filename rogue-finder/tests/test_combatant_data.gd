@@ -31,7 +31,7 @@ func _ready() -> void:
 	test_ability_pool_size_all_archetypes()
 	test_kindred_speed_formula()
 	test_kindred_hp_formula()
-	test_kindred_feat_assignment()
+	test_kindred_stat_bonus_structural()
 	test_kindred_unknown_defaults_safe()
 	test_kindred_name_pool_loaded()
 	test_kindred_name_pool_unknown_safe()
@@ -40,12 +40,12 @@ func _ready() -> void:
 ## --- Derived Stat Tests ---
 
 func test_derived_hp() -> void:
-	# No kindred set → bonus = 0. Formula: 10 + 0 + vitality*6.
+	# No kindred set → bonus = 0. Formula: 10 + 0 + vitality*4.
 	var d := CombatantData.new()
 	d.vitality = 3
-	assert(d.hp_max == 28, "hp_max should be 10+0+18=28 (no kindred, vit 3), got %d" % d.hp_max)
+	assert(d.hp_max == 22, "hp_max should be 10+0+12=22 (no kindred, vit 3), got %d" % d.hp_max)
 	d.vitality = 1
-	assert(d.hp_max == 16, "hp_max should be 10+0+6=16 (no kindred, vit 1), got %d" % d.hp_max)
+	assert(d.hp_max == 14, "hp_max should be 10+0+4=14 (no kindred, vit 1), got %d" % d.hp_max)
 	print("  PASS test_derived_hp")
 
 func test_derived_energy() -> void:
@@ -95,10 +95,10 @@ func test_unit_name_alias() -> void:
 
 func test_vitality_min_guard() -> void:
 	# ArchetypeLibrary guards vitality >= 1. Alchemist is Gnome (+2 hp_bonus), VIT min 1.
-	# Minimum hp_max = 10 + 2 + 1*6 = 18.
+	# Minimum hp_max = 10 + 2 + 1*4 = 16 (multiplier changed to *4 for 1-10 scale).
 	var d: CombatantData = ArchetypeLibrary.create("alchemist")
 	assert(d.vitality >= 1, "vitality must be at least 1 after factory creation")
-	assert(d.hp_max   >= 18, "hp_max must be >= 18 for Gnome at VIT 1, got %d" % d.hp_max)
+	assert(d.hp_max   >= 16, "hp_max must be >= 16 for Gnome at VIT 1, got %d" % d.hp_max)
 	print("  PASS test_vitality_min_guard")
 
 ## --- Archetype Factory Tests ---
@@ -112,10 +112,10 @@ func test_archetype_archer_bandit_ranges() -> void:
 	# Run several times to catch out-of-range rolls statistically
 	for i in range(20):
 		var d: CombatantData = ArchetypeLibrary.create("archer_bandit")
-		assert(d.dexterity >= 3 and d.dexterity <= 4,
-			"archer_bandit dex out of range [3,4]: %d" % d.dexterity)
-		assert(d.strength  >= 1 and d.strength  <= 2,
-			"archer_bandit str out of range [1,2]: %d" % d.strength)
+		assert(d.dexterity >= 6 and d.dexterity <= 9,
+			"archer_bandit dex out of range [6,9]: %d" % d.dexterity)
+		assert(d.strength  >= 2 and d.strength  <= 5,
+			"archer_bandit str out of range [2,5]: %d" % d.strength)
 		assert(d.background in ["Crook", "Soldier"],
 			"archer_bandit background not in pool: %s" % d.background)
 	print("  PASS test_archetype_archer_bandit_ranges")
@@ -136,8 +136,8 @@ func test_archetype_alchemist_background_pool() -> void:
 
 func test_archetype_grunt_class() -> void:
 	var d: CombatantData = ArchetypeLibrary.create("grunt")
-	assert(d.unit_class == "Barbarian", "grunt class should be Barbarian, got %s" % d.unit_class)
-	assert(d.archetype_id == "grunt",   "archetype_id should be 'grunt'")
+	assert(d.unit_class == "vanguard", "grunt class should be vanguard, got %s" % d.unit_class)
+	assert(d.archetype_id == "grunt",  "archetype_id should be 'grunt'")
 	print("  PASS test_archetype_grunt_class")
 
 func test_archetype_elite_guard_armor_range() -> void:
@@ -145,15 +145,15 @@ func test_archetype_elite_guard_armor_range() -> void:
 		var d: CombatantData = ArchetypeLibrary.create("elite_guard")
 		assert(d.armor_defense >= 7 and d.armor_defense <= 10,
 			"elite_guard armor out of range [7,10]: %d" % d.armor_defense)
-		assert(d.vitality >= 3 and d.vitality <= 5,
-			"elite_guard vit out of range [3,5]: %d" % d.vitality)
+		assert(d.vitality >= 4 and d.vitality <= 8,
+			"elite_guard vit out of range [4,8]: %d" % d.vitality)
 	print("  PASS test_archetype_elite_guard_armor_range")
 
 func test_archetype_unknown_falls_back_to_grunt() -> void:
 	var d: CombatantData = ArchetypeLibrary.create("not_a_real_archetype")
 	# Falls back to "grunt" definition, but keeps the passed archetype_id
-	assert(d.unit_class == "Barbarian",
-		"unknown archetype should fall back to grunt's class (Barbarian)")
+	assert(d.unit_class == "vanguard",
+		"unknown archetype should fall back to grunt's class (vanguard), got %s" % d.unit_class)
 	print("  PASS test_archetype_unknown_falls_back_to_grunt")
 
 func test_archetype_name_override() -> void:
@@ -227,12 +227,12 @@ func test_kindred_speed_formula() -> void:
 	print("  PASS test_kindred_speed_formula")
 
 func test_kindred_hp_formula() -> void:
-	# Formula: 10 + hp_bonus + vitality*6
+	# Formula: 10 + hp_bonus + vitality*4
 	var cases: Dictionary = {
-		"Human":    { "hp_bonus": 5,  "vit": 3, "expected": 10 + 5  + 18 },  # 33
-		"Half-Orc": { "hp_bonus": 12, "vit": 3, "expected": 10 + 12 + 18 },  # 40
-		"Gnome":    { "hp_bonus": 2,  "vit": 1, "expected": 10 + 2  + 6  },  # 18
-		"Dwarf":    { "hp_bonus": 8,  "vit": 4, "expected": 10 + 8  + 24 },  # 42
+		"Human":    { "hp_bonus": 5,  "vit": 3, "expected": 10 + 5  + 12 },  # 27
+		"Half-Orc": { "hp_bonus": 12, "vit": 3, "expected": 10 + 12 + 12 },  # 34
+		"Gnome":    { "hp_bonus": 2,  "vit": 1, "expected": 10 + 2  + 4  },  # 16
+		"Dwarf":    { "hp_bonus": 8,  "vit": 4, "expected": 10 + 8  + 16 },  # 34
 	}
 	for kindred in cases.keys():
 		var c: Dictionary = cases[kindred]
@@ -243,28 +243,29 @@ func test_kindred_hp_formula() -> void:
 			"%s: expected hp_max %d, got %d" % [kindred, c["expected"], d.hp_max])
 	print("  PASS test_kindred_hp_formula")
 
-func test_kindred_feat_assignment() -> void:
-	var expected_feats: Dictionary = {
-		"RogueFinder":  "adaptive",
-		"archer_bandit": "adaptive",   # also Human
-		"grunt":         "relentless",
-		"alchemist":     "tinkerer",
-		"elite_guard":   "stonehide",
-	}
-	for archetype_id in expected_feats.keys():
+func test_kindred_stat_bonus_structural() -> void:
+	# Kindred stat bonuses are structural (always-on in derived formulas) — no feat entry needed.
+	# Enemies start with empty feat_ids; their kindred bonuses still flow through get_kindred_stat_bonus().
+	for archetype_id in ["archer_bandit", "grunt", "alchemist", "elite_guard"]:
 		var d: CombatantData = ArchetypeLibrary.create(archetype_id)
-		assert(d.feat_ids.size() >= 1 and d.feat_ids[0] == expected_feats[archetype_id],
-			"%s: expected feat_ids[0]='%s', got %s" % [archetype_id, expected_feats[archetype_id], str(d.feat_ids)])
-	print("  PASS test_kindred_feat_assignment")
+		var old_kindred_feats: Array[String] = ["adaptive", "relentless", "tinkerer", "stonehide"]
+		for f_id in d.feat_ids:
+			assert(f_id not in old_kindred_feats,
+				"%s: old kindred feat '%s' should not be in feat_ids after migration" % [archetype_id, f_id])
+	# Verify the bonus still applies structurally for a Dwarf (armor_defense:2)
+	var guard: CombatantData = ArchetypeLibrary.create("elite_guard")  # Dwarf
+	assert(guard.get_kindred_stat_bonus("armor_defense") == 2,
+		"elite_guard (Dwarf) kindred armor_defense bonus should be 2, got %d" % guard.get_kindred_stat_bonus("armor_defense"))
+	print("  PASS test_kindred_stat_bonus_structural")
 
 func test_kindred_unknown_defaults_safe() -> void:
 	var d: CombatantData = CombatantData.new()
 	d.kindred = "Unknown"
 	assert(d.speed  == 1, "Unknown kindred speed should be 1+0=1, got %d" % d.speed)
-	assert(d.hp_max == 10 + (d.vitality * 6),
+	assert(d.hp_max == 10 + (d.vitality * 4),
 		"Unknown kindred hp_max should use 0 bonus, got %d" % d.hp_max)
-	assert(KindredLibrary.get_feat_id("Unknown") == "",
-		"Unknown kindred feat_id should be empty string")
+	assert(KindredLibrary.get_stat_bonus("Unknown", "strength") == 0,
+		"Unknown kindred stat bonus should be 0")
 	print("  PASS test_kindred_unknown_defaults_safe")
 
 ## Every known kindred must load a non-empty name pool with a known flavor name —

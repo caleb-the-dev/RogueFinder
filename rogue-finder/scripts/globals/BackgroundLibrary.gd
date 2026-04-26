@@ -94,16 +94,18 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				bg.background_id = val
 			"name":
 				bg.background_name = val
-			"starting_ability_id":
-				bg.starting_ability_id = val
+			"description":
+				bg.description = val
+			"starting_feat_id":
+				bg.starting_feat_id = val
 			"feat_pool":
 				bg.feat_pool = _split_pipe(val)
 			"unlocked_by_default":
 				bg.unlocked_by_default = (val == "true")
 			"tags":
 				bg.tags = _split_pipe(val)
-			"description":
-				bg.description = val
+			"stat_bonuses":
+				bg.stat_bonuses = _parse_stat_bonuses(val)
 			"notes":
 				pass  # designer free-text; intentionally ignored
 			_:
@@ -112,6 +114,17 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 		push_error("BackgroundLibrary: row %d missing id — skipping" % row_num)
 		return null
 	return bg
+
+## Parses "stat:value|stat:value" into a Dictionary. Empty string returns {}.
+static func _parse_stat_bonuses(val: String) -> Dictionary:
+	var result: Dictionary = {}
+	if val == "":
+		return result
+	for pair in val.split("|", false):
+		var parts := pair.split(":", false)
+		if parts.size() == 2:
+			result[parts[0]] = int(parts[1])
+	return result
 
 static func _split_pipe(val: String) -> Array[String]:
 	if val == "":

@@ -61,7 +61,7 @@ static func create(archetype_id: String, character_name: String = "",
 	data.is_player_unit = is_player
 	data.unit_class     = src.unit_class
 	data.kindred        = src.kindred
-	data.feat_ids       = [KindredLibrary.get_feat_id(data.kindred)]
+	data.feat_ids       = []  # enemies start with no feats; kindred bonuses are structural
 	data.artwork_idle   = src.artwork_idle
 	data.artwork_attack = src.artwork_attack
 

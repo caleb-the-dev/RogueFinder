@@ -70,10 +70,10 @@ func test_null_equipment_speed_no_regression() -> void:
 	print("  PASS test_null_equipment_speed_no_regression")
 
 func test_null_equipment_hp_max_no_regression() -> void:
-	# S29: hp_max = 10 + kindred_bonus + VIT*6. No kindred → bonus=0; vit=3 → 10+0+18=28.
+	# hp_max = 10 + kindred_bonus + VIT*4. No kindred → bonus=0; vit=3 → 10+0+12=22.
 	var d := CombatantData.new()
 	d.vitality = 3
-	assert(d.hp_max == 28, "hp_max with vit=3, no equip: expected 28, got %d" % d.hp_max)
+	assert(d.hp_max == 22, "hp_max with vit=3, no equip: expected 22, got %d" % d.hp_max)
 	print("  PASS test_null_equipment_hp_max_no_regression")
 
 func test_null_equipment_energy_max_no_regression() -> void:
@@ -116,8 +116,8 @@ func test_chain_mail_defense_plus_two_speed_minus_one() -> void:
 
 func test_equipment_library_all_returns_six_items() -> void:
 	var all: Array[EquipmentData] = EquipmentLibrary.all_equipment()
-	assert(all.size() == 6,
-		"all_equipment() should return 6 items, got %d" % all.size())
+	assert(all.size() == 7,
+		"all_equipment() should return 7 items, got %d" % all.size())
 	# Verify no nulls slipped in
 	for item in all:
 		assert(item != null, "all_equipment() should not contain null entries")

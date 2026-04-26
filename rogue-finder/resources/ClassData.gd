@@ -16,6 +16,10 @@ extends Resource
 @export var feat_pool:           Array[String] = []
 @export var unlocked_by_default: bool          = true
 @export var tags:                Array[String] = []
+## Flat stat bonuses granted at creation. Same key:int format as FeatData.
+@export var stat_bonuses:        Dictionary    = {}
+## Full ability ID pool for future level-up picker — not yet wired to UI.
+@export var ability_pool:        Array[String] = []
 
 func has_tag(tag: String) -> bool:
 	return tags.has(tag)

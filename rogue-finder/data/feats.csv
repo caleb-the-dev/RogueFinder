@@ -1,8 +1,4 @@
 id,name,description,source_type,stat_bonuses,effects,notes
-adaptive,Adaptive,Open to any path — willpower hardened by a life of reinvention.,kindred,willpower:1,,
-relentless,Relentless,Fight harder when cornered — raw aggression over finesse.,kindred,strength:1,,
-tinkerer,Tinkerer,Find clever shortcuts — sharper mind faster solutions.,kindred,cognition:1,,
-stonehide,Stonehide,Endure what others cannot — skin thick as the stone they're carved from.,kindred,armor_defense:2,,
 shadow_step,Shadow Step,Move before they see you coming.,class,dexterity:2,,
 poisoners_precision,Poisoner's Precision,Patient and methodical — every strike counts.,class,strength:1,,
 quick_reflexes,Quick Reflexes,React to danger a half-breath before it lands.,class,dexterity:1,,
