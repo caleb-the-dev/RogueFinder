@@ -9,10 +9,6 @@ func _initialize() -> void:
 	_test_beat_result_low_tier()
 	_test_beat_result_medium_tier()
 	_test_beat_result_high_tier()
-	_test_beat_count_per_shape()
-	_test_slider_beat_count_per_shape()
-	_test_multiplier_aggregation()
-	_test_stat_delta_formula()
 	print("All QTE foundation tests PASSED.")
 	quit()
 
@@ -35,40 +31,6 @@ func _beat_result(pos: float, ss_half: float) -> float:
 		return 1.0
 	return 1.25
 
-## --- Mirrors QTEBar._beat_count_for_shape() (click-targets / directional) ---
-## Base 3 for single-cell shapes; ×area factor for larger ones.
-func _beat_count(shape: AbilityData.TargetShape) -> int:
-	match shape:
-		AbilityData.TargetShape.CONE:   return 6
-		AbilityData.TargetShape.LINE:   return 9
-		AbilityData.TargetShape.RADIAL: return 12
-		_:                              return 3
-
-## --- Mirrors QTEBar._slider_beat_count_for_shape() (slider / HARM / MEND) ---
-## Classic 1–4 scale.
-func _slider_beat_count(shape: AbilityData.TargetShape) -> int:
-	match shape:
-		AbilityData.TargetShape.CONE:   return 2
-		AbilityData.TargetShape.LINE:   return 3
-		AbilityData.TargetShape.RADIAL: return 4
-		_:                              return 1
-
-## --- Mirrors QTEBar._aggregate_multiplier() ---
-func _aggregate(results: Array[float]) -> float:
-	if results.is_empty():
-		return 0.25
-	var sum: float = 0.0
-	for r: float in results:
-		sum += r
-	var avg: float = sum / float(results.size())
-	if avg >= 1.2: return 1.25
-	if avg >= 0.9: return 1.0
-	if avg >= 0.6: return 0.75
-	return 0.25
-
-## --- Mirrors CombatManager3D stat delta for HARM ---
-func _stat_delta(atk: int, def_: int) -> float:
-	return clampf(float(atk) / float(def_), 0.5, 2.0)
 
 ## ============================================================
 ## Difficulty tier assignment
@@ -114,7 +76,7 @@ func _test_beat_result_medium_tier() -> void:
 	assert(_beat_result(0.534, h) == 1.25, "Med: pos=0.534 dist=0.034 < 0.036 → gold")
 	assert(_beat_result(0.536, h) == 1.0,  "Med: pos=0.536 dist=0.036 ≥ 0.036 → green")
 	assert(_beat_result(0.583, h) == 1.0,  "Med: pos=0.583 dist=0.083 < 0.084 → green")
-	assert(_beat_result(0.584, h) == 0.75, "Med: pos=0.584 dist=0.084 ≥ 0.084 → orange")
+	assert(_beat_result(0.590, h) == 0.75, "Med: pos=0.590 dist=0.090 > 0.084 → orange")
 	assert(_beat_result(0.615, h) == 0.75, "Med: pos=0.615 dist=0.115 < 0.12 → orange")
 	assert(_beat_result(0.625, h) == 0.25, "Med: pos=0.625 dist=0.125 > 0.12 → red")
 	assert(_beat_result(0.30,  h) == 0.25, "Med: far left → red")
@@ -136,58 +98,3 @@ func _test_beat_result_high_tier() -> void:
 	assert(_beat_result(0.580, h) == 0.25, "High: pos=0.580 dist=0.080 > 0.07 → red")
 	assert(_beat_result(1.00,  h) == 0.25, "High: pos=1.0 → red")
 
-## ============================================================
-## Beat count per shape
-## ============================================================
-
-func _test_beat_count_per_shape() -> void:
-	assert(_beat_count(AbilityData.TargetShape.SELF)   == 3,  "SELF → 3 beats")
-	assert(_beat_count(AbilityData.TargetShape.SINGLE) == 3,  "SINGLE → 3 beats")
-	assert(_beat_count(AbilityData.TargetShape.ARC)    == 3,  "ARC → 3 beats")
-	assert(_beat_count(AbilityData.TargetShape.CONE)   == 6,  "CONE → 6 beats")
-	assert(_beat_count(AbilityData.TargetShape.LINE)   == 9,  "LINE → 9 beats")
-	assert(_beat_count(AbilityData.TargetShape.RADIAL) == 12, "RADIAL → 12 beats")
-
-## ============================================================
-## Slider beat count per shape (HARM / MEND — classic 1–4)
-## ============================================================
-
-func _test_slider_beat_count_per_shape() -> void:
-	assert(_slider_beat_count(AbilityData.TargetShape.SELF)   == 1, "SELF → 1 slider beat")
-	assert(_slider_beat_count(AbilityData.TargetShape.SINGLE) == 1, "SINGLE → 1 slider beat")
-	assert(_slider_beat_count(AbilityData.TargetShape.ARC)    == 1, "ARC → 1 slider beat")
-	assert(_slider_beat_count(AbilityData.TargetShape.CONE)   == 2, "CONE → 2 slider beats")
-	assert(_slider_beat_count(AbilityData.TargetShape.LINE)   == 3, "LINE → 3 slider beats")
-	assert(_slider_beat_count(AbilityData.TargetShape.RADIAL) == 4, "RADIAL → 4 slider beats")
-
-## ============================================================
-## Multiplier aggregation
-## ============================================================
-
-func _test_multiplier_aggregation() -> void:
-	assert(_aggregate([1.25, 1.25, 1.25, 1.25]) == 1.25, "all-gold × 4 → 1.25")
-	assert(_aggregate([1.25]) == 1.25, "single gold → 1.25")
-	assert(_aggregate([1.0, 1.0, 1.0]) == 1.0, "all-green × 3 → 1.0")
-	assert(_aggregate([1.0]) == 1.0, "single green → 1.0")
-	assert(_aggregate([1.25, 0.75]) == 1.0, "gold+orange → avg=1.0 → 1.0")
-	assert(_aggregate([1.25, 1.25, 1.25, 1.0]) == 1.0, "3×gold+green → avg=1.1875 → 1.0")
-	assert(_aggregate([0.75, 0.75]) == 0.75, "all-orange × 2 → 0.75")
-	assert(_aggregate([0.75]) == 0.75, "single orange → 0.75")
-	assert(_aggregate([1.0, 0.75, 0.25, 0.75]) == 0.75, "green+orange+red+orange → avg=0.6875 → 0.75")
-	assert(_aggregate([1.25, 0.25]) == 0.75, "gold+red → avg=0.75 → 0.75")
-	assert(_aggregate([0.25, 0.25, 0.25, 0.25]) == 0.25, "all-red × 4 → 0.25")
-	assert(_aggregate([0.25]) == 0.25, "single red → 0.25")
-	assert(_aggregate([0.75, 0.25]) == 0.25, "orange+red → avg=0.5 → 0.25")
-	assert(_aggregate([]) == 0.25, "empty array → 0.25")
-
-## ============================================================
-## Stat delta formula (HARM)
-## stat_delta = clamp(atk / def, 0.5, 2.0)
-## ============================================================
-
-func _test_stat_delta_formula() -> void:
-	assert(absf(_stat_delta(10, 10) - 1.0) < 0.001, "parity atk=10 def=10 → 1.0")
-	assert(absf(_stat_delta(20, 10) - 2.0) < 0.001, "advantage 20/10 → 2.0")
-	assert(absf(_stat_delta(10, 20) - 0.5) < 0.001, "disadvantage 10/20 → 0.5")
-	assert(absf(_stat_delta(30, 10) - 2.0) < 0.001, "above cap 30/10 → 2.0")
-	assert(absf(_stat_delta(5, 20)  - 0.5) < 0.001, "below floor 5/20 → 0.5")

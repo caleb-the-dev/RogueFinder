@@ -146,7 +146,6 @@ func _setup_units() -> void:
 func _setup_ui() -> void:
 	_qte_bar = preload("res://scenes/combat/QTEBar.tscn").instantiate()
 	add_child(_qte_bar)
-	_qte_bar.qte_resolved.connect(_on_qte_resolved)
 
 	# Full examine panel — opened only on double-click
 	_stat_panel = StatPanel.new()
@@ -530,15 +529,39 @@ func _initiate_aoe_action(attacker: Unit3D, origin_world: Vector3) -> void:
 	_update_status()
 	attacker.play_attack_anim(origin_world)
 	await get_tree().create_timer(0.09).timeout
-	var _eff_type: EffectData.EffectType = EffectData.EffectType.HARM
-	if not _pending_ability.effects.is_empty():
-		_eff_type = _pending_ability.effects[0].effect_type
-	## For AoE FORCE abilities (e.g. windblast), project the aimed cell into screen space
-	## so click-targets scatter around the actual blast centre rather than the origin corner.
-	var _screen_pos: Vector2 = Vector2.ZERO
-	if _eff_type == EffectData.EffectType.FORCE:
-		_screen_pos = _camera_rig.get_camera().unproject_position(origin_world)
-	_qte_bar.start_qte(_pending_ability.energy_cost, _pending_ability.target_shape, _eff_type, _screen_pos)
+
+	attacker.spend_energy(_pending_ability.energy_cost)
+	attacker.has_acted = true
+
+	var cells := _get_shape_cells(attacker.grid_pos, _aoe_origin, _pending_ability)
+	var aoe_targets := _get_units_in_cells(cells, _pending_ability.applicable_to)
+
+	for unit: Unit3D in aoe_targets:
+		_apply_non_harm_effects(_pending_ability, attacker, unit, _aoe_origin)
+
+	var harm_eff: EffectData = _get_harm_effect(_pending_ability)
+	if harm_eff != null:
+		var harm_targets: Array[Unit3D] = []
+		for unit: Unit3D in aoe_targets:
+			if unit.is_alive:
+				harm_targets.append(unit)
+		await _run_harm_defenders(attacker, harm_targets, harm_eff, _pending_ability.energy_cost)
+
+	_pending_ability = null
+	_aoe_origin      = Vector2i(-1, -1)
+
+	if state == CombatState.WIN or state == CombatState.LOSE:
+		return
+
+	_camera_rig.trigger_shake()
+	state = CombatState.PLAYER_TURN
+	if _selected_unit and _selected_unit.is_alive:
+		_select_unit(_selected_unit)
+		_info_bar.refresh(_selected_unit)
+	else:
+		_deselect()
+	_update_status()
+	_check_auto_end_turn()
 
 ## Apply the consumable effect immediately (no QTE), then clear the slot.
 func _on_consumable_selected() -> void:
@@ -561,12 +584,11 @@ func _on_consumable_selected() -> void:
 	_info_bar.refresh(_selected_unit)
 	_action_menu.open_for(_selected_unit, _camera_rig.get_camera())
 
-## Kicks off the QTE sequence. Uses _pending_ability.energy_cost for spending.
-## Must only be called after _pending_ability is set.
-## Stores target in _attack_target so _on_qte_resolved() can access it regardless
-## of whether the entry path was self-targeting or player-picked.
+## Initiates an action for the selected unit against a single target (or self).
+## Handles TRAVEL immediately (destination-pick mode); HARM routes through per-defender
+## QTE; all other effects auto-resolve at full strength.
 func _initiate_action(attacker: Unit3D, target: Unit3D) -> void:
-	_attack_target = target        ## always set here — not at call sites
+	_attack_target = target
 	state = CombatState.QTE_RUNNING
 	mode  = PlayerMode.IDLE
 	_grid.clear_highlights()
@@ -574,79 +596,36 @@ func _initiate_action(attacker: Unit3D, target: Unit3D) -> void:
 	_update_status()
 	attacker.play_attack_anim(target.global_position)
 	await get_tree().create_timer(0.09).timeout
-	var _eff_type: EffectData.EffectType = EffectData.EffectType.HARM
-	if not _pending_ability.effects.is_empty():
-		_eff_type = _pending_ability.effects[0].effect_type
-	## For FORCE abilities, pass the target's screen position so the click-targets
-	## QTE can scatter circles around the target unit's visual location.
-	var _screen_pos: Vector2 = Vector2.ZERO
-	if _eff_type == EffectData.EffectType.FORCE:
-		_screen_pos = _camera_rig.get_camera().unproject_position(target.global_position)
-	_qte_bar.start_qte(_pending_ability.energy_cost, _pending_ability.target_shape,
-			_eff_type, _screen_pos)
 
-func _on_qte_resolved(multiplier: float) -> void:
-	if not _pending_ability:
-		push_error("CombatManager3D: _on_qte_resolved called with no _pending_ability")
-		state = CombatState.PLAYER_TURN
-		_update_status()
-		return
+	attacker.spend_energy(_pending_ability.energy_cost)
+	attacker.has_acted = true
 
-	var has_aoe: bool  = _aoe_origin != Vector2i(-1, -1)
-	var has_target: bool = _attack_target != null
-
-	if _selected_unit and (has_target or has_aoe):
-		# Check for TRAVEL before spending energy/acting so we can enter destination mode
-		var travel_eff: EffectData = null
-		for eff: EffectData in _pending_ability.effects:
-			if eff.effect_type == EffectData.EffectType.TRAVEL:
-				travel_eff = eff
-				break
-
-		_selected_unit.spend_energy(_pending_ability.energy_cost)
-		_selected_unit.has_acted = true
-
-		if travel_eff != null:
+	## TRAVEL special case: skip QTE entirely, always enter destination-pick mode.
+	for eff: EffectData in _pending_ability.effects:
+		if eff.effect_type == EffectData.EffectType.TRAVEL:
 			_pending_ability = null
 			_attack_target   = null
 			_aoe_origin      = Vector2i(-1, -1)
 			state            = CombatState.PLAYER_TURN
-
-			if multiplier == 0.25:
-				# QTE failed — skip destination pick; energy was already spent above
-				mode = PlayerMode.IDLE
-				_status_label.text = "TRAVEL FAILED — repositioning lost"
-				await get_tree().create_timer(1.5).timeout
-				if _selected_unit and _selected_unit.is_alive:
-					_select_unit(_selected_unit)
-				else:
-					_deselect()
-				_update_status()
-				_check_auto_end_turn()
-				return
-
-			# Enter destination-pick mode; effect resolves when the player clicks a tile
-			_travel_effect = travel_eff
-			mode           = PlayerMode.TRAVEL_DESTINATION
-			_highlight_travel_destinations(_selected_unit, _travel_effect)
+			_travel_effect   = eff
+			mode             = PlayerMode.TRAVEL_DESTINATION
+			_highlight_travel_destinations(attacker, _travel_effect)
 			_update_status()
 			return
-		elif has_aoe:
-			var cells := _get_shape_cells(_selected_unit.grid_pos, _aoe_origin, _pending_ability)
-			for unit: Unit3D in _get_units_in_cells(cells, _pending_ability.applicable_to):
-				_apply_effects(_pending_ability, _selected_unit, unit, multiplier, _aoe_origin)
-		else:
-			_apply_effects(_pending_ability, _selected_unit, _attack_target, multiplier)
 
-		_camera_rig.trigger_shake()
+	_apply_non_harm_effects(_pending_ability, attacker, target)
+
+	var harm_eff: EffectData = _get_harm_effect(_pending_ability)
+	if harm_eff != null:
+		await _run_harm_defenders(attacker, [target], harm_eff, _pending_ability.energy_cost)
 
 	_pending_ability = null
 	_attack_target   = null
-	_aoe_origin      = Vector2i(-1, -1)
 
 	if state == CombatState.WIN or state == CombatState.LOSE:
 		return
 
+	_camera_rig.trigger_shake()
 	state = CombatState.PLAYER_TURN
 	if _selected_unit and _selected_unit.is_alive:
 		_select_unit(_selected_unit)
@@ -656,34 +635,63 @@ func _on_qte_resolved(multiplier: float) -> void:
 	_update_status()
 	_check_auto_end_turn()
 
-## Resolves every effect in ability.effects against target using the shared accuracy float.
-## accuracy comes from the QTE result (0.0–1.0); all effects share the same roll.
-## blast_origin is the aimed AoE cell — passed through to FORCE/RADIAL displacement.
-func _apply_effects(ability: AbilityData, caster: Unit3D, target: Unit3D, multiplier: float,
+## Applies all non-HARM effects in an ability at full strength (multiplier 1.0).
+## HARM is excluded — it routes through _run_harm_defenders() instead.
+## TRAVEL is excluded — it's handled in _initiate_action() as a special state.
+func _apply_non_harm_effects(ability: AbilityData, caster: Unit3D, target: Unit3D,
 		blast_origin: Vector2i = Vector2i(-1, -1)) -> void:
 	for effect: EffectData in ability.effects:
 		match effect.effect_type:
-			EffectData.EffectType.HARM:
-				var stat_delta: float = clampf(
-					float(caster.data.attack) / float(target.data.defense), 0.5, 2.0)
-				var dmg: int = maxi(1, roundi(float(effect.base_value) * stat_delta * multiplier))
-				target.take_damage(dmg)
 			EffectData.EffectType.MEND:
-				var heal: int = maxi(1, roundi(float(effect.base_value) * 1.0 * multiplier))
+				var heal: int = maxi(1, roundi(float(effect.base_value)))
 				target.heal(heal)
 			EffectData.EffectType.BUFF:
-				var delta: int = maxi(1, roundi(float(effect.base_value) * 1.0 * multiplier))
-				_apply_stat_delta(target, effect.target_stat, delta)
+				_apply_stat_delta(target, effect.target_stat, maxi(1, effect.base_value))
 			EffectData.EffectType.DEBUFF:
-				var delta: int = maxi(1, roundi(float(effect.base_value) * 1.0 * multiplier))
-				_apply_stat_delta(target, effect.target_stat, -delta)
+				_apply_stat_delta(target, effect.target_stat, -maxi(1, effect.base_value))
 			EffectData.EffectType.FORCE:
-				# multiplier ≤ 0.25 is the failure zone — no displacement on a miss
-				if multiplier > 0.25:
-					_apply_force(caster, target, effect, blast_origin)
-			EffectData.EffectType.TRAVEL:
-				# Handled before _apply_effects is called — see _on_qte_resolved
+				_apply_force(caster, target, effect, blast_origin)
+			EffectData.EffectType.HARM, EffectData.EffectType.TRAVEL:
 				pass
+
+## Returns the first HARM EffectData in an ability, or null if none.
+func _get_harm_effect(ability: AbilityData) -> EffectData:
+	for eff: EffectData in ability.effects:
+		if eff.effect_type == EffectData.EffectType.HARM:
+			return eff
+	return null
+
+## Maps the QTEBar defender roll (1.25/1.0/0.75/0.25) to a damage multiplier.
+## Higher dodge roll → attacker deals less damage.
+func _defender_roll_to_dmg_multiplier(roll: float) -> float:
+	if roll >= 1.25: return 0.5
+	if roll >= 1.0:  return 0.75
+	if roll >= 0.75: return 1.0
+	return 1.25
+
+## Processes HARM for each defender sequentially.
+## Player-controlled defenders see the QTE bar; AI-controlled defenders instant-sim.
+## Damage formula: max(1, round(dmg_mult * (base_value + caster.attack)))
+func _run_harm_defenders(caster: Unit3D, defenders: Array[Unit3D],
+		effect: EffectData, energy_cost: int) -> void:
+	for defender: Unit3D in defenders:
+		if not defender.is_alive:
+			continue
+
+		var qte_result: float
+		if defender.data.is_player_unit:
+			state = CombatState.QTE_RUNNING
+			_qte_bar.start_qte(energy_cost)
+			qte_result = await _qte_bar.qte_resolved
+		else:
+			qte_result = _qte_resolution_to_multiplier(defender.data.qte_resolution)
+
+		var dmg_mult: float = _defender_roll_to_dmg_multiplier(qte_result)
+		var dmg: int = maxi(1, roundi(dmg_mult * float(effect.base_value + caster.data.attack)))
+		defender.take_damage(dmg)
+		_check_win_lose()
+		if state == CombatState.WIN or state == CombatState.LOSE:
+			return
 
 ## Returns the raw attribute int value from a unit's CombatantData.
 func _get_attribute_value(unit: Unit3D, attribute: AbilityData.Attribute) -> int:
@@ -1132,21 +1140,25 @@ func _process_enemy_actions() -> void:
 
 		# --- 5. Execute ability ---
 		var chosen: AbilityData = affordable[randi() % affordable.size()]
-		var multiplier: float = _qte_resolution_to_multiplier(enemy.data.qte_resolution)
 		enemy.spend_energy(chosen.energy_cost)
-
 		enemy.show_action_text(chosen.ability_name)
+
+		var harm_eff: EffectData = _get_harm_effect(chosen)
 
 		match chosen.target_shape:
 			AbilityData.TargetShape.SELF:
 				enemy.play_attack_anim(enemy.global_position)
 				await get_tree().create_timer(0.10).timeout
-				_apply_effects(chosen, enemy, enemy, multiplier)
+				_apply_non_harm_effects(chosen, enemy, enemy)
+				if harm_eff != null:
+					await _run_harm_defenders(enemy, [enemy], harm_eff, chosen.energy_cost)
 
 			AbilityData.TargetShape.SINGLE:
 				enemy.play_attack_anim(target.global_position)
 				await get_tree().create_timer(0.10).timeout
-				_apply_effects(chosen, enemy, target, multiplier)
+				_apply_non_harm_effects(chosen, enemy, target)
+				if harm_eff != null:
+					await _run_harm_defenders(enemy, [target], harm_eff, chosen.energy_cost)
 
 			_:  # AoE: RADIAL, CONE, ARC, LINE
 				var best_origin: Vector2i = _pick_best_aoe_origin(enemy, chosen)
@@ -1156,6 +1168,7 @@ func _process_enemy_actions() -> void:
 				var cells: Array[Vector2i] = _get_shape_cells(enemy.grid_pos, best_origin, chosen)
 				## applicable_to is from the caster's perspective:
 				## ENEMY = hits the opposing side (player units); ANY = hits all; ALLY = hits own side
+				var aoe_hits: Array[Unit3D] = []
 				for cell in cells:
 					var obj: Object = _grid.get_unit_at(cell)
 					if not obj is Unit3D:
@@ -1172,7 +1185,17 @@ func _process_enemy_actions() -> void:
 						AbilityData.ApplicableTo.ALLY:
 							should_hit = not hit_unit.data.is_player_unit
 					if should_hit:
-						_apply_effects(chosen, enemy, hit_unit, multiplier, best_origin)
+						_apply_non_harm_effects(chosen, enemy, hit_unit, best_origin)
+						aoe_hits.append(hit_unit)
+				if harm_eff != null:
+					var alive_hits: Array[Unit3D] = []
+					for hu: Unit3D in aoe_hits:
+						if hu.is_alive:
+							alive_hits.append(hu)
+					await _run_harm_defenders(enemy, alive_hits, harm_eff, chosen.energy_cost)
+
+		if state == CombatState.WIN or state == CombatState.LOSE:
+			return
 
 		_camera_rig.trigger_shake()
 		if _info_bar_unit != null:
@@ -1477,7 +1500,7 @@ func _update_status() -> void:
 				PlayerMode.TRAVEL_DESTINATION:
 					_status_label.text = "REPOSITION — click a blue tile  |  ESC cancel"
 		CombatState.QTE_RUNNING:
-			_status_label.text = "QTE — press SPACE or click to strike!"
+			_status_label.text = "DODGE! — press SPACE or click!"
 		CombatState.ENEMY_TURN:
 			_status_label.text = "ENEMY TURN..."
 		CombatState.WIN, CombatState.LOSE:

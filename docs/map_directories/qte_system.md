@@ -1,16 +1,32 @@
 # System: QTE System
 
-> Last updated: 2026-04-16 (Session 11 — official QTE names; QTE-4 Target for FORCE)
+> Last updated: 2026-04-26 (Session A — defender-driven reactive overhaul)
 
 ---
 
 ## Purpose
 
-The QTE (Quick Time Event) system is a **standalone skill-check overlay**. It renders a skill-check UI over the game as a CanvasLayer and emits a multiplier float (0.25 / 0.75 / 1.0 / 1.25) when all beats complete.
+The QTE (Quick Time Event) system is a **standalone dodge check overlay**. It renders a
+sliding-bar skill check over the game as a CanvasLayer and emits a `multiplier` float
+(0.25 / 0.75 / 1.0 / 1.25) that represents the **defender's dodge quality**.
 
-This multiplier drives the damage/heal/stat formula in CombatManager. The system is completely self-contained — it neither knows nor cares what called it.
+This multiplier is mapped to a **damage multiplier** in CombatManager3D:
 
-Enemy "QTE" is simulated by CombatManager directly using the unit's `qte_resolution` stat — the QTEBar is not shown for enemy turns.
+| Defender roll | Damage multiplier |
+|---|---|
+| 1.25 (perfect dodge) | 0.5 |
+| 1.0 (good dodge) | 0.75 |
+| 0.75 (weak dodge) | 1.0 |
+| 0.25 (miss) | 1.25 |
+
+**HARM-only.** The QTE fires only for HARM effects. All other effect types (MEND, BUFF,
+DEBUFF, FORCE, TRAVEL) auto-resolve at effective multiplier 1.0 — never miss, no QTE.
+
+**Defender-driven.** The QTE is played by the unit being attacked, not the caster:
+- Player-controlled defender: `QTEBar.start_qte()` runs; player plays Slide.
+- AI-controlled defender: invisible roll via `qte_resolution` stat (no bar shown).
+
+Enemy simulation is handled entirely in CombatManager3D; the QTEBar is never shown.
 
 ---
 
@@ -18,26 +34,28 @@ Enemy "QTE" is simulated by CombatManager directly using the unit's `qte_resolut
 
 | File | Scene | Role |
 |------|-------|------|
-| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | All four QTE styles, CanvasLayer layer 10 |
+| `scripts/combat/QTEBar.gd` | `scenes/combat/QTEBar.tscn` | Single-beat Slide QTE, CanvasLayer layer 10 |
 
 `.tscn` is minimal. All UI nodes are built in `_build_ui()`.
 
 ---
 
-## Official QTE Names
+## QTE Style: Slide (only)
 
-| Name | Nickname | Effect types | Description |
-|------|----------|--------------|-------------|
-| **Slide** | "the Gears of War one" | HARM, MEND | Stop a sliding cursor in the coloured zone |
-| **Hold** | "the fishing one" | TRAVEL | Hold to fill a meter; release in the zone |
-| **Target** | "the osu! one" | FORCE | Click circular targets before they expire |
-| **Directional** | — | BUFF, DEBUFF | Press arrow keys in the shown sequence |
+The **Slide** style is the only QTE style. Stop a sliding cursor in the coloured zone to
+dodge. Higher zone = better dodge = less incoming damage.
+
+All other styles (Hold, Target, Directional) have been deleted.
 
 ---
 
 ## Dependencies
 
-None. QTEBar has **no runtime dependencies** on other game systems. It is purely input-in → multiplier-out.
+None. QTEBar has **no runtime dependencies** on other game systems. It is purely
+input-in → multiplier-out.
+
+CombatManager3D calls `start_qte()` and **awaits** `qte_resolved` inline (no signal
+connection — `await _qte_bar.qte_resolved`).
 
 ---
 
@@ -45,11 +63,10 @@ None. QTEBar has **no runtime dependencies** on other game systems. It is purely
 
 | Signal | Arguments | When |
 |--------|-----------|------|
-| `qte_resolved` | `multiplier: float` | All beats complete and final feedback has been displayed |
+| `qte_resolved` | `multiplier: float` | Single beat completes and feedback is shown |
 
-`multiplier` is one of: `1.25` (perfect), `1.0` (good), `0.75` (weak), `0.25` (miss/failure).
-
-CombatManager subscribes to this signal before calling `start_qte()`.
+`multiplier` is the **defender's dodge roll**: one of `1.25` (perfect), `1.0` (good),
+`0.75` (weak), `0.25` (miss). CombatManager maps this via `_defender_roll_to_dmg_multiplier()`.
 
 ---
 
@@ -57,13 +74,10 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `start_qte` | `(energy_cost: int, shape: AbilityData.TargetShape, effect_type: EffectData.EffectType, target_screen_pos: Vector2 = Vector2.ZERO) -> void` | Routes to the correct QTE style, sets difficulty, then starts the first beat |
+| `start_qte` | `(energy_cost: int) -> void` | Sets difficulty, resets state, starts cursor animation |
 
-`effect_type` routing:
-- `BUFF` / `DEBUFF` → **Directional** (`_start_directional_qte`)
-- `TRAVEL` → **Hold** (`_start_power_meter_qte`)
-- `FORCE` → **Target** (`_start_click_targets_qte`); `target_screen_pos` required
-- all others → **Slide** (`_start_slider_qte`)
+Difficulty is set from the attacking ability's `energy_cost` (harder abilities = faster
+cursor = harder to dodge).
 
 ---
 
@@ -71,17 +85,15 @@ CombatManager subscribes to this signal before calling `start_qte()`.
 
 `energy_cost` sets the difficulty tier once per `start_qte()` call:
 
-| Tier | Energy cost | Slide ss_half | Cursor duration | Dir input window | Hold zone centre | Hold zone half-width | Target window |
-|------|-------------|---------------|-----------------|------------------|------------------|----------------------|---------------|
-| Low | 1–2 | 0.20 (40 %) | 2.2 s | 2.0 s | 65 % | 18 % | 1.8 s |
-| Medium | 3–4 | 0.12 (24 %) | 1.6 s | 1.5 s | 72 % | 12 % | 1.3 s |
-| High | 5+ | 0.07 (14 %) | 1.1 s | 1.0 s | 78 % |  7 % | 0.9 s |
-
-Hold fill rate = `1.0 / cursor_duration` (same speed scale as the Slide timing).
+| Tier | Energy cost | Slide ss_half | Cursor duration |
+|------|-------------|---------------|-----------------|
+| Low | 1–2 | 0.20 (40 %) | 2.2 s |
+| Medium | 3–4 | 0.12 (24 %) | 1.6 s |
+| High | 5+ | 0.07 (14 %) | 1.1 s |
 
 ---
 
-## 4-Zone Bar Layout (Slide and Hold)
+## 4-Zone Bar Layout
 
 ```
 [=red===|===orange=|==green=|=GOLD=|=green==|===orange=|===red===]
@@ -90,142 +102,65 @@ Hold fill rate = `1.0 / cursor_duration` (same speed scale as the Slide timing).
 
 All zones are symmetric around bar center (0.5). `dist = |cursor_pos − 0.5|`.
 
-| Zone | Condition | Multiplier | Colour |
-|------|-----------|-----------|--------|
-| Gold (perfect) | `dist < ss_half × 0.30` | **1.25** | Gold `#FFD900` |
-| Green (major) | `ss_half×0.30 ≤ dist < ss_half×0.70` | **1.0** | Green `#2EC038` |
-| Orange (minor) | `ss_half×0.70 ≤ dist ≤ ss_half` | **0.75** | Orange `#E68019` |
-| Red (failure) | `dist > ss_half` | **0.25** | Dark red background |
+| Zone | Condition | Defender roll | Colour |
+|------|-----------|--------------|--------|
+| Gold (perfect dodge) | `dist < ss_half × 0.30` | **1.25** | Gold `#FFD900` |
+| Green (good dodge) | `ss_half×0.30 ≤ dist < ss_half×0.70` | **1.0** | Green `#2EC038` |
+| Orange (weak dodge) | `ss_half×0.70 ≤ dist ≤ ss_half` | **0.75** | Orange `#E68019` |
+| Red (miss) | `dist > ss_half` | **0.25** | Dark red background |
 
-Zone ColorRects are children of `_bar_bg`. `_rebuild_zones()` repositions them whenever difficulty changes.
-
----
-
-## Multi-Beat Sequencing
-
-Beat count depends on **QTE style**:
-
-**Slide (HARM / MEND)** — classic 1–4 scale:
-
-| Shape | Beat count |
-|-------|-----------|
-| SELF / SINGLE / ARC | 1 |
-| CONE | 2 |
-| LINE | 3 |
-| RADIAL | 4 |
-
-**Target (FORCE) and Directional (BUFF / DEBUFF)** — base-3 × area scale:
-
-| Shape | Beat count |
-|-------|-----------|
-| SELF / SINGLE / ARC | 3 |
-| CONE | 6 |
-| LINE | 9 |
-| RADIAL | 12 |
-
-When `beat_count > 1`, the instruction label shows **"Beat N / M"**.
-
-Between beats: the per-beat result label flashes for **0.3 s** ("PERFECT" / "GOOD" / "WEAK" / "MISS"), then the next beat starts. After the final beat, the multiplier feedback label is shown for **0.85 s** before the bar hides and `qte_resolved` fires.
+Zone ColorRects are children of `_bar_bg`. `_rebuild_zones()` repositions them whenever
+difficulty changes.
 
 ---
 
-## Multiplier Aggregation
+## Single Beat per QTE
 
-After all beats complete, per-beat results are averaged and mapped to the nearest tier:
+One beat per QTE invocation. No multi-beat sequencing, no shape-scaled beat counts.
 
-| Average | Tier |
-|---------|------|
-| ≥ 1.2 | 1.25 (perfect) |
-| ≥ 0.9 | 1.0 (good) |
-| ≥ 0.6 | 0.75 (weak) |
-| < 0.6 | 0.25 (miss) |
+Feedback labels:
+- **PERFECT DODGE!** (gold)
+- **GOOD DODGE!** (green)
+- **WEAK DODGE...** (orange)
+- **HIT!** (red)
+
+Feedback is shown for **0.85 s** before the bar hides and `qte_resolved` fires.
 
 ---
 
 ## Flow
 
-**Slide (HARM / MEND):**
 ```
-start_qte(energy_cost, shape, effect_type)
-  → _start_slider_qte()
-      → _set_difficulty()              sets _ss_half, _cursor_duration
-      → _slider_beat_count_for_shape() 1/2/3/4 beats
-      → _start_next_beat()             [loops _beat_count times]
-          → _animate_cursor()          slides cursor 0→1 over _cursor_duration
+CombatManager3D calls _run_harm_defenders(caster, [defender], effect, energy_cost)
+  → defender.data.is_player_unit == true:
+      state = QTE_RUNNING
+      _qte_bar.start_qte(energy_cost)
+          → _set_difficulty()              sets _ss_half, _cursor_duration
+          → _animate_cursor()             slides cursor 0→1 over _cursor_duration
               → player input  → _register_hit() → _get_beat_result()
               → cursor expires → _on_cursor_expired() → result = 0.25
-          → _process_beat_result(result)
-              → more beats? flash 0.3 s, _start_next_beat()
-              → last beat?  _aggregate_multiplier() → _show_final_feedback()
-                  → await 0.85 s → hide bar → emit qte_resolved(multiplier)
-```
+          → _process_result(result)
+              → _show_feedback(result)    PERFECT DODGE / GOOD DODGE / WEAK DODGE / HIT
+              → await 0.85 s → hide bar → qte_resolved.emit(result)
+      roll = await _qte_bar.qte_resolved
+      dmg_mult = _defender_roll_to_dmg_multiplier(roll)
+      dmg = max(1, round(dmg_mult * (effect.base_value + caster.data.attack)))
+      defender.take_damage(dmg)
 
-**Hold (TRAVEL):**
-```
-start_qte(energy_cost, shape, effect_type=TRAVEL)
-  → _start_power_meter_qte(energy_cost)
-      → _set_difficulty()         sets _cursor_duration (used as fill time)
-      → _set_pm_difficulty()      sets _pm_zone_center, _pm_zone_half
-      → _rebuild_pm_zones()       positions gold/green/orange bands on vertical bar
-      → shows bar; _pm_fill_pos = 0, cursor at bottom
-      → _process(delta)           fills meter while Space/LMB held; reverses at 100 %
-      → player releases input → _get_pm_result(_pm_fill_pos) → _process_beat_result()
-          → _show_final_feedback()   hides bar, shows verdict for 0.85 s
-          → hide CanvasLayer → emit qte_resolved(multiplier)
-
-CombatManager3D receives qte_resolved(multiplier):
-  → multiplier == 0.25 → FAILED label 1.5 s → IDLE (energy spent, no reposition)
-  → multiplier > 0.25  → TRAVEL_DESTINATION mode (player picks destination tile)
-```
-
-**Target (FORCE):**
-```
-start_qte(energy_cost, shape, effect_type=FORCE, target_screen_pos)
-  → _start_click_targets_qte(energy_cost, shape, target_screen_pos)
-      → sets _ct_window from difficulty tier (1.8 / 1.3 / 0.9 s)
-      → _beat_count_for_shape()    3/6/9/12 beats
-      → _spawn_click_target(origin)  one at a time; next spawns after previous resolves
-          → ColorRect at random offset ≤ 240 px from origin (clamped to safe screen bounds)
-          → depleting blue timer bar above the circle
-          → _ct_window timer → _on_ct_timeout(idx) → miss (0.25)
-      → _handle_ct_input():
-          LMB within CT_RADIUS (12 px) → _resolve_ct_beat(idx, 1.25)  hit
-          LMB outside all targets      → _resolve_ct_beat(idx, 0.25)  misclick = miss
-      → _resolve_ct_beat(idx, result):
-          flashes node green/red, records result, spawns next target or aggregates
-          when all beats done → _aggregate_multiplier() → _show_final_feedback()
-              → await 0.85 s → hide bar → emit qte_resolved(multiplier)
-
-CombatManager3D receives qte_resolved(multiplier):
-  → multiplier ≤ 0.25 → FAILED label 1.5 s → IDLE (energy spent, no knockback)
-  → multiplier > 0.25 → _apply_force() executes knockback
-```
-
-**Directional (BUFF / DEBUFF):**
-```
-start_qte(energy_cost, shape, effect_type)
-  → _start_directional_qte()
-      → _set_difficulty()         sets _dir_input_window
-      → _beat_count_for_shape()   3/6/9/12 beats
-      → _generate_dir_sequence()  random non-repeating list of "UP"/"DOWN"/"LEFT"/"RIGHT"
-      → _start_dir_beat()         [loops _beat_count times]
-          → shows arrow char + starts shrinking timing bar (_dir_input_window s)
-          → _handle_dir_input()   correct key → 1.25; wrong key → 0.25
-          → _on_dir_input_expired() → 0.25 (timeout)
-          → _process_beat_result(result)
-              → more beats? flash 0.3 s, _start_dir_beat()
-              → last beat?  _aggregate_multiplier() → _show_final_feedback()
-                  → await 0.85 s → hide bar → emit qte_resolved(multiplier)
+  → defender.data.is_player_unit == false:
+      qte_result = _qte_resolution_to_multiplier(defender.data.qte_resolution)
+      dmg_mult = _defender_roll_to_dmg_multiplier(qte_result)
+      dmg applied silently — no bar shown
 ```
 
 ---
 
-## Enemy Simulation
+## AI Defender Simulation
 
-CombatManager3D maps `enemy.data.qte_resolution` to a multiplier tier without showing QTEBar:
+CombatManager3D maps `defender.data.qte_resolution` to a defender roll without showing QTEBar:
 
-| qte_resolution range | Multiplier |
-|---------------------|-----------|
+| qte_resolution range | Defender roll |
+|---------------------|--------------|
 | 0.85–1.0 | 1.25 |
 | 0.60–0.85 | 1.0 |
 | 0.30–0.60 | 0.75 |
@@ -233,9 +168,20 @@ CombatManager3D maps `enemy.data.qte_resolution` to a multiplier tier without sh
 
 ---
 
+## AoE Sequencing
+
+For AoE HARM abilities hitting multiple defenders:
+- All defenders are collected first
+- QTEs run **sequentially** in target order
+- Player-controlled defenders each see the QTE bar in turn
+- AI-controlled defenders resolve instantly (no bar shown)
+- Damage applies per-defender with each's own multiplier
+
+---
+
 ## Notes
 
 - The bar is always present in the scene tree (built by CombatManager3D in `_setup_ui()`), hidden until `start_qte()` is called.
-- CombatManager enters `QTE_RUNNING` state before calling `start_qte()` to block all other input.
+- CombatManager uses `await _qte_bar.qte_resolved` (inline await) — no signal handler connection.
 - `qte_resolved` fires **after** all feedback animations — intentional so the player sees their result before effects resolve.
-- Internal function names use the old terms (`_start_slider_qte`, `_start_power_meter_qte`, `_start_click_targets_qte`) — the official names above are the design vocabulary.
+- Session B will move the bar to world-space above the attacker's Unit3D; the CanvasLayer structure is temporary.
