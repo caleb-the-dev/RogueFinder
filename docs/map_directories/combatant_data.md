@@ -53,7 +53,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `archetype_id` | `String` | Key into `ArchetypeLibrary` (via `get_archetype()` → `archetypes.csv`). |
 | `is_player_unit` | `bool` | Team assignment; drives AI vs. player control. |
 | `kindred` | `String` | Species/ancestry (e.g. `"Human"`, `"Dwarf"`, `"Gnome"`, `"Half-Orc"`). Fixed per archetype; set in `create()` from `def["kindred"]` via `.get("kindred", "Unknown")`. Persisted to save. Old saves default to `"Unknown"`. **Mechanically active:** drives `speed` and `hp_max` via `KindredLibrary`. |
-| `kindred_feat_id` | `String` | ID of the kindred's passive feat (e.g. `"adaptive"`, `"relentless"`). Set in `create()` via `KindredLibrary.get_feat_id(kindred)`. Persisted to save; old saves default to `""`. Placeholder — no mechanical effect yet. Displayed as feat name in StatPanel. |
+| ~~`kindred_feat_id`~~ | ~~removed~~ | Replaced by `feat_ids` (see Persistent Run State). |
 
 ### Background & Class
 | Field | Type | Notes |
@@ -90,7 +90,7 @@ These fields survive between combats. Seeded at creation by `ArchetypeLibrary.cr
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
 | `ability_pool` | `Array[String]` | archetype's active abilities + `pool_extras` | Full unlocked set — superset of `abilities`. Seeded in `create()` from `abilities` then `pool_extras` (deduped). Future leveling appends here without touching the 4-slot active list. |
-| `feats` | `Array[String]` | `[]` | Feats granted during the run via events (e.g. `"adaptive"`). Appended to by `EventManager.dispatch_effect` on `feat_grant` effects. No duplicates enforced by dispatcher. No mechanical effect yet — Slice 5+. Serialized with typed-array pattern; old saves without the key load as `[]`. |
+| `feat_ids` | `Array[String]` | `[]` | All feats held by this unit. Index 0 = kindred feat (set at creation). Subsequent entries are feats granted during the run via `GameState.grant_feat()`. Deduplication enforced by `grant_feat()`. **Mechanically active** — `get_feat_stat_bonus()` sums bonuses from all entries and they flow into every derived stat formula. Serialized as `feat_ids`; old saves with `kindred_feat_id` + `feats` are migrated in `_deserialize_combatant()`. |
 | `current_hp` | `int` | `hp_max` | Live HP between combats. |
 | `current_energy` | `int` | `energy_max` | Live energy between combats. |
 | `is_dead` | `bool` | `false` | Permanent death flag. Set by `CombatManager3D._on_unit_died()` when a player unit's HP reaches 0; `GameState.save()` is called immediately. |
@@ -108,12 +108,14 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 
 | Property | Formula |
 |----------|---------|
-| `hp_max` | `10 + KindredLibrary.get_hp_bonus(kindred) + (vitality × 6) + equip("vitality")` |
-| `energy_max` | `5 + vitality + equip("vitality")` |
-| `energy_regen` | `2 + willpower + equip("willpower")` |
-| `speed` | `1 + KindredLibrary.get_speed_bonus(kindred) + equip("dexterity")` |
-| `attack` | `5 + strength + equip("strength")` |
-| `defense` | `armor_defense + equip("armor_defense")` |
+| `hp_max` | `10 + KindredLibrary.get_hp_bonus(kindred) + (vitality × 6) + equip("vitality") + feat("vitality")` |
+| `energy_max` | `5 + vitality + equip("vitality") + feat("vitality")` |
+| `energy_regen` | `2 + willpower + equip("willpower") + feat("willpower")` |
+| `speed` | `1 + KindredLibrary.get_speed_bonus(kindred) + equip("dexterity") + feat("dexterity")` |
+| `attack` | `5 + strength + equip("strength") + feat("strength")` |
+| `defense` | `armor_defense + equip("armor_defense") + feat("armor_defense")` |
+
+`equip(stat)` = `_equip_bonus(stat)` (sum across weapon + armor + accessory). `feat(stat)` = `get_feat_stat_bonus(stat)` (sum across all `feat_ids`). Both are **flat bonuses to the derived result**, not to the base attribute. A `vitality:1` feat adds +1 to `hp_max` and +1 to `energy_max`, not +6 to `hp_max`.
 
 **Kindred bonus values (from KindredLibrary):**
 
@@ -167,9 +169,9 @@ static func reload() -> void                             # cache-clear for tests
 | Dependent | On |
 |-----------|----|
 | `CombatantData` | `EquipmentData` (equipment slots), `KindredLibrary` (speed + HP computed props) |
-| `ArchetypeLibrary` | `CombatantData`, `KindredLibrary` (sets `kindred_feat_id` + auto-name via `get_name_pool()` in `create()`) |
+| `ArchetypeLibrary` | `CombatantData`, `KindredLibrary` (sets `feat_ids[0]` + auto-name via `get_name_pool()` in `create()`) |
 | `Unit3D` | `CombatantData` (via `@export var data`) |
-| `StatPanel` | `CombatantData`, `Unit3D`, `FeatLibrary` (feat name lookup via `kindred_feat_id`) |
+| `StatPanel` | `CombatantData`, `Unit3D`, `FeatLibrary` (iterates `feat_ids` for the Feats section) |
 | `CombatActionPanel` | `CombatantData` (via `Unit3D.data`) |
 | `CombatManager3D` | `ArchetypeLibrary`, `CombatantData` |
 | `GameState` | `CombatantData` (party roster; serialize / deserialize) |
@@ -201,6 +203,7 @@ static func reload() -> void                             # cache-clear for tests
 | 2026-04-23 | Name-pool migration — `_NAME_POOLS` const dict removed from `ArchetypeLibrary.gd`. Flavor names now live on `KindredData.name_pool` (new `Array[String]` field) sourced from the new `name_pool` column in `kindreds.csv`. `ArchetypeLibrary.create()` pulls from `KindredLibrary.get_name_pool(data.kindred)` when auto-naming player allies; empty pool → fallback `"Unit"`. Closes the last inline-const-dict exception in the data-library uniformity pass. Names themselves unchanged per-kindred (Human pool = old archer_bandit names; Half-Orc = grunt; Gnome = alchemist; Dwarf = elite_guard). Added `test_kindred_name_pool_loaded` + `test_kindred_name_pool_unknown_safe` to `test_combatant_data.gd`. |
 | 2026-04-23 | S34 — ArchetypeLibrary migrated from inline `const ARCHETYPES` dict to `archetypes.csv` + CSV-native loader. `ArchetypeData.gd` resource added with all fields as typed `@export` vars. `ARCHETYPES` dict removed; `all_archetypes()` / `get_archetype()` / `reload()` added to public API. `create()` signature unchanged — unknown ids still fall back to grunt definition. `test_combatant_data.gd` (4 tests) and `test_consumables.gd` (1 test) updated from `ARCHETYPES.keys()` to `all_archetypes()`. |
 | 2026-04-23 | S29 — Kindred mechanics live. `hp_max` formula changed to `10 + kindred_hp_bonus + VIT×6 + equip`; `speed` formula changed to `1 + kindred_speed_bonus + equip("dexterity")`. DEX removed from speed (reserved for future dodge/evasion). Added `kindred_feat_id: String` field; set in `create()` via `KindredLibrary.get_feat_id()`, persisted to save (old saves default `""`). New `KindredLibrary.gd` holds all per-kindred data. StatPanel feat row added. `test_combatant_data.gd` updated + 4 new kindred tests. |
+| 2026-04-26 | Slices 1–7 (feat system) — Replaced `kindred_feat_id: String` + `feats: Array[String]` with unified `feat_ids: Array[String]`. Added `get_feat_stat_bonus(stat: String) -> int`. All derived stat formulas now include `get_feat_stat_bonus()` alongside `_equip_bonus()`. `ArchetypeLibrary.create()` and `CharacterCreationManager._build_pc()` both seed `feat_ids = [KindredLibrary.get_feat_id(kindred)]`. Old saves migrated in `GameState._deserialize_combatant()`. |
 | 2026-04-25 | Slice 4 — Added `feats: Array[String]` to Persistent Run State. Serialized/deserialized in `GameState._serialize_combatant()` / `_deserialize_combatant()` using typed-array conversion. Old saves without the key load as `[]`. Populated by `EventManager.dispatch_effect` on `feat_grant` effects. No mechanical effect yet. |
 | 2026-04-23 | S28 — Added `kindred: String` to `CombatantData` (Identity section). Each archetype definition includes a `"kindred"` key; `create()` sets `data.kindred = def.get("kindred", "Unknown")`. Assignments: RogueFinder→Human, archer_bandit→Human, grunt→Half-Orc, alchemist→Gnome, elite_guard→Dwarf. Persisted in `GameState._serialize_combatant()` / `_deserialize_combatant()` (old saves default `"Unknown"`). Displayed in StatPanel, CombatActionPanel, and PartySheet. |
 | 2026-04-20 | S23 — `ArchetypeLibrary.pool_extras` key added; `create()` appends extras to `ability_pool` (deduped). RogueFinder / archer_bandit / grunt each get +4 extras. Pool ⊇ Slots invariant still holds. |

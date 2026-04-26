@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-26 (camera pan + full orbit right-click drag + Q/E pivot-Y + QTE zoom) |
+| last_updated | 2026-04-26 (feat system Slices 1–7 — unified feat_ids, stat bonuses, grant API) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 4 |
+| sessions_since_groom | 5 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -42,7 +42,7 @@
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay, layer 20) | Presentation |
 | [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker + 15 events (3 smoke + 12 authored) (Slices 1/3/4/5/6) | Data / World Map |
-| [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ⚙️ Partial — data layer + display (Slice 2); no mechanical effects yet | Data |
+| [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ✅ Active — 28 feats, stat bonuses applied, grant_feat() API live (Slices 1–7) | Data |
 
 ---
 
@@ -99,7 +99,7 @@ EventSelector (static)
   └── GameState             (used_event_ids — read for filter, append chosen id)
 
 EventManager
-  ├── GameState             (party, inventory, threat_level, save(), add_to_inventory(), remove_from_inventory())
+  ├── GameState             (party, inventory, threat_level, save(), add_to_inventory(), remove_from_inventory(), grant_feat())
   ├── EquipmentLibrary      (item_gain lookup — checked first)
   └── ConsumableLibrary     (item_gain lookup — fallback)
 
@@ -172,7 +172,7 @@ rogue-finder/
 │   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 7 items
 │   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 15 events (3 smoke + 12 authored)
 │   │   ├── EventSelector.gd            ← static picker; ring filter + exhaustion fallback; appends to GameState.used_event_ids
-│   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 4 kindred feats
+│   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 28 feats; parses stat_bonuses
 │   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 4 kindreds
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
@@ -200,8 +200,8 @@ rogue-finder/
 │   ├── ClassData.gd                    ← one playable class
 │   ├── EventChoiceData.gd              ← one event choice (label, conditions, effects, result_text)
 │   ├── EventData.gd                    ← one non-combat event (id, title, body, ring_eligibility, choices)
-│   ├── FeatData.gd                     ← one feat (id, name, description)
-│   ├── KindredData.gd                  ← one kindred (speed/HP bonuses + feat)
+│   ├── FeatData.gd                     ← one feat (id, name, description, source_type, stat_bonuses, effects)
+│   ├── KindredData.gd                  ← one kindred (speed/HP bonuses + feat_id + name_pool; feat_name/feat_desc removed)
 │   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
 ├── data/
@@ -213,8 +213,8 @@ rogue-finder/
 │   ├── equipment.csv                   ← 7 items (rusted_dagger added Slice 4); stat_bonuses as stat:value|stat:value pairs
 │   ├── event_choices.csv               ← 46 choice rows; joined to events by event_id; effects as JSON arrays
 │   ├── events.csv                      ← 15 events (3 smoke + 12 authored); ring_eligibility as pipe list
-│   ├── feats.csv                       ← 4 kindred feats; read via res://data/
-│   ├── kindreds.csv                    ← 4 kindreds; read via res://data/
+│   ├── feats.csv                       ← 28 feats (4 kindred, 12 class, 12 background); 7 cols incl. stat_bonuses
+│   ├── kindreds.csv                    ← 4 kindreds; feat_name/feat_desc columns removed; read via res://data/
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
 │   ├── city/BadurgaScene.tscn
@@ -245,6 +245,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-26 | feats.csv, FeatData, FeatLibrary, CombatantData, GameState, EventManager, UI | **Feat System Slices 1–7 — mechanically active.** feats.csv expanded to 28 rows (4 kindred, 12 class, 12 background) with `source_type`, `stat_bonuses` (parsed to Dictionary), `effects`, `notes` columns. FeatData gained those fields. FeatLibrary parses `stat:value\|stat:value`. kindreds.csv dropped `feat_name`/`feat_desc`; KindredData + KindredLibrary cleaned up. classes.csv + ClassData + ClassLibrary gained `feat_pool: Array[String]`. CombatantData: `kindred_feat_id` + `feats` consolidated into `feat_ids: Array[String]`; `get_feat_stat_bonus(stat)` added; all 6 derived stat formulas include feat bonuses (flat, same as equipment). GameState: `grant_feat(pc_index, feat_id)` added (deduplication + save); `_serialize_combatant` writes `feat_ids`; `_deserialize_combatant` migrates old saves (kindred_feat_id + feats → feat_ids). EventManager: `feat_grant` effect calls `GameState.grant_feat()`; `feat:ID` condition checks `member.feat_ids`. StatPanel + PartySheet iterate `feat_ids`. 3 new test files (17 new tests); 4 existing test files updated. 84 tests total passing. |
 | 2026-04-26 | CameraController.gd, tests/ | **Camera pan session — WASD pan + full orbit right-click + Q/E pivot-Y + QTE zoom.** WASD / arrow keys pan orbit pivot in yaw-relative XZ (W=NE at default yaw). Right-click drag now controls full orbit: horizontal = yaw, vertical = elevation pitch (drag up = more top-down, 15°–80°). `DRAG_SENSITIVITY` halved to 0.2. Q/E repurposed: raise/lower orbit pivot on world Y (`PIVOT_Y_SPEED=5` u/s, clamped −3 to 8). `focus_on` / `restore` upgraded to parallel tweens — pivot position + distance animate simultaneously; zooms to `QTE_DISTANCE=10.0` on focus and back on restore. `_set_distance()` tween helper added; `_pre_qte_distance` field added. ELEVATION_STEP/ELEVATION_SPEED removed; PIVOT_Y_SPEED/MIN/MAX, PAN_SPEED/MIN/MAX, QTE_DISTANCE added. test_camera_controls.gd expanded to 6 assertions. |
 | 2026-04-26 | CameraController.gd, tests/ | **Camera overhaul — elevation Q/E + right-click drag rotation + cursor capture.** Q/E now control pitch (`_elevation`, 15°–80° clamped, 10°/press) instead of snapped yaw. Right-click drag rotates yaw continuously (`DRAG_SENSITIVITY = 0.4°/px`). Cursor captured (`MOUSE_MODE_CAPTURED`) while dragging, restored on release. `DEFAULT_ELEVATION` constant promoted to `_elevation: float` variable; `_apply_transform()` uses `_elevation` so focus_on/restore tweens maintain player-set pitch. Removed `ROTATE_STEP`; added `MIN_ELEVATION`, `MAX_ELEVATION`, `ELEVATION_STEP`, `DRAG_SENSITIVITY`, `_dragging`. New headless test suite `test_camera_controls.gd` (3 assertions: upper clamp, lower clamp, default value). |
 | 2026-04-26 | QTEBar.gd, CombatManager3D.gd, CameraController.gd, tests/ | **QTE Session B — world-space bar + camera focus.** `start_qte(energy_cost, attacker: Node3D)` — bar now floats above the attacker in world space each frame via `Camera3D.unproject_position(pos + Vector3(0,2,0))`. Full-screen dark overlay removed. `_attacker` cleared after `qte_resolved`. Attacker-death guard in `_process`. Camera smoothly focuses on the attacker before each QTE (0.5 s `focus_on` tween + 0.25 s settle), then restores to grid center after. `CameraController` gained `focus_on()`, `restore()`, `_set_pivot()`, `_home_position`, `_pivot_tween`. New headless test suite `test_qte_world_bar.gd` (3 assertions). |

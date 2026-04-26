@@ -105,7 +105,7 @@ Returns `true` if ANY party member satisfies the condition. Supported forms:
 | `kindred:ID` | Any member's `kindred == ID` |
 | `class:ID` | Any member's `unit_class == ID` |
 | `background:ID` | Any member's `background == ID` |
-| `feat:ID` | Any member's `feats` array contains ID |
+| `feat:ID` | Any member's `feat_ids` array contains ID |
 | `item:ID` | Any entry in `GameState.inventory` has `id == ID` |
 
 Unknown form → `push_warning` + return `true` (fail open — never silently gate a choice).
@@ -135,7 +135,7 @@ A choice whose `conditions` array is empty is always enabled (loop never runs).
 | `heal` | `_resolve_with_override` → `target.current_hp = mini(hp_max, current_hp + value)` |
 | `xp_grant` | `print("[EventEffect] xp_grant %d — stub")` — no-op until XP system exists |
 | `threat_delta` | `GameState.threat_level = clampf(threat_level + float(value) / 100.0, 0.0, 1.0)` — value is signed int treated as percentage points |
-| `feat_grant` | `_resolve_with_override` → appends `feat_id` to `target.feats` if not already present |
+| `feat_grant` | `_resolve_with_override` → calls `GameState.grant_feat(party.find(target), feat_id)`. Deduplication and save are handled inside `grant_feat()`. |
 | `open_vendor` / `open_bench` | **Not dispatched here** — handled in `_on_choice_pressed` as nav effects before dispatch loop runs |
 
 Unknown type → `push_warning` + skip.

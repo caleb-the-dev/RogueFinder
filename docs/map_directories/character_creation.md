@@ -1,6 +1,6 @@
 # System: Main Menu + Character Creation
 
-> Last updated: 2026-04-25 (split from hud_system.md)
+> Last updated: 2026-04-26 (_build_pc sets feat_ids instead of kindred_feat_id)
 
 ---
 
@@ -85,7 +85,7 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `is_player_unit` | `true` |
 | `character_name` | name input; `""` → `"Unit"` |
 | `kindred` | kindred_id (e.g. `"dwarf"`) |
-| `kindred_feat_id` | `KindredLibrary.get_feat_id(kindred_id)` |
+| `feat_ids` | `[KindredLibrary.get_feat_id(kindred_id)]` — single-element array; kindred feat is always index 0 |
 | `unit_class` | `ClassLibrary.get_class_data(class_id).display_name` |
 | `background` | bg_id (snake_case ID — differs from ally background format which stores PascalCase display strings) |
 | `abilities` | `[class.starting_ability_id, bg.starting_ability_id, "", ""]` — always 4 slots |

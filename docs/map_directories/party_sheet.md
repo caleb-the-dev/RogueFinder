@@ -29,7 +29,7 @@ Runs on `CanvasLayer` at layer 20 — above every other overlay in the map scene
 | `EquipmentLibrary` | Resolves equipment ids (when a slot holds an id string rather than an `EquipmentData` instance) |
 | `ConsumableLibrary` | Resolves consumable ids for tooltip + compare panels |
 | `AbilityLibrary` | Resolves ability ids for the ability pool tab and slot labels |
-| `FeatLibrary` | Resolves `kindred_feat_id` to `FeatData` (name + description) for the Feats tab |
+| `FeatLibrary` | Resolves each id in `member.feat_ids` to `FeatData` (name + description) for the Feats tab |
 | `MapManager` | Owns the `PartySheet` instance; the `_input()` guard blocks map pan/zoom while the sheet is visible |
 
 ---

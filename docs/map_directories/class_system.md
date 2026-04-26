@@ -1,6 +1,6 @@
 # System: Class Library
 
-> Last updated: 2026-04-23 (S30 — new, CSV-native from the start)
+> Last updated: 2026-04-26 (feat_pool column added to ClassData + ClassLibrary)
 
 ---
 
@@ -34,6 +34,7 @@ Class is a separate axis from Background and Kindred — a `barbarian` Crook (Hu
 | `display_name` | `String` | Display name (e.g. `"Rogue"`) — named `display_name` not `class_name` because `class_name` is a reserved GDScript keyword |
 | `description` | `String` | Short flavor line for character-creation UI |
 | `starting_ability_id` | `String` | 1 action granted at character creation. FK → `AbilityLibrary` |
+| `feat_pool` | `Array[String]` | Feat ids available to this class (pipe-separated in CSV). Data only — not assigned at creation yet; reserved for the future level-up feat picker. |
 | `unlocked_by_default` | `bool` | `true` = available at character creation in fresh saves |
 | `tags` | `Array[String]` | Optional flavor/filter hints (e.g. `["agile", "stealthy"]`) |
 
@@ -70,12 +71,12 @@ static func reload() -> void
 
 ### Defined Classes (4 seed rows)
 
-| ID | Name | Starting Ability | Unlocked by Default | Tags |
-|----|------|-----------------|---------------------|------|
-| `rogue` | Rogue | `quick_shot` | `true` | `agile`, `stealthy` |
-| `barbarian` | Barbarian | `heavy_strike` | `true` | `melee`, `berserker` |
-| `wizard` | Wizard | `fireball` | `true` | `arcane`, `ranged` |
-| `warrior` | Warrior | `shield_bash` | `true` | `melee`, `defender` |
+| ID | Name | Starting Ability | Feat Pool | Unlocked by Default | Tags |
+|----|------|-----------------|-----------|---------------------|------|
+| `rogue` | Rogue | `quick_shot` | shadow_step, poisoners_precision, quick_reflexes | `true` | `agile`, `stealthy` |
+| `barbarian` | Barbarian | `heavy_strike` | battle_hardened, thick_skin, war_cry_discipline | `true` | `melee`, `berserker` |
+| `wizard` | Wizard | `fireball` | arcane_focus, mana_well, studied_reflexes | `true` | `arcane`, `ranged` |
+| `warrior` | Warrior | `shield_bash` | iron_guard, stalwart, shield_discipline | `true` | `melee`, `defender` |
 
 ---
 
