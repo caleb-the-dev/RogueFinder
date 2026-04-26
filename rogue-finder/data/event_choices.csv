@@ -1,8 +1,47 @@
 event_id,order,label,conditions,effects,result_text
 chest_rusty,0,Kick it open (STR 4),stat_ge:STR:4,"[{""type"":""item_gain"",""item_id"":""rusted_dagger""}]","The lid gives. Inside: a dagger."
 chest_rusty,1,Leave it.,,[],"Not worth the trouble."
-wounded_traveler,0,Tend to the worst-off.,,"[{""type"":""heal"",""target"":""player_pick"",""value"":5}]","You bandage the worst wound."
-wounded_traveler,1,Press on.,,[],"You leave them where they sit."
+wounded_traveler,0,Ask for treatment.,,"[{""type"":""heal"",""target"":""player_pick"",""value"":5}]","They work quickly and without complaint."
+wounded_traveler,1,Leave them to it.,,[],"You nod and keep moving."
 merchant_stall,0,Browse the goods.,,"[{""type"":""open_vendor""}]",
 merchant_stall,1,Ask about local routes.,,"[{""type"":""threat_delta"",""value"":-1}]","The merchant shares routes that ease your journey."
 merchant_stall,2,Move on.,,[],"You continue down the road."
+fallen_signpost,0,Decipher the old script beneath it (Scholar).,background:scholar,"[{""type"":""item_gain"",""item_id"":""lucky_charm""}]","Beneath the warning, an older inscription marks a hidden cache. You find a charm tucked in the signpost's base."
+fallen_signpost,1,Read the warning.,,"[{""type"":""threat_delta"",""value"":-5}]",Road patrols are moving north. You adjust your route accordingly.
+fallen_signpost,2,Press on.,,[],"Whatever it says, it's not your concern."
+roadside_shrine,0,Leave an offering (WIL 3).,stat_ge:WIL:3,"[{""type"":""heal"",""target"":""random_party"",""value"":3}]",You set something at the base. The party feels a little steadier afterward.
+roadside_shrine,1,Take the coin at its base.,,"[{""type"":""item_gain"",""item_id"":""lucky_charm""}]","You pocket the copper. Someone else's luck, now yours."
+roadside_shrine,2,Walk past.,,[],"The flowers bow in the wind as you pass."
+dry_well,0,Lower someone down on a rope (DEX 3).,stat_ge:DEX:3,"[{""type"":""item_gain"",""item_id"":""iron_ring""}]","Your nimble climber descends and retrieves a ring, left by someone who went down and didn't come up."
+dry_well,1,Drop a stone in.,,[],"It hits stone a long way down. The echo takes longer than it should."
+dry_well,2,Move on.,,[],"Whatever's down there can stay there."
+abandoned_campfire,0,Search the pack.,,"[{""type"":""item_gain"",""item_id"":""healing_potion""}]","Tucked under a spare shirt: a healing potion. Whoever left it, left in a hurry."
+abandoned_campfire,1,Stay the night and wait.,,"[{""type"":""harm"",""target"":""random_party"",""value"":3}]",Nothing friendly shows up. In the scramble to leave before dawn one of your party takes a bad knock.
+abandoned_campfire,2,Leave it alone.,,[],"Not your fire, not your pack."
+stray_dog,0,Try to recruit it.,,[],"It warms to you quickly. Not the right time to bring it along."
+stray_dog,1,Leave it be.,,[],"It follows a while longer, then cuts into the scrub and vanishes."
+road_patrol,0,Cite your service and walk through (Soldier).,background:soldier,[],"They stand aside without a word. You keep walking."
+road_patrol,1,Offer a potion as road tax (Healing Potion).,item:healing_potion,"[{""type"":""item_remove"",""item_id"":""healing_potion""}]",They accept it without comment and wave you through.
+road_patrol,2,Walk through without stopping.,,"[{""type"":""harm"",""target"":""random_party"",""value"":3}]","Words are exchanged. Hands are laid on. You pass, but not without cost."
+road_patrol,3,Take the long way around.,,"[{""type"":""threat_delta"",""value"":10}]",You give them a wide berth through open ground. You feel exposed the whole way.
+mercenary_camp,0,Lift something on the way through (Rogue).,class:rogue,"[{""type"":""item_gain"",""item_id"":""rusted_dagger""}]",No one notices until you're well away.
+mercenary_camp,1,Try to recruit one of them.,,[],"One of them eyes your group. There's interest there. Nothing comes of it yet."
+mercenary_camp,2,Keep walking.,,[],"They don't follow. You don't look back."
+burned_farmhouse,0,Approach and tend to the child (WIL 3).,stat_ge:WIL:3,"[{""type"":""item_gain"",""item_id"":""lucky_charm""}]",She's frightened but unhurt. Before she runs she presses a small charm into your hand.
+burned_farmhouse,1,Search the ruin for anything useful (Soldier).,background:soldier,"[{""type"":""item_gain"",""item_id"":""leather_armor""}]",A scorched but wearable leather vest hangs on a peg inside the collapsed door.
+burned_farmhouse,2,Ask her what happened.,,"[{""type"":""threat_delta"",""value"":5}]",She says soldiers in black cloaks did it. Then she runs.
+burned_farmhouse,3,Move on.,,[],"You leave her to whatever comes next."
+standing_stone,0,Touch it and concentrate (COG 4).,stat_ge:COG:4,"[{""type"":""feat_grant"",""target"":""player_pick"",""feat_id"":""adaptive""}]",Something old and alert takes notice. A clarity settles in.
+standing_stone,1,Read the inscription on the base (Dwarf).,kindred:Dwarf,"[{""type"":""threat_delta"",""value"":-5}]",Old quarry marks. A boundary stone. You know which side you don't want to sleep on.
+standing_stone,2,Try to knock it over.,,"[{""type"":""harm"",""target"":""random_party"",""value"":5}]","The stone won't move. Something in the ground does."
+standing_stone,3,Leave it standing.,,[],"Some things are better left alone."
+river_crossing,0,Find a ford upstream (DEX 3).,stat_ge:DEX:3,[],"A quarter mile up, the water runs shallow. You cross cold but unharmed."
+river_crossing,1,Wade straight across (VIT 3).,stat_ge:VIT:3,[],"Cold and slow, but the footing holds. You make it."
+river_crossing,2,Rope the crossing.,,"[{""type"":""harm"",""target"":""random_party"",""value"":2}]","You manage it, but the current bruises someone's ribs."
+river_crossing,3,Turn back.,,"[{""type"":""threat_delta"",""value"":10}]",You give up the crossing. Ground lost.
+mass_grave,0,Say words over the dead (Scholar).,background:scholar,"[{""type"":""heal"",""target"":""PC"",""value"":2}]","The right words steady you, even here."
+mass_grave,1,Disturb the soil.,,"[{""type"":""harm"",""target"":""random_party"",""value"":5},{""type"":""item_gain"",""item_id"":""rusted_dagger""}]",You find a blade half-buried in the turned earth. Someone pays for the digging.
+mass_grave,2,Leave quickly.,,[],"You double your pace and don't look back."
+ember_idol,0,Approach and sketch it (Gnome).,kindred:Gnome,"[{""type"":""threat_delta"",""value"":-10}]",You sketch it quickly. The proportions match no known god-form. That's useful.
+ember_idol,1,Look directly at it.,,"[{""type"":""harm"",""target"":""PC"",""value"":3}]",It looks back. A pressure behind your eyes lingers for days.
+ember_idol,2,Back away slowly.,,[],"You don't turn your back until the clearing is out of sight."

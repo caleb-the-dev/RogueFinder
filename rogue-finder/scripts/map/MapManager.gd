@@ -64,6 +64,10 @@ var _outer_bridge_ids: Array[String] = []
 var _node_prompt: Control = null
 var _party_sheet: PartySheet = null
 var _event_manager: EventManager = null
+var _is_dev_event: bool = false
+var _dev_event_panel: CanvasLayer = null
+var _threat_fill: ColorRect = null
+var _threat_pct_lbl: Label = null
 
 var _is_panning: bool = false
 var _pan_start_mouse: Vector2 = Vector2.ZERO
@@ -97,6 +101,8 @@ func _input(event: InputEvent) -> void:
 	if _party_sheet != null and _party_sheet.visible:
 		return
 	if _event_manager != null and _event_manager.visible:
+		return
+	if _dev_event_panel != null and _dev_event_panel.visible:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
@@ -459,6 +465,13 @@ func _add_ui_chrome() -> void:
 	party_btn.pressed.connect(func(): _party_sheet.show_sheet())
 	add_child(party_btn)
 
+	var dev_events_btn := Button.new()
+	dev_events_btn.text = "Events [DEV]"
+	dev_events_btn.size = Vector2(110.0, 36.0)
+	dev_events_btn.position = Vector2(VIEWPORT_SIZE.x - 430.0, 8.0)
+	dev_events_btn.pressed.connect(_toggle_dev_event_panel)
+	add_child(dev_events_btn)
+
 	var del_btn := Button.new()
 	del_btn.text = "🗑 Delete Save (debug)"
 	del_btn.size = Vector2(200.0, 36.0)
@@ -496,14 +509,14 @@ func _add_threat_meter() -> void:
 	bg.position = Vector2(bar_x, bar_y)
 	add_child(bg)
 
-	# Fill — grows upward from the bottom of the bar
-	if t > 0.0:
-		var fill_h: float = t * bar_h
-		var fill := ColorRect.new()
-		fill.color = _threat_fill_color(t)
-		fill.size = Vector2(bar_w, fill_h)
-		fill.position = Vector2(bar_x, bar_y + bar_h - fill_h)
-		add_child(fill)
+	# Fill — grows upward from the bottom of the bar; always present so live refresh can resize it
+	var fill_h: float = t * bar_h
+	var fill := ColorRect.new()
+	fill.color = _threat_fill_color(t)
+	fill.size = Vector2(bar_w, fill_h)
+	fill.position = Vector2(bar_x, bar_y + bar_h - fill_h)
+	add_child(fill)
+	_threat_fill = fill
 
 	# Quadrant tick marks at 25 / 50 / 75 %
 	for pct: float in [0.25, 0.50, 0.75]:
@@ -522,6 +535,20 @@ func _add_threat_meter() -> void:
 	ps.font_color = Color(0.85, 0.75, 0.65)
 	pct_lbl.label_settings = ps
 	add_child(pct_lbl)
+	_threat_pct_lbl = pct_lbl
+
+func _refresh_threat_meter() -> void:
+	if _threat_fill == null or _threat_pct_lbl == null:
+		return
+	const BAR_H := 120.0
+	const BAR_X := 12.0
+	const BAR_Y := 50.0
+	var t: float = GameState.threat_level
+	var fill_h: float = t * BAR_H
+	_threat_fill.size     = Vector2(20.0, fill_h)
+	_threat_fill.position = Vector2(BAR_X, BAR_Y + BAR_H - fill_h)
+	_threat_fill.color    = _threat_fill_color(t)
+	_threat_pct_lbl.text  = "%d%%" % int(t * 100.0)
 
 func _threat_fill_color(t: float) -> Color:
 	if t < 0.25:
@@ -706,7 +733,7 @@ func _refresh_all_node_visuals() -> void:
 		var base_color: Color = btn.get_meta("base_color")
 
 		var is_current: bool   = id == GameState.player_node_id
-		var is_cleared: bool   = GameState.cleared_nodes.has(id)
+		var is_cleared: bool   = GameState.cleared_nodes.has(id) and nd["node_type"] != "CITY"
 		var is_visited: bool   = GameState.is_visited(id)
 		var is_reachable: bool = GameState.is_adjacent_to_player(id, _adjacency)
 
@@ -795,6 +822,7 @@ func _move_player_to(node_id: String) -> void:
 	# +5% for each node traversal, regardless of whether you enter it
 	GameState.threat_level = minf(GameState.threat_level + 0.05, 1.0)
 	GameState.save()
+	_refresh_threat_meter()
 	var target_pos: Vector2 = _node_map[node_id]["position"] + Vector2(0.0, -26.0)
 	var tween := create_tween()
 	tween.tween_property(_player_marker, "position", target_pos, 0.25) \
@@ -966,6 +994,7 @@ func _enter_current_node() -> void:
 	# +5% for actually entering any non-cleared node (city counts — you crossed the gate)
 	GameState.threat_level = minf(GameState.threat_level + 0.05, 1.0)
 	GameState.save()
+	_refresh_threat_meter()
 	var node_type: String = GameState.node_types.get(GameState.player_node_id, "COMBAT")
 	match node_type:
 		"COMBAT", "BOSS":
@@ -991,11 +1020,18 @@ func _get_ring(node_id: String) -> String:
 	return "outer"  # fallback for badurga or unrecognized
 
 func _on_event_finished() -> void:
+	_refresh_threat_meter()
+	if _is_dev_event:
+		_is_dev_event = false
+		return
 	if not GameState.cleared_nodes.has(GameState.player_node_id):
 		GameState.cleared_nodes.append(GameState.player_node_id)
 	_refresh_all_node_visuals()
 
 func _on_event_nav(dest: String) -> void:
+	if _is_dev_event:
+		_is_dev_event = false
+		return  # dev-fired nav events don't route or clear nodes
 	if not GameState.cleared_nodes.has(GameState.player_node_id):
 		GameState.cleared_nodes.append(GameState.player_node_id)
 	GameState.save()
@@ -1006,3 +1042,98 @@ func _on_debug_delete_save_pressed() -> void:
 	GameState.delete_save()
 	GameState.reset()
 	get_tree().reload_current_scene()
+
+## --- Dev Event Panel ---
+
+func _toggle_dev_event_panel() -> void:
+	if _dev_event_panel == null:
+		_build_dev_event_panel()
+	_dev_event_panel.visible = not _dev_event_panel.visible
+
+func _build_dev_event_panel() -> void:
+	_dev_event_panel = CanvasLayer.new()
+	_dev_event_panel.layer = 30
+	add_child(_dev_event_panel)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.0, 0.82)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	_dev_event_panel.add_child(bg)
+
+	var pw := 680.0
+	var ph := 520.0
+	var panel := PanelContainer.new()
+	panel.position = Vector2((VIEWPORT_SIZE.x - pw) * 0.5, (VIEWPORT_SIZE.y - ph) * 0.5)
+	panel.custom_minimum_size = Vector2(pw, ph)
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color            = Color(0.08, 0.06, 0.04, 0.96)
+	pstyle.border_width_left   = 2
+	pstyle.border_width_right  = 2
+	pstyle.border_width_top    = 2
+	pstyle.border_width_bottom = 2
+	pstyle.border_color              = Color(0.40, 0.30, 0.20)
+	pstyle.corner_radius_top_left    = 6
+	pstyle.corner_radius_top_right   = 6
+	pstyle.corner_radius_bottom_left = 6
+	pstyle.corner_radius_bottom_right = 6
+	pstyle.content_margin_left   = 20.0
+	pstyle.content_margin_right  = 20.0
+	pstyle.content_margin_top    = 16.0
+	pstyle.content_margin_bottom = 16.0
+	panel.add_theme_stylebox_override("panel", pstyle)
+	_dev_event_panel.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	panel.add_child(vbox)
+
+	var header_row := HBoxContainer.new()
+	vbox.add_child(header_row)
+
+	var title_lbl := Label.new()
+	title_lbl.text = "[DEV] Event Test Menu"
+	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_lbl.add_theme_font_size_override("font_size", 16)
+	title_lbl.add_theme_color_override("font_color", Color(0.80, 0.75, 0.60))
+	header_row.add_child(title_lbl)
+
+	var close_btn := Button.new()
+	close_btn.text = "X"
+	close_btn.custom_minimum_size = Vector2(32.0, 32.0)
+	close_btn.pressed.connect(func(): _dev_event_panel.visible = false)
+	header_row.add_child(close_btn)
+
+	var hint := Label.new()
+	hint.text = "Fired events do not clear the current node or consume the event pool."
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	vbox.add_child(hint)
+
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(scroll)
+
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 4)
+	scroll.add_child(list)
+
+	for ev in EventLibrary.all_events():
+		var event_data := ev as EventData
+		var rings: String = ", ".join(event_data.ring_eligibility)
+		var row_btn := Button.new()
+		row_btn.text = "%s  [%s]" % [event_data.title, rings]
+		row_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row_btn.add_theme_font_size_override("font_size", 13)
+		row_btn.custom_minimum_size = Vector2(0.0, 32.0)
+		row_btn.pressed.connect(_on_dev_event_selected.bind(event_data))
+		list.add_child(row_btn)
+
+func _on_dev_event_selected(event_data: EventData) -> void:
+	_dev_event_panel.visible = false
+	_is_dev_event = true
+	_event_manager.show_event(event_data)

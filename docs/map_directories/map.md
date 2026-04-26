@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-25 (events Slice 5 — player_pick picker + new-item glow) |
+| last_updated | 2026-04-25 (events Slice 6 — full event pass + MapManager dev panel + live threat meter) |
 | last_groomed | 2026-04-23 |
-| sessions_since_groom | 16 |
+| sessions_since_groom | 18 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -42,7 +42,7 @@
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay, layer 20) | Presentation |
-| [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker live (Slices 1/3/4/5); authoring pass in Slice 6 | Data / World Map |
+| [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker + 15 authored events (Slices 1/3/4/5/6) | Data / World Map |
 | [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ⚙️ Partial — data layer + display (Slice 2); no mechanical effects yet | Data |
 
 ---
@@ -171,7 +171,7 @@ rogue-finder/
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); healing_potion, power_tonic
 │   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 7 items
-│   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 3 smoke events
+│   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 15 events (3 smoke + 12 authored)
 │   │   ├── EventSelector.gd            ← static picker; ring filter + exhaustion fallback; appends to GameState.used_event_ids
 │   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 4 kindred feats
 │   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 4 kindreds
@@ -212,8 +212,8 @@ rogue-finder/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
 │   ├── consumables.csv                 ← 2 consumables; read via res://data/
 │   ├── equipment.csv                   ← 7 items (rusted_dagger added Slice 4); stat_bonuses as stat:value|stat:value pairs
-│   ├── event_choices.csv               ← 7 choice rows; joined to events by event_id; effects as JSON arrays
-│   ├── events.csv                      ← 3 smoke events; ring_eligibility as pipe list
+│   ├── event_choices.csv               ← 46 choice rows; joined to events by event_id; effects as JSON arrays
+│   ├── events.csv                      ← 15 events (3 smoke + 12 authored); ring_eligibility as pipe list
 │   ├── feats.csv                       ← 4 kindred feats; read via res://data/
 │   ├── kindreds.csv                    ← 4 kindreds; read via res://data/
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
@@ -246,6 +246,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-25 | events.csv, event_choices.csv, MapManager.gd | **Events Slice 6 — full event pass + MapManager improvements.** 12 new events authored (outer: fallen_signpost, roadside_shrine, dry_well, abandoned_campfire, stray_dog, road_patrol; middle: mercenary_camp, burned_farmhouse, standing_stone, river_crossing; inner: mass_grave, ember_idol). Post-testing revision pass: 13 targeted changes including `wounded_traveler` → Wandering Medic, `survivor_in_the_dark` removed, `stray_dog` made recruit placeholder, road_patrol/bridge/farmhouse mechanics adjusted. MapManager: dev event test panel (CanvasLayer layer 30; "Events [DEV]" button; `_is_dev_event` flag prevents node clearing from panel-fired events including nav effects); live threat meter refresh (`_refresh_threat_meter()` called on traversal + event finish); CITY nodes excluded from cleared stamp. Final CSV counts: events.csv 15 rows, event_choices.csv 46 rows. |
 | 2026-04-25 | EventManager, GameState, PartySheet | **Events Slice 5 — player_pick picker overlay + new-item glow.** `_on_choice_pressed` is now async (coroutine): pre-scans choice effects for `player_pick` target, shows a centered picker panel (500×200 px, blue border) with one button per alive party member, awaits `target_picked` signal, then dispatches all effects with the resolved member via new `forced_target` param on `dispatch_effect`. `dispatch_effect` signature extended: `forced_target: CombatantData = null` — when non-null and effect target is `player_pick`, uses it directly (static + headless-testable). New `_resolve_with_override` helper. `GameState.add_to_inventory()` now stamps `seen = false` on every incoming dict. PartySheet item cards check `item.get("seen", true)`: unseen → gold border + looping alpha tween; `mouse_entered` sets `seen = true` on the live dict (shared ref) and calls `_rebuild()`. Old saves without `seen` key default to `true`. 7 new headless tests (96 total). |
 | 2026-04-25 | EventManager, MapManager, CombatantData, GameState | **Events Slice 4 — EventScene overlay, condition evaluator, effect dispatcher, feats field.** `EventManager.gd` + `EventScene.tscn` created (CanvasLayer layer 10). `show_event()`/`hide_event()` API; choice buttons disabled+dimmed when conditions fail; result panel + Continue flow; `event_finished` + `event_nav` signals. Static `evaluate_condition` (6 forms), `resolve_target` (4 values), `dispatch_effect` (7 types). `CombatantData.feats: Array[String]` added; serialized/deserialized in GameState via typed-array pattern; old saves default to `[]`. MapManager: EVENT branch calls `EventSelector.pick_for_node` + `show_event` instead of NodeStub; `_get_ring()` helper; `_on_event_finished` + `_on_event_nav` handlers mark node cleared + refresh map. `_input()` and `_on_node_clicked()` guard against re-entry while overlay is visible. Cleared stamp: CURRENT+CLEARED now renders ✗ immediately; stamp font 18, bright red, outlined, centered. `rusted_dagger` added to equipment.csv. 19 new headless tests (89 total). |
 | 2026-04-24 | EventSelector, GameState, MapManager | **Events Slice 3 — EventSelector + used_event_ids persistence.** `GameState.used_event_ids` (`Array[String]`) added with full save/load/reset wiring (typed-array pattern matching `cleared_nodes`). `EventSelector.gd` created: static `pick_for_node(ring)` filters already-seen ids, exhaustion-falls-back to full ring pool, pushes warning + returns stub for rings with no authored events, appends chosen id to `GameState.used_event_ids`, never calls `save()`. `MapManager._move_player_to()` gains a trailing `GameState.save()` after post-tween dispatch, covering VENDOR/CITY "Keep Moving" path. 7 new headless tests (70 total): 5 EventSelector + 2 GameState save round-trip. EVENT nodes still route to NodeStub — EventScene overlay is Slice 4. |
