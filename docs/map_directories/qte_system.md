@@ -135,6 +135,8 @@ Feedback is shown for **0.85 s** before the bar hides and `qte_resolved` fires.
 CombatManager3D calls _run_harm_defenders(caster, [defender], effect, energy_cost)
   → defender.data.is_player_unit == true:
       state = QTE_RUNNING
+      await _camera_rig.focus_on(caster.global_position).finished   # 0.5 s smooth pivot
+      await get_tree().create_timer(0.25).timeout                    # brief settle
       _qte_bar.start_qte(energy_cost, caster)   ← caster is the attacker ref
           → _attacker = caster stored
           → _set_difficulty()              sets _ss_half, _cursor_duration
@@ -147,6 +149,7 @@ CombatManager3D calls _run_harm_defenders(caster, [defender], effect, energy_cos
               → _show_feedback(result)    PERFECT DODGE / GOOD DODGE / WEAK DODGE / HIT
               → await 0.85 s → hide bar → _attacker = null → qte_resolved.emit(result)
       roll = await _qte_bar.qte_resolved
+      _camera_rig.restore()                                          # fire-and-forget tween back
       dmg_mult = _defender_roll_to_dmg_multiplier(roll)
       dmg = max(1, round(dmg_mult * (effect.base_value + caster.data.attack)))
       defender.take_damage(dmg)

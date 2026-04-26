@@ -244,6 +244,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-26 | QTE Session B — world-space bar + camera focus. `_run_harm_defenders` now awaits `_camera_rig.focus_on(caster.global_position).finished` (0.5 s) + 0.25 s settle before calling `start_qte(energy_cost, caster)`. After `qte_resolved` fires, calls `_camera_rig.restore()` (fire-and-forget). `start_qte` signature changed to `(energy_cost: int, attacker: Node3D)`. |
 | 2026-04-26 | QTE reactive overhaul (Session A) — defender-driven HARM-only QTE. Deleted `_on_qte_resolved`, `_apply_effects`. Added `_apply_non_harm_effects`, `_get_harm_effect`, `_run_harm_defenders`, `_defender_roll_to_dmg_multiplier`. Energy spent upfront in `_initiate_action`. TRAVEL always succeeds (no QTE miss). Enemy actions use `_run_harm_defenders` so player units see QTE when defending. |
 | 2026-04-23 | S28 Kindred display — CombatActionPanel renders a small muted kindred label below unit name for both player and enemy views (`_kindred_label`). No CombatManager3D behavior change. |
 | 2026-04-20 | S26+S27 UI overhaul — radial ActionMenu deleted; replaced by right slide-in `CombatActionPanel` (layer 12). CM3D's internal var is still named `_action_menu` (legacy) but the type is `CombatActionPanel`. `_handle_unit_hover()` added for `InputEventMouseMotion` → UnitInfoBar hover (replaced click-persistent info bar). `_hover_cell` field added. Consumable use no longer closes the panel — CM3D calls `_action_menu.open_for()` again to refresh in place. |
