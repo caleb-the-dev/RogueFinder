@@ -90,6 +90,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
 			_dragging = event.pressed
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if _dragging else Input.MOUSE_MODE_VISIBLE)
 			get_viewport().set_input_as_handled()
 		elif event.pressed:
 			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
