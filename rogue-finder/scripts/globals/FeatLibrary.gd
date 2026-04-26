@@ -14,6 +14,7 @@ static func get_feat(id: String) -> FeatData:
 	stub.id          = id
 	stub.name        = "Unknown Feat"
 	stub.description = ""
+	stub.stat_bonuses = {}
 	return stub
 
 static func all_feats() -> Array[FeatData]:
@@ -60,9 +61,27 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 			"id":          feat.id          = row[i]
 			"name":        feat.name        = row[i]
 			"description": feat.description = row[i]
+			"source_type": feat.source_type = row[i]
+			"stat_bonuses":
+				feat.stat_bonuses = _parse_stat_bonuses(row[i])
+			"effects", "notes":
+				pass  # effects reserved for future trigger-based feats; notes are designer free-text
 			_:
 				push_warning("FeatLibrary: unknown column '%s' at row %d" % [header[i], row_num])
 	if feat.id == "":
 		push_error("FeatLibrary: row %d missing id — skipping" % row_num)
 		return null
 	return feat
+
+## Parses "stat:value|stat:value" → {stat: int}. Empty string → {}.
+static func _parse_stat_bonuses(raw: String) -> Dictionary:
+	var result: Dictionary = {}
+	if raw == "":
+		return result
+	for pair in raw.split("|", false):
+		var parts := pair.split(":", false)
+		if parts.size() == 2:
+			result[parts[0]] = int(parts[1])
+		else:
+			push_warning("FeatLibrary: malformed stat_bonus pair '%s'" % pair)
+	return result

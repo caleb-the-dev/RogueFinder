@@ -15,21 +15,18 @@ extends Resource
 ## ======================================================
 
 @export var character_name: String  = "Unit"
-## Key into ArchetypeLibrary.ARCHETYPES. Determines allowed class, backgrounds,
+## Key into ArchetypeLibrary. Determines allowed class, backgrounds,
 ## artwork, and attribute ranges. "RogueFinder" is reserved for the player character.
 @export var archetype_id: String    = "generic"
 @export var is_player_unit: bool    = false
 ## Species / ancestry (e.g. "Human", "Dwarf", "Gnome"). Fixed per archetype.
 @export var kindred: String         = ""
-## ID of the kindred's passive feat (e.g. "adaptive"). Flavor-only for now; set in ArchetypeLibrary.create().
-@export var kindred_feat_id: String = ""
 
 ## ======================================================
-## --- Background & Class (placeholder — CSV values TBD) ---
+## --- Background & Class ---
 ## ======================================================
 
 ## Narrative origin. Chosen from the archetype's allowed pool at creation time.
-## e.g. "Crook" or "Soldier" for an Archer Bandit; "Baker" for an Alchemist.
 @export var background: String  = ""
 ## Combat role. Fixed per archetype. e.g. "Rogue", "Barbarian", "Wizard".
 @export var unit_class: String  = ""
@@ -85,12 +82,11 @@ extends Resource
 ## ======================================================
 
 ## Full unlocked ability set for this unit — superset of `abilities`.
-## Grows as the unit unlocks new abilities (leveling is a future slice).
-## Kept separate from `abilities` so the 4-slot active list is undisturbed when the pool grows.
 @export var ability_pool: Array[String] = []
 
-## Feats granted to this unit during the run (e.g. via events). Persisted to disk.
-@export var feats: Array[String] = []
+## All feats this unit has — kindred feat (index 0) plus any gained during the run.
+## Replaces the old split of kindred_feat_id + feats. Populated by GameState.grant_feat().
+@export var feat_ids: Array[String] = []
 
 ## Live HP that persists between combats. Seeded to hp_max at creation.
 @export var current_hp: int = 0
@@ -98,7 +94,7 @@ extends Resource
 ## Live energy that persists between combats. Seeded to energy_max at creation.
 @export var current_energy: int = 0
 
-## Permanent death flag. Flipped by CombatManager3D in a later slice; defaults false.
+## Permanent death flag. Flipped by CombatManager3D; defaults false.
 @export var is_dead: bool = false
 
 ## ======================================================
@@ -110,13 +106,13 @@ extends Resource
 
 ## ======================================================
 ## --- Armor Defense ---
-## Set by ArchetypeLibrary at creation time; will be driven by the armor item in the future.
+## Set by ArchetypeLibrary at creation time.
 ## ======================================================
 
 @export var armor_defense: int = 5
 
 ## ======================================================
-## Derived Stats — computed from core attributes + all equipped items
+## Derived Stats — computed from core attributes + equipped items + feats
 ## ======================================================
 
 ## Sums a stat bonus across all three equipment slots.
@@ -125,30 +121,40 @@ func _equip_bonus(stat: String) -> int:
 		 + (armor.get_bonus(stat)     if armor     else 0) \
 		 + (accessory.get_bonus(stat) if accessory else 0)
 
-## hp_max: flat 10 + kindred bonus + vitality*6. Kindred differentiates races; VIT is still the primary driver.
+## Sums a stat bonus across all owned feats. Never crashes — unknown feat returns {}.
+func get_feat_stat_bonus(stat: String) -> int:
+	var total: int = 0
+	for feat_id in feat_ids:
+		total += FeatLibrary.get_feat(feat_id).stat_bonuses.get(stat, 0)
+	return total
+
+## hp_max: flat 10 + kindred bonus + vitality*6. Feat/equip bonuses are flat additions.
 var hp_max: int:
-	get: return 10 + KindredLibrary.get_hp_bonus(kindred) + (vitality * 6) + _equip_bonus("vitality")
+	get: return 10 + KindredLibrary.get_hp_bonus(kindred) + (vitality * 6) \
+		+ _equip_bonus("vitality") + get_feat_stat_bonus("vitality")
 
 ## energy_max: 5 + vitality
 var energy_max: int:
-	get: return 5 + vitality + _equip_bonus("vitality")
+	get: return 5 + vitality + _equip_bonus("vitality") + get_feat_stat_bonus("vitality")
 
 ## energy_regen: energy restored at the start of each turn — 2 + willpower
 var energy_regen: int:
-	get: return 2 + willpower + _equip_bonus("willpower")
+	get: return 2 + willpower + _equip_bonus("willpower") + get_feat_stat_bonus("willpower")
 
-## speed: movement range in grid cells — 1 + kindred bonus. DEX removed; reserved for dodge/evasion (future).
-## Equipment bonuses on dexterity still flow through until a dedicated speed slot exists.
+## speed: movement range in grid cells — 1 + kindred bonus.
+## DEX removed from base formula; reserved for dodge/evasion (future).
+## Equipment/feat dexterity bonuses still flow through until a dedicated speed slot exists.
 var speed: int:
-	get: return 1 + KindredLibrary.get_speed_bonus(kindred) + _equip_bonus("dexterity")
+	get: return 1 + KindredLibrary.get_speed_bonus(kindred) \
+		+ _equip_bonus("dexterity") + get_feat_stat_bonus("dexterity")
 
-## defense: armor_defense + any armor_defense bonuses from equipped items.
+## defense: armor_defense + any armor_defense bonuses from equipped items + feats.
 var defense: int:
-	get: return armor_defense + _equip_bonus("armor_defense")
+	get: return armor_defense + _equip_bonus("armor_defense") + get_feat_stat_bonus("armor_defense")
 
-## attack: 5 + strength + any strength bonuses from equipped items.
+## attack: 5 + strength + any strength bonuses from equipped items + feats.
 var attack: int:
-	get: return 5 + strength + _equip_bonus("strength")
+	get: return 5 + strength + _equip_bonus("strength") + get_feat_stat_bonus("strength")
 
 ## unit_name: alias for character_name.
 ## Keeps HUD.gd and Unit3D.gd working without changes — they duck-type on this field.

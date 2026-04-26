@@ -13,6 +13,7 @@ extends Resource
 @export var display_name:        String        = ""
 @export var description:         String        = ""
 @export var starting_ability_id: String        = ""
+@export var feat_pool:           Array[String] = []
 @export var unlocked_by_default: bool          = true
 @export var tags:                Array[String] = []
 

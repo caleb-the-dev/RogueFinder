@@ -1094,8 +1094,8 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 		feat_scroll.add_child(fv)
 		feat_container = fv
 
-	# Build + filter feat id list (kindred_feat_id is the sole source until Slice 4)
-	var feat_ids: Array[String] = [member.kindred_feat_id]
+	# Build + filter feat id list from unified feat_ids array
+	var feat_ids: Array[String] = member.feat_ids.duplicate()
 	if not _feat_sort_ascs[member_idx]:
 		feat_ids.reverse()
 	var fq: String = _feat_search_texts[member_idx].strip_edges().to_lower()

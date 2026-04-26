@@ -1,5 +1,5 @@
-id,speed_bonus,hp_bonus,feat_id,feat_name,feat_desc,name_pool,notes
-Human,3,5,adaptive,Adaptive,Versatile survivors; no path is closed to them.,Kale|Sora|Wren|Dax|Mira|Fenn,
-Half-Orc,2,12,relentless,Relentless,Fight harder when cornered — low-HP damage bonus (placeholder).,Brak|Mord|Thug|Krak|Uge|Dorn,
-Gnome,4,2,tinkerer,Tinkerer,Find clever shortcuts — reduced ability costs (placeholder).,Finch|Alda|Quill|Senna|Pip|Loris,
-Dwarf,1,8,stonehide,Stonehide,Endure what others cannot — passive armor bonus (placeholder).,Sven|Holt|Cara|Brix|Edda|Vale,
+id,speed_bonus,hp_bonus,feat_id,name_pool,notes
+Human,3,5,adaptive,Kale|Sora|Wren|Dax|Mira|Fenn,
+Half-Orc,2,12,relentless,Brak|Mord|Thug|Krak|Uge|Dorn,
+Gnome,4,2,tinkerer,Finch|Alda|Quill|Senna|Pip|Loris,
+Dwarf,1,8,stonehide,Sven|Holt|Cara|Brix|Edda|Vale,

@@ -76,6 +76,8 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				c.description = val
 			"starting_ability_id":
 				c.starting_ability_id = val
+			"feat_pool":
+				c.feat_pool = _split_pipe(val)
 			"unlocked_by_default":
 				c.unlocked_by_default = (val == "true")
 			"tags":

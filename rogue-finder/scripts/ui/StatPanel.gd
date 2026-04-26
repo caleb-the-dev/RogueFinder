@@ -151,8 +151,12 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 
 	# -- Feats --
 	lines.append("[b]── Feats ──[/b]")
-	var feat: FeatData = FeatLibrary.get_feat(d.kindred_feat_id)
-	lines.append("1. %s" % _or(feat.name))
+	if d.feat_ids.is_empty():
+		lines.append("(none)")
+	else:
+		for i in d.feat_ids.size():
+			var feat: FeatData = FeatLibrary.get_feat(d.feat_ids[i])
+			lines.append("%d. %s" % [i + 1, _or(feat.name)])
 
 	# -- Status Effects --
 	if not unit.stat_effects.is_empty():

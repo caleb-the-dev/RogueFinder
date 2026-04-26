@@ -253,8 +253,8 @@ func test_kindred_feat_assignment() -> void:
 	}
 	for archetype_id in expected_feats.keys():
 		var d: CombatantData = ArchetypeLibrary.create(archetype_id)
-		assert(d.kindred_feat_id == expected_feats[archetype_id],
-			"%s: expected feat '%s', got '%s'" % [archetype_id, expected_feats[archetype_id], d.kindred_feat_id])
+		assert(d.feat_ids.size() >= 1 and d.feat_ids[0] == expected_feats[archetype_id],
+			"%s: expected feat_ids[0]='%s', got %s" % [archetype_id, expected_feats[archetype_id], str(d.feat_ids)])
 	print("  PASS test_kindred_feat_assignment")
 
 func test_kindred_unknown_defaults_safe() -> void:
@@ -263,8 +263,8 @@ func test_kindred_unknown_defaults_safe() -> void:
 	assert(d.speed  == 1, "Unknown kindred speed should be 1+0=1, got %d" % d.speed)
 	assert(d.hp_max == 10 + (d.vitality * 6),
 		"Unknown kindred hp_max should use 0 bonus, got %d" % d.hp_max)
-	assert(KindredLibrary.get_feat_name("Unknown") == "",
-		"Unknown kindred feat_name should be empty string")
+	assert(KindredLibrary.get_feat_id("Unknown") == "",
+		"Unknown kindred feat_id should be empty string")
 	print("  PASS test_kindred_unknown_defaults_safe")
 
 ## Every known kindred must load a non-empty name pool with a known flavor name —

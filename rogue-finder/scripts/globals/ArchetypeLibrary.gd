@@ -57,13 +57,13 @@ static func create(archetype_id: String, character_name: String = "",
 	rng.randomize()
 
 	var data := CombatantData.new()
-	data.archetype_id    = archetype_id
-	data.is_player_unit  = is_player
-	data.unit_class      = src.unit_class
-	data.kindred         = src.kindred
-	data.kindred_feat_id = KindredLibrary.get_feat_id(data.kindred)
-	data.artwork_idle    = src.artwork_idle
-	data.artwork_attack  = src.artwork_attack
+	data.archetype_id   = archetype_id
+	data.is_player_unit = is_player
+	data.unit_class     = src.unit_class
+	data.kindred        = src.kindred
+	data.feat_ids       = [KindredLibrary.get_feat_id(data.kindred)]
+	data.artwork_idle   = src.artwork_idle
+	data.artwork_attack = src.artwork_attack
 
 	# Active slots: exactly 4 entries, empty string = unfilled
 	data.abilities.clear()

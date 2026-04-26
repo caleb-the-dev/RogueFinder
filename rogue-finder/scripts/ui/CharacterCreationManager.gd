@@ -493,8 +493,8 @@ static func _build_pc(char_name: String, kindred_id: String, class_id: String,
 	d.archetype_id    = "RogueFinder"
 	d.is_player_unit  = true
 	d.character_name  = char_name if char_name != "" else "Unit"
-	d.kindred         = kindred_id
-	d.kindred_feat_id = KindredLibrary.get_feat_id(kindred_id)
+	d.kindred   = kindred_id
+	d.feat_ids  = [KindredLibrary.get_feat_id(kindred_id)]
 	d.unit_class      = ClassLibrary.get_class_data(class_id).display_name
 	d.background      = bg_id
 	var class_ab: String = ClassLibrary.get_class_data(class_id).starting_ability_id
