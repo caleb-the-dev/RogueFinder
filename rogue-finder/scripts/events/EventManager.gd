@@ -269,7 +269,7 @@ static func evaluate_condition(condition: String, party: Array[CombatantData]) -
 			return false
 		"feat":
 			for member: CombatantData in party:
-				if member.feats.has(parts[1]):
+				if member.feat_ids.has(parts[1]):
 					return true
 			return false
 		"item":
@@ -364,8 +364,8 @@ static func dispatch_effect(effect: Dictionary, party: Array[CombatantData],
 			if t == null:
 				return
 			var feat_id: String = effect.get("feat_id", "")
-			if not feat_id.is_empty() and not t.feats.has(feat_id):
-				t.feats.append(feat_id)
+			if not feat_id.is_empty():
+				GameState.grant_feat(party.find(t), feat_id)
 		"open_vendor", "open_bench":
 			pass  # nav effects handled in _on_choice_pressed
 		_:

@@ -95,8 +95,7 @@ func _serialize_combatant(d: CombatantData) -> Dictionary:
 		"character_name": d.character_name,
 		"is_player_unit": d.is_player_unit,
 		"unit_class":     d.unit_class,
-		"kindred":         d.kindred,
-		"kindred_feat_id": d.kindred_feat_id,
+		"kindred":        d.kindred,
 		"background":     d.background,
 		"strength":       d.strength,
 		"dexterity":      d.dexterity,
@@ -107,7 +106,7 @@ func _serialize_combatant(d: CombatantData) -> Dictionary:
 		"qte_resolution": d.qte_resolution,
 		"abilities":      d.abilities,
 		"ability_pool":   d.ability_pool,
-		"feats":          d.feats,
+		"feat_ids":       Array(d.feat_ids),
 		"current_hp":     d.current_hp,
 		"current_energy": d.current_energy,
 		"is_dead":        d.is_dead,
@@ -154,8 +153,7 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 	d.character_name = dict.get("character_name", "Unit")
 	d.is_player_unit = dict.get("is_player_unit", false)
 	d.unit_class     = dict.get("unit_class", "")
-	d.kindred         = dict.get("kindred", "Unknown")
-	d.kindred_feat_id = dict.get("kindred_feat_id", "")
+	d.kindred        = dict.get("kindred", "Unknown")
 	d.background     = dict.get("background", "")
 	d.strength       = dict.get("strength", 2)
 	d.dexterity      = dict.get("dexterity", 2)
@@ -165,11 +163,23 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 	d.armor_defense  = dict.get("armor_defense", 5)
 	d.qte_resolution = float(dict.get("qte_resolution", 0.3))
 	var raw_abilities: Array = dict.get("abilities", [])
-	d.abilities      = Array(raw_abilities, TYPE_STRING, "", null)
+	d.abilities    = Array(raw_abilities, TYPE_STRING, "", null)
 	var raw_pool: Array = dict.get("ability_pool", [])
-	d.ability_pool   = Array(raw_pool, TYPE_STRING, "", null)
-	var raw_feats: Array = dict.get("feats", [])
-	d.feats          = Array(raw_feats, TYPE_STRING, "", null)
+	d.ability_pool = Array(raw_pool, TYPE_STRING, "", null)
+	# Migrate from old split format (kindred_feat_id + feats) to unified feat_ids
+	if dict.has("feat_ids"):
+		var raw_feat_ids: Array = dict.get("feat_ids", [])
+		d.feat_ids = Array(raw_feat_ids, TYPE_STRING, "", null)
+	else:
+		var migrated: Array[String] = []
+		var kid_feat: String = dict.get("kindred_feat_id", "")
+		if kid_feat != "":
+			migrated.append(kid_feat)
+		for f in dict.get("feats", []):
+			var fs: String = str(f)
+			if not migrated.has(fs):
+				migrated.append(fs)
+		d.feat_ids = migrated
 	d.current_hp     = dict.get("current_hp", 0)
 	d.current_energy = dict.get("current_energy", 0)
 	d.is_dead        = dict.get("is_dead", false)
@@ -181,6 +191,17 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 	var accessory_id: String = dict.get("accessory_id", "")
 	d.accessory = null if accessory_id == "" else EquipmentLibrary.get_equipment(accessory_id)
 	return d
+
+## Grants a feat to the party member at pc_index. Deduplicates; saves immediately.
+func grant_feat(pc_index: int, feat_id: String) -> void:
+	if pc_index < 0 or pc_index >= party.size():
+		push_error("GameState.grant_feat: invalid index %d" % pc_index)
+		return
+	var pc: CombatantData = party[pc_index]
+	if feat_id in pc.feat_ids:
+		return
+	pc.feat_ids.append(feat_id)
+	save()
 
 func delete_save() -> void:
 	if FileAccess.file_exists(SAVE_PATH):

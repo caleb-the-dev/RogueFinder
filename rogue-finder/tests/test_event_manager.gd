@@ -93,7 +93,7 @@ func test_class_passes_and_fails() -> void:
 
 func test_feat_passes_when_present_fails_when_absent() -> void:
 	var member := _make_member()
-	member.feats = ["adaptive"]
+	member.feat_ids = ["adaptive"]
 	var party_with := _party([member])
 	assert(EventManager.evaluate_condition("feat:adaptive", party_with),
 		"feat:adaptive should pass when member has the feat")
@@ -172,15 +172,17 @@ func test_threat_delta_adjusts_and_clamps() -> void:
 
 func test_feat_grant_appends_and_no_duplicate() -> void:
 	var member := _make_member()
-	member.feats = []
+	member.feat_ids = []
 	var party := _party([member])
+	GameState.party = party  # grant_feat indexes into GameState.party
 	EventManager.dispatch_effect({"type": "feat_grant", "target": "PC", "feat_id": "adaptive"}, party)
-	assert(member.feats.size() == 1 and member.feats.has("adaptive"),
-		"feat_grant should append 'adaptive' to feats")
+	assert(member.feat_ids.size() == 1 and member.feat_ids.has("adaptive"),
+		"feat_grant should append 'adaptive' to feat_ids")
 	# Second grant must not duplicate
 	EventManager.dispatch_effect({"type": "feat_grant", "target": "PC", "feat_id": "adaptive"}, party)
-	assert(member.feats.size() == 1,
-		"feat_grant should not duplicate — expected 1 feat, got %d" % member.feats.size())
+	assert(member.feat_ids.size() == 1,
+		"feat_grant should not duplicate — expected 1 feat, got %d" % member.feat_ids.size())
+	GameState.reset()
 	print("  PASS test_feat_grant_appends_and_no_duplicate")
 
 func test_item_gain_adds_to_inventory() -> void:
@@ -213,7 +215,7 @@ func test_item_remove_removes_from_inventory() -> void:
 func test_feats_survive_save_load_round_trip() -> void:
 	# Save a party member with feats, reset, reload, verify feats survive
 	var member := _make_member()
-	member.feats = ["adaptive", "stubborn"]
+	member.feat_ids = ["adaptive", "stubborn"]
 	GameState.party = [member]
 	GameState.map_seed = 1
 	GameState.save()
@@ -223,12 +225,12 @@ func test_feats_survive_save_load_round_trip() -> void:
 	assert(loaded, "load_save should return true")
 	assert(GameState.party.size() == 1, "party should have 1 member after load")
 	var loaded_member := GameState.party[0]
-	assert(loaded_member.feats.has("adaptive"),
+	assert(loaded_member.feat_ids.has("adaptive"),
 		"'adaptive' feat should survive round-trip save/load")
-	assert(loaded_member.feats.has("stubborn"),
+	assert(loaded_member.feat_ids.has("stubborn"),
 		"'stubborn' feat should survive round-trip save/load")
-	assert(loaded_member.feats.size() == 2,
-		"feats array should have exactly 2 entries after load, got %d" % loaded_member.feats.size())
+	assert(loaded_member.feat_ids.size() == 2,
+		"feat_ids should have exactly 2 entries after load, got %d" % loaded_member.feat_ids.size())
 	GameState.reset()
 	print("  PASS test_feats_survive_save_load_round_trip")
 
@@ -266,8 +268,8 @@ func test_old_save_without_feats_loads_as_empty_array() -> void:
 	var loaded := GameState.load_save()
 	assert(loaded, "load_save should succeed on old save format")
 	assert(GameState.party.size() == 1, "party should have 1 member")
-	assert(GameState.party[0].feats.is_empty(),
-		"feats should default to empty array on old saves without feats key")
+	assert(GameState.party[0].feat_ids.is_empty(),
+		"feat_ids should default to empty array on old saves without feats key")
 	GameState.reset()
 	print("  PASS test_old_save_without_feats_loads_as_empty_array")
 

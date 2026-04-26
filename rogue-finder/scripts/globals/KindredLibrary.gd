@@ -6,14 +6,13 @@ extends RefCounted
 ## BackgroundLibrary shape (lazy-load, single-parse, stub fallback).
 ##
 ## Data source: res://data/kindreds.csv
-## Getter functions (get_speed_bonus / get_hp_bonus / get_feat_*) are unchanged
-## from the old const-dict version — all callers unaffected.
+## feat_name / feat_desc are removed — all callers use FeatLibrary.get_feat(feat_id).
 
 const CSV_PATH := "res://data/kindreds.csv"
 
 static var _cache: Dictionary = {}
 
-## --- Public getters (existing API — unchanged) ---
+## --- Public getters ---
 
 static func get_speed_bonus(kindred: String) -> int:
 	return get_kindred(kindred).speed_bonus
@@ -24,19 +23,11 @@ static func get_hp_bonus(kindred: String) -> int:
 static func get_feat_id(kindred: String) -> String:
 	return get_kindred(kindred).feat_id
 
-static func get_feat_name(kindred: String) -> String:
-	return get_kindred(kindred).feat_name
-
-static func get_feat_desc(kindred: String) -> String:
-	return get_kindred(kindred).feat_desc
-
 ## Returns the flavor name pool for the given kindred. Empty array if unknown.
-## Consumed by ArchetypeLibrary.create() for auto-naming player allies; will
-## back the 🎲 random-name button on the character creation screen (S36).
 static func get_name_pool(kindred: String) -> Array[String]:
 	return get_kindred(kindred).name_pool
 
-## --- New catalog API ---
+## --- Catalog API ---
 
 static func get_kindred(id: String) -> KindredData:
 	_ensure_loaded()
@@ -97,10 +88,6 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				k.hp_bonus = int(val)
 			"feat_id":
 				k.feat_id = val
-			"feat_name":
-				k.feat_name = val
-			"feat_desc":
-				k.feat_desc = val
 			"name_pool":
 				k.name_pool = _split_pipe(val)
 			"notes":

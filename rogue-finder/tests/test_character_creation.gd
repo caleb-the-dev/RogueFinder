@@ -31,8 +31,8 @@ func test_archetype_and_player_flag() -> void:
 func test_kindred_feat_id() -> void:
 	var pc := CharacterCreationManager._build_pc("Tess", "Human", "wizard", "crook", "portrait_human_f")
 	var expected := KindredLibrary.get_feat_id("Human")
-	assert(pc.kindred_feat_id == expected,
-		"kindred_feat_id must be '%s' for Human, got '%s'" % [expected, pc.kindred_feat_id])
+	assert(pc.feat_ids.size() == 1 and pc.feat_ids[0] == expected,
+		"feat_ids[0] must be '%s' for Human, got %s" % [expected, str(pc.feat_ids)])
 	print("  PASS test_kindred_feat_id")
 
 func test_unit_class_from_class_pick() -> void:
