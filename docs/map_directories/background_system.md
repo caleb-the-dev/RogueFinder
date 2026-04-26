@@ -1,16 +1,14 @@
 # System: Background System
 
-> Last updated: 2026-04-23 (S30 — fixed 3 broken starting_ability_id rows)
+> Last updated: 2026-04-26 (pillar foundation — starting_feat_id, stat_bonuses, ability removed; wired into CharacterCreation and CombatantData)
 
 ---
 
 ## Purpose
 
-A **Background** is a character's pre-adventure occupation (e.g. Crook, Soldier, Scholar, Baker). Per GAME_BIBLE, each background grants one starting ability at character creation and contributes a pool of feats the character can draw from at odd levels.
+A **Background** is a character's pre-adventure occupation (Crook, Soldier, Scholar, Baker). Backgrounds own the **feat lane** — each background grants one defining feat at character creation and holds a pool of 2 additional feats available during the run. No ability is granted by a background (abilities come from class and kindred).
 
-Currently **dormant** — no production code calls `BackgroundLibrary` yet. The infrastructure is ready for the character-creation screen, event system, and feat system when those land.
-
-This is the **first library in the codebase that sources from CSV**. Future migrations of `AbilityLibrary` / `EquipmentLibrary` / `ConsumableLibrary` should follow this shape.
+Background stat bonuses apply structurally to all derived stats via `CombatantData.get_background_stat_bonus()`.
 
 ---
 
@@ -32,11 +30,12 @@ This is the **first library in the codebase that sources from CSV**. Future migr
 |-------|------|-------|
 | `background_id` | `String` | Snake_case key (e.g. `"crook"`) |
 | `background_name` | `String` | Display name (e.g. `"Crook"`) |
-| `starting_ability_id` | `String` | 1 action granted at character creation. FK → `AbilityLibrary`. Placeholder ids in CSV until real ability ids are wired. |
-| `feat_pool` | `Array[String]` | Pool of feat ids the character can draw from at odd levels (alongside the class feat pool). Placeholder until the feat system exists. |
-| `unlocked_by_default` | `bool` | `true` = available at character creation in fresh saves; `false` = meta-progression unlock. |
-| `tags` | `Array[String]` | Optional event hooks (e.g. `["criminal", "urban"]`). Per GAME_BIBLE, backgrounds rarely gate events — tags are a light coupling. |
-| `description` | `String` | Short flavor line for character-creation UI. |
+| `description` | `String` | Short flavor line for character-creation UI |
+| `starting_feat_id` | `String` | 1 feat auto-granted at character creation. FK → `FeatLibrary`. Added as `feat_ids[0]` in `_build_pc()`. |
+| `feat_pool` | `Array[String]` | 2 feat IDs available to this background during the run. Distinct from `starting_feat_id` (no overlap). |
+| `unlocked_by_default` | `bool` | `true` = available at character creation in fresh saves |
+| `tags` | `Array[String]` | Event hooks (e.g. `["criminal", "urban"]`). |
+| `stat_bonuses` | `Dictionary` | Flat bonuses applied to all derived stats via `CombatantData.get_background_stat_bonus()`. Same key:int format as `FeatData.stat_bonuses` (full stat names). |
 
 ### Helpers
 
@@ -48,23 +47,13 @@ func has_tag(tag: String) -> bool
 
 ## BackgroundLibrary
 
-### Data Flow
-
-```
-rogue-finder/data/backgrounds.csv   (source of truth — edit here; Godot reads via res://data/)
-        │
-        ▼  FileAccess.get_csv_line(",")
-BackgroundLibrary._cache            (lazy-loaded Dictionary keyed by id)
-```
-
 ### Public API
 
 ```gdscript
 ## Returns a populated BackgroundData. Never returns null — stub for unknown IDs.
 static func get_background(id: String) -> BackgroundData
 ## Back-compat lookup by display name ("Crook" / "Soldier"). Bridges the gap
-## while CombatantData.background and ArchetypeLibrary still use PascalCase
-## display strings. Delete when snake_case id migration lands.
+## while ArchetypeLibrary still uses PascalCase display strings. Delete when migration lands.
 static func get_background_by_name(display_name: String) -> BackgroundData
 ## Returns every loaded background. For character-creation UI / unlock screens.
 static func all_backgrounds() -> Array[BackgroundData]
@@ -72,18 +61,24 @@ static func all_backgrounds() -> Array[BackgroundData]
 static func reload() -> void
 ```
 
-### Defined Backgrounds (4 seed rows)
+### Private helpers
 
-| ID | Name | Starting Ability | Unlocked by Default | Tags |
-|----|------|-----------------|---------------------|------|
-| `crook` | Crook | `smoke_bomb` | `true` | `criminal`, `urban` |
-| `soldier` | Soldier | `shield_bash` | `true` | `military`, `disciplined` |
-| `scholar` | Scholar | `acid_splash` | `true` | `academic`, `urban` |
-| `baker` | Baker | `healing_draught` | `true` | `commoner`, `urban` |
+```gdscript
+## Parses "stat:value|stat:value" into a Dictionary. Empty string returns {}.
+static func _parse_stat_bonuses(val: String) -> Dictionary
+static func _split_pipe(val: String) -> Array[String]
+```
 
-> **S30 fix:** `crook` was `pickpocket`, `scholar` was `identify`, `baker` was `rally_feast` — none of these
-> exist in `AbilityLibrary`. Retargeted to real ability IDs. `soldier → shield_bash` was already correct.
-> Real flavor-specific abilities (pickpocket, identify, rally_feast) will be authored in a later AbilityLibrary session.
+### Defined Backgrounds (4 rows)
+
+| ID | Name | Starting Feat | Feat Pool | Stat Bonuses | Tags |
+|----|------|--------------|-----------|-------------|------|
+| `crook` | Crook | `street_smart` | nimble_fingers, survival_instinct | dexterity:1 | `criminal`, `urban` |
+| `soldier` | Soldier | `combat_training` | disciplined_stance, unit_cohesion | strength:1, vitality:1 | `military`, `disciplined` |
+| `scholar` | Scholar | `analytical_mind` | focused_study, breadth_of_knowledge | cognition:2 | `academic`, `urban` |
+| `baker` | Baker | `hearty_constitution` | enduring_spirit, patient_resolve | vitality:1, willpower:1 | `commoner`, `urban` |
+
+> **Pillar cap:** no stat gets more than +2 from any single pillar.
 
 ### Parsing Rules
 
@@ -97,31 +92,56 @@ static func reload() -> void
 
 ---
 
+## Integration with CombatantData
+
+```gdscript
+## In CombatantData.gd — returns flat stat bonus from this unit's background.
+## Stubs to 0 for unknown background IDs (old saves, enemy units).
+func get_background_stat_bonus(stat: String) -> int:
+    return BackgroundLibrary.get_background(background).stat_bonuses.get(stat, 0)
+```
+
+`get_background_stat_bonus()` is wired into all 6 derived stat formulas alongside class, kindred, feat, and equipment bonuses.
+
+`CharacterCreationManager._build_pc()` seeds `feat_ids = [bg_data.starting_feat_id]` at creation.
+
+---
+
 ## Dependencies
 
 | Dependent | On |
 |-----------|----|
 | `BackgroundData` | Nothing (leaf node) |
 | `BackgroundLibrary` | `BackgroundData`, `FileAccess` |
-| *(none yet — dormant)* | |
+| `CombatantData` | `BackgroundLibrary` (via `get_background_stat_bonus()`) |
+| `CharacterCreationManager` | `BackgroundLibrary` (list, display name, starting_feat_id, stat_bonuses) |
 
 ### Migration note
 
-`CombatantData.background` and `ArchetypeLibrary` pools currently store PascalCase display strings (`"Crook"`, `"Soldier"`) while `BackgroundLibrary` keys on snake_case ids (`"crook"`). `get_background_by_name()` bridges the gap so the library is callable today. Full snake_case-id migration is deferred until the first real consumer lands (character-creation screen).
+`CombatantData.background` and `ArchetypeLibrary` pools currently store PascalCase display strings (`"Crook"`, `"Soldier"`) while `BackgroundLibrary` keys on snake_case ids (`"crook"`). `get_background_by_name()` bridges the gap. Full snake_case-id migration is deferred.
 
 ---
 
 ## Where NOT to Look
 
-- **Character-creation UI is NOT here** — not yet built.
-- **Feat system is NOT here** — `feat_pool` is scaffolding only.
-- **Event-gating logic is NOT here** — `tags` is a passive list; no consumer reads them yet.
+- **Ability system is NOT here** — backgrounds no longer grant abilities. Abilities come from class (defining) and kindred (natural attack).
+- **Feat level-up logic is NOT here** — `feat_pool` is the data pool; picker UI is deferred.
+- **Event-gating logic is NOT here** — `tags` is a passive list; conditions evaluated by `EventManager`.
 
 ---
 
 ## Key Patterns & Gotchas
 
-- **Lazy load** — `_ensure_loaded()` fires on first `get_background()` / `all_backgrounds()` call. Cheap but not free; don't call in tight loops.
-- **CSV is the only source** — there is no `const BACKGROUNDS: Dictionary` fallback. If the CSV is missing or malformed, the library is empty.
-- **Stub fallback is load-bearing** — unknown ids return a stub with an empty feat pool, not null. Safe to call without nil checks.
-- **Dormant-but-ready is intentional** — don't wire it prematurely. The first consumer drives the PascalCase → snake_case migration.
+- **Lazy load** — `_ensure_loaded()` fires on first call. Cheap but not free.
+- **Stub fallback is load-bearing** — unknown ids return a stub with empty `stat_bonuses` and empty `feat_pool`, not null.
+- **`starting_feat_id` ≠ `feat_pool`** — the defining feat is auto-granted and should not also appear in `feat_pool`. Overlap = the character would draw it twice.
+- **Stat bonuses are structural, not feat entries** — `stat_bonuses` flows through `get_background_stat_bonus()` into derived stats at all times, not through `feat_ids`. Do not add a background's stat bonus as a feat entry.
+
+---
+
+## Recent Changes
+
+| Date | Change |
+|---|---|
+| 2026-04-26 | **Pillar foundation.** `starting_ability_id` removed; replaced with `starting_feat_id` + `stat_bonuses`. `BackgroundData.gd` updated. `BackgroundLibrary` gains `_parse_stat_bonuses()`. `get_background_stat_bonus()` wired into `CombatantData` derived stats. `CharacterCreationManager._build_pc()` seeds `feat_ids[0]` from `starting_feat_id`. All 4 backgrounds have concrete stat_bonuses and feat assignments. |
+| 2026-04-23 | S30 — fixed 3 broken `starting_ability_id` rows (`crook → smoke_bomb`, `scholar → acid_splash`, `baker → healing_draught`). `starting_ability_id` now removed entirely (see above). |

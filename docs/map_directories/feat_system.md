@@ -12,7 +12,9 @@
 
 ## Purpose
 
-Central registry for passive character feats. Each kindred grants one feat at character creation (index 0 in `feat_ids`). Event effects can grant additional feats via `GameState.grant_feat()`. Feats apply flat stat bonuses to derived stats, identical in form to equipment bonuses.
+Central registry for passive character feats. Each background grants one defining feat at character creation (`feat_ids[0]`). Event effects can grant additional feats via `GameState.grant_feat()`. Feats apply flat stat bonuses to derived stats, identical in form to equipment bonuses.
+
+> **Note:** Kindred feats were removed in the pillar-foundation session (2026-04-26). The old kindred-source rows (`adaptive`, `relentless`, `tinkerer`, `stonehide`) are deleted from `feats.csv`. Kindred stat bonuses are now structural via `KindredData.stat_bonuses` / `CombatantData.get_kindred_stat_bonus()`. Old saves with these IDs in `feat_ids` are automatically stripped on load.
 
 ---
 
@@ -22,7 +24,7 @@ Central registry for passive character feats. Each kindred grants one feat at ch
 |------|------|
 | `resources/FeatData.gd` | Resource: one feat (id, name, description, source_type, stat_bonuses, effects) |
 | `scripts/globals/FeatLibrary.gd` | CSV-native loader; `get_feat()` / `all_feats()` / `reload()` |
-| `data/feats.csv` | Data source: 28 feats (4 kindred, 12 class, 12 background) |
+| `data/feats.csv` | Data source: 24 feats (12 class, 12 background — kindred rows removed) |
 
 ---
 

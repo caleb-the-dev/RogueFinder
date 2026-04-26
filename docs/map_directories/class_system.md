@@ -1,16 +1,14 @@
 # System: Class Library
 
-> Last updated: 2026-04-26 (feat_pool column added to ClassData + ClassLibrary)
+> Last updated: 2026-04-26 (class rename + stat_bonuses + ability_pool; wired into CombatantData)
 
 ---
 
 ## Purpose
 
-A **Class** is the player's combat identity (e.g. Rogue, Barbarian, Wizard, Warrior). Per GAME_BIBLE, each class grants one starting ability at character creation and contributes a feat pool the character draws from at odd levels.
+A **Class** is the player's combat identity (e.g. Vanguard, Arcanist, Prowler, Warden). Per GAME_BIBLE, each class grants one starting ability at character creation, a stat bonus package applied to all derived stats, a feat pool for future level-up picks, and an ability pool for future level-up expansion.
 
-Currently **dormant** — no production code calls `ClassLibrary` yet. The infrastructure is ready for the character-creation screen when that lands.
-
-Class is a separate axis from Background and Kindred — a `barbarian` Crook (Human) is a valid combination.
+Class is a separate axis from Background and Kindred — a `vanguard` Crook (Human) is a valid combination.
 
 ---
 
@@ -30,13 +28,15 @@ Class is a separate axis from Background and Kindred — a `barbarian` Crook (Hu
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `class_id` | `String` | Snake_case key (e.g. `"rogue"`) |
-| `display_name` | `String` | Display name (e.g. `"Rogue"`) — named `display_name` not `class_name` because `class_name` is a reserved GDScript keyword |
+| `class_id` | `String` | Snake_case key (e.g. `"vanguard"`) |
+| `display_name` | `String` | Display name (e.g. `"Vanguard"`) — named `display_name` not `class_name` because `class_name` is a reserved GDScript keyword |
 | `description` | `String` | Short flavor line for character-creation UI |
 | `starting_ability_id` | `String` | 1 action granted at character creation. FK → `AbilityLibrary` |
-| `feat_pool` | `Array[String]` | Feat ids available to this class (pipe-separated in CSV). Data only — not assigned at creation yet; reserved for the future level-up feat picker. |
+| `feat_pool` | `Array[String]` | Feat IDs available to this class (pipe-separated in CSV). Data only — assigned at odd levels (not at creation yet). |
 | `unlocked_by_default` | `bool` | `true` = available at character creation in fresh saves |
-| `tags` | `Array[String]` | Optional flavor/filter hints (e.g. `["agile", "stealthy"]`) |
+| `tags` | `Array[String]` | Flavor/filter hints (e.g. `["melee", "defender"]`) |
+| `stat_bonuses` | `Dictionary` | Flat bonuses applied to all derived stats. Same key:int format as `FeatData.stat_bonuses` — full stat names (e.g. `{"strength": 1, "vitality": 2}`). Parsed from `strength:1\|vitality:2` in CSV. |
+| `ability_pool` | `Array[String]` | Full ability ID set for future level-up picker. Parsed pipe-separated from CSV. Data only — not yet wired to UI. |
 
 ### Helpers
 
@@ -69,14 +69,43 @@ static func all_classes() -> Array[ClassData]
 static func reload() -> void
 ```
 
-### Defined Classes (4 seed rows)
+### Private helpers
 
-| ID | Name | Starting Ability | Feat Pool | Unlocked by Default | Tags |
-|----|------|-----------------|-----------|---------------------|------|
-| `rogue` | Rogue | `quick_shot` | shadow_step, poisoners_precision, quick_reflexes | `true` | `agile`, `stealthy` |
-| `barbarian` | Barbarian | `heavy_strike` | battle_hardened, thick_skin, war_cry_discipline | `true` | `melee`, `berserker` |
-| `wizard` | Wizard | `fireball` | arcane_focus, mana_well, studied_reflexes | `true` | `arcane`, `ranged` |
-| `warrior` | Warrior | `shield_bash` | iron_guard, stalwart, shield_discipline | `true` | `melee`, `defender` |
+```gdscript
+## Parses "str:1|vit:2" into {"str": 1, "vit": 2}
+static func _parse_stat_bonuses(val: String) -> Dictionary
+static func _split_pipe(val: String) -> Array[String]
+```
+
+### Defined Classes (4 rows)
+
+| ID | Name | Starting Ability | Stat Bonuses | Feat Pool | Tags |
+|----|------|-----------------|-------------|-----------|------|
+| `vanguard` | Vanguard | `shield_bash` | strength:1, vitality:2 | iron_guard, stalwart, battle_hardened | `melee`, `defender` |
+| `arcanist` | Arcanist | `fireball` | cognition:2, willpower:1 | arcane_focus, mana_well, studied_reflexes | `arcane`, `ranged` |
+| `prowler` | Prowler | `quick_shot` | dexterity:2, willpower:1 | shadow_step, quick_reflexes, poisoners_precision | `agile`, `stealthy` |
+| `warden` | Warden | `inspire` | cognition:1, vitality:1, willpower:1 | war_cry_discipline, thick_skin, shield_discipline | `support`, `divine` |
+
+---
+
+## Integration with CombatantData
+
+`CombatantData.unit_class` stores the **class ID** (lowercase, e.g. `"vanguard"`) — not the display name. All display points call `ClassLibrary.get_class_data(unit_class).display_name`.
+
+```gdscript
+## In CombatantData.gd — returns the flat stat bonus from this unit's class.
+## Stubs to 0 for unknown class IDs (old saves, enemy archetypes with no class).
+func get_class_stat_bonus(stat: String) -> int:
+    return ClassLibrary.get_class_data(unit_class).stat_bonuses.get(stat, 0)
+```
+
+`get_class_stat_bonus()` is wired into all 5 derived stat formulas:
+- `hp_max` → `vitality` class bonus
+- `energy_max` → `vitality` class bonus
+- `energy_regen` → `willpower` class bonus
+- `speed` → `dexterity` class bonus
+- `attack` → `strength` class bonus
+- `defense` → `armor_defense` class bonus
 
 ---
 
@@ -86,20 +115,23 @@ static func reload() -> void
 |-----------|----|
 | `ClassData` | Nothing (leaf node) |
 | `ClassLibrary` | `ClassData`, `FileAccess` |
-| *(none yet — dormant)* | |
+| `CombatantData` | `ClassLibrary` (via `get_class_stat_bonus()`) |
+| `CharacterCreationManager` | `ClassLibrary` (display name + starting_ability_id + feat_pool) |
+| `StatPanel`, `PartySheet`, `UnitInfoBar` | `ClassLibrary` (display name lookup) |
 
 ---
 
 ## Where NOT to Look
 
-- **Character-creation UI is NOT here** — not yet built.
-- **Class feat system is NOT here** — `tags` is scaffolding only.
-- **`unit_class` on `CombatantData`** is a plain String today; it is **not** wired to `ClassLibrary`. That migration lands when character creation is built.
+- **Class-based feat assignment at creation** — `feat_pool` data exists but is not wired to the creation flow. Planned for odd-level milestone.
+- **Trigger-based class effects** — `ability_pool` column is scaffolding; no level-up picker UI yet.
+- **`unit_class` stores ID not display name** — always use `ClassLibrary.get_class_data(unit_class).display_name` for UI.
 
 ---
 
 ## Key Patterns & Gotchas
 
 - **Lazy load** — `_ensure_loaded()` fires on first call. Cheap but not free; don't call in tight loops.
-- **Stub fallback is load-bearing** — unknown ids return a stub, never null.
+- **Stub fallback is load-bearing** — unknown IDs return a stub (empty stat_bonuses dict, empty ability_pool), never null. Old saves gracefully fall back.
 - **CSV is the only source** — no inline const dict fallback.
+- **`stat_bonuses` column format** — `strength:1|vitality:2` (full stat names, same convention as `FeatData`/feats.csv). Parsed by `_parse_stat_bonuses()` into a plain `Dictionary`.
