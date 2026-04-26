@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-26 (Camera overhaul — elevation Q/E, right-click drag, cursor capture) |
+| last_updated | 2026-04-26 (camera pan + full orbit right-click drag + Q/E pivot-Y + QTE zoom) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 3 |
+| sessions_since_groom | 4 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -234,7 +234,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 25 test scripts + 13 scene runners; includes test_event_manager.gd/.tscn + test_event_manager_slice5.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (3 headless assertions, extends SceneTree)
+└── tests/                              ← 25 test scripts + 13 scene runners; includes test_event_manager.gd/.tscn + test_event_manager_slice5.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree)
 ```
 
 ---
@@ -245,6 +245,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-26 | CameraController.gd, tests/ | **Camera pan session — WASD pan + full orbit right-click + Q/E pivot-Y + QTE zoom.** WASD / arrow keys pan orbit pivot in yaw-relative XZ (W=NE at default yaw). Right-click drag now controls full orbit: horizontal = yaw, vertical = elevation pitch (drag up = more top-down, 15°–80°). `DRAG_SENSITIVITY` halved to 0.2. Q/E repurposed: raise/lower orbit pivot on world Y (`PIVOT_Y_SPEED=5` u/s, clamped −3 to 8). `focus_on` / `restore` upgraded to parallel tweens — pivot position + distance animate simultaneously; zooms to `QTE_DISTANCE=10.0` on focus and back on restore. `_set_distance()` tween helper added; `_pre_qte_distance` field added. ELEVATION_STEP/ELEVATION_SPEED removed; PIVOT_Y_SPEED/MIN/MAX, PAN_SPEED/MIN/MAX, QTE_DISTANCE added. test_camera_controls.gd expanded to 6 assertions. |
 | 2026-04-26 | CameraController.gd, tests/ | **Camera overhaul — elevation Q/E + right-click drag rotation + cursor capture.** Q/E now control pitch (`_elevation`, 15°–80° clamped, 10°/press) instead of snapped yaw. Right-click drag rotates yaw continuously (`DRAG_SENSITIVITY = 0.4°/px`). Cursor captured (`MOUSE_MODE_CAPTURED`) while dragging, restored on release. `DEFAULT_ELEVATION` constant promoted to `_elevation: float` variable; `_apply_transform()` uses `_elevation` so focus_on/restore tweens maintain player-set pitch. Removed `ROTATE_STEP`; added `MIN_ELEVATION`, `MAX_ELEVATION`, `ELEVATION_STEP`, `DRAG_SENSITIVITY`, `_dragging`. New headless test suite `test_camera_controls.gd` (3 assertions: upper clamp, lower clamp, default value). |
 | 2026-04-26 | QTEBar.gd, CombatManager3D.gd, CameraController.gd, tests/ | **QTE Session B — world-space bar + camera focus.** `start_qte(energy_cost, attacker: Node3D)` — bar now floats above the attacker in world space each frame via `Camera3D.unproject_position(pos + Vector3(0,2,0))`. Full-screen dark overlay removed. `_attacker` cleared after `qte_resolved`. Attacker-death guard in `_process`. Camera smoothly focuses on the attacker before each QTE (0.5 s `focus_on` tween + 0.25 s settle), then restores to grid center after. `CameraController` gained `focus_on()`, `restore()`, `_set_pivot()`, `_home_position`, `_pivot_tween`. New headless test suite `test_qte_world_bar.gd` (3 assertions). |
 | 2026-04-26 | QTEBar.gd, CombatManager3D.gd, tests/ | **QTE Reactive Overhaul — Session A (logic).** QTE is now defender-driven and HARM-only. Hold/Target/Directional QTE styles deleted; only Slide remains, always 1 beat. `start_qte()` simplified to `(energy_cost: int)`. Non-HARM effects (MEND/BUFF/DEBUFF/FORCE/TRAVEL) auto-resolve at 1.0. New damage multiplier mapping: defender roll 1.25→0.5, 1.0→0.75, 0.75→1.0, 0.25→1.25. New HARM formula: `max(1, round(dmg_mult * (base_value + caster.attack)))`. Friendly fire (same-team AoE): dmg_mult fixed at 1.0, no QTE. TRAVEL always succeeds (enters destination mode immediately). AoE HARM: one QTE per hit defender, sequential. Player attacks enemies: enemy instant-sims defense (no bar shown). Enemy attacks player units: player sees dodge bar. Deleted `_on_qte_resolved`, `_apply_effects`. Added `_apply_non_harm_effects`, `_get_harm_effect`, `_run_harm_defenders`, `_defender_roll_to_dmg_multiplier`. CM3D uses `await _qte_bar.qte_resolved` inline (no signal handler). Deleted 3 stale test files; added `test_qte_reactive.gd` (6 test functions). Session B (world-space bar) deferred. |
