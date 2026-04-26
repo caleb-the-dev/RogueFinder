@@ -82,20 +82,35 @@ The NPC party system is the heart of the game. Think of it like Pokémon: your r
 ## Build System
 
 ### Character Structure (applies to player character and all NPCs)
-Each character has:
-- **A Kindred** — the character's species or ancestry (e.g. Human, Dwarf, Gnome, Half-Orc, Griffin). Fixed at creation and tied to the archetype. Kindreds are flavor now and will gain mechanical hooks (passive traits, dialogue gates, faction reactions) in future stages.
-- **A Class** — defines ability progression and role
-- **A Background** — light flavor and a single starting feat/ability (DOS2-style); occassionally might branch event outcomes or gate content, but not frequently
+Each character has three identity pillars — **Class**, **Kindred**, **Background** — plus equipment, level, and stats.
+
+- **A Kindred** — the character's species or ancestry (e.g. Human, Dwarf, Gnome, Half-Orc, Griffin). Fixed at creation. Provides a stat bump, 1 starting *natural-attack* ability, and 2 ancestry abilities in the run-time ability pool.
+- **A Class** — defines role and is the dominant source of run-time growth. Provides a stat bump, 1 *defining* ability (unique per class, auto-granted at run start), 13 abilities in the run-time ability pool, and 10 feats in the run-time feat pool.
+- **A Background** — the character's past. Provides a stat bump, 1 *defining* feat, and 2 background feats in the run-time feat pool. May occasionally branch event outcomes or gate content, but not frequently.
 - **4 Equipment Slots:** Weapon, Armor, Consumable, Accessory
 - **A Level** (max level 20)
-- **Ability Pool** - A pool of available abilities to be slotted into any 1 of the 4 ability slots.
-- **Feats** are dynamic stat/effect modifiers, similar to relics in Slay the Spire — they change how a character functions, not just their numbers
+- **Stats** — attributes (STR, DEX, COG, WIL, VIT, plus the defenses) all start at base **4** and are modified by pillar bumps capped at **+2 max / −1 min per stat per pillar**.
+- **Ability Pool** — 6 abilities at end-of-run (1 kindred + 5 class), 4 of which can be slotted in any combat.
+- **Feats** — dynamic stat/effect modifiers, similar to relics in Slay the Spire — they change how a character functions, not just their numbers. End-of-run total: 5 feats (1 background + 4 class).
+
+#### Pillar Contribution Summary
+
+| Pillar | Stat bump | Starting (auto-granted) | Run-time pool |
+|---|---|---|---|
+| **Class** | ✓ | 1 *defining* ability (unique per class, never shared) | 13 abilities + 10 feats |
+| **Kindred** | ✓ | 1 *natural-attack* ability (sharable across kindreds) | 2 ancestry abilities (sharable) |
+| **Background** | ✓ | 1 *defining* feat | 2 background feats (sharable) |
+
+Class is the dominant source of run-time growth — ~85% of ability and feat draws come from the class pool. Kindred and Background each contribute ~13–17% of their respective lanes. Lanes stay clean: kindred only contributes abilities, background only contributes feats, class contributes to both.
 
 ### Leveling & Abilities
-- Every **even level** → unlock a new **class ability**, added to the character's available action pool
-- Every **odd level** → earn a **feat** (from class or background);
-- Characters start with 1 action from their class and 1 action from their background in their pool and grow their options over the run
-- Actions can also be sourced from **items**, especially weapons — expanding the pool beyond class and feats
+
+- **Run start:** Each character begins with 2 abilities (1 kindred natural attack + 1 class defining ability) and 1 feat (background defining feat), plus stat bumps from all three pillars.
+- **During the run:** Characters earn 4 additional abilities and 4 additional feats via level-up *select-3* events (3 random options drawn from the character's eligible pool — class + kindred for abilities, class + background for feats; the player picks 1).
+- **End-of-run loadout:** 6 abilities + 5 feats per character.
+- **Combat slotting:** 4 ability slots per character per fight; the player chooses which 4 of their pool to bring into a given combat.
+- **Level scaling:** Max level 20. Level-up cadence is tuned so 4 ability + 4 feat acquisitions happen across a typical run.
+- Actions can also be sourced from **items**, especially weapons — expanding the pool beyond class/kindred.
 
 ### Equipment
 - Gear is a primary driver of power and build identity
