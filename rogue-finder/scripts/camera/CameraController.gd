@@ -4,7 +4,8 @@ extends Node3D
 ## --- Camera Controller ---
 ## DOS2-style isometric orbiting camera.
 ## Parent node sits at the grid center; Camera3D child orbits around it.
-## Q / E adjust elevation (pitch) smoothly. Right-click drag rotates horizontally. Scroll zooms.
+## Right-click drag: horizontal = yaw, vertical = elevation (pitch). Scroll zooms.
+## Q / E raise / lower the orbit pivot on the Y axis.
 ## WASD / arrow keys pan the pivot in yaw-relative XZ space.
 ## trigger_shake() fires a brief positional shake on hit.
 
@@ -16,14 +17,16 @@ const DEFAULT_ELEVATION: float = 52.0  # degrees above the horizon
 const MIN_ELEVATION: float     = 15.0  # lowest allowed pitch (near-horizon)
 const MAX_ELEVATION: float     = 80.0  # highest allowed pitch (near-top-down)
 const DEFAULT_YAW: float       = 225.0 # SW isometric default
-const ELEVATION_SPEED: float   = 45.0  # degrees per second while Q / E held
 const ZOOM_STEP: float         = 2.0
-const DRAG_SENSITIVITY: float  = 0.2   # yaw degrees per pixel of horizontal drag
+const DRAG_SENSITIVITY: float  = 0.2   # degrees per pixel for both yaw and elevation drag
 const SHAKE_DURATION: float    = 0.22
 const SHAKE_MAGNITUDE: float   = 0.18
 const PAN_SPEED: float         = 10.0  # pivot units per second (WASD / arrow keys)
 const PAN_MIN: float           = -5.0  # world-space clamp on X and Z
 const PAN_MAX: float           = 25.0
+const PIVOT_Y_SPEED: float     = 5.0   # world units per second while Q / E held
+const PIVOT_Y_MIN: float       = -3.0  # lowest the orbit pivot can sit on Y
+const PIVOT_Y_MAX: float       = 8.0   # highest the orbit pivot can sit on Y
 
 var _yaw: float        = DEFAULT_YAW
 var _elevation: float  = DEFAULT_ELEVATION
@@ -108,6 +111,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is InputEventMouseMotion and _dragging:
 		_yaw += event.relative.x * DRAG_SENSITIVITY
+		# Mouse up = negative relative.y; negate so dragging up increases elevation
+		_elevation = clampf(_elevation - event.relative.y * DRAG_SENSITIVITY, MIN_ELEVATION, MAX_ELEVATION)
 		_apply_transform()
 		get_viewport().set_input_as_handled()
 
@@ -127,20 +132,19 @@ func _process(delta: float) -> void:
 		_shake_offset = Vector3.ZERO
 		_apply_transform()
 
-	_process_elevation(delta)
-
-	# Skip panning while a QTE tween is animating to avoid fighting it
+	# Skip pivot-moving controls while a QTE tween is animating to avoid fighting it
 	if _pivot_tween == null or not _pivot_tween.is_running():
+		_process_pivot_y(delta)
 		_process_pan(delta)
 
-## Polls Q / E and smoothly adjusts camera elevation (pitch) each frame.
-func _process_elevation(delta: float) -> void:
+## Polls Q / E and smoothly raises / lowers the orbit pivot on the world Y axis.
+func _process_pivot_y(delta: float) -> void:
 	var changed: bool = false
 	if Input.is_key_pressed(KEY_Q):
-		_elevation = clampf(_elevation + ELEVATION_SPEED * delta, MIN_ELEVATION, MAX_ELEVATION)
+		position.y = clampf(position.y + PIVOT_Y_SPEED * delta, PIVOT_Y_MIN, PIVOT_Y_MAX)
 		changed = true
 	if Input.is_key_pressed(KEY_E):
-		_elevation = clampf(_elevation - ELEVATION_SPEED * delta, MIN_ELEVATION, MAX_ELEVATION)
+		position.y = clampf(position.y - PIVOT_Y_SPEED * delta, PIVOT_Y_MIN, PIVOT_Y_MAX)
 		changed = true
 	if changed:
 		_apply_transform()
