@@ -227,62 +227,67 @@ Between combats, each character has a pool of available abilities earned through
 - Managing Energy across a fight — spending aggressively vs. pacing for regeneration — is a core tactical layer
 
 ### Quick Time Events (QTEs)
-Every Action is resolved through a **Quick Time Event**. QTEs inject real-time player skill into turn-based combat, making every action feel earned and providing a high-ceiling for mechanical mastery.
+QTEs inject real-time player skill into turn-based combat. The key design insight: **the defender plays the QTE, not the attacker.** When an enemy targets your unit, you have a chance to dodge. Your execution determines how much damage lands — skilled players absorb less, less experienced players lean on stronger builds to compensate.
 
-#### 1. The Dynamic Difficulty Matrix
-The difficulty and structure of a QTE are derived from the action’s **Energy Cost** and its **Targeting Shape**.
+#### The QTE: Defender-Driven Slide Bar
 
-* **Difficulty (Energy Anchor):** The **Energy Cost** of an action determines the speed of the QTE and the precision required. High-energy actions have faster sliders, smaller success windows, and tighter timers. Low-energy actions are more forgiving.
-* **Succession (Targeting Anchor):** The **Targeting Shape** determines the number of "beats" or prompts in a sequence. The *scale* of the beat count depends on the QTE style (see §2), because each style has a different natural granularity.
+Only **HARM** effects trigger a QTE. All other effect types (MEND, BUFF, DEBUFF, FORCE, TRAVEL) resolve automatically at full effectiveness — no player input required.
 
-    | Targeting Shape | Slide (Harm/Mend) | Target (Force) | Directional (Buff/Debuff) | Hold (Travel) |
-    |---|---|---|---|---|
-    | Self / Single | 1 | 3 | 3 | — |
-    | Cone          | 2 | 6 | 6 | — |
-    | Line          | 3 | 9 | 9 | — |
-    | Radial        | 4 | 12 | 12 | — |
+When an enemy uses a HARM ability against a player unit:
+1. The camera smoothly focuses on the attacker
+2. A sliding-cursor bar appears floating above the attacker’s head
+3. The player presses SPACE or clicks to stop the cursor in the coloured zone
 
-    **Travel** uses a single hold-and-release meter regardless of targeting shape — no beat sequence.
+The bar has four concentric zones, symmetric around center:
 
-#### 2. QTE Styles by Effect Tag
-To ensure mechanical variety, the style of the mini-game changes based on the primary **Effect Tag** of the action:
-* **Harm/Mend (HP/Energy Gain or Loss):** — A timing-based slider (Gears of War style)
-* **Force (Displacement):** — Rapid-target clicking (dots) on the targeted unit(s) ("Osu" or "Whack-a-Mole" effect)
-* **Buff / Debuff (Stats):** — A directional input string (helldivers 2 stratagems)
-* **Travel (Movement):** — A meter that must be held and released at a specific threshold (Common mechanic for the powerbar in golf games)
+| Zone | Colour | Defender Roll | Meaning |
+|------|--------|---------------|---------|
+| Gold (center) | Gold | **1.25** | Perfect dodge — attacker barely connects |
+| Green | Green | **1.0** | Good dodge — standard reduction |
+| Orange | Orange | **0.75** | Weak dodge — glancing hit |
+| Red (edges) | Dark red bg | **0.25** | Failed to dodge — full impact |
 
-#### 3. How Outcomes are Calculated
-The final effectiveness is the product of the **QTE Skill Multiplier** and the **Stat Delta Result**.
+#### Difficulty Scaling
 
-**QTE Skill Multiplier:**
-* **Total Success (All beats hit):** **1.25x** (Critical - provides a reward beyond the stat-line).
-* **Major Success (High completion):** **1.0x** (Standard - the action performs as advertised).
-* **Minor Success (Low completion):** **0.75x** (Glancing - the action is dampened).
-* **Failure (0 hits):** **0.25x** (Whiff - the absolute minimum impact).
+The **Energy Cost** of the attacking ability sets the bar difficulty. Higher-cost abilities are harder to dodge — the cursor moves faster and the sweet spot narrows:
 
-**The Stat Delta**
-The Stat Delta acts as the Dynamic Baseline. It scales based on the ratio of the **attacker's attribute** (the ability's chosen attribute + any matching weapon `attack_bonus`) to the **target's defense stat** (PhysDef or ArcDef, selected by the ability's damage type tag — see Damage Types & Defense).
-- At Parity (1:1): Delta = 1.0x.
-- At Advantage (2:1): Delta = 2.0x (Hard Cap).
-- At Disadvantage (1:2): Delta = 0.5x (Hard Floor).
+| Tier | Energy Cost | Cursor Duration | Sweet-Spot Width |
+|------|-------------|-----------------|------------------|
+| Low | 1–2 | 2.2 s | 40% of bar |
+| Medium | 3–4 | 1.6 s | 24% of bar |
+| High | 5+ | 1.1 s | 14% of bar |
 
+#### Damage Formula
 
-**The Final Formula:**
-`Final Effect = (Base Power * Stat Delta) * QTE Multiplier`
+The defender’s roll maps to a damage multiplier (inverted — a better dodge means less damage in):
 
-**Examples of the Interplay:**
-* **Skill compensates for Stats:** 100% QTE Success (1.25x) + Weak Stats (0.5x delta) = **0.625x** effectiveness (A "Perfect" hit makes a weak attack viable).
-* **Stats compensate for Skill:** 0% QTE Success (0.25x) + Overpowering Stats (2.0x delta) = **0.5x** effectiveness (The creature is so strong it still hurts even when you mess up).
-* **The Sweet Spot:** 100% QTE Success (1.25x) + Strong Stats (2.0x delta) = **2.5x** effectiveness (This is how players "melt" bosses).
+| Defender Roll | Damage Multiplier |
+|---|---|
+| 1.25 (perfect dodge) | 0.5× |
+| 1.0 (good dodge) | 0.75× |
+| 0.75 (weak dodge) | 1.0× |
+| 0.25 (miss) | 1.25× |
 
-**Design intent:** The stat delta sets the baseline potential (the "Floor" and "Ceiling"), while player execution determines exactly where the result lands. This ensures that skilled players can "punch up" against stronger foes, while less mechanically-inclined players can rely on superior party builds and stat growth to overcome challenges.
+`Damage = max(1, round(dmg_mult × (base_power + attacker.attack)))`
+
+Where `attacker.attack = 5 + strength + equipment_bonus`.
+
+**Design intent:** Skilled players can punch up against stronger enemies by consistently landing perfect dodges, while less mechanically-inclined players lean on superior builds and stat growth. The stat line sets the floor and ceiling; execution determines where you land within that range.
+
+#### AoE HARM
+
+When a HARM ability hits multiple player units, each player-controlled defender gets their own QTE bar in sequence. The same attacker is the focus for all of them. AI-controlled defenders (allies) resolve instantly via their `qte_resolution` stat.
+
+#### Friendly Fire
+
+Same-team AoE (e.g., a player ability that catches an ally): no QTE, damage multiplier fixed at 1.0. No dodge possible on accidental hits.
 
 ### Enemy AI & QTE Resolution
 - Enemy NPCs act autonomously — no player input during enemy turns
-- Each enemy has a hidden **QTE Resolution stat** that governs how effectively they auto-resolve their own attacks
-- **Grunt-tier enemies** have a low resolution rate — they land hits at low effectiveness, making them feel manageable
-- **Elite and boss-tier enemies** have a high resolution rate — they hit reliably at or near maximum effectiveness, making them feel dangerous
-- This creates natural difficulty scaling without relying solely on inflated enemy stat numbers
+- When enemy units are attacked, they **auto-resolve their dodge** via a hidden **QTE Resolution stat** — no bar is shown
+- **Grunt-tier enemies** (qte_resolution ~0.3) dodge poorly — player attacks land reliably near full damage
+- **Elite and boss-tier enemies** (qte_resolution ~0.8) dodge well — they absorb less damage, making them feel durable
+- This creates natural difficulty scaling without relying solely on inflated enemy HP/defense numbers
 
 ---
 
@@ -416,7 +421,7 @@ The Stat Delta acts as the Dynamic Baseline. It scales based on the ratio of the
 - Exact format of non-combat event presentation
 - Specifics of meta-progression unlocks between runs
 - Specific action designs, Energy costs, and balance numbers
-- QTE system overhaul planned — four mechanical styles are designed (Slide for Harm/Mend, Force for Displacement, Directional for Buff/Debuff, Hold for Travel; see Combat section above) but full visual design, interaction feel, and prompt polish are subject to redesign
+- QTE visual polish — bar presentation (fonts, zone colours, animation feel) subject to iteration; core defender-driven Slide mechanic is settled
 - Energy stat names and exact regeneration formula
 - Faction names, aesthetics, and goal details
 - Consumable and Accessory schemas (weapon and armor schemas settled)
