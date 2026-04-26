@@ -102,9 +102,9 @@ TRAVEL_DESTINATION  (blue tiles; player picks where to land)
 
 ## Signals Listened To
 
-| Signal | Source | Handler |
-|--------|--------|---------|
-| `qte_resolved(multiplier: float)` | QTEBar | `_on_qte_resolved(multiplier)` — tiered values 0.25 / 0.75 / 1.0 / 1.25 |
+| Signal | Source | Usage |
+|--------|--------|-------|
+| `qte_resolved(multiplier: float)` | QTEBar | Awaited inline via `await _qte_bar.qte_resolved` inside `_run_harm_defenders()` — no signal handler |
 | `ability_selected(ability_id)` | CombatActionPanel | `_on_ability_selected(ability_id)` |
 | `consumable_selected()` | CombatActionPanel | `_on_consumable_selected()` |
 
@@ -128,10 +128,12 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_handle_double_click()` | Opens StatPanel for any clicked unit |
 | `_on_ability_selected(id)` | Resolves ability via AbilityLibrary; enters ABILITY_TARGET_MODE; highlights based on TargetShape |
 | `_try_ability_target(cell)` | SINGLE → `_initiate_action`; AoE shapes → store `_aoe_origin`, call `_initiate_aoe_action` |
-| `_initiate_action(attacker, target)` | Stores `_attack_target`; starts QTE |
-| `_initiate_aoe_action(attacker, origin_world)` | Sets `_attack_target = null`; starts QTE for AoE paths |
-| `_on_qte_resolved(multiplier)` | Detects TRAVEL → enters TRAVEL_DESTINATION; detects AoE → `_get_shape_cells` + `_get_units_in_cells` + `_apply_effects`; single → `_apply_effects` |
-| `_apply_effects(ability, caster, target, multiplier, blast_origin)` | Loops `ability.effects`; dispatches by EffectType. `blast_origin` passed from `_aoe_origin` for FORCE/RADIAL direction. |
+| `_initiate_action(attacker, target)` | Spends energy + marks acted; detects TRAVEL → destination mode; applies non-HARM effects; awaits `_run_harm_defenders` |
+| `_initiate_aoe_action(attacker, origin_world)` | AoE equivalent of `_initiate_action`; collects all hit units, applies non-HARM to all, then queues HARM through `_run_harm_defenders` |
+| `_apply_non_harm_effects(ability, caster, target, blast_origin)` | Applies MEND/BUFF/DEBUFF/FORCE at full strength (multiplier 1.0). HARM and TRAVEL skipped. |
+| `_get_harm_effect(ability)` | Returns the first HARM EffectData in an ability, or null. |
+| `_run_harm_defenders(caster, defenders, effect, energy_cost)` | Sequential HARM loop: player-controlled defenders see QTE bar (await); AI-controlled defenders instant-sim via `qte_resolution`. Applies damage per-defender. |
+| `_defender_roll_to_dmg_multiplier(roll)` | Maps defender QTE roll (1.25/1.0/0.75/0.25) to damage multiplier (0.5/0.75/1.0/1.25). |
 | `_apply_stat_delta(unit, stat, delta)` | Modifies `unit.data.<stat>`, clamps [0,5], calls `unit.add_stat_effect()` to record named status |
 | `_apply_force(caster, target, effect, blast_origin)` | Slides target along computed direction for `base_value` tiles; stops at wall/unit. Tracks full path; applies 2 HP hazard damage for **every** hazard cell traversed (including landing cell). Direction from `effect.force_type` (PUSH/PULL/LEFT/RIGHT/RADIAL). |
 | `_get_shape_cells(caster_pos, origin_pos, ability)` | Returns all cells in the ability's AoE footprint, respecting `passthrough` for CONE and RADIAL |
@@ -157,25 +159,36 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 
 ## Effect Formulas
 
-`multiplier` is the tiered QTE result — one of `0.25` (miss), `0.75` (weak), `1.0` (good), `1.25` (perfect). See `qte_system.md` for derivation.
-
+**HARM** (defender-driven):
 ```
-# HARM / MEND
-value = max(1, round(multiplier * (base_value + caster.attribute_value)))
+defender_roll  = player QTE result OR _qte_resolution_to_multiplier(defender.data.qte_resolution)
+dmg_multiplier = _defender_roll_to_dmg_multiplier(defender_roll)
+               : 1.25→0.5, 1.0→0.75, 0.75→1.0, 0.25→1.25
 
-# BUFF / DEBUFF
-flat base_value applied; multiplier == 0.25 = miss (no effect)
-
-# FORCE
-slides target along ForceType direction; stops at wall or occupied cell
-base_value = max tiles to travel; multiplier == 0.25 = miss
-
-# TRAVEL
-player picks destination from highlighted tiles; multiplier unused for distance
-(multiplier == 0.25 cancels the reposition; energy already spent)
+dmg = max(1, round(dmg_multiplier * (effect.base_value + caster.data.attack)))
 ```
 
-`attribute_value` → `caster.data.strength / dexterity / cognition / vitality / willpower`
+**MEND** (auto-resolve, full strength, no QTE):
+```
+heal = max(1, round(effect.base_value))
+```
+
+**BUFF / DEBUFF** (auto-resolve, full strength, no QTE):
+```
+delta = max(1, effect.base_value)  applied to target_stat, clamped [0,5]
+```
+
+**FORCE** (auto-resolve, always displaces, no QTE):
+```
+slides target along ForceType direction for base_value tiles (or until wall/unit)
+```
+
+**TRAVEL** (auto-resolve, always succeeds, no QTE):
+```
+enters TRAVEL_DESTINATION mode immediately; player picks destination tile
+```
+
+`caster.data.attack` = `5 + strength + equip_bonus`
 
 ---
 
@@ -211,9 +224,10 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 ## Key Patterns & Gotchas
 
 - **`_unhandled_input` not `_input`** — must stay `_unhandled_input` or GUI nodes stop capturing clicks. See memory `feedback_godot_input.md`.
-- **`_pending_ability` and `_aoe_origin`** — stored between `_on_ability_selected()` and `_on_qte_resolved()`. Both cleared after resolution.
-- **Energy deducted before effects resolve** — spent in `_on_qte_resolved()` before `_apply_effects()`. A QTE miss still costs energy.
-- **TRAVEL breaks the single-pass flow** — detected in `_on_qte_resolved()` before `_apply_effects()`; enters `TRAVEL_DESTINATION` PlayerMode rather than awaiting inside `_apply_effects()`.
+- **`_pending_ability` and `_aoe_origin`** — stored between `_on_ability_selected()` and action resolution. Both cleared after resolution.
+- **Energy deducted before effects resolve** — spent at the top of `_initiate_action()` / `_initiate_aoe_action()`. An ability still costs energy even if no HARM effect is present.
+- **TRAVEL is immediate** — detected in `_initiate_action()` before any effect loop; enters `TRAVEL_DESTINATION` PlayerMode directly (no QTE, always succeeds).
+- **Defender-driven QTE**: `_run_harm_defenders()` is `await`-ed inline. Player-controlled defenders see the bar and input; AI defenders instant-sim silently. State = QTE_RUNNING during any player-defender QTE.
 - **`_apply_force` uses `target.move_to()`** — forced displacement moves the unit but does NOT consume `remaining_move`. Forced movement is involuntary and does not affect the stride budget.
 - **Hazard damage has two triggers** — `_check_hazard_damage()` fires on voluntary movement entry (stride, TRAVEL) and at start-of-turn. FORCE traversal damage is different: `_apply_force()` iterates the full path and calls `unit.take_damage(2)` + `_check_win_lose()` directly for each hazard cell crossed — it does NOT call `_check_hazard_damage()`.
 - **`_calculate_damage()` is dead code** — safe to delete when convenient.
@@ -230,6 +244,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-26 | QTE reactive overhaul (Session A) — defender-driven HARM-only QTE. Deleted `_on_qte_resolved`, `_apply_effects`. Added `_apply_non_harm_effects`, `_get_harm_effect`, `_run_harm_defenders`, `_defender_roll_to_dmg_multiplier`. Energy spent upfront in `_initiate_action`. TRAVEL always succeeds (no QTE miss). Enemy actions use `_run_harm_defenders` so player units see QTE when defending. |
 | 2026-04-23 | S28 Kindred display — CombatActionPanel renders a small muted kindred label below unit name for both player and enemy views (`_kindred_label`). No CombatManager3D behavior change. |
 | 2026-04-20 | S26+S27 UI overhaul — radial ActionMenu deleted; replaced by right slide-in `CombatActionPanel` (layer 12). CM3D's internal var is still named `_action_menu` (legacy) but the type is `CombatActionPanel`. `_handle_unit_hover()` added for `InputEventMouseMotion` → UnitInfoBar hover (replaced click-persistent info bar). `_hover_cell` field added. Consumable use no longer closes the panel — CM3D calls `_action_menu.open_for()` again to refresh in place. |
 | 2026-04-19 | Permadeath rules, PC revival, run-end flow, debug menu — allies die permanently in `_on_unit_died()`; PC death deferred to `_end_combat()`. Victory: PC downed → revives at 1 HP. Defeat: PC `is_dead = true` → `_capture_run_summary()` → 3-second overlay → `RunSummaryScene`. `_attr_snapshots` restored on both outcomes. T key toggles in-combat debug menu (Kill PC / Kill Allies / Kill Enemies / Kill Party / Damage PC -20). |
