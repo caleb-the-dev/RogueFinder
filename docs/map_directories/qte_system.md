@@ -184,4 +184,5 @@ For AoE HARM abilities hitting multiple defenders:
 - The bar is always present in the scene tree (built by CombatManager3D in `_setup_ui()`), hidden until `start_qte()` is called.
 - CombatManager uses `await _qte_bar.qte_resolved` (inline await) — no signal handler connection.
 - `qte_resolved` fires **after** all feedback animations — intentional so the player sees their result before effects resolve.
+- **Friendly fire** (caster hits own-team unit in AoE): no QTE, dmg_mult fixed at 1.0. Detection: `caster.is_player_unit == defender.is_player_unit`. The 1.0 constant is a hookpoint for feats/items.
 - Session B will move the bar to world-space above the attacker's Unit3D; the CanvasLayer structure is temporary.

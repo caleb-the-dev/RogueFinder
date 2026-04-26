@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-25 (map audit — event counts corrected, milestones trimmed, character_creation.md split from hud_system.md) |
+| last_updated | 2026-04-26 (QTE reactive overhaul Session A — defender-driven, HARM-only, Slide-only) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 0 |
+| sessions_since_groom | 1 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -52,7 +52,7 @@
 CombatManager3D
   ├── Grid3D                (cell queries, highlights, world↔grid math)
   ├── Unit3D ×≤6            (HP/energy, movement, animations; player units from GameState.party)
-  ├── QTEBar                (multiplier out; enemy simulates via qte_resolution stat)
+  ├── QTEBar                (defender-driven Slide; HARM-only; enemy instant-sims via qte_resolution; awaited inline)
   ├── CameraController      (built by CM3D; shake on hit)
   ├── UnitInfoBar           (hover-based strip)
   ├── StatPanel             (double-click examine window)
@@ -234,7 +234,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 26 test scripts + 13 scene runners (96 tests total); includes test_event_manager.gd/.tscn + test_event_manager_slice5.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern
+└── tests/                              ← 24 test scripts + 13 scene runners; includes test_event_manager.gd/.tscn + test_event_manager_slice5.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern
 ```
 
 ---
@@ -245,6 +245,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-26 | QTEBar.gd, CombatManager3D.gd, tests/ | **QTE Reactive Overhaul — Session A (logic).** QTE is now defender-driven and HARM-only. Hold/Target/Directional QTE styles deleted; only Slide remains, always 1 beat. `start_qte()` simplified to `(energy_cost: int)`. Non-HARM effects (MEND/BUFF/DEBUFF/FORCE/TRAVEL) auto-resolve at 1.0. New damage multiplier mapping: defender roll 1.25→0.5, 1.0→0.75, 0.75→1.0, 0.25→1.25. New HARM formula: `max(1, round(dmg_mult * (base_value + caster.attack)))`. Friendly fire (same-team AoE): dmg_mult fixed at 1.0, no QTE. TRAVEL always succeeds (enters destination mode immediately). AoE HARM: one QTE per hit defender, sequential. Player attacks enemies: enemy instant-sims defense (no bar shown). Enemy attacks player units: player sees dodge bar. Deleted `_on_qte_resolved`, `_apply_effects`. Added `_apply_non_harm_effects`, `_get_harm_effect`, `_run_harm_defenders`, `_defender_roll_to_dmg_multiplier`. CM3D uses `await _qte_bar.qte_resolved` inline (no signal handler). Deleted 3 stale test files; added `test_qte_reactive.gd` (6 test functions). Session B (world-space bar) deferred. |
 | 2026-04-25 | events.csv, event_choices.csv, MapManager.gd | **Events Slice 6 — full event pass + MapManager improvements.** 12 new events authored (outer: fallen_signpost, roadside_shrine, dry_well, abandoned_campfire, stray_dog, road_patrol; middle: mercenary_camp, burned_farmhouse, standing_stone, river_crossing; inner: mass_grave, ember_idol). Post-testing revision pass: 13 targeted changes including `wounded_traveler` → Wandering Medic, `survivor_in_the_dark` removed, `stray_dog` made recruit placeholder, road_patrol/bridge/farmhouse mechanics adjusted. MapManager: dev event test panel (CanvasLayer layer 30; "Events [DEV]" button; `_is_dev_event` flag prevents node clearing from panel-fired events including nav effects); live threat meter refresh (`_refresh_threat_meter()` called on traversal + event finish); CITY nodes excluded from cleared stamp. Final CSV counts: events.csv 15 rows, event_choices.csv 46 rows. |
 | 2026-04-25 | EventManager, GameState, PartySheet | **Events Slice 5 — player_pick picker overlay + new-item glow.** `_on_choice_pressed` is now async (coroutine): pre-scans choice effects for `player_pick` target, shows a centered picker panel (500×200 px, blue border) with one button per alive party member, awaits `target_picked` signal, then dispatches all effects with the resolved member via new `forced_target` param on `dispatch_effect`. `dispatch_effect` signature extended: `forced_target: CombatantData = null` — when non-null and effect target is `player_pick`, uses it directly (static + headless-testable). New `_resolve_with_override` helper. `GameState.add_to_inventory()` now stamps `seen = false` on every incoming dict. PartySheet item cards check `item.get("seen", true)`: unseen → gold border + looping alpha tween; `mouse_entered` sets `seen = true` on the live dict (shared ref) and calls `_rebuild()`. Old saves without `seen` key default to `true`. 7 new headless tests (96 total). |
 | 2026-04-25 | EventManager, MapManager, CombatantData, GameState | **Events Slice 4 — EventScene overlay, condition evaluator, effect dispatcher, feats field.** `EventManager.gd` + `EventScene.tscn` created (CanvasLayer layer 10). `show_event()`/`hide_event()` API; choice buttons disabled+dimmed when conditions fail; result panel + Continue flow; `event_finished` + `event_nav` signals. Static `evaluate_condition` (6 forms), `resolve_target` (4 values), `dispatch_effect` (7 types). `CombatantData.feats: Array[String]` added; serialized/deserialized in GameState via typed-array pattern; old saves default to `[]`. MapManager: EVENT branch calls `EventSelector.pick_for_node` + `show_event` instead of NodeStub; `_get_ring()` helper; `_on_event_finished` + `_on_event_nav` handlers mark node cleared + refresh map. `_input()` and `_on_node_clicked()` guard against re-entry while overlay is visible. Cleared stamp: CURRENT+CLEARED now renders ✗ immediately; stamp font 18, bright red, outlined, centered. `rusted_dagger` added to equipment.csv. 19 new headless tests (89 total). |
