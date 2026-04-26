@@ -132,7 +132,7 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_initiate_aoe_action(attacker, origin_world)` | AoE equivalent of `_initiate_action`; collects all hit units, applies non-HARM to all, then queues HARM through `_run_harm_defenders` |
 | `_apply_non_harm_effects(ability, caster, target, blast_origin)` | Applies MEND/BUFF/DEBUFF/FORCE at full strength (multiplier 1.0). HARM and TRAVEL skipped. |
 | `_get_harm_effect(ability)` | Returns the first HARM EffectData in an ability, or null. |
-| `_run_harm_defenders(caster, defenders, effect, energy_cost)` | Sequential HARM loop: player-controlled defenders see QTE bar (await); AI-controlled defenders instant-sim via `qte_resolution`. Applies damage per-defender. |
+| `_run_harm_defenders(caster, defenders, effect, energy_cost)` | Sequential HARM loop: player-controlled defenders see QTE bar (await `start_qte(energy_cost, caster)`); AI-controlled defenders instant-sim via `qte_resolution`. Applies damage per-defender. |
 | `_defender_roll_to_dmg_multiplier(roll)` | Maps defender QTE roll (1.25/1.0/0.75/0.25) to damage multiplier (0.5/0.75/1.0/1.25). |
 | `_apply_stat_delta(unit, stat, delta)` | Modifies `unit.data.<stat>`, clamps [0,5], calls `unit.add_stat_effect()` to record named status |
 | `_apply_force(caster, target, effect, blast_origin)` | Slides target along computed direction for `base_value` tiles; stops at wall/unit. Tracks full path; applies 2 HP hazard damage for **every** hazard cell traversed (including landing cell). Direction from `effect.force_type` (PUSH/PULL/LEFT/RIGHT/RADIAL). |
@@ -244,6 +244,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-26 | QTE Session B — world-space bar + camera focus. `_run_harm_defenders` now awaits `_camera_rig.focus_on(caster.global_position).finished` (0.5 s) + 0.25 s settle before calling `start_qte(energy_cost, caster)`. After `qte_resolved` fires, calls `_camera_rig.restore()` (fire-and-forget). `start_qte` signature changed to `(energy_cost: int, attacker: Node3D)`. |
 | 2026-04-26 | QTE reactive overhaul (Session A) — defender-driven HARM-only QTE. Deleted `_on_qte_resolved`, `_apply_effects`. Added `_apply_non_harm_effects`, `_get_harm_effect`, `_run_harm_defenders`, `_defender_roll_to_dmg_multiplier`. Energy spent upfront in `_initiate_action`. TRAVEL always succeeds (no QTE miss). Enemy actions use `_run_harm_defenders` so player units see QTE when defending. |
 | 2026-04-23 | S28 Kindred display — CombatActionPanel renders a small muted kindred label below unit name for both player and enemy views (`_kindred_label`). No CombatManager3D behavior change. |
 | 2026-04-20 | S26+S27 UI overhaul — radial ActionMenu deleted; replaced by right slide-in `CombatActionPanel` (layer 12). CM3D's internal var is still named `_action_menu` (legacy) but the type is `CombatActionPanel`. `_handle_unit_hover()` added for `InputEventMouseMotion` → UnitInfoBar hover (replaced click-persistent info bar). `_hover_cell` field added. Consumable use no longer closes the panel — CM3D calls `_action_menu.open_for()` again to refresh in place. |

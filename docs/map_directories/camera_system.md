@@ -1,16 +1,17 @@
 # System: Camera System
 
-> Last updated: 2026-04-14 (Session 2 — Stage 1.5)
+> Last updated: 2026-04-26 (Session B — QTE camera focus / restore)
 
 ---
 
 ## Purpose
 
 The Camera System provides a **DOS2-style isometric orbit camera** for the 3D combat scene. It handles:
-- Fixed-elevation orbit around a target point
+- Fixed-elevation orbit around a pivot point (normally grid center)
 - Q/E key rotation in 45° snapped steps
 - Mouse scroll wheel zoom
 - Procedural camera shake on combat events (hit feedback)
+- **Smooth QTE focus** — pivots to the attacker's world position before a QTE starts, then restores
 
 The camera is built and owned by `CombatManager3D`. No `.tscn` — it's instantiated entirely in code.
 
@@ -20,15 +21,19 @@ The camera is built and owned by `CombatManager3D`. No `.tscn` — it's instanti
 
 | File | Scene | Role |
 |------|-------|------|
-| `scripts/camera/CameraController.gd` | *(none — built in code)* | Orbit camera + shake |
+| `scripts/camera/CameraController.gd` | *(none — built in code)* | Orbit camera + shake + QTE focus |
 
 ---
 
 ## Dependencies
 
-None. CameraController is a self-contained `Node3D` that builds its own `Camera3D` child. It has no knowledge of other game systems.
+CameraController has **no knowledge of other game systems** — it is a self-contained `Node3D`.
 
-CombatManager3D calls `trigger_shake()` on it; Unit3D optionally calls `get_sprite_dir()` passing the camera's forward vector.
+CombatManager3D uses it as follows:
+- `trigger_shake()` — called on combat hit
+- `focus_on(world_pos)` — called at the start of every player-defender QTE; result is awaited
+- `restore()` — called after `qte_resolved` fires; fire-and-forget
+- `get_camera()` — passed to Grid3D for raycasting, and used by QTEBar for world→screen projection
 
 ---
 
@@ -43,8 +48,10 @@ None.
 | Method | Signature | Purpose |
 |--------|-----------|---------|
 | `trigger_shake` | `() -> void` | Starts a 0.22s procedural shake (called by CombatManager on hit) |
-| `get_forward` | `() -> Vector3` | Returns the camera's forward direction (for 8-dir sprite selection) |
-| `get_camera` | `() -> Camera3D` | Returns the child Camera3D node (used by Grid3D for raycasting) |
+| `get_forward` | `() -> Vector3` | Returns the camera's XZ forward direction (for 8-dir sprite selection) |
+| `get_camera` | `() -> Camera3D` | Returns the child Camera3D node |
+| `focus_on` | `(world_pos: Vector3) -> Tween` | Smoothly tweens the orbit pivot to `world_pos` over 0.5s. Returns the Tween so callers can `await tween.finished`. Kills any in-progress pivot tween first. |
+| `restore` | `() -> void` | Fire-and-forget tween back to `_home_position` (grid center) over 0.45s. Kills any in-progress pivot tween first. |
 
 ---
 
@@ -64,6 +71,20 @@ None.
 
 ---
 
+## Key Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `_yaw` | `float` | `225.0` | Current orbit angle (degrees) |
+| `_distance` | `float` | `16.0` | Current orbit radius |
+| `_shake_timer` | `float` | `0.0` | Countdown for shake; set by `trigger_shake()` |
+| `_shake_offset` | `Vector3` | `ZERO` | Additive shake displacement applied to Camera3D |
+| `_camera` | `Camera3D` | `null` | Child Camera3D; created in `_ready()` |
+| `_home_position` | `Vector3` | `ZERO` | Grid center pivot; captured from `position` in `_ready()` |
+| `_pivot_tween` | `Tween` | `null` | Tracks the active focus/restore tween; killed before starting a new one |
+
+---
+
 ## Input Handling
 
 | Input | Action |
@@ -73,7 +94,7 @@ None.
 | `ScrollUp` | Zoom in (decrease distance) |
 | `ScrollDown` | Zoom out (increase distance) |
 
-Panning is not yet implemented — the camera always looks at the grid origin (0, 0, 0).
+Rotation and zoom still respond during a QTE — the focus tween moves the pivot but doesn't lock input.
 
 ---
 
@@ -89,20 +110,39 @@ Shake is additive on top of the normal orbit transform, computed in `_apply_tran
 
 ---
 
+## Focus / Restore (QTE camera)
+
+`focus_on(world_pos)` and `restore()` both tween `position` (the orbit pivot) using `_set_pivot()` as the tween method. `_set_pivot()` sets `position` **and** calls `_apply_transform()` each step, so the Camera3D repositions and re-points itself every frame of the tween.
+
+Both methods kill `_pivot_tween` before starting a new one — tweens never stack.
+
+**Timing in `_run_harm_defenders`:**
+```
+await _camera_rig.focus_on(caster.global_position).finished   # 0.5 s tween
+await get_tree().create_timer(0.25).timeout                    # brief settle
+_qte_bar.start_qte(energy_cost, caster)                       # bar appears
+...
+_camera_rig.restore()                                          # 0.45 s tween back, fire-and-forget
+```
+
+---
+
 ## Transform Pipeline (`_apply_transform`)
 
 ```
-1. Build rotation from yaw (Y-axis) and elevation (X-axis).
-2. Compute camera offset: rotation * Vector3(0, 0, distance).
-3. Set controller position to target + offset.
-4. Point controller at target using look_at().
-5. Add shake offset to Camera3D local position.
+1. Compute camera local offset from _yaw, DEFAULT_ELEVATION, and _distance.
+2. Set _camera.position to that local offset + _shake_offset.
+3. Call _camera.look_at(global_position) so camera always points at the pivot.
 ```
+
+The pivot (`position` / `global_position`) is normally `Vector3(9, 0, 9)` (grid center), but moves during a focus tween.
 
 ---
 
 ## Notes
 
-- The Camera3D child is created in `_ready()` — calling `get_camera()` before `_ready()` returns null.
-- `DEFAULT_ELEVATION` of 52° matches a near-isometric look without a true 45° projection, which gives a more readable 3D battlefield.
-- Rotation steps snap to 45° multiples — there is no smooth rotation tween in Stage 1.5; may be added later.
+- `_home_position` is captured from `position` in `_ready()`. CM3D sets `_camera_rig.position = Vector3(9.0, 0.0, 9.0)` **before** `add_child()`, so `_ready()` sees the correct value. Do not change this ordering.
+- `get_camera()` returns null if called before `_ready()` fires.
+- `DEFAULT_ELEVATION` of 52° gives a near-isometric look — readable 3D battlefield without true 45° projection.
+- Q/E rotation snaps to 45° multiples (no smooth tween). A full camera overhaul (drag-to-rotate, Q/E = elevation) is planned for a future session.
+- During a QTE focus tween, the player can still Q/E and scroll — those calls `_apply_transform()` directly and are additive on top of the moving pivot.

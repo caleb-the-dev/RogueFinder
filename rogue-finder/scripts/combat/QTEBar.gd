@@ -26,6 +26,7 @@ var _tween: Tween           = null
 var _resolved: bool         = false
 var _ss_half: float         = 0.20
 var _cursor_duration: float = 2.2
+var _attacker: Node3D       = null
 
 ## --- Node refs — assigned in _build_ui() ---
 
@@ -47,12 +48,6 @@ func _ready() -> void:
 ## --- UI Construction ---
 
 func _build_ui() -> void:
-	var overlay := ColorRect.new()
-	overlay.color    = Color(0.0, 0.0, 0.0, 0.72)
-	overlay.position = Vector2.ZERO
-	overlay.size     = Vector2(1280.0, 720.0)
-	add_child(overlay)
-
 	_instruction_label = Label.new()
 	_instruction_label.position             = Vector2(370.0, 200.0)
 	_instruction_label.size                 = Vector2(540.0, 32.0)
@@ -138,16 +133,47 @@ func _rebuild_zones() -> void:
 ## --- Public API ---
 
 ## Called by CombatManager3D when a HARM effect targets a player-controlled defender.
+## attacker is the enemy Unit3D whose world position the bar will track each frame.
 ## Difficulty is scaled from the attacking ability's energy_cost.
-func start_qte(energy_cost: int) -> void:
+func start_qte(energy_cost: int, attacker: Node3D) -> void:
+	_attacker = attacker
 	_set_difficulty(energy_cost)
-	_resolved          = false
-	_cursor_pos        = 0.0
-	_cursor.position.x = 0.0
+	_resolved             = false
+	_cursor_pos           = 0.0
+	_cursor.position.x    = 0.0
 	_result_label.visible = false
 	_instruction_label.text = "Press SPACE or click to dodge!"
+	_reposition_to_attacker()
 	visible = true
 	_animate_cursor()
+
+## Projects the attacker's world position to screen and positions the bar above them.
+func _reposition_to_attacker() -> void:
+	if not is_instance_valid(_attacker):
+		return
+	var camera := get_viewport().get_camera_3d()
+	if not camera:
+		return
+	var screen_pos := camera.unproject_position(_attacker.global_position + Vector3(0, 2.0, 0))
+	_bar_bg.position           = Vector2(screen_pos.x - BAR_WIDTH / 2.0, screen_pos.y)
+	_instruction_label.position = Vector2(screen_pos.x - 270.0, screen_pos.y - 42.0)
+	_result_label.position      = Vector2(screen_pos.x - 270.0, screen_pos.y + 62.0)
+
+## --- Frame Tracking ---
+
+func _process(_delta: float) -> void:
+	if not visible or _resolved:
+		return
+	## Attacker death guard — nearly impossible in normal play but worth covering.
+	if not is_instance_valid(_attacker) or _attacker.get("is_alive") == false:
+		_resolved = true
+		if _tween:
+			_tween.kill()
+		visible   = false
+		_attacker = null
+		qte_resolved.emit(0.25)   ## miss tier — hit lands even if attacker dies
+		return
+	_reposition_to_attacker()
 
 ## --- Difficulty ---
 
@@ -218,7 +244,8 @@ func _on_cursor_expired() -> void:
 func _process_result(result: float) -> void:
 	_show_feedback(result)
 	await get_tree().create_timer(0.85).timeout
-	visible = false
+	visible   = false
+	_attacker = null   ## stops _process from repositioning
 	qte_resolved.emit(result)
 
 ## --- Feedback ---
