@@ -47,27 +47,27 @@ func _test_elevation_default() -> void:
 	assert(DEFAULT_ELEVATION == 52.0,
 		"DEFAULT_ELEVATION must be 52.0, got %s" % DEFAULT_ELEVATION)
 
-## Mirrors _pan_forward_vector() in CameraController.
-func _pan_forward_vector(yaw_deg: float) -> Vector3:
+## Mirrors the W-key pan direction in CameraController (negated raw forward).
+func _pan_w_vector(yaw_deg: float) -> Vector3:
 	var yaw_rad: float = deg_to_rad(yaw_deg)
-	return Vector3(sin(yaw_rad), 0.0, cos(yaw_rad))
+	return -Vector3(sin(yaw_rad), 0.0, cos(yaw_rad))
 
 ## ============================================================
-## Test 4: At DEFAULT_YAW (225°), W-forward points SW (~-0.707, 0, -0.707).
+## Test 4: At DEFAULT_YAW (225°), W pans NE (~0.707, 0, 0.707).
 ## ============================================================
 func _test_pan_forward_at_default_yaw() -> void:
-	var fwd: Vector3 = _pan_forward_vector(DEFAULT_YAW)
-	var expected: Vector3 = Vector3(-0.7071, 0.0, -0.7071)
+	var fwd: Vector3 = _pan_w_vector(DEFAULT_YAW)
+	var expected: Vector3 = Vector3(0.7071, 0.0, 0.7071)
 	assert(fwd.is_equal_approx(expected),
-		"forward at 225° must be ~%s, got %s" % [expected, fwd])
+		"W at 225° must pan NE ~%s, got %s" % [expected, fwd])
 
 ## ============================================================
-## Test 5: At yaw 0°, W-forward points north (+Z: Vector3(0,0,1)).
+## Test 5: At yaw 0°, W pans toward -Z (Vector3(0,0,-1)).
 ## ============================================================
 func _test_pan_forward_at_zero_yaw() -> void:
-	var fwd: Vector3 = _pan_forward_vector(0.0)
-	assert(fwd.is_equal_approx(Vector3(0.0, 0.0, 1.0)),
-		"forward at 0° must be Vector3(0,0,1), got %s" % fwd)
+	var fwd: Vector3 = _pan_w_vector(0.0)
+	assert(fwd.is_equal_approx(Vector3(0.0, 0.0, -1.0)),
+		"W at 0° must pan -Z, got %s" % fwd)
 
 ## ============================================================
 ## Test 6: PAN_SPEED constant must be positive.
