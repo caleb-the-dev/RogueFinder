@@ -1,6 +1,6 @@
 # System: Map Scene
 
-> Last updated: 2026-04-23 (map audit — PartySheet section split out to party_sheet.md)
+> Last updated: 2026-04-25 (Events Slice 6 — dev event panel, live threat meter refresh, CITY stamp guard)
 
 ---
 
@@ -120,7 +120,7 @@ Applied by `_refresh_all_node_visuals()`, called at end of `_build_scene()` and 
 |---|---|---|---|---|---|
 | **CURRENT** | `id == GameState.player_node_id` | base color | gold `Color(0.9, 0.85, 0.3)`, 3 px | `(1,1,1,1)` | ✗ if also CLEARED (font 18, bright red, outlined, centered) |
 | **REACHABLE** | adjacent to current node | base color | default `Color(0.25, 0.18, 0.10)`, 2 px | `(1,1,1,1)` | — |
-| **CLEARED** | `GameState.cleared_nodes.has(id)` (and not current) — checked before VISITED | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` | `✗` bright red `Color(1.0, 0.18, 0.12)`, font 18, dark outline, centered |
+| **CLEARED** | `GameState.cleared_nodes.has(id)` **and** `node_type != "CITY"` (and not current) — checked before VISITED | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` | `✗` bright red `Color(1.0, 0.18, 0.12)`, font 18, dark outline, centered |
 | **VISITED** | in `GameState.visited_nodes` (and not current, not cleared) | `base.darkened(0.35)` | default, 2 px | `(1,1,1,0.85)` | `✓` `Color(0.9, 0.95, 0.7)` |
 | **LOCKED** | none of the above | `base.darkened(0.15)` | default, 2 px | `(1,1,1,0.5)` | — |
 
@@ -189,21 +189,24 @@ Built in `_add_ui_chrome()` and `_add_threat_meter()`. Children of the root MapM
 | `"[MAP SCENE]"` debug label | top-left `(12, 8)` | Scene-load confirmation |
 | Threat meter | left side `(12, 46)` | Run-wide danger gauge |
 | `"Party"` button | top-right `(VIEWPORT_SIZE.x - 300, 8)`, 80×36 | Opens `PartySheet` overlay. See `party_sheet.md`. |
+| `"Events [DEV]"` button | top-right `(VIEWPORT_SIZE.x - 430, 8)`, 110×36 | Toggles the dev event test menu (see Dev Event Panel section below). |
 | `"🗑 Delete Save (debug)"` button | top-right `(VIEWPORT_SIZE.x - 212, 8)` | Calls `GameState.delete_save()` + `reset()` then `reload_current_scene()` |
 
-### Threat Meter — `_add_threat_meter()`
+### Threat Meter — `_add_threat_meter()` / `_refresh_threat_meter()`
 
-Vertical bar on the left edge. Built entirely in code; no stored reference.
+Vertical bar on the left edge. Built in code; fill and percentage label refs stored for live updates.
 
 | Part | Details |
 |---|---|
 | "THREAT" header | Font size 11, dark red `Color(0.75, 0.18, 0.12)`, `(12, 30)` |
 | Background track | `Color(0.06, 0.04, 0.03, 0.95)`, 20×120 px |
-| Fill | Height = `threat_level × 120` px, bottom-aligned. Color from `_threat_fill_color()`. Only rendered if `threat_level > 0.0`. |
+| Fill (`_threat_fill`) | Always present (height 0 when threat = 0). Height = `threat_level × 120` px, bottom-aligned. Color from `_threat_fill_color()`. Ref stored in `_threat_fill: ColorRect`. |
 | Tick marks | Horizontal lines at 25 / 50 / 75 % |
-| Label | `int(threat_level × 100)%` below bar |
+| Label (`_threat_pct_lbl`) | `int(threat_level × 100)%` below bar. Ref stored in `_threat_pct_lbl: Label`. |
 
 Fill color by quadrant (`_threat_fill_color(t: float) -> Color`): yellow-orange (0–25%) → orange (25–50%) → red-orange (50–75%) → bright red (75–100%). Quadrant breaks align with planned boss difficulty tiers (Feature 8).
+
+`_refresh_threat_meter()` — updates `_threat_fill.size`, `_threat_fill.position`, `_threat_fill.color`, and `_threat_pct_lbl.text` from current `GameState.threat_level`. Called from: `_move_player_to()` (after travel increment), `_enter_current_node()` (after entry increment), `_on_event_finished()` (after event effects). Guards against null refs (safe to call before `_add_threat_meter()` runs, though in practice it won't be).
 
 ---
 
@@ -258,18 +261,41 @@ Result: 2–3 forced bottleneck passages between each ring pair, no straight cut
 
 | Signal | Handler | Behavior |
 |---|---|---|
-| `event_finished` | `_on_event_finished()` | Appends `player_node_id` to `cleared_nodes` (if not already there), calls `_refresh_all_node_visuals()`. |
-| `event_nav` | `_on_event_nav(dest: String)` | Appends `player_node_id` to `cleared_nodes`, calls `GameState.save()`, sets `pending_node_type = dest`, routes to NodeStub. |
+| `event_finished` | `_on_event_finished()` | Always calls `_refresh_threat_meter()` first. If `_is_dev_event` is true: clears flag and returns (no node clearing, no visual refresh). Otherwise: appends `player_node_id` to `cleared_nodes` (if not already there), calls `_refresh_all_node_visuals()`. |
+| `event_nav` | `_on_event_nav(dest: String)` | If `_is_dev_event` is true: clears flag and returns (no node clearing, no scene change). Otherwise: appends `player_node_id` to `cleared_nodes`, calls `GameState.save()`, sets `pending_node_type = dest`, routes to NodeStub. |
 
 `_get_ring(node_id: String) -> String` — private helper used in the EVENT branch of `_enter_current_node()`. Returns `"inner"` if `"node_i"` in id, `"middle"` if `"node_m"` in id, `"outer"` if `"node_o"` in id, `"outer"` as fallback for Badurga or unrecognized ids.
 
-`_input()` also early-returns when `_event_manager.visible` is true, blocking pan/zoom while the overlay is open. `_on_node_clicked()` guards the same condition so clicking the current EVENT node while the overlay is showing does nothing.
+`_input()` early-returns when `_event_manager.visible` OR `_dev_event_panel.visible` is true, blocking pan/zoom while either overlay is open. `_on_node_clicked()` guards the same `_event_manager.visible` condition.
+
+---
+
+## Dev Event Panel
+
+Accessed via the `"Events [DEV]"` button in the map UI chrome. Not part of normal gameplay.
+
+| Variable | Type | Description |
+|---|---|---|
+| `_is_dev_event` | `bool` | Set to `true` immediately before `show_event()` is called from dev panel. Cleared in `_on_event_finished` / `_on_event_nav`. Prevents node clearing and nav routing. |
+| `_dev_event_panel` | `CanvasLayer` | `null` until first open. Built lazily by `_build_dev_event_panel()`. |
+
+**`_toggle_dev_event_panel()`** — calls `_build_dev_event_panel()` on first invocation, then toggles `.visible`.
+
+**`_build_dev_event_panel()`** — creates a `CanvasLayer` (layer 30) with a full-screen dark overlay (`ColorRect`, `MOUSE_FILTER_STOP` to block map clicks) and a centered 680×520 `PanelContainer`. Inside: title row + close button, a hint label, and a `ScrollContainer` with one `Button` per event from `EventLibrary.all_events()` (label: `"<title>  [<rings>]"`). Iterates via `ev as EventData`.
+
+**`_on_dev_event_selected(event_data: EventData)`** — hides panel, sets `_is_dev_event = true`, calls `_event_manager.show_event(event_data)`.
+
+**Dev-fired events do NOT:**
+- Add the event's id to `GameState.used_event_ids` (EventSelector is bypassed)
+- Clear the current map node
+- Route to vendor/bench on nav effects (nav returns silently)
 
 ---
 
 ## Gotchas
 
-- **`_input()` not `_unhandled_input()`** — intentional so pan drag is captured when a press starts on a Button node. Don't change. PartySheet visibility guard lives here.
+- **`_input()` not `_unhandled_input()`** — intentional so pan drag is captured when a press starts on a Button node. Don't change. PartySheet, EventManager, and dev panel visibility guards all live here.
+- **CITY nodes never get the ✗ stamp** — `is_cleared` excludes `node_type == "CITY"`. Badurga is a repeatable hub, not a clearable node. Do not remove this guard.
 - **`_enter_current_node()` is the cleared-node guard, not `_on_node_clicked()`** — cleared nodes are fully traversable. Don't add a click guard back.
 - **`current_combat_node_id` must be set before `change_scene_to_file()`** — transient field that EndCombatScreen reads post-transition.
 - **MapManager holds no persistent state** — all run-wide data lives in `GameState`. Map rebuilds from scratch every load.
@@ -296,6 +322,7 @@ Result: 2–3 forced bottleneck passages between each ring pair, no straight cut
 | Date | Session | What changed |
 |---|---|---|
 | 2026-04-23 | S28 | Doc split — PartySheet section moved to `party_sheet.md`. No `MapManager` behavior change. |
+| 2026-04-25 | Events Slice 6 | **Dev event panel + live threat meter + CITY stamp guard.** `_toggle_dev_event_panel()`, `_build_dev_event_panel()`, `_on_dev_event_selected()` added. `_is_dev_event: bool` and `_dev_event_panel: CanvasLayer` instance vars added. `_on_event_finished()` and `_on_event_nav()` both check `_is_dev_event` first — if true, clear flag and return without clearing nodes or routing. `_input()` gains `_dev_event_panel.visible` guard. Threat meter: fill rect always created (was conditional on `t > 0.0`); `_threat_fill: ColorRect` and `_threat_pct_lbl: Label` refs stored; `_refresh_threat_meter()` added; called from `_move_player_to()`, `_enter_current_node()`, and `_on_event_finished()`. Visual: `is_cleared` in `_refresh_all_node_visuals()` now excludes `node_type == "CITY"` — Badurga never shows ✗. |
 | 2026-04-25 | Events Slice 4 | `_event_manager: EventManager` field added. `_ready()` instantiates `EventScene.tscn` after `PartySheet`; connects `event_finished` → `_on_event_finished()` and `event_nav` → `_on_event_nav()`. `_enter_current_node()`: EVENT branch now calls `EventSelector.pick_for_node(_get_ring(...))` + `_event_manager.show_event()` instead of NodeStub. `_get_ring()` private helper added. `_input()` gains `_event_manager.visible` early-return guard. `_on_node_clicked()` guards same condition. Cleared stamp: CURRENT+CLEARED case now also renders ✗; stamp font size 18, bright red, dark outline, centered via PRESET_FULL_RECT. EVENT nodes appended to `cleared_nodes` by both `_on_event_finished` and `_on_event_nav`. |
 | 2026-04-24 | Events Slice 3 | `_move_player_to()`: `GameState.save()` added at end of method after dispatch block, covering VENDOR/CITY "Keep Moving" path. |
 | 2026-04-20 | S24+S25 | RECRUIT removed. Inner ring → 4 COMBAT + 2 EVENT. Outer → 1 BOSS + 7 COMBAT + 3 EVENT + 1 VENDOR. BOSS assignment extracted to `_assign_boss_type()`; bridge endpoints captured into `_outer_bridge_ids`. |

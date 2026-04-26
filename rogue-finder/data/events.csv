@@ -1,4 +1,16 @@
 id,title,body,ring_eligibility
 chest_rusty,Rusted Chest,"A chest sits in the corner, lid half-rusted shut.",outer|middle
-wounded_traveler,Wounded Traveler,"A traveler slumps against a stone, bleeding from a gash.",outer|middle|inner
+wounded_traveler,Wandering Medic,"A road medic has set up camp at the verge, supplies spread across a low stone.",outer|middle|inner
 merchant_stall,Wandering Merchant,"A merchant has arranged goods along a low wall.",outer|middle
+fallen_signpost,Fallen Signpost,"A battered signpost leans at the crossroads. Below the painted names, someone has scratched a fresh warning into the wood.",outer
+roadside_shrine,Roadside Shrine,"A knee-high stone shrine stands at the road's edge, ringed with dried flowers and a copper coin.",outer
+dry_well,Dry Well,The well has been dry for years. Something metal catches the light at the bottom.,outer
+abandoned_campfire,Abandoned Camp,"The embers are still warm. A pack sits open near the fire, abandoned mid-meal.",outer
+stray_dog,Stray Dog,"A lean dog trots alongside the party for a quarter mile, watching your faces. It looks trained.",outer
+road_patrol,Road Patrol,"A patrol of four armed men blocks the road, watching your approach with the practiced ease of people used to being obeyed.",outer|middle
+mercenary_camp,Mercenary Camp,A camp of half a dozen mercenaries sits just off the road. They look bored but not hostile. For now.,middle
+burned_farmhouse,Burned Farmhouse,"The farmhouse roof has collapsed inward. Smoke still rises. A child crouches behind the garden wall, watching you.",middle
+standing_stone,Standing Stone,"An ancient standing stone leans at the clearing's edge. It is warm to the touch even in cold air, and the warmth is not from the sun.",middle|inner
+river_crossing,Broken Bridge,The bridge's center span has collapsed. The river runs chest-deep this time of year.,middle
+mass_grave,Fresh Mound,"The ground here has been recently turned. The mound is too long, too wide, too fresh. Not a burial. An erasure.",inner
+ember_idol,Ember Idol,A stone figure the size of a child stands in a clearing. Its carved eyes glow faintly. Not with fire. With something older.,inner

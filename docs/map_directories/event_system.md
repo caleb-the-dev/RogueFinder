@@ -8,12 +8,12 @@
 
 | Layer | Status |
 |---|---|
-| Data library (EventLibrary + CSVs) | ✅ Active (3 smoke events, 12 tests) |
+| Data library (EventLibrary + CSVs) | ✅ Active (15 events, 46 choice rows, 12 tests) |
 | EventSelector (ring filter + no-repeat) | ✅ Active — Slice 3 (5 tests) |
 | EventScene overlay + EventManager | ✅ Active — Slice 4 (19 tests) |
 | Effect dispatch + condition evaluator | ✅ Active — Slice 4 |
 | player_pick picker + new-item glow | ✅ Active — Slice 5 (7 tests) |
-| Authoring pass (13+ real events) | 🔲 Stub — Slice 6 |
+| Authoring pass (13+ real events) | ✅ Active — Slice 6 |
 
 ---
 
@@ -270,6 +270,8 @@ All methods are `static`. No instantiation required.
 
 | Date | Change |
 |---|---|
+| 2026-04-25 | **Slice 6b — Event revisions.** Post-testing pass: 13 changes to authored events. `wounded_traveler` rewritten as Wandering Medic (healer NPC, not victim). `fallen_signpost` body reworded. `stray_dog` choice 0 changed to recruit placeholder (no-op). `abandoned_campfire` choice 1 label/result clarified. `road_patrol`: "Cite your service" → no-op (was −5% threat); "Take the long way" → +10% threat (was no-op). `mercenary_camp`: dropped COG-gated "Trade information"; "Hire escort" → recruit placeholder no-op. `burned_farmhouse`: tend-to-child → `item_gain lucky_charm` (was heal PC). `river_crossing`: "Turn back" → +10% threat (was no-op). `survivor_in_the_dark` removed entirely. `mass_grave`: dropped COG-gated "Examine carefully"; "Disturb soil" → harm 5 + `item_gain rusted_dagger` (was harm-only). `ember_idol`: dropped `item:lucky_charm`-gated "Leave the charm" choice. Final counts: events.csv 15 rows, event_choices.csv 46 rows. |
+| 2026-04-25 | **Slice 6** — Authoring pass. 12 new events authored across all three rings. events.csv: 15 rows. event_choices.csv: 46 rows. No GDScript changes. Ring coverage: outer (fallen_signpost, roadside_shrine, dry_well, abandoned_campfire, stray_dog, road_patrol), middle (road_patrol, mercenary_camp, burned_farmhouse, standing_stone, river_crossing), inner (standing_stone, mass_grave, ember_idol). Effects used: item_gain, item_remove, harm, heal, threat_delta, feat_grant. `wounded_traveler` preserved as canonical player_pick test event. |
 | 2026-04-25 | **Slice 5** — `player_pick` picker overlay + `target_picked` signal. `_on_choice_pressed` is now a coroutine (`await`): pre-scans effects for `player_pick`, shows picker if needed, awaits `target_picked`, then dispatches with `forced_target`. `dispatch_effect` signature extended with optional `forced_target: CombatantData = null`; new `_resolve_with_override` helper routes it. Picker: `CenterContainer` + `PanelContainer` (~500×200 px), one button per alive party member, freed after pick. 7 new headless tests (96 total). |
 | 2026-04-25 | **Slice 4** — `EventManager.gd` + `EventScene.tscn` created. CanvasLayer (layer 10) overlay with `show_event`/`hide_event` API, condition-gated choice buttons (disabled+dimmed), result panel, Continue → save → `event_finished`. Static `evaluate_condition` (6 forms), `resolve_target` (4 values), `dispatch_effect` (7 types). MapManager wired: EVENT branch calls `EventSelector.pick_for_node()` + `show_event()` instead of NodeStub; `_on_event_finished` marks node cleared + refreshes visuals; `_on_event_nav` marks cleared + saves + routes to NodeStub. 19 headless tests (89 total). `rusted_dagger` added to equipment.csv. |
 | 2026-04-24 | **Slice 3** — `EventSelector.gd` created. `pick_for_node(ring)`: filters `GameState.used_event_ids`, exhaustion fallback to full pool, never-null, warning on missing ring data. Does not call `GameState.save()` — caller owns persistence. 5 headless tests. |
