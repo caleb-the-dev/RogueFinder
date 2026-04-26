@@ -19,6 +19,9 @@ const ZOOM_STEP: float         = 2.0
 const DRAG_SENSITIVITY: float  = 0.4   # yaw degrees per pixel of horizontal drag
 const SHAKE_DURATION: float    = 0.22
 const SHAKE_MAGNITUDE: float   = 0.18
+const PAN_SPEED: float         = 10.0  # pivot units per second (WASD / arrow keys)
+const PAN_MIN: float           = -5.0  # world-space clamp on X and Z
+const PAN_MAX: float           = 25.0
 
 var _yaw: float        = DEFAULT_YAW
 var _elevation: float  = DEFAULT_ELEVATION
@@ -107,7 +110,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_apply_transform()
 		get_viewport().set_input_as_handled()
 
-## --- Per-frame shake update ---
+## --- Per-frame update: shake + WASD pan ---
 
 func _process(delta: float) -> void:
 	if _shake_timer > 0.0:
@@ -122,6 +125,36 @@ func _process(delta: float) -> void:
 	elif not _shake_offset.is_zero_approx():
 		_shake_offset = Vector3.ZERO
 		_apply_transform()
+
+	# Skip panning while a QTE tween is animating to avoid fighting it
+	if _pivot_tween == null or not _pivot_tween.is_running():
+		_process_pan(delta)
+
+## Polls WASD / arrow keys and slides the orbit pivot in yaw-relative XZ space.
+func _process_pan(delta: float) -> void:
+	var move: Vector2 = Vector2.ZERO
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		move.y += 1.0
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		move.y -= 1.0
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		move.x -= 1.0
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		move.x += 1.0
+
+	if move.is_zero_approx():
+		return
+
+	var yaw_rad: float  = deg_to_rad(_yaw)
+	var forward: Vector3 = Vector3(sin(yaw_rad), 0.0, cos(yaw_rad))
+	var right: Vector3   = Vector3(cos(yaw_rad), 0.0, -sin(yaw_rad))
+
+	var pan_delta: Vector3 = (forward * move.y + right * move.x) * PAN_SPEED * delta
+	var new_pos: Vector3 = position + pan_delta
+	new_pos.x = clampf(new_pos.x, PAN_MIN, PAN_MAX)
+	new_pos.z = clampf(new_pos.z, PAN_MIN, PAN_MAX)
+	position = new_pos
+	_apply_transform()
 
 ## --- Transform ---
 

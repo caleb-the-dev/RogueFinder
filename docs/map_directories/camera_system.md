@@ -1,6 +1,6 @@
 # System: Camera System
 
-> Last updated: 2026-04-26 (Camera overhaul — elevation Q/E, right-click drag rotation)
+> Last updated: 2026-04-26 (WASD/arrow-key camera pan with yaw-relative direction and XZ clamping)
 
 ---
 
@@ -15,6 +15,7 @@ The Camera System provides a **DOS2-style isometric orbit camera** for the 3D co
 - **Smooth QTE focus** — pivots to the attacker's world position before a QTE starts, then restores
 
 The camera is built and owned by `CombatManager3D`. No `.tscn` — it's instantiated entirely in code.
+- WASD / arrow keys pan the orbit pivot in yaw-relative XZ space (BG3-style), clamped to a generous world boundary
 
 ---
 
@@ -72,6 +73,9 @@ None.
 | `DRAG_SENSITIVITY` | 0.4 | Yaw degrees per pixel of horizontal drag |
 | `SHAKE_DURATION` | 0.22 s | Duration of shake effect |
 | `SHAKE_MAGNITUDE` | 0.18 | Max displacement per shake tick |
+| `PAN_SPEED` | 10.0 | Pivot units/second for WASD / arrow-key pan |
+| `PAN_MIN` | −5.0 | Minimum X and Z clamp for the orbit pivot |
+| `PAN_MAX` | 25.0 | Maximum X and Z clamp for the orbit pivot |
 
 ---
 
@@ -93,15 +97,21 @@ None.
 
 ## Input Handling
 
-| Input | Action |
-|-------|--------|
-| `Q` | Increase elevation by 10° (more top-down), clamped to 80° |
-| `E` | Decrease elevation by 10° (more horizon-facing), clamped to 15° |
-| `Right-click drag` | Rotate orbit horizontally; yaw tracks `event.relative.x * DRAG_SENSITIVITY` |
-| `ScrollUp` | Zoom in (decrease distance) |
-| `ScrollDown` | Zoom out (increase distance) |
+| Input | Handler | Action |
+|-------|---------|--------|
+| `Q` | `_unhandled_input` | Increase elevation by 10° (more top-down), clamped to 80° |
+| `E` | `_unhandled_input` | Decrease elevation by 10° (more horizon-facing), clamped to 15° |
+| `Right-click drag` | `_unhandled_input` | Rotate orbit horizontally; yaw tracks `event.relative.x * DRAG_SENSITIVITY` |
+| `ScrollUp` | `_unhandled_input` | Zoom in (decrease distance) |
+| `ScrollDown` | `_unhandled_input` | Zoom out (increase distance) |
+| `W / Up` | `_process` | Pan pivot forward (yaw-relative, toward camera's SW at default yaw) |
+| `S / Down` | `_process` | Pan pivot backward |
+| `A / Left` | `_process` | Pan pivot left (strafe) |
+| `D / Right` | `_process` | Pan pivot right (strafe) |
 
-Elevation, drag rotation, and zoom still respond during a QTE — the focus tween moves the pivot but doesn't lock input.
+One-shot events (Q/E, scroll, right-click) use `_unhandled_input`. Continuous held-key panning uses `Input.is_key_pressed()` polling in `_process`.
+
+Elevation, drag rotation, and zoom still respond during a QTE. Pan is **suppressed while `_pivot_tween` is running** (focus / restore tweens) to avoid fighting the tween.
 
 ---
 
@@ -153,7 +163,8 @@ The pivot (`position` / `global_position`) is normally `Vector3(9, 0, 9)` (grid 
 - `DEFAULT_ELEVATION` of 52° gives a near-isometric look — readable 3D battlefield without true 45° projection. Player can pitch up to 80° (top-down) or down to 15° (low horizon) via Q/E.
 - Right-click drag is used for yaw rotation because left-click is claimed by CombatManager3D for unit selection. Middle-click was considered but right-click is more ergonomic for orbit cameras.
 - `focus_on` / `restore` call `_set_pivot()` → `_apply_transform()` each frame, so they correctly maintain whatever `_elevation` and `_yaw` the player has set during the tween.
-- During a QTE focus tween, the player can still Q/E, drag, and scroll — those calls `_apply_transform()` directly and are additive on top of the moving pivot.
+- During a QTE focus tween, the player can still Q/E, drag, and scroll — those call `_apply_transform()` directly and are additive on top of the moving pivot. WASD pan is suppressed while `_pivot_tween` is running.
+- **Known limitation:** `restore()` always tweens back to `_home_position` (grid center), not to where the player was panning. After a QTE fires mid-pan, the camera returns to grid center. This is acceptable until playtesting reveals it feels jarring — if so, save pre-focus pivot position in `focus_on` and restore to it instead.
 
 ---
 
@@ -161,5 +172,6 @@ The pivot (`position` / `global_position`) is normally `Vector3(9, 0, 9)` (grid 
 
 | Date | What changed |
 |------|-------------|
+| 2026-04-26 | **WASD/arrow pan.** `_process_pan(delta)` added — polls WASD + arrow keys each frame, computes yaw-relative forward/right vectors, slides pivot on XZ, clamps to `PAN_MIN`/`PAN_MAX`. Pan suppressed while `_pivot_tween` is running. Added `PAN_SPEED`, `PAN_MIN`, `PAN_MAX` constants. 3 new headless tests (direction math + constant sanity). |
 | 2026-04-26 | **Camera overhaul.** Q/E now control `_elevation` (pitch, 10°/press, clamped 15°–80°) instead of snapped yaw. Right-click drag rotates yaw continuously (`DRAG_SENSITIVITY = 0.4°/px`). Cursor captured (`MOUSE_MODE_CAPTURED`) on right-click down, restored to `MOUSE_MODE_VISIBLE` on release. `DEFAULT_ELEVATION` constant promoted to `_elevation: float` variable. Removed `ROTATE_STEP`; added `MIN_ELEVATION`, `MAX_ELEVATION`, `ELEVATION_STEP`, `DRAG_SENSITIVITY`, `_dragging`. `_apply_transform()` now reads `_elevation` instead of the constant. `test_camera_controls.gd` added (3 headless assertions). |
 | 2026-04-26 | **QTE camera focus / restore added.** `focus_on(world_pos)`, `restore()`, `_set_pivot()`, `_home_position`, `_pivot_tween` added. Camera smoothly tweens to attacker before each QTE (0.5 s), returns to grid center after (0.45 s, fire-and-forget). |
