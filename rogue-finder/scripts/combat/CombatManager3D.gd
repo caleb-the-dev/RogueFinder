@@ -678,15 +678,21 @@ func _run_harm_defenders(caster: Unit3D, defenders: Array[Unit3D],
 		if not defender.is_alive:
 			continue
 
-		var qte_result: float
-		if defender.data.is_player_unit:
+		var dmg_mult: float
+		var friendly: bool = caster.data.is_player_unit == defender.data.is_player_unit
+		if friendly:
+			## Friendly fire: skip QTE, apply at dmg_mult 1.0 (no dodge, no bonus).
+			## The value 1.0 is a hookpoint for future feats/items.
+			dmg_mult = 1.0
+		elif defender.data.is_player_unit:
 			state = CombatState.QTE_RUNNING
 			_qte_bar.start_qte(energy_cost)
-			qte_result = await _qte_bar.qte_resolved
+			var qte_result: float = await _qte_bar.qte_resolved
+			dmg_mult = _defender_roll_to_dmg_multiplier(qte_result)
 		else:
-			qte_result = _qte_resolution_to_multiplier(defender.data.qte_resolution)
+			var qte_result: float = _qte_resolution_to_multiplier(defender.data.qte_resolution)
+			dmg_mult = _defender_roll_to_dmg_multiplier(qte_result)
 
-		var dmg_mult: float = _defender_roll_to_dmg_multiplier(qte_result)
 		var dmg: int = maxi(1, roundi(dmg_mult * float(effect.base_value + caster.data.attack)))
 		defender.take_damage(dmg)
 		_check_win_lose()

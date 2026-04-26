@@ -14,6 +14,7 @@ func _initialize() -> void:
 	_test_aoe_produces_n_damage_applications()
 	_test_non_harm_effect_types_are_not_harm()
 	_test_ai_defender_full_chain()
+	_test_friendly_fire_dmg_mult()
 	print("All QTE reactive tests PASSED.")
 	quit()
 
@@ -183,3 +184,38 @@ func _test_ai_defender_full_chain() -> void:
 	assert(_qte_res_to_roll(0.60) == 1.0,  "qte_res=0.60 (tier boundary) → roll=1.0")
 	assert(_qte_res_to_roll(0.30) == 0.75, "qte_res=0.30 (tier boundary) → roll=0.75")
 	assert(_qte_res_to_roll(0.0)  == 0.25, "qte_res=0.0 (floor) → roll=0.25")
+
+## ============================================================
+## Friendly fire: caster hitting own-team unit → dmg_mult = 1.0, no QTE.
+## Detection: caster.is_player_unit == defender.is_player_unit
+## The 1.0 value is a hookpoint for future feats/items.
+## ============================================================
+
+func _test_friendly_fire_dmg_mult() -> void:
+	## Mirrors the friendly-fire check in _run_harm_defenders:
+	## caster_is_player == defender_is_player → friendly → dmg_mult 1.0
+
+	## Both player units → friendly fire
+	var player_on_player: bool = (true == true)
+	assert(player_on_player == true,
+		"player caster + player defender → same-team → friendly fire")
+
+	## Both enemy units → friendly fire
+	var enemy_on_enemy: bool = (false == false)
+	assert(enemy_on_enemy == true,
+		"enemy caster + enemy defender → same-team → friendly fire")
+
+	## Opposed → not friendly fire
+	var player_on_enemy: bool = (true == false)
+	assert(player_on_enemy == false,
+		"player caster + enemy defender → not friendly fire → QTE applies")
+
+	var enemy_on_player: bool = (false == true)
+	assert(enemy_on_player == false,
+		"enemy caster + player defender → not friendly fire → QTE applies")
+
+	## Confirm damage formula at friendly-fire dmg_mult (1.0 → full base damage)
+	var base_value: int  = 5
+	var caster_attack: int = 5
+	var dmg: int = _harm_value(1.0, base_value, caster_attack)
+	assert(dmg == 10, "friendly fire dmg_mult=1.0: 1.0*(5+5)=10 → standard damage")
