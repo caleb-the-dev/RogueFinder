@@ -686,8 +686,11 @@ func _run_harm_defenders(caster: Unit3D, defenders: Array[Unit3D],
 			dmg_mult = 1.0
 		elif defender.data.is_player_unit:
 			state = CombatState.QTE_RUNNING
+			await _camera_rig.focus_on(caster.global_position).finished
+			await get_tree().create_timer(0.25).timeout
 			_qte_bar.start_qte(energy_cost, caster)
 			var qte_result: float = await _qte_bar.qte_resolved
+			_camera_rig.restore()
 			dmg_mult = _defender_roll_to_dmg_multiplier(qte_result)
 		else:
 			var qte_result: float = _qte_resolution_to_multiplier(defender.data.qte_resolution)

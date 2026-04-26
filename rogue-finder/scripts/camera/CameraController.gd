@@ -17,13 +17,18 @@ const ZOOM_STEP: float         = 2.0
 const SHAKE_DURATION: float    = 0.22
 const SHAKE_MAGNITUDE: float   = 0.18
 
-var _yaw: float      = DEFAULT_YAW
-var _distance: float = DEFAULT_DISTANCE
-var _shake_timer: float   = 0.0
+var _yaw: float        = DEFAULT_YAW
+var _distance: float   = DEFAULT_DISTANCE
+var _shake_timer: float    = 0.0
 var _shake_offset: Vector3 = Vector3.ZERO
-var _camera: Camera3D = null
+var _camera: Camera3D      = null
+
+## Pivot tracking for QTE focus / restore
+var _home_position: Vector3 = Vector3.ZERO
+var _pivot_tween: Tween     = null
 
 func _ready() -> void:
+	_home_position = position   ## captured after CM3D sets position before add_child
 	_camera = Camera3D.new()
 	_camera.name = "Camera3D"
 	add_child(_camera)
@@ -33,6 +38,28 @@ func _ready() -> void:
 
 func trigger_shake() -> void:
 	_shake_timer = SHAKE_DURATION
+
+## Smoothly tween the orbit pivot to world_pos. Returns the Tween so callers can await it.
+## Kills any in-progress pivot tween first so tweens never stack.
+func focus_on(world_pos: Vector3) -> Tween:
+	if _pivot_tween and _pivot_tween.is_running():
+		_pivot_tween.kill()
+	_pivot_tween = create_tween().set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	_pivot_tween.tween_method(_set_pivot, position, world_pos, 0.50)
+	return _pivot_tween
+
+## Smoothly tween the orbit pivot back to the home position (grid center).
+## Fire-and-forget — callers do not need to await this.
+func restore() -> void:
+	if _pivot_tween and _pivot_tween.is_running():
+		_pivot_tween.kill()
+	_pivot_tween = create_tween().set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	_pivot_tween.tween_method(_set_pivot, position, _home_position, 0.45)
+
+## Tween method: sets the pivot position and re-applies the camera transform each step.
+func _set_pivot(pos: Vector3) -> void:
+	position = pos
+	_apply_transform()
 
 ## Returns horizontal forward vector (XZ plane only) for 8-dir sprite calculations.
 func get_forward() -> Vector3:
