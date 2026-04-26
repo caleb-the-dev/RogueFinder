@@ -21,11 +21,6 @@ var _kindred_idx: int = 0
 var _class_idx:   int = 0
 var _bg_idx:      int = 0
 
-## Rolled attributes — seeded once in `_ready()`, re-seeded by the Reroll Stats
-## button, and handed to `_build_pc()` at confirm time so the stats the player
-## saw are the stats that persist. Keys: str / dex / cog / wil / vit / armor.
-var _rolled_stats: Dictionary = {}
-
 # Preview panel label refs — populated in _build_preview_panel(), pushed by _calc_preview().
 var _preview_hp_lbl:        Label = null
 var _preview_speed_lbl:     Label = null
@@ -36,14 +31,13 @@ var _preview_wil_lbl:       Label = null
 var _preview_vit_lbl:       Label = null
 var _preview_class_name:    Label = null
 var _preview_class_desc:    Label = null
-var _preview_bg_name:       Label = null
-var _preview_bg_desc:       Label = null
+var _preview_kindred_name:  Label = null
+var _preview_kindred_desc:  Label = null
 var _preview_feat_lbl:      Label = null
 var _preview_feat_desc:     Label = null
 
 func _ready() -> void:
 	_load_data()
-	_roll_stats()
 	_build_ui()
 
 func _load_data() -> void:
@@ -301,7 +295,7 @@ func _build_preview_panel() -> PanelContainer:
 	header_lbl.add_theme_font_size_override("font_size", 16)
 	col.add_child(header_lbl)
 
-	# Top strip: HP · Speed (both concrete since stats are rolled at _ready())
+	# Top strip: HP · Speed (both computed from pillar picks)
 	var stats_row := HBoxContainer.new()
 	stats_row.add_theme_constant_override("separation", 16)
 	stats_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -312,14 +306,7 @@ func _build_preview_panel() -> PanelContainer:
 	stats_row.add_child(_preview_hp_lbl)
 	stats_row.add_child(_preview_speed_lbl)
 
-	# Reroll button — re-rolls _rolled_stats and pushes new values into labels.
-	var reroll_btn := Button.new()
-	reroll_btn.text = "🎲 Reroll Stats"
-	reroll_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	reroll_btn.pressed.connect(_on_reroll_stats)
-	col.add_child(reroll_btn)
-
-	# Attributes row — concrete values from _rolled_stats (seeded in _ready()).
+	# Attributes row — deterministic values from pillar picks
 	var attr_row := HBoxContainer.new()
 	attr_row.add_theme_constant_override("separation", 10)
 	attr_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -350,19 +337,19 @@ func _build_preview_panel() -> PanelContainer:
 
 	col.add_child(HSeparator.new())
 
-	# Background ability name + description
-	_preview_bg_name = Label.new()
-	_preview_bg_name.add_theme_font_size_override("font_size", 14)
-	col.add_child(_preview_bg_name)
+	# Kindred ability name + description
+	_preview_kindred_name = Label.new()
+	_preview_kindred_name.add_theme_font_size_override("font_size", 14)
+	col.add_child(_preview_kindred_name)
 
-	_preview_bg_desc = Label.new()
-	_preview_bg_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_preview_bg_desc.modulate = Color(1.0, 1.0, 1.0, 0.75)
-	col.add_child(_preview_bg_desc)
+	_preview_kindred_desc = Label.new()
+	_preview_kindred_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_preview_kindred_desc.modulate = Color(1.0, 1.0, 1.0, 0.75)
+	col.add_child(_preview_kindred_desc)
 
 	col.add_child(HSeparator.new())
 
-	# Kindred feat name + description
+	# Background feat name + description
 	_preview_feat_lbl = Label.new()
 	_preview_feat_lbl.add_theme_font_size_override("font_size", 14)
 	col.add_child(_preview_feat_lbl)
@@ -381,24 +368,6 @@ func _make_stat_label(text: String) -> Label:
 	return lbl
 
 func _on_pick_changed() -> void:
-	_calc_preview()
-
-## Fills `_rolled_stats` with fresh 1–4 attribute rolls and a 4–8 armor roll.
-## Called from `_ready()` (initial seed) and from the Reroll button.
-func _roll_stats() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
-	_rolled_stats = {
-		"str":   rng.randi_range(1, 4),
-		"dex":   rng.randi_range(1, 4),
-		"cog":   rng.randi_range(1, 4),
-		"wil":   rng.randi_range(1, 4),
-		"vit":   rng.randi_range(1, 4),
-		"armor": rng.randi_range(4, 8),
-	}
-
-func _on_reroll_stats() -> void:
-	_roll_stats()
 	_calc_preview()
 
 func _on_back() -> void:
@@ -423,102 +392,115 @@ func _on_confirm() -> void:
 
 	GameState.delete_save()
 	GameState.reset()
-	var pc := _build_pc(_name_field.text, kindred_id, class_id, bg_id, portrait_id, _rolled_stats)
+	var pc := _build_pc(_name_field.text, kindred_id, class_id, bg_id, portrait_id)
 	GameState.party.append(pc)
 	get_tree().change_scene_to_file(MAP_SCENE_PATH)
 
-## Computes the live preview values for the current dial selections + the
-## currently-rolled stats, and pushes them into the preview panel labels.
-## Returns the same data as a Dictionary so a future CharacterCreationPreview
-## component can consume it without a live UI.
+## Computes the live preview values from current pillar selections and pushes
+## them into the preview panel labels. Returns the data as a Dictionary so a
+## future CharacterCreationPreview component can consume it without a live UI.
 func _calc_preview() -> Dictionary:
 	var kindred_id: String = _kindred_ids[_kindred_idx] if not _kindred_ids.is_empty() else ""
 	var class_id: String   = _class_ids[_class_idx]     if not _class_ids.is_empty()   else ""
 	var bg_id: String      = _bg_ids[_bg_idx]           if not _bg_ids.is_empty()      else ""
 
-	var hp_bonus: int    = KindredLibrary.get_hp_bonus(kindred_id)
-	var speed_bonus: int = KindredLibrary.get_speed_bonus(kindred_id)
-	var vit: int = int(_rolled_stats.get("vit", 1))
-	# hp_max = 10 + kindred_hp_bonus + VIT × 6 (see CombatantData).
-	var hp: int    = 10 + hp_bonus + vit * 6
-	var speed: int = 1 + speed_bonus
+	var kindred_data: KindredData   = KindredLibrary.get_kindred(kindred_id)
+	var class_data: ClassData       = ClassLibrary.get_class_data(class_id)
+	var bg_data: BackgroundData     = BackgroundLibrary.get_background(bg_id)
 
-	var class_ab_id: String = ClassLibrary.get_class_data(class_id).starting_ability_id
-	var bg_ab_id: String    = BackgroundLibrary.get_background(bg_id).starting_ability_id
-	var class_ab := AbilityLibrary.get_ability(class_ab_id)
-	var bg_ab    := AbilityLibrary.get_ability(bg_ab_id)
-	var feat_data: FeatData = FeatLibrary.get_feat(KindredLibrary.get_feat_id(kindred_id))
+	var str_val: int = 4 + class_data.stat_bonuses.get("strength",  0) \
+		+ kindred_data.stat_bonuses.get("strength",  0) + bg_data.stat_bonuses.get("strength",  0)
+	var dex_val: int = 4 + class_data.stat_bonuses.get("dexterity", 0) \
+		+ kindred_data.stat_bonuses.get("dexterity", 0) + bg_data.stat_bonuses.get("dexterity", 0)
+	var cog_val: int = 4 + class_data.stat_bonuses.get("cognition",  0) \
+		+ kindred_data.stat_bonuses.get("cognition",  0) + bg_data.stat_bonuses.get("cognition",  0)
+	var wil_val: int = 4 + class_data.stat_bonuses.get("willpower", 0) \
+		+ kindred_data.stat_bonuses.get("willpower", 0) + bg_data.stat_bonuses.get("willpower", 0)
+	var vit_val: int = 4 + class_data.stat_bonuses.get("vitality",  0) \
+		+ kindred_data.stat_bonuses.get("vitality",  0) + bg_data.stat_bonuses.get("vitality",  0)
+
+	var hp: int    = 10 + kindred_data.hp_bonus + vit_val * 4
+	var speed: int = 1  + kindred_data.speed_bonus + class_data.stat_bonuses.get("dexterity", 0) \
+		+ kindred_data.stat_bonuses.get("dexterity", 0) + bg_data.stat_bonuses.get("dexterity", 0)
+
+	var class_ab := AbilityLibrary.get_ability(class_data.starting_ability_id)
+	var kindred_ab := AbilityLibrary.get_ability(kindred_data.starting_ability_id)
+	var feat_data: FeatData = FeatLibrary.get_feat(bg_data.starting_feat_id)
 
 	var data := {
 		"hp": hp,
 		"speed": speed,
-		"stats": _rolled_stats.duplicate(),
-		"class_ability_name": class_ab.ability_name,
-		"class_ability_desc": class_ab.description,
-		"bg_ability_name":    bg_ab.ability_name,
-		"bg_ability_desc":    bg_ab.description,
-		"feat_name":          feat_data.name,
-		"feat_desc":          feat_data.description,
+		"str": str_val, "dex": dex_val, "cog": cog_val, "wil": wil_val, "vit": vit_val,
+		"class_ability_name":   class_ab.ability_name,
+		"class_ability_desc":   class_ab.description,
+		"kindred_ability_name": kindred_ab.ability_name,
+		"kindred_ability_desc": kindred_ab.description,
+		"feat_name":            feat_data.name,
+		"feat_desc":            feat_data.description,
 	}
 
 	if _preview_hp_lbl != null:
 		_preview_hp_lbl.text    = "HP: %d" % hp
 		_preview_speed_lbl.text = "Speed: %d" % speed
-		_preview_str_lbl.text   = "STR: %d" % int(_rolled_stats.get("str",   1))
-		_preview_dex_lbl.text   = "DEX: %d" % int(_rolled_stats.get("dex",   1))
-		_preview_cog_lbl.text   = "COG: %d" % int(_rolled_stats.get("cog",   1))
-		_preview_wil_lbl.text   = "WIL: %d" % int(_rolled_stats.get("wil",   1))
-		_preview_vit_lbl.text   = "VIT: %d" % vit
-		_preview_class_name.text = "Class Ability — %s" % class_ab.ability_name
-		_preview_class_desc.text = class_ab.description
-		_preview_bg_name.text    = "Background Ability — %s" % bg_ab.ability_name
-		_preview_bg_desc.text    = bg_ab.description
-		_preview_feat_lbl.text   = "Kindred Feat — %s" % feat_data.name
-		_preview_feat_desc.text  = feat_data.description
+		_preview_str_lbl.text   = "STR: %d" % str_val
+		_preview_dex_lbl.text   = "DEX: %d" % dex_val
+		_preview_cog_lbl.text   = "COG: %d" % cog_val
+		_preview_wil_lbl.text   = "WIL: %d" % wil_val
+		_preview_vit_lbl.text   = "VIT: %d" % vit_val
+		_preview_class_name.text   = "Class Ability — %s" % class_ab.ability_name
+		_preview_class_desc.text   = class_ab.description
+		_preview_kindred_name.text = "Kindred Ability — %s" % kindred_ab.ability_name
+		_preview_kindred_desc.text = kindred_ab.description
+		_preview_feat_lbl.text     = "Background Feat — %s" % feat_data.name
+		_preview_feat_desc.text    = feat_data.description
 
 	return data
 
 ## Builds a CombatantData for the PC from the given picks.
+## Stats are deterministic: base 4 + class/kindred/background pillar bonuses.
 ## Static so unit tests can call it without a live scene.
-## `rolled_stats` (optional) — dict with keys str/dex/cog/wil/vit/armor. When
-## empty, rolls fresh internally (tests rely on this path). When populated,
-## uses the provided values verbatim so the manager's pre-rolled + shown
-## stats become the persisted stats.
 static func _build_pc(char_name: String, kindred_id: String, class_id: String,
-		bg_id: String, _portrait_id: String,
-		rolled_stats: Dictionary = {}) -> CombatantData:
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
+		bg_id: String, _portrait_id: String) -> CombatantData:
 	var d := CombatantData.new()
-	d.archetype_id    = "RogueFinder"
-	d.is_player_unit  = true
-	d.character_name  = char_name if char_name != "" else "Unit"
-	d.kindred   = kindred_id
-	d.feat_ids  = [KindredLibrary.get_feat_id(kindred_id)]
-	d.unit_class      = ClassLibrary.get_class_data(class_id).display_name
-	d.background      = bg_id
-	var class_ab: String = ClassLibrary.get_class_data(class_id).starting_ability_id
-	var bg_ab: String    = BackgroundLibrary.get_background(bg_id).starting_ability_id
-	d.abilities = [class_ab, bg_ab, "", ""]
+	d.archetype_id   = "RogueFinder"
+	d.is_player_unit = true
+	d.character_name = char_name if char_name != "" else "Unit"
+	d.kindred        = kindred_id
+	d.unit_class     = class_id
+	d.background     = bg_id
+
+	var class_data: ClassData     = ClassLibrary.get_class_data(class_id)
+	var kindred_data: KindredData = KindredLibrary.get_kindred(kindred_id)
+	var bg_data: BackgroundData   = BackgroundLibrary.get_background(bg_id)
+
+	# Deterministic stats: base 4 + pillar bumps
+	d.strength  = 4 + class_data.stat_bonuses.get("strength",  0) \
+		+ kindred_data.stat_bonuses.get("strength",  0) + bg_data.stat_bonuses.get("strength",  0)
+	d.dexterity = 4 + class_data.stat_bonuses.get("dexterity", 0) \
+		+ kindred_data.stat_bonuses.get("dexterity", 0) + bg_data.stat_bonuses.get("dexterity", 0)
+	d.cognition = 4 + class_data.stat_bonuses.get("cognition",  0) \
+		+ kindred_data.stat_bonuses.get("cognition",  0) + bg_data.stat_bonuses.get("cognition",  0)
+	d.willpower = 4 + class_data.stat_bonuses.get("willpower", 0) \
+		+ kindred_data.stat_bonuses.get("willpower", 0) + bg_data.stat_bonuses.get("willpower", 0)
+	d.vitality  = 4 + class_data.stat_bonuses.get("vitality",  0) \
+		+ kindred_data.stat_bonuses.get("vitality",  0) + bg_data.stat_bonuses.get("vitality",  0)
+	d.armor_defense = 5
+
+	# Abilities: slot 0 = class defining, slot 1 = kindred natural attack
+	var class_ab: String   = class_data.starting_ability_id
+	var kindred_ab: String = kindred_data.starting_ability_id
+	d.abilities = [class_ab, kindred_ab, "", ""]
 	d.ability_pool = []
 	if class_ab != "":
 		d.ability_pool.append(class_ab)
-	if bg_ab != "" and not d.ability_pool.has(bg_ab):
-		d.ability_pool.append(bg_ab)
-	if rolled_stats.is_empty():
-		d.strength       = rng.randi_range(1, 4)
-		d.dexterity      = rng.randi_range(1, 4)
-		d.cognition      = rng.randi_range(1, 4)
-		d.willpower      = rng.randi_range(1, 4)
-		d.vitality       = rng.randi_range(1, 4)
-		d.armor_defense  = rng.randi_range(4, 8)
-	else:
-		d.strength       = int(rolled_stats.get("str",   1))
-		d.dexterity      = int(rolled_stats.get("dex",   1))
-		d.cognition      = int(rolled_stats.get("cog",   1))
-		d.willpower      = int(rolled_stats.get("wil",   1))
-		d.vitality       = int(rolled_stats.get("vit",   1))
-		d.armor_defense  = int(rolled_stats.get("armor", 4))
+	if kindred_ab != "" and not d.ability_pool.has(kindred_ab):
+		d.ability_pool.append(kindred_ab)
+
+	# Background grants its defining feat — stat bonuses are structural via get_background_stat_bonus()
+	d.feat_ids = []
+	if bg_data.starting_feat_id != "":
+		d.feat_ids.append(bg_data.starting_feat_id)
+
 	d.qte_resolution = 0.5
 	d.current_hp     = d.hp_max
 	d.current_energy = d.energy_max

@@ -213,9 +213,9 @@ func test_item_remove_removes_from_inventory() -> void:
 ## --- Persistence ---
 
 func test_feats_survive_save_load_round_trip() -> void:
-	# Save a party member with feats, reset, reload, verify feats survive
+	# Non-kindred feats must survive the round-trip; old kindred-source IDs are stripped.
 	var member := _make_member()
-	member.feat_ids = ["adaptive", "stubborn"]
+	member.feat_ids = ["street_smart", "stubborn"]  # both non-kindred → survive
 	GameState.party = [member]
 	GameState.map_seed = 1
 	GameState.save()
@@ -225,8 +225,8 @@ func test_feats_survive_save_load_round_trip() -> void:
 	assert(loaded, "load_save should return true")
 	assert(GameState.party.size() == 1, "party should have 1 member after load")
 	var loaded_member := GameState.party[0]
-	assert(loaded_member.feat_ids.has("adaptive"),
-		"'adaptive' feat should survive round-trip save/load")
+	assert(loaded_member.feat_ids.has("street_smart"),
+		"'street_smart' feat should survive round-trip save/load")
 	assert(loaded_member.feat_ids.has("stubborn"),
 		"'stubborn' feat should survive round-trip save/load")
 	assert(loaded_member.feat_ids.size() == 2,

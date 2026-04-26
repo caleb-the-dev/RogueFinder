@@ -166,18 +166,21 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 	d.abilities    = Array(raw_abilities, TYPE_STRING, "", null)
 	var raw_pool: Array = dict.get("ability_pool", [])
 	d.ability_pool = Array(raw_pool, TYPE_STRING, "", null)
-	# Migrate from old split format (kindred_feat_id + feats) to unified feat_ids
+	# Migrate from old split format (kindred_feat_id + feats) to unified feat_ids;
+	# then strip kindred-source feat ids — their stat bumps are now structural.
+	const _KINDRED_FEAT_IDS: Array[String] = ["adaptive", "relentless", "tinkerer", "stonehide"]
 	if dict.has("feat_ids"):
 		var raw_feat_ids: Array = dict.get("feat_ids", [])
-		d.feat_ids = Array(raw_feat_ids, TYPE_STRING, "", null)
+		var loaded: Array[String] = Array(raw_feat_ids, TYPE_STRING, "", null)
+		d.feat_ids = loaded.filter(func(id: String) -> bool: return id not in _KINDRED_FEAT_IDS)
 	else:
 		var migrated: Array[String] = []
 		var kid_feat: String = dict.get("kindred_feat_id", "")
-		if kid_feat != "":
+		if kid_feat != "" and kid_feat not in _KINDRED_FEAT_IDS:
 			migrated.append(kid_feat)
 		for f in dict.get("feats", []):
 			var fs: String = str(f)
-			if not migrated.has(fs):
+			if not migrated.has(fs) and fs not in _KINDRED_FEAT_IDS:
 				migrated.append(fs)
 		d.feat_ids = migrated
 	d.current_hp     = dict.get("current_hp", 0)

@@ -6,7 +6,7 @@ extends RefCounted
 ## BackgroundLibrary shape (lazy-load, single-parse, stub fallback).
 ##
 ## Data source: res://data/kindreds.csv
-## feat_name / feat_desc are removed — all callers use FeatLibrary.get_feat(feat_id).
+## Kindreds no longer grant feats — stat_bonuses are structural (always-on).
 
 const CSV_PATH := "res://data/kindreds.csv"
 
@@ -20,8 +20,9 @@ static func get_speed_bonus(kindred: String) -> int:
 static func get_hp_bonus(kindred: String) -> int:
 	return get_kindred(kindred).hp_bonus
 
-static func get_feat_id(kindred: String) -> String:
-	return get_kindred(kindred).feat_id
+## Returns the flat stat bonus for a given stat key. 0 for unknown kindred or stat.
+static func get_stat_bonus(kindred: String, stat: String) -> int:
+	return get_kindred(kindred).stat_bonuses.get(stat, 0)
 
 ## Returns the flavor name pool for the given kindred. Empty array if unknown.
 static func get_name_pool(kindred: String) -> Array[String]:
@@ -86,8 +87,12 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				k.speed_bonus = int(val)
 			"hp_bonus":
 				k.hp_bonus = int(val)
-			"feat_id":
-				k.feat_id = val
+			"stat_bonuses":
+				k.stat_bonuses = _parse_stat_bonuses(val)
+			"starting_ability_id":
+				k.starting_ability_id = val
+			"ability_pool":
+				k.ability_pool = _split_pipe(val)
 			"name_pool":
 				k.name_pool = _split_pipe(val)
 			"notes":
@@ -98,6 +103,17 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 		push_error("KindredLibrary: row %d missing id — skipping" % row_num)
 		return null
 	return k
+
+## Parses "stat:value|stat:value" into a Dictionary. Empty string returns {}.
+static func _parse_stat_bonuses(val: String) -> Dictionary:
+	var result: Dictionary = {}
+	if val == "":
+		return result
+	for pair in val.split("|", false):
+		var parts := pair.split(":", false)
+		if parts.size() == 2:
+			result[parts[0]] = int(parts[1])
+	return result
 
 static func _split_pipe(val: String) -> Array[String]:
 	if val == "":

@@ -2,15 +2,16 @@ extends Node
 
 ## --- Unit Tests: Save migration from old feat format to feat_ids ---
 ## Verifies that saves with the old kindred_feat_id + feats split
-## are deserialized correctly into the unified feat_ids array.
+## are deserialized correctly into the unified feat_ids array,
+## and that old kindred-source feat IDs are stripped on load.
 
 func _ready() -> void:
 	print("=== test_feat_migration.gd ===")
-	test_migrate_kindred_feat_id_only()
+	test_migrate_kindred_feat_id_stripped_on_load()
 	test_migrate_feats_only()
-	test_migrate_both_combined()
+	test_migrate_both_combined_strips_kindred()
 	test_migrate_no_duplicates()
-	test_new_format_feat_ids_takes_priority()
+	test_new_format_feat_ids_strips_kindred()
 	GameState.reset()
 	print("=== All feat migration tests passed ===")
 
@@ -46,79 +47,88 @@ func _base_entry() -> Dictionary:
 		"consumable": "", "weapon_id": "", "armor_id": "", "accessory_id": ""
 	}
 
-func test_migrate_kindred_feat_id_only() -> void:
+func test_migrate_kindred_feat_id_stripped_on_load() -> void:
+	# Old saves had kindred_feat_id = "adaptive" (now a removed kindred feat).
+	# Migration must strip it — stat bonuses are now structural via get_kindred_stat_bonus().
 	var entry := _base_entry()
 	entry["kindred_feat_id"] = "adaptive"
-	# No "feats" key — old format pre-Slice 4
 	_write_save(entry)
 	GameState.reset()
 	assert(GameState.load_save(), "load_save should succeed")
 	var m: CombatantData = GameState.party[0]
-	assert(m.feat_ids.has("adaptive"),
-		"kindred_feat_id 'adaptive' should migrate into feat_ids")
-	assert(m.feat_ids.size() == 1,
-		"expect 1 feat migrated, got %d" % m.feat_ids.size())
+	assert(not m.feat_ids.has("adaptive"),
+		"old kindred feat 'adaptive' must be stripped on load, got %s" % str(m.feat_ids))
+	assert(m.feat_ids.size() == 0,
+		"no feats expected after stripping kindred feat, got %d" % m.feat_ids.size())
 	GameState.reset()
-	print("  PASS test_migrate_kindred_feat_id_only")
+	print("  PASS test_migrate_kindred_feat_id_stripped_on_load")
 
 func test_migrate_feats_only() -> void:
+	# Non-kindred feats in the old "feats" list survive; kindred-source IDs are stripped.
 	var entry := _base_entry()
 	entry["kindred_feat_id"] = ""
-	entry["feats"] = ["relentless", "stubborn"]
+	entry["feats"] = ["street_smart", "stubborn"]  # neither is a kindred feat
 	_write_save(entry)
 	GameState.reset()
 	assert(GameState.load_save(), "load_save should succeed")
 	var m: CombatantData = GameState.party[0]
-	assert(m.feat_ids.has("relentless") and m.feat_ids.has("stubborn"),
-		"both feats should migrate into feat_ids")
+	assert(m.feat_ids.has("street_smart") and m.feat_ids.has("stubborn"),
+		"both non-kindred feats should migrate into feat_ids")
 	assert(m.feat_ids.size() == 2,
 		"expect 2 feats migrated, got %d" % m.feat_ids.size())
 	GameState.reset()
 	print("  PASS test_migrate_feats_only")
 
-func test_migrate_both_combined() -> void:
+func test_migrate_both_combined_strips_kindred() -> void:
+	# kindred_feat_id gets stripped; non-kindred feats in the old list survive.
 	var entry := _base_entry()
-	entry["kindred_feat_id"] = "adaptive"
-	entry["feats"] = ["relentless"]
+	entry["kindred_feat_id"] = "adaptive"   # kindred feat → stripped
+	entry["feats"] = ["street_smart"]        # background feat → survives
 	_write_save(entry)
 	GameState.reset()
 	assert(GameState.load_save(), "load_save should succeed")
 	var m: CombatantData = GameState.party[0]
-	assert(m.feat_ids.has("adaptive"), "kindred feat should migrate")
-	assert(m.feat_ids.has("relentless"), "event feat should migrate")
-	assert(m.feat_ids.size() == 2,
-		"expect 2 feats total, got %d" % m.feat_ids.size())
+	assert(not m.feat_ids.has("adaptive"),
+		"kindred feat 'adaptive' must be stripped")
+	assert(m.feat_ids.has("street_smart"),
+		"non-kindred feat 'street_smart' must survive")
+	assert(m.feat_ids.size() == 1,
+		"expect 1 feat (stripped kindred + kept bg), got %d" % m.feat_ids.size())
 	GameState.reset()
-	print("  PASS test_migrate_both_combined")
+	print("  PASS test_migrate_both_combined_strips_kindred")
 
 func test_migrate_no_duplicates() -> void:
 	var entry := _base_entry()
-	entry["kindred_feat_id"] = "adaptive"
-	entry["feats"] = ["adaptive"]  # same id — must not appear twice
+	entry["kindred_feat_id"] = "street_smart"
+	entry["feats"] = ["street_smart"]  # same id — must not appear twice
 	_write_save(entry)
 	GameState.reset()
 	assert(GameState.load_save(), "load_save should succeed")
 	var m: CombatantData = GameState.party[0]
 	assert(m.feat_ids.size() == 1,
-		"duplicate adaptive should be deduplicated, got %d" % m.feat_ids.size())
+		"duplicate street_smart should be deduplicated, got %d" % m.feat_ids.size())
+	assert(m.feat_ids.has("street_smart"),
+		"deduplicated feat 'street_smart' should still be present")
 	GameState.reset()
 	print("  PASS test_migrate_no_duplicates")
 
-func test_new_format_feat_ids_takes_priority() -> void:
+func test_new_format_feat_ids_strips_kindred() -> void:
+	# New feat_ids format takes priority; old kindred-source ids are still stripped.
 	var entry := _base_entry()
-	entry["feat_ids"] = ["stonehide", "relentless"]
-	# Even if old keys are present, feat_ids wins
-	entry["kindred_feat_id"] = "adaptive"
-	entry["feats"] = ["tinkerer"]
+	entry["feat_ids"] = ["street_smart", "relentless"]  # relentless is old kindred → stripped
+	entry["kindred_feat_id"] = "adaptive"  # ignored because feat_ids key is present
+	entry["feats"] = ["tinkerer"]           # ignored because feat_ids key is present
 	_write_save(entry)
 	GameState.reset()
 	assert(GameState.load_save(), "load_save should succeed")
 	var m: CombatantData = GameState.party[0]
-	assert(m.feat_ids.has("stonehide") and m.feat_ids.has("relentless"),
-		"feat_ids key should take priority over migration path")
+	assert(m.feat_ids.has("street_smart"),
+		"non-kindred feat 'street_smart' must survive from feat_ids")
+	assert(not m.feat_ids.has("relentless"),
+		"old kindred feat 'relentless' must be stripped from feat_ids")
 	assert(not m.feat_ids.has("adaptive"),
-		"old kindred_feat_id should be ignored when feat_ids is present")
-	assert(m.feat_ids.size() == 2,
-		"expect exactly 2 feats from feat_ids key, got %d" % m.feat_ids.size())
+		"old kindred_feat_id should be ignored when feat_ids key is present")
+	assert(m.feat_ids.size() == 1,
+		"expect exactly 1 feat after stripping, got %d" % m.feat_ids.size())
 	GameState.reset()
-	print("  PASS test_new_format_feat_ids_takes_priority")
+	print("  PASS test_new_format_feat_ids_strips_kindred")
