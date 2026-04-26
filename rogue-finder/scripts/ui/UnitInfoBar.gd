@@ -141,7 +141,7 @@ func show_for(unit: Unit3D) -> void:
 
 	_name_lbl.text = d.character_name if d.character_name != "" \
 		else d.archetype_id.replace("_", " ").capitalize()
-	_class_lbl.text = "%s  ·  %s" % [d.unit_class, ("Player" if d.is_player_unit else "Enemy")]
+	_class_lbl.text = "%s  ·  %s" % [ClassLibrary.get_class_data(d.unit_class).display_name, ("Player" if d.is_player_unit else "Enemy")]
 
 	_refresh_bars(unit)
 	visible = true

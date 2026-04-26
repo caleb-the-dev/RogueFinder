@@ -15,6 +15,9 @@ func _ready() -> void:
 	test_known_ability_ids_are_valid()
 	test_unlocked_by_default_all_true()
 	test_tags_parsed()
+	test_stat_bonuses_parsed()
+	test_ability_pool_parsed()
+	test_stat_bonuses_empty_stub()
 	print("=== All ClassLibrary tests passed ===")
 
 func test_load_succeeds() -> void:
@@ -28,12 +31,12 @@ func test_expected_row_count() -> void:
 	print("  PASS test_expected_row_count")
 
 func test_get_known_id() -> void:
-	var c: ClassData = ClassLibrary.get_class_data("rogue")
-	assert(c != null,                      "get_class_data('rogue') must not be null")
-	assert(c.class_id == "rogue",          "class_id should be 'rogue'")
-	assert(c.display_name == "Rogue",      "display_name should be 'Rogue'")
-	assert(c.starting_ability_id != "",    "starting_ability_id must not be empty")
-	assert(c.description != "",            "description must not be empty")
+	var c: ClassData = ClassLibrary.get_class_data("vanguard")
+	assert(c != null,                         "get_class_data('vanguard') must not be null")
+	assert(c.class_id == "vanguard",          "class_id should be 'vanguard'")
+	assert(c.display_name == "Vanguard",      "display_name should be 'Vanguard'")
+	assert(c.starting_ability_id != "",       "starting_ability_id must not be empty")
+	assert(c.description != "",               "description must not be empty")
 	print("  PASS test_get_known_id")
 
 func test_get_unknown_id_is_stub_not_null() -> void:
@@ -41,16 +44,17 @@ func test_get_unknown_id_is_stub_not_null() -> void:
 	assert(c != null,                          "get_class_data unknown id must never return null")
 	assert(c.display_name == "Unknown",        "stub display_name should be 'Unknown'")
 	assert(c.starting_ability_id == "",        "stub starting_ability_id should be empty")
+	assert(c.stat_bonuses.is_empty(),          "stub stat_bonuses should be empty dict")
 	print("  PASS test_get_unknown_id_is_stub_not_null")
 
 func test_all_classes_full_roster() -> void:
 	var ids: Array[String] = []
 	for c in ClassLibrary.all_classes():
 		ids.append(c.class_id)
-	assert("rogue"     in ids, "roster missing 'rogue'")
-	assert("barbarian" in ids, "roster missing 'barbarian'")
-	assert("wizard"    in ids, "roster missing 'wizard'")
-	assert("warrior"   in ids, "roster missing 'warrior'")
+	assert("vanguard"  in ids, "roster missing 'vanguard'")
+	assert("arcanist"  in ids, "roster missing 'arcanist'")
+	assert("prowler"   in ids, "roster missing 'prowler'")
+	assert("warden"    in ids, "roster missing 'warden'")
 	print("  PASS test_all_classes_full_roster")
 
 func test_reload_reparses() -> void:
@@ -72,7 +76,41 @@ func test_unlocked_by_default_all_true() -> void:
 	print("  PASS test_unlocked_by_default_all_true")
 
 func test_tags_parsed() -> void:
-	var rogue: ClassData = ClassLibrary.get_class_data("rogue")
-	assert(rogue.tags.size() > 0, "rogue should have at least one tag")
-	assert("agile" in rogue.tags, "rogue tags should include 'agile'")
+	var prowler: ClassData = ClassLibrary.get_class_data("prowler")
+	assert(prowler.tags.size() > 0, "prowler should have at least one tag")
+	assert("agile" in prowler.tags, "prowler tags should include 'agile'")
 	print("  PASS test_tags_parsed")
+
+func test_stat_bonuses_parsed() -> void:
+	var vanguard: ClassData = ClassLibrary.get_class_data("vanguard")
+	assert(vanguard.stat_bonuses.has("strength"),  "vanguard stat_bonuses must have 'strength'")
+	assert(vanguard.stat_bonuses.has("vitality"),  "vanguard stat_bonuses must have 'vitality'")
+	assert(vanguard.stat_bonuses["strength"] == 1, "vanguard strength bonus should be 1, got %d" % vanguard.stat_bonuses.get("strength", -1))
+	assert(vanguard.stat_bonuses["vitality"] == 2, "vanguard vitality bonus should be 2, got %d" % vanguard.stat_bonuses.get("vitality", -1))
+
+	var arcanist: ClassData = ClassLibrary.get_class_data("arcanist")
+	assert(arcanist.stat_bonuses.get("cognition", 0) == 2, "arcanist cognition bonus should be 2")
+	assert(arcanist.stat_bonuses.get("willpower", 0) == 1, "arcanist willpower bonus should be 1")
+
+	var prowler: ClassData = ClassLibrary.get_class_data("prowler")
+	assert(prowler.stat_bonuses.get("dexterity", 0) == 2, "prowler dexterity bonus should be 2")
+	assert(prowler.stat_bonuses.get("willpower", 0) == 1, "prowler willpower bonus should be 1")
+
+	var warden: ClassData = ClassLibrary.get_class_data("warden")
+	assert(warden.stat_bonuses.get("cognition", 0) == 1, "warden cognition bonus should be 1")
+	assert(warden.stat_bonuses.get("vitality", 0) == 1, "warden vitality bonus should be 1")
+	assert(warden.stat_bonuses.get("willpower", 0) == 1, "warden willpower bonus should be 1")
+	print("  PASS test_stat_bonuses_parsed")
+
+func test_ability_pool_parsed() -> void:
+	for c in ClassLibrary.all_classes():
+		assert(c.ability_pool.size() >= 3,
+			"%s: ability_pool should have at least 3 entries, got %d" % [c.class_id, c.ability_pool.size()])
+	var vanguard: ClassData = ClassLibrary.get_class_data("vanguard")
+	assert("shield_bash" in vanguard.ability_pool, "vanguard ability_pool should include shield_bash")
+	print("  PASS test_ability_pool_parsed")
+
+func test_stat_bonuses_empty_stub() -> void:
+	var stub: ClassData = ClassLibrary.get_class_data("completely_fake_id")
+	assert(stub.stat_bonuses.get("str", 0) == 0, "stub should return 0 for any stat bonus")
+	print("  PASS test_stat_bonuses_empty_stub")

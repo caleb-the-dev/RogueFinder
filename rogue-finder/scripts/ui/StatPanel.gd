@@ -90,7 +90,7 @@ func show_for(unit: Unit3D) -> void:
 	# Title: name (or archetype label if unnamed) + class
 	var display_name: String = d.character_name if d.character_name != "" \
 		else d.archetype_id.replace("_", " ").capitalize()
-	_title.text = "%s  [%s]" % [display_name, d.unit_class]
+	_title.text = "%s  [%s]" % [display_name, ClassLibrary.get_class_data(d.unit_class).display_name]
 
 	_rtl.text = _format(d, unit)
 	_scroll.scroll_vertical = 0  # reset scroll to top on each open

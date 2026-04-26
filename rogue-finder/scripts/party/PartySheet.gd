@@ -480,7 +480,7 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	tl_y += 24.0
 
 	var class_lbl := Label.new()
-	class_lbl.text = "Class: %s" % member.unit_class
+	class_lbl.text = "Class: %s" % ClassLibrary.get_class_data(member.unit_class).display_name
 	class_lbl.position = Vector2(tl_x, tl_y)
 	class_lbl.add_theme_font_size_override("font_size", 13)
 	class_lbl.add_theme_color_override("font_color",
