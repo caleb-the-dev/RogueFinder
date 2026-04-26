@@ -686,7 +686,7 @@ func _run_harm_defenders(caster: Unit3D, defenders: Array[Unit3D],
 			dmg_mult = 1.0
 		elif defender.data.is_player_unit:
 			state = CombatState.QTE_RUNNING
-			_qte_bar.start_qte(energy_cost)
+			_qte_bar.start_qte(energy_cost, caster)
 			var qte_result: float = await _qte_bar.qte_resolved
 			dmg_mult = _defender_roll_to_dmg_multiplier(qte_result)
 		else:

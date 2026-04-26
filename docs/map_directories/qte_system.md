@@ -1,6 +1,6 @@
 # System: QTE System
 
-> Last updated: 2026-04-26 (Session A — defender-driven reactive overhaul)
+> Last updated: 2026-04-26 (Session B — world-space bar, attacker tracking)
 
 ---
 
@@ -74,8 +74,9 @@ connection — `await _qte_bar.qte_resolved`).
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `start_qte` | `(energy_cost: int) -> void` | Sets difficulty, resets state, starts cursor animation |
+| `start_qte` | `(energy_cost: int, attacker: Node3D) -> void` | Sets difficulty, stores attacker ref for world-space tracking, resets state, starts cursor animation |
 
+`attacker` is the enemy Unit3D whose world position the bar tracks each frame.
 Difficulty is set from the attacking ability's `energy_cost` (harder abilities = faster
 cursor = harder to dodge).
 
@@ -134,14 +135,17 @@ Feedback is shown for **0.85 s** before the bar hides and `qte_resolved` fires.
 CombatManager3D calls _run_harm_defenders(caster, [defender], effect, energy_cost)
   → defender.data.is_player_unit == true:
       state = QTE_RUNNING
-      _qte_bar.start_qte(energy_cost)
+      _qte_bar.start_qte(energy_cost, caster)   ← caster is the attacker ref
+          → _attacker = caster stored
           → _set_difficulty()              sets _ss_half, _cursor_duration
+          → _reposition_to_attacker()     immediate world→screen placement
           → _animate_cursor()             slides cursor 0→1 over _cursor_duration
+          → _process() each frame:        repositions bar over attacker; attacker-death guard
               → player input  → _register_hit() → _get_beat_result()
               → cursor expires → _on_cursor_expired() → result = 0.25
           → _process_result(result)
               → _show_feedback(result)    PERFECT DODGE / GOOD DODGE / WEAK DODGE / HIT
-              → await 0.85 s → hide bar → qte_resolved.emit(result)
+              → await 0.85 s → hide bar → _attacker = null → qte_resolved.emit(result)
       roll = await _qte_bar.qte_resolved
       dmg_mult = _defender_roll_to_dmg_multiplier(roll)
       dmg = max(1, round(dmg_mult * (effect.base_value + caster.data.attack)))
@@ -185,4 +189,5 @@ For AoE HARM abilities hitting multiple defenders:
 - CombatManager uses `await _qte_bar.qte_resolved` (inline await) — no signal handler connection.
 - `qte_resolved` fires **after** all feedback animations — intentional so the player sees their result before effects resolve.
 - **Friendly fire** (caster hits own-team unit in AoE): no QTE, dmg_mult fixed at 1.0. Detection: `caster.is_player_unit == defender.is_player_unit`. The 1.0 constant is a hookpoint for feats/items.
-- Session B will move the bar to world-space above the attacker's Unit3D; the CanvasLayer structure is temporary.
+- **World-space anchor (Session B):** The bar is a CanvasLayer but floats above the attacker via `Camera3D.unproject_position(attacker.global_position + Vector3(0, 2.0, 0))` each frame. The screen-space dark overlay has been removed — the world remains visible during QTE. `_attacker` is set to `null` after `qte_resolved` fires so `_process` stops repositioning.
+- **Attacker-death guard:** If `_attacker` becomes invalid or `is_alive == false` mid-QTE, the tween is killed, the bar hides immediately, and `qte_resolved.emit(0.25)` fires (miss tier — the hit lands).

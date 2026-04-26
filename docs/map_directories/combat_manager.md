@@ -132,7 +132,7 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_initiate_aoe_action(attacker, origin_world)` | AoE equivalent of `_initiate_action`; collects all hit units, applies non-HARM to all, then queues HARM through `_run_harm_defenders` |
 | `_apply_non_harm_effects(ability, caster, target, blast_origin)` | Applies MEND/BUFF/DEBUFF/FORCE at full strength (multiplier 1.0). HARM and TRAVEL skipped. |
 | `_get_harm_effect(ability)` | Returns the first HARM EffectData in an ability, or null. |
-| `_run_harm_defenders(caster, defenders, effect, energy_cost)` | Sequential HARM loop: player-controlled defenders see QTE bar (await); AI-controlled defenders instant-sim via `qte_resolution`. Applies damage per-defender. |
+| `_run_harm_defenders(caster, defenders, effect, energy_cost)` | Sequential HARM loop: player-controlled defenders see QTE bar (await `start_qte(energy_cost, caster)`); AI-controlled defenders instant-sim via `qte_resolution`. Applies damage per-defender. |
 | `_defender_roll_to_dmg_multiplier(roll)` | Maps defender QTE roll (1.25/1.0/0.75/0.25) to damage multiplier (0.5/0.75/1.0/1.25). |
 | `_apply_stat_delta(unit, stat, delta)` | Modifies `unit.data.<stat>`, clamps [0,5], calls `unit.add_stat_effect()` to record named status |
 | `_apply_force(caster, target, effect, blast_origin)` | Slides target along computed direction for `base_value` tiles; stops at wall/unit. Tracks full path; applies 2 HP hazard damage for **every** hazard cell traversed (including landing cell). Direction from `effect.force_type` (PUSH/PULL/LEFT/RIGHT/RADIAL). |
