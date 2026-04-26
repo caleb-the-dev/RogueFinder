@@ -19,7 +19,7 @@ Does **NOT** own: grid math (see `grid_system.md`), unit visuals/HP state (see `
 | `scripts/combat/CombatManager3D.gd` | `scenes/combat/CombatScene3D.tscn` | **Active** — 3D state machine |
 | `scripts/combat/CombatManager.gd` | `scenes/combat/CombatScene.tscn` | Legacy 2D — reference only |
 
-`CombatScene3D.tscn` is the active entry point. `main.tscn` loads it.
+`CombatScene3D.tscn` is the active combat scene. Reached via `MainMenuScene` → `MapScene` → node click → `change_scene_to_file()`. `main.tscn` loads `MainMenuScene.tscn`.
 
 ---
 

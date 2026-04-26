@@ -247,7 +247,7 @@ Result: 2–3 forced bottleneck passages between each ring pair, no straight cut
 
 ## Entry Point
 
-`MapScene.tscn` **is** the game entry point. `main.tscn` instances `MapScene.tscn` directly. From the map, players enter encounters by moving to nodes: COMBAT, BOSS, and EVENT auto-start after the marker lands; VENDOR and CITY show a yes/no prompt. After combat or a stub scene, `EndCombatScreen` and `NodeStub` both route back to `MapScene.tscn`.
+`MapScene.tscn` is reached after character creation (new run) or main menu "Continue". `main.tscn` loads `MainMenuScene.tscn`, which routes here. From the map, players enter encounters by moving to nodes: COMBAT, BOSS, and EVENT auto-start after the marker lands; VENDOR and CITY show a yes/no prompt. After combat or a stub scene, `EndCombatScreen` and `NodeStub` both route back to `MapScene.tscn`.
 
 ---
 
@@ -326,7 +326,5 @@ Accessed via the `"Events [DEV]"` button in the map UI chrome. Not part of norma
 | 2026-04-25 | Events Slice 4 | `_event_manager: EventManager` field added. `_ready()` instantiates `EventScene.tscn` after `PartySheet`; connects `event_finished` → `_on_event_finished()` and `event_nav` → `_on_event_nav()`. `_enter_current_node()`: EVENT branch now calls `EventSelector.pick_for_node(_get_ring(...))` + `_event_manager.show_event()` instead of NodeStub. `_get_ring()` private helper added. `_input()` gains `_event_manager.visible` early-return guard. `_on_node_clicked()` guards same condition. Cleared stamp: CURRENT+CLEARED case now also renders ✗; stamp font size 18, bright red, dark outline, centered via PRESET_FULL_RECT. EVENT nodes appended to `cleared_nodes` by both `_on_event_finished` and `_on_event_nav`. |
 | 2026-04-24 | Events Slice 3 | `_move_player_to()`: `GameState.save()` added at end of method after dispatch block, covering VENDOR/CITY "Keep Moving" path. |
 | 2026-04-20 | S24+S25 | RECRUIT removed. Inner ring → 4 COMBAT + 2 EVENT. Outer → 1 BOSS + 7 COMBAT + 3 EVENT + 1 VENDOR. BOSS assignment extracted to `_assign_boss_type()`; bridge endpoints captured into `_outer_bridge_ids`. |
-| 2026-04-20 | S20 | PartySheet instantiated in `_ready()` before `_build_scene()`. Party button added to UI chrome. |
-| 2026-04-18 | S12–S15 | Feature 4/6/7 landed: `cleared_nodes` + CLEARED visual state + pass-through; CITY → BadurgaScene; travel + entry threat increments with `_add_threat_meter()` bar; `current_combat_node_id` transient field. `_connect_gateways_v2()` replaces `_connect_gateways()` (seeded topology); BOSS glow pulse; EVENT auto-starts, VENDOR/CITY show prompt. |
 
 For older history, see `git log -- scripts/map/MapManager.gd`.

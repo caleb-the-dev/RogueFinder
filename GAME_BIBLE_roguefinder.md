@@ -299,7 +299,7 @@ The Stat Delta acts as the Dynamic Baseline. It scales based on the ratio of the
 
 ### Event Interactions
 - Party composition can matter — who you have with you may open or close choices
-- Background provides a starting ability but does not gate or branch event outcomes
+- Background provides a starting ability; certain backgrounds may occasionally gate choices or branch event outcomes (see Character Structure above)
 
 ---
 
@@ -415,9 +415,8 @@ The Stat Delta acts as the Dynamic Baseline. It scales based on the ratio of the
 ## Open / TBD
 - Exact format of non-combat event presentation
 - Specifics of meta-progression unlocks between runs
-- Exact grid size for combat maps
 - Specific action designs, Energy costs, and balance numbers
-- QTE visual design and prompt variety (how many distinct prompt types exist beyond the sliding tick)
+- QTE system overhaul planned — four mechanical styles are designed (Slide for Harm/Mend, Force for Displacement, Directional for Buff/Debuff, Hold for Travel; see Combat section above) but full visual design, interaction feel, and prompt polish are subject to redesign
 - Energy stat names and exact regeneration formula
 - Faction names, aesthetics, and goal details
 - Consumable and Accessory schemas (weapon and armor schemas settled)

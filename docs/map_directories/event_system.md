@@ -33,6 +33,8 @@
 | `rogue-finder/tests/test_event_library.tscn` | Test runner scene |
 | `rogue-finder/tests/test_event_manager.gd` | 19 headless tests (condition evaluator, effect dispatch, persistence, target resolution) |
 | `rogue-finder/tests/test_event_manager.tscn` | Test runner scene |
+| `rogue-finder/tests/test_event_manager_slice5.gd` | 7 headless tests (player_pick picker flow, forced_target dispatch, new-item glow stamps) |
+| `rogue-finder/tests/test_event_manager_slice5.tscn` | Test runner scene |
 
 ---
 
@@ -254,14 +256,14 @@ All methods are `static`. No instantiation required.
 
 ---
 
-## Key Patterns / Gotchas
+## Implementation Gotchas
 
 - **Event nodes become cleared after completion** — `MapManager._on_event_finished()` and `_on_event_nav()` both append `player_node_id` to `GameState.cleared_nodes`. The guard at the top of `_enter_current_node()` then prevents re-entry. Event nodes show the ✗ stamp immediately on completion.
 - **Nav effects short-circuit the result panel** — `open_vendor` / `open_bench` are detected before the dispatch loop in `_on_choice_pressed`. They call `hide_event()` then `event_nav.emit()` and return. No `result_text` is shown and `GameState.save()` is NOT called here — `_on_event_nav()` in MapManager owns the save.
 - **`dispatch_effect` is static** — call it from tests without a scene instance.
 - **`item_gain` lookup order** — EquipmentLibrary first (check `equipment_name != "Unknown"`), then ConsumableLibrary (check `consumable_id == item_id`). ConsumableLibrary stub sets `consumable_id = "unknown"` (not the queried id) — this distinguishes stub from real entry.
 - **`player_pick` two-path resolution** — In the normal game flow, `_on_choice_pressed` pre-scans effects and shows the picker before dispatch, passing the chosen member as `forced_target` to `dispatch_effect`. The static `resolve_target("player_pick", party)` is therefore never called during live gameplay. It still degrades gracefully (returns `party[0]` + warning) for headless tests that call `dispatch_effect` without a `forced_target`.
-- **Threat meter does not redraw dynamically** — `_add_threat_meter()` builds a static bar from `GameState.threat_level` at scene load. `threat_delta` effects correctly mutate `GameState.threat_level` in memory; the visual updates on next MapScene load.
+- **Threat meter redraws live** — `_refresh_threat_meter()` updates `_threat_fill.size`/`.position`/`.color` and `_threat_pct_lbl.text` from `GameState.threat_level`. Called by `MapManager` on traversal, node entry, and after `event_finished`. `threat_delta` effects are reflected in the map HUD immediately on event completion.
 - **`GameState.save()` timing** — EventManager's Continue button calls `save()` before emitting `event_finished`. Nav effects do NOT call save here — `MapManager._on_event_nav()` calls `save()` before scene change.
 
 ---
