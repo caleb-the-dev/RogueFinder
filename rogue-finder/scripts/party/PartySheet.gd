@@ -538,27 +538,6 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		parent.add_child(bar_fill)
 
-	# Level indicator row — below HP bar
-	var lv_y: float = tl_y + 15.0
-	var lv_lbl := Label.new()
-	lv_lbl.text = "Lv. %d / 20" % member.level
-	lv_lbl.position = Vector2(tl_x, lv_y)
-	lv_lbl.add_theme_font_size_override("font_size", 10)
-	lv_lbl.add_theme_color_override("font_color",
-		Color(0.55, 0.55, 0.55).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
-	parent.add_child(lv_lbl)
-
-	if member.pending_level_ups > 0 and not is_dead:
-		var lvlup_btn := Button.new()
-		lvlup_btn.text = "Level Up! (%d)" % member.pending_level_ups
-		lvlup_btn.position = Vector2(tl_x + 58.0, lv_y - 2.0)
-		lvlup_btn.custom_minimum_size = Vector2(130.0, 17.0)
-		lvlup_btn.add_theme_font_size_override("font_size", 10)
-		lvlup_btn.modulate = Color(1.0, 0.9, 0.3)
-		var pc_cap: CombatantData = member
-		lvlup_btn.pressed.connect(func(): _start_level_up(pc_cap))
-		parent.add_child(lvlup_btn)
-
 	# === TOP RIGHT: Derived Stats (BLUE) + Base Attributes (YELLOW) ===
 	var tr_x: float = x + half_w + 8.0
 	var tr_w: float = half_w - 16.0   ## = 239
@@ -625,6 +604,27 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		val.tooltip_text = ad[2]
 		val.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(val)
+
+	# Level row — bottom of TR quadrant, below base attributes
+	var lv_tr_y: float = tr_y + 36.0
+	var lv_tr_lbl := Label.new()
+	lv_tr_lbl.text = "Lv. %d / 20" % member.level
+	lv_tr_lbl.position = Vector2(tr_x, lv_tr_y)
+	lv_tr_lbl.add_theme_font_size_override("font_size", 10)
+	lv_tr_lbl.add_theme_color_override("font_color",
+		Color(0.55, 0.62, 0.75).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
+	parent.add_child(lv_tr_lbl)
+
+	if member.pending_level_ups > 0 and not is_dead:
+		var lvlup_btn := Button.new()
+		lvlup_btn.text = "Level Up! (%d)" % member.pending_level_ups
+		lvlup_btn.position = Vector2(tr_x + 72.0, lv_tr_y - 2.0)
+		lvlup_btn.custom_minimum_size = Vector2(140.0, 17.0)
+		lvlup_btn.add_theme_font_size_override("font_size", 10)
+		lvlup_btn.modulate = Color(1.0, 0.9, 0.3)
+		var pc_cap: CombatantData = member
+		lvlup_btn.pressed.connect(func(): _start_level_up(pc_cap))
+		parent.add_child(lvlup_btn)
 
 	# === BOTTOM LEFT: Equipment 2×2 ===
 	var bl_x: float = x + 8.0

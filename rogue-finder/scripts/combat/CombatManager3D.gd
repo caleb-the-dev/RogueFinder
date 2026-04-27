@@ -1382,6 +1382,8 @@ func _build_debug_menu() -> void:
 		{"label": "Kill All Enemies  (K)",  "cb": _dbg_kill_enemies},
 		{"label": "Kill Entire Party",      "cb": _dbg_kill_party},
 		{"label": "Damage PC  -20 HP",      "cb": _dbg_damage_pc},
+		{"label": "Grant XP  +20",          "cb": _dbg_grant_xp},
+		{"label": "Force Level-Up",         "cb": _dbg_force_levelup},
 	]
 	for i in range(actions.size()):
 		var btn := Button.new()
@@ -1422,6 +1424,17 @@ func _dbg_damage_pc() -> void:
 		if u.is_alive and u.data.archetype_id == "RogueFinder":
 			u.take_damage(20)
 			break
+	_debug_menu.visible = false
+
+func _dbg_grant_xp() -> void:
+	GameState.grant_xp(20)
+	_debug_menu.visible = false
+
+func _dbg_force_levelup() -> void:
+	for pc: CombatantData in GameState.party:
+		if not pc.is_dead:
+			pc.pending_level_ups += 1
+	GameState.save()
 	_debug_menu.visible = false
 
 ## Populates GameState.run_summary with stats captured at the moment of run loss.

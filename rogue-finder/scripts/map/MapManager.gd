@@ -469,9 +469,9 @@ func _add_ui_chrome() -> void:
 	add_child(_party_btn)
 
 	var dev_events_btn := Button.new()
-	dev_events_btn.text = "Events [DEV]"
-	dev_events_btn.size = Vector2(110.0, 36.0)
-	dev_events_btn.position = Vector2(VIEWPORT_SIZE.x - 430.0, 8.0)
+	dev_events_btn.text = "Dev Menu"
+	dev_events_btn.size = Vector2(90.0, 36.0)
+	dev_events_btn.position = Vector2(VIEWPORT_SIZE.x - 410.0, 8.0)
 	dev_events_btn.pressed.connect(_toggle_dev_event_panel)
 	add_child(dev_events_btn)
 
@@ -1109,7 +1109,7 @@ func _build_dev_event_panel() -> void:
 	vbox.add_child(header_row)
 
 	var title_lbl := Label.new()
-	title_lbl.text = "[DEV] Event Test Menu"
+	title_lbl.text = "[DEV] Dev Menu"
 	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_lbl.add_theme_font_size_override("font_size", 16)
 	title_lbl.add_theme_color_override("font_color", Color(0.80, 0.75, 0.60))
@@ -1121,14 +1121,58 @@ func _build_dev_event_panel() -> void:
 	close_btn.pressed.connect(func(): _dev_event_panel.visible = false)
 	header_row.add_child(close_btn)
 
+	# --- XP / Level-Up section ---
+	var xp_hdr := Label.new()
+	xp_hdr.text = "XP / LEVEL"
+	xp_hdr.add_theme_font_size_override("font_size", 11)
+	xp_hdr.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
+	vbox.add_child(xp_hdr)
+
+	var xp_row := HBoxContainer.new()
+	xp_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(xp_row)
+
+	var grant_xp_btn := Button.new()
+	grant_xp_btn.text = "Grant XP +20 (all)"
+	grant_xp_btn.custom_minimum_size = Vector2(160.0, 32.0)
+	grant_xp_btn.add_theme_font_size_override("font_size", 13)
+	grant_xp_btn.pressed.connect(func() -> void:
+		GameState.grant_xp(20)
+		_refresh_party_btn()
+	)
+	xp_row.add_child(grant_xp_btn)
+
+	var force_lvl_btn := Button.new()
+	force_lvl_btn.text = "Force Level-Up (all)"
+	force_lvl_btn.custom_minimum_size = Vector2(160.0, 32.0)
+	force_lvl_btn.add_theme_font_size_override("font_size", 13)
+	force_lvl_btn.pressed.connect(func() -> void:
+		for pc: CombatantData in GameState.party:
+			if not pc.is_dead:
+				pc.pending_level_ups += 1
+		GameState.save()
+		_refresh_party_btn()
+	)
+	xp_row.add_child(force_lvl_btn)
+
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+
+	# --- Events section ---
+	var evt_hdr := Label.new()
+	evt_hdr.text = "EVENTS"
+	evt_hdr.add_theme_font_size_override("font_size", 11)
+	evt_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	vbox.add_child(evt_hdr)
+
 	var hint := Label.new()
 	hint.text = "Fired events do not clear the current node or consume the event pool."
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
 	vbox.add_child(hint)
 
-	var sep := HSeparator.new()
-	vbox.add_child(sep)
+	var sep2 := HSeparator.new()
+	vbox.add_child(sep2)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
