@@ -7,6 +7,7 @@ extends Node
 const SAVE_PATH := "user://save.json"
 
 const XP_THRESHOLDS: Array[int] = [20, 35, 55, 80]
+const BENCH_CAP: int = 9
 
 ## --- Map Progress ---
 
@@ -25,6 +26,42 @@ var used_event_ids: Array[String] = [] # event ids drawn this run; used by Event
 
 var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
 var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
+
+## --- Bench ---
+## Up to BENCH_CAP followers in reserve. Accessed at city; swapped via swap_active_bench().
+
+var bench: Array[CombatantData] = []
+
+## Returns true if added, false if bench is full. Never silently discards a follower.
+func add_to_bench(follower: CombatantData) -> bool:
+	if bench.size() >= BENCH_CAP:
+		return false
+	bench.append(follower)
+	return true
+
+## Releases the follower at index. Auto-deequips all gear back to inventory, then saves.
+func release_from_bench(index: int) -> void:
+	if index < 0 or index >= bench.size():
+		push_error("GameState.release_from_bench: invalid index %d" % index)
+		return
+	var follower: CombatantData = bench[index]
+	if follower.weapon:
+		inventory.append({"id": follower.weapon.equipment_id, "seen": false})
+		follower.weapon = null
+	if follower.armor:
+		inventory.append({"id": follower.armor.equipment_id, "seen": false})
+		follower.armor = null
+	if follower.accessory:
+		inventory.append({"id": follower.accessory.equipment_id, "seen": false})
+		follower.accessory = null
+	bench.remove_at(index)
+	save()
+
+## Swaps the combatant at party[party_index] with bench[bench_index]. Caller decides when to save.
+func swap_active_bench(party_index: int, bench_index: int) -> void:
+	var temp: CombatantData = party[party_index]
+	party[party_index] = bench[bench_index]
+	bench[bench_index] = temp
 
 ## Transient — never saved. Set true before entering the test combat room from the dev menu.
 ## CombatManager3D reads it to spawn hardcoded test units instead of GameState.party.
@@ -87,6 +124,9 @@ func save() -> void:
 	var party_data: Array = []
 	for member in party:
 		party_data.append(_serialize_combatant(member))
+	var bench_data: Array = []
+	for follower in bench:
+		bench_data.append(_serialize_combatant(follower))
 	var data := {
 		"player_node_id": player_node_id,
 		"visited_nodes": visited_nodes,
@@ -96,6 +136,7 @@ func save() -> void:
 		"threat_level": threat_level,
 		"used_event_ids": used_event_ids,
 		"party": party_data,
+		"bench": bench_data,
 		"inventory": inventory,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -157,6 +198,11 @@ func load_save() -> bool:
 	for dict in raw_party:
 		if dict is Dictionary:
 			party.append(_deserialize_combatant(dict))
+	bench.clear()
+	var raw_bench: Array = parsed.get("bench", [])
+	for dict in raw_bench:
+		if dict is Dictionary:
+			bench.append(_deserialize_combatant(dict))
 	inventory.clear()
 	var raw_inv: Array = parsed.get("inventory", [])
 	for entry in raw_inv:
@@ -296,5 +342,6 @@ func reset() -> void:
 	threat_level = 0.0
 	used_event_ids = []
 	party = []
+	bench = []
 	run_summary = {}
 	inventory = []

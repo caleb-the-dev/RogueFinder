@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-04-26 (Slices 1–7 — grant_feat(), feat_ids serialization + migration)
+> Last updated: 2026-04-27 (Follower System Slice 1 — bench field, add_to_bench / release_from_bench / swap_active_bench)
 
 ---
 
@@ -28,6 +28,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 |----------|-------|-------------|
 | `SAVE_PATH` | `"user://save.json"` | Godot user data directory — platform-resolved at runtime |
 | `XP_THRESHOLDS` | `[20, 35, 55, 80]` | XP needed to advance from level N to N+1 for the first 4 levels. Beyond index 3, the formula `level × 20` is used. |
+| `BENCH_CAP` | `9` | Maximum number of followers on the bench at any time. |
 
 ---
 
@@ -51,6 +52,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `test_room_kind` | `String` | `"armor_showcase"` | Picks which scenario `CombatManager3D._setup_test_room_units()` spawns. Valid values: `"armor_showcase"` (original dual-armor demo) and `"armor_mod"` (stone_guard + divine_ward demo). Set by the matching dev menu button alongside `test_room_mode`. Reset to `"armor_showcase"` by `_end_combat()`. **NOT saved to disk.** |
 | `run_summary` | `Dictionary` | `{}` | Snapshot of run stats written by `CombatManager3D._capture_run_summary()` immediately before a run-end transition. Keys: `pc_name`, `nodes_visited`, `nodes_cleared`, `threat_level`, `fallen_allies`. Read by `RunSummaryManager`. Cleared by `reset()`. **NOT saved to disk** — survives the scene transition only because GameState is an autoload. |
 | `inventory` | `Array` | `[]` | Shared party bag. Holds raw reward dicts `{id, name, description, item_type, seen}` for both equipment and consumables. `item_type` is used by the bag UI (Stage 2) to filter into tabs. `seen: bool` drives the new-item glow in PartySheet — `add_to_inventory()` always stamps `false`; PartySheet sets it `true` on hover. Old saves without the `seen` key default to `true` via `.get("seen", true)` (no spurious glow on upgrade). Nothing is auto-assigned on pickup. Cleared by `reset()`. **Saved to disk.** |
+| `bench` | `Array[CombatantData]` | `[]` | Follower reserve. Up to `BENCH_CAP` (9) followers. Populated by combat capture, events, and city hire (future). Cleared by `reset()`. **Saved to disk.** |
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -62,6 +64,9 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `add_to_inventory` | `(item: Dictionary) -> void` | Stamps `item["seen"] = false` on the dict, then appends to the party bag. Always marks new — even unequipped items returning to the bag will glow until hovered. No routing — both equipment and consumables land here. |
 | `remove_from_inventory` | `(item_id: String) -> bool` | Removes the first bag entry whose `id` matches `item_id`. Returns `true` if found and removed, `false` if not present. |
 | `grant_feat` | `(pc_index: int, feat_id: String) -> void` | Appends `feat_id` to `party[pc_index].feat_ids` if not already present (deduplicates). Calls `save()` immediately. `push_error` + no-op on invalid index. The canonical way to add feats during a run — `EventManager.dispatch_effect` routes `feat_grant` effects here. |
+| `add_to_bench` | `(follower: CombatantData) -> bool` | Appends `follower` to `bench` and returns `true`. Returns `false` without adding if `bench.size() >= BENCH_CAP`. Never silently discards — caller must handle the full-bench replace flow. |
+| `release_from_bench` | `(index: int) -> void` | Removes the follower at `bench[index]`. Auto-deequips all three gear slots: each non-null slot's `equipment_id` is appended to `inventory` as `{id, seen: false}`, then the slot is cleared on the follower. Calls `save()` after removal. `push_error` + no-op on invalid index. |
+| `swap_active_bench` | `(party_index: int, bench_index: int) -> void` | Swaps `party[party_index]` with `bench[bench_index]` in-place. Does **not** call `save()` — caller decides when to persist (city visits save; event-driven swaps may also save). |
 | `xp_needed_for_next_level` | `(current_level: int) -> int` | Returns the XP threshold to advance from `current_level` to `current_level + 1`. Uses `XP_THRESHOLDS` for levels 1–4; `current_level × 20` for level 5+. |
 | `grant_xp` | `(amount: int) -> void` | Awards `amount` XP to every non-dead party member. For each member, while XP ≥ threshold and level < 20: subtracts threshold XP, increments `level`, increments `pending_level_ups`. Calls `save()` once after all members are processed. Called by `CombatManager3D._end_combat(true)` with `amount = 15` on every combat victory. |
 | `sample_ability_candidates` | `static (pc: CombatantData, count: int) -> Array[String]` | Returns up to `count` ability IDs the character can learn. Draws from `class.ability_pool + kindred.ability_pool`, deduplicates, excludes IDs already in `pc.ability_pool` (owned), shuffles, then slices to `count`. Returns fewer than `count` if the combined pool is exhausted. |
@@ -90,9 +95,10 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `threat_level` | `GameState.threat_level` | float — read back via `float(parsed.get("threat_level", 0.0))` (no typed-array conversion needed) |
 | `used_event_ids` | `GameState.used_event_ids` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load; defaults to `[]` if key absent (old saves) |
 | `party` | `GameState.party` | JSON Array of dicts — each dict holds all scalar fields + `abilities`/`ability_pool` as string arrays + `feat_ids` as string array + `level`/`xp`/`pending_level_ups` as ints + `physical_armor`/`magic_armor` as ints + `weapon_id`/`armor_id`/`accessory_id` as strings + `temperament_id` as string. Deserialized back to `Array[CombatantData]` by `_deserialize_combatant()`. **Migrations:** old saves with `armor_defense` key → both armor lanes. Missing `level`/`xp`/`pending_level_ups` default to `1`/`0`/`0`. Missing `temperament_id` defaults to `"even"` (neutral). |
+| `bench` | `GameState.bench` | JSON Array of dicts — same serialization shape as `party` (each entry produced by `_serialize_combatant()`). Deserialized via `_deserialize_combatant()`. Old saves without the `bench` key default to `[]`. |
 | `inventory` | `GameState.inventory` | JSON Array of reward dicts `{id, name, description, item_type, seen}`. Stored and loaded as-is — no resolution step needed. `seen` persists naturally in JSON; old saves without the key read as `true` via `.get("seen", true)`. |
 
-**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, party roster (all CombatantData fields including persistent run state), inventory (equipment item ids).
+**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, party roster (all CombatantData fields including persistent run state), bench (follower reserve — same serialization as party), inventory (equipment item ids).
 
 Note: `pending_node_type` and `current_combat_node_id` are **not** saved — they are transient handoffs consumed within a single scene transition.
 
@@ -148,6 +154,7 @@ None currently.
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Follower bench data model (Slice 1).** `BENCH_CAP: int = 9` constant. `bench: Array[CombatantData]` field. `add_to_bench(follower) -> bool` (returns false if full). `release_from_bench(index)` (auto-deequips gear → inventory, calls `save()`). `swap_active_bench(party_index, bench_index)` (in-place swap, no save). `save()` / `load_save()` / `reset()` extended. Old saves without `bench` key default to `[]`. |
 | 2026-04-27 | **Temperament serialization.** `_serialize_combatant()` now writes `temperament_id: String`. `_deserialize_combatant()` reads it with `dict.get("temperament_id", "even")` — old saves default to neutral `"even"`. |
 | 2026-04-27 | **Dual armor serialization + test_room_mode.** `_serialize_combatant()` now writes `physical_armor` + `magic_armor` instead of `armor_defense`. `_deserialize_combatant()` reads new keys; if absent (old save), migrates: both lanes = old `armor_defense` value. `test_room_mode: bool = false` transient field added — NOT serialized; set by dev menu, cleared by `CombatManager3D._end_combat()`. |
 | 2026-04-27 | **XP + Level-Up system.** `XP_THRESHOLDS: Array[int] = [20, 35, 55, 80]` constant added. New methods: `xp_needed_for_next_level(level)`, `grant_xp(amount)`, `sample_ability_candidates(pc, count)` (static), `sample_feat_candidates(pc, count)` (static). `_serialize_combatant()` + `_deserialize_combatant()` extended with `level`, `xp`, `pending_level_ups` fields. Old saves default: `level=1, xp=0, pending_level_ups=0`. `grant_xp()` also called by `CombatManager3D._end_combat(true)` with `amount=15` on every win. `GameState` now depends on `ClassLibrary`, `KindredLibrary`, and `BackgroundLibrary` for the static candidate samplers. |
