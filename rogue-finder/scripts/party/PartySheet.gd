@@ -2,6 +2,8 @@ class_name PartySheet
 extends CanvasLayer
 
 ## --- PartySheet ---
+
+signal level_up_resolved
 ## Full-screen overlay: LEFT = inventory bag (drag source),
 ## MIDDLE = member cards (4 quadrants: name/hp | stats | equip | abilities),
 ## RIGHT = ability pool tabs (Abilities / Feats).
@@ -602,6 +604,45 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		val.tooltip_text = ad[2]
 		val.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(val)
+
+	# Level row — centered in TR quadrant, below base attributes
+	var lv_tr_y: float = tr_y + 42.0
+
+	# Hide the label when the Level Up button is present — button replaces it
+	if member.pending_level_ups == 0 or is_dead:
+		var lv_tr_lbl := Label.new()
+		lv_tr_lbl.text = "Lv. %d" % member.level
+		lv_tr_lbl.position = Vector2(tr_x, lv_tr_y)
+		lv_tr_lbl.size = Vector2(tr_w, 20.0)
+		lv_tr_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lv_tr_lbl.add_theme_font_size_override("font_size", 13)
+		lv_tr_lbl.add_theme_color_override("font_color",
+			Color(0.55, 0.62, 0.75).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
+		parent.add_child(lv_tr_lbl)
+
+	if member.pending_level_ups > 0 and not is_dead:
+		# Button centered in TR, raised slightly above the label's natural position
+		const BTN_W: float = 162.0; const BTN_H: float = 22.0
+		var lvlup_btn := Button.new()
+		lvlup_btn.text = "Level Up! (%d)" % member.pending_level_ups
+		lvlup_btn.position = Vector2(tr_x + (tr_w - BTN_W) * 0.5, lv_tr_y - 4.0)
+		lvlup_btn.size = Vector2(BTN_W, BTN_H)
+		lvlup_btn.add_theme_font_size_override("font_size", 11)
+		lvlup_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+		var pc_cap: CombatantData = member
+		lvlup_btn.pressed.connect(func(): _start_level_up(pc_cap))
+		parent.add_child(lvlup_btn)
+		# Rainbow color cycle
+		var rainbow := lvlup_btn.create_tween().set_loops()
+		for rc: Color in [
+			Color(1.0, 0.0, 0.0), Color(1.0, 0.5, 0.0), Color(1.0, 1.0, 0.0),
+			Color(0.0, 1.0, 0.0), Color(0.0, 0.5, 1.0), Color(0.6, 0.0, 1.0),
+		]:
+			rainbow.tween_property(lvlup_btn, "modulate", rc, 0.32)
+		# Scale pulse
+		var pulse := lvlup_btn.create_tween().set_loops()
+		pulse.tween_property(lvlup_btn, "scale", Vector2(1.07, 1.07), 0.55).set_trans(Tween.TRANS_SINE)
+		pulse.tween_property(lvlup_btn, "scale", Vector2(1.0, 1.0), 0.55).set_trans(Tween.TRANS_SINE)
 
 	# === BOTTOM LEFT: Equipment 2×2 ===
 	var bl_x: float = x + 8.0
@@ -1367,6 +1408,222 @@ func _push_consumable_to_bag(consumable_id: String) -> void:
 		"id": cd.consumable_id, "name": cd.consumable_name,
 		"description": cd.description, "item_type": "consumable",
 	})
+
+## --- Level-Up Overlay (CanvasLayer layer 25) ---
+## Card style mirrors EndCombatScreen's reward cards — both show 3 horizontal
+## clickable cards so the two flows stay visually consistent.
+
+func _start_level_up(pc: CombatantData) -> void:
+	var pc_index: int = GameState.party.find(pc)
+	if pc_index < 0:
+		return
+
+	var overlay := CanvasLayer.new()
+	overlay.layer = 25
+	add_child(overlay)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.0, 0.88)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.add_child(bg)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(860.0, 0.0)
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color = Color(0.05, 0.04, 0.07, 0.97)
+	pstyle.border_width_left = 2; pstyle.border_width_right = 2
+	pstyle.border_width_top = 2; pstyle.border_width_bottom = 2
+	pstyle.border_color = Color(0.55, 0.44, 0.80, 0.90)
+	pstyle.set_corner_radius_all(6)
+	pstyle.content_margin_left = 24; pstyle.content_margin_right = 24
+	pstyle.content_margin_top = 20; pstyle.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", pstyle)
+	center.add_child(panel)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 14)
+	panel.add_child(content)
+
+	_fill_next_pick(content, overlay, pc, pc_index)
+
+func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
+		pc: CombatantData, pc_index: int) -> void:
+	for child in content.get_children():
+		child.queue_free()
+
+	var candidates: Array[String] = GameState.sample_ability_candidates(pc, 3)
+	if candidates.is_empty():
+		_finish_level_up(overlay, content, pc, pc_index)
+		return
+
+	var title := Label.new()
+	title.text = "Level Up!  —  %s" % pc.character_name
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
+	content.add_child(title)
+
+	var sub := Label.new()
+	sub.text = "Choose an Ability"
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.add_theme_font_size_override("font_size", 16)
+	sub.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+	content.add_child(sub)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 24)
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_child(hbox)
+
+	for ab_id: String in candidates:
+		var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
+		var ct: VBoxContainer = content; var ov: CanvasLayer = overlay
+		var pc_ref: CombatantData = pc; var idx: int = pc_index
+		var chosen_id: String = ab_id
+		hbox.add_child(_build_pick_card(
+			ab.ability_name,
+			"%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)],
+			ab.description,
+			func():
+				pc_ref.ability_pool.append(chosen_id)
+				_finish_level_up(ov, ct, pc_ref, idx)
+		))
+
+func _fill_feat_phase(content: VBoxContainer, overlay: CanvasLayer,
+		pc: CombatantData, pc_index: int) -> void:
+	for child in content.get_children():
+		child.queue_free()
+
+	var candidates: Array[String] = GameState.sample_feat_candidates(pc, 3)
+	if candidates.is_empty():
+		_finish_level_up(overlay, content, pc, pc_index)
+		return
+
+	var title := Label.new()
+	title.text = "Level Up!  —  %s" % pc.character_name
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
+	content.add_child(title)
+
+	var sub := Label.new()
+	sub.text = "Choose a Feat"
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.add_theme_font_size_override("font_size", 16)
+	sub.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+	content.add_child(sub)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 24)
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_child(hbox)
+
+	for feat_id: String in candidates:
+		var feat: FeatData = FeatLibrary.get_feat(feat_id)
+		var ct: VBoxContainer = content; var ov: CanvasLayer = overlay
+		var pc_ref: CombatantData = pc; var idx: int = pc_index
+		var chosen_id: String = feat_id
+		hbox.add_child(_build_pick_card(
+			feat.name,
+			"",
+			feat.description,
+			func():
+				GameState.grant_feat(idx, chosen_id)
+				_finish_level_up(ov, ct, pc_ref, idx)
+		))
+
+## Builds one clickable pick card for the level-up overlay.
+## Style mirrors EndCombatScreen reward cards — update both together.
+func _build_pick_card(title: String, subtitle: String, desc: String,
+		on_pick: Callable) -> PanelContainer:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(240.0, 130.0)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color = Color(0.10, 0.09, 0.07, 0.92)
+	sbox.border_width_left = 2; sbox.border_width_right = 2
+	sbox.border_width_top = 2; sbox.border_width_bottom = 2
+	sbox.border_color = Color(0.36, 0.30, 0.20, 0.80)
+	sbox.set_corner_radius_all(5)
+	sbox.content_margin_left = 14; sbox.content_margin_right = 14
+	sbox.content_margin_top = 14; sbox.content_margin_bottom = 14
+	card.add_theme_stylebox_override("panel", sbox)
+
+	var hover_sbox := sbox.duplicate() as StyleBoxFlat
+	hover_sbox.bg_color = Color(0.18, 0.16, 0.11, 0.98)
+	hover_sbox.border_color = Color(0.65, 0.52, 0.22, 0.90)
+
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	card.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton \
+				and ev.button_index == MOUSE_BUTTON_LEFT and ev.pressed:
+			on_pick.call()
+	)
+	card.mouse_entered.connect(func(): card.add_theme_stylebox_override("panel", hover_sbox))
+	card.mouse_exited.connect(func(): card.add_theme_stylebox_override("panel", sbox))
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(vbox)
+
+	var name_lbl := Label.new()
+	name_lbl.text = title
+	name_lbl.add_theme_font_size_override("font_size", 17)
+	name_lbl.add_theme_color_override("font_color", Color(0.96, 0.92, 0.78))
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(name_lbl)
+
+	if subtitle != "":
+		var sub_lbl := Label.new()
+		sub_lbl.text = subtitle
+		sub_lbl.add_theme_font_size_override("font_size", 12)
+		sub_lbl.add_theme_color_override("font_color", Color(0.60, 0.58, 0.48))
+		sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.add_child(sub_lbl)
+
+	var desc_lbl := Label.new()
+	desc_lbl.text = desc
+	desc_lbl.add_theme_font_size_override("font_size", 13)
+	desc_lbl.add_theme_color_override("font_color", Color(0.80, 0.78, 0.72))
+	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(desc_lbl)
+
+	return card
+
+## Routes to the correct pick phase for the current pending level-up.
+## pick_level walks from the oldest un-resolved level up to the newest:
+##   pick_level = pc.level - pc.pending_level_ups + 1
+## even pick_level → ability, odd → feat
+func _fill_next_pick(content: VBoxContainer, overlay: CanvasLayer,
+		pc: CombatantData, pc_index: int) -> void:
+	var pick_level: int = pc.level - pc.pending_level_ups + 1
+	if pick_level % 2 == 0:
+		_fill_ability_phase(content, overlay, pc, pc_index)
+	else:
+		_fill_feat_phase(content, overlay, pc, pc_index)
+
+func _finish_level_up(overlay: CanvasLayer, content: VBoxContainer,
+		pc: CombatantData, pc_index: int) -> void:
+	pc.pending_level_ups -= 1
+	GameState.save()
+	if pc.pending_level_ups > 0:
+		# More picks queued — refill the same overlay immediately
+		_fill_next_pick(content, overlay, pc, pc_index)
+	else:
+		overlay.queue_free()
+		_rebuild()
+		level_up_resolved.emit()
 
 ## --- String Helpers ---
 

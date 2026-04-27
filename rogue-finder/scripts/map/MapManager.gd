@@ -63,6 +63,9 @@ var _outer_bridge_ids: Array[String] = []
 
 var _node_prompt: Control = null
 var _party_sheet: PartySheet = null
+var _party_btn: Button = null
+var _party_btn_rainbow: Tween = null
+var _party_btn_pulse: Tween = null
 var _event_manager: EventManager = null
 var _is_dev_event: bool = false
 var _dev_event_panel: CanvasLayer = null
@@ -94,6 +97,8 @@ func _ready() -> void:
 	_event_manager.event_finished.connect(_on_event_finished)
 	_event_manager.event_nav.connect(_on_event_nav)
 	_build_scene()
+	_party_sheet.level_up_resolved.connect(_refresh_party_btn)
+	_refresh_party_btn()
 
 # _input (not _unhandled_input) so drag is captured even when the press starts on a Button
 func _input(event: InputEvent) -> void:
@@ -458,24 +463,26 @@ func _add_ui_chrome() -> void:
 
 	_add_threat_meter()
 
-	var party_btn := Button.new()
-	party_btn.text = "Party"
-	party_btn.size = Vector2(80.0, 36.0)
-	party_btn.position = Vector2(VIEWPORT_SIZE.x - 300.0, 8.0)
-	party_btn.pressed.connect(func(): _party_sheet.show_sheet())
-	add_child(party_btn)
+	# Party / Level-Up button — top right, sole action button in the chrome
+	_party_btn = Button.new()
+	_party_btn.text = "Party"
+	_party_btn.size = Vector2(172.0, 36.0)
+	_party_btn.position = Vector2(VIEWPORT_SIZE.x - 180.0, 8.0)
+	_party_btn.pressed.connect(func(): _party_sheet.show_sheet())
+	add_child(_party_btn)
 
+	# Debug controls — bottom right, out of the normal play area
 	var dev_events_btn := Button.new()
-	dev_events_btn.text = "Events [DEV]"
-	dev_events_btn.size = Vector2(110.0, 36.0)
-	dev_events_btn.position = Vector2(VIEWPORT_SIZE.x - 430.0, 8.0)
+	dev_events_btn.text = "Dev Menu"
+	dev_events_btn.size = Vector2(100.0, 32.0)
+	dev_events_btn.position = Vector2(VIEWPORT_SIZE.x - 314.0, VIEWPORT_SIZE.y - 40.0)
 	dev_events_btn.pressed.connect(_toggle_dev_event_panel)
 	add_child(dev_events_btn)
 
 	var del_btn := Button.new()
-	del_btn.text = "🗑 Delete Save (debug)"
-	del_btn.size = Vector2(200.0, 36.0)
-	del_btn.position = Vector2(VIEWPORT_SIZE.x - 212.0, 8.0)
+	del_btn.text = "Delete Save (debug)"
+	del_btn.size = Vector2(202.0, 32.0)
+	del_btn.position = Vector2(VIEWPORT_SIZE.x - 210.0, VIEWPORT_SIZE.y - 40.0)
 	del_btn.pressed.connect(_on_debug_delete_save_pressed)
 	add_child(del_btn)
 
@@ -1019,8 +1026,42 @@ func _get_ring(node_id: String) -> String:
 		return "outer"
 	return "outer"  # fallback for badurga or unrecognized
 
+func _refresh_party_btn() -> void:
+	if _party_btn == null or not is_instance_valid(_party_btn):
+		return
+	var has_pending: bool = GameState.party.any(func(pc: CombatantData) -> bool:
+		return pc.pending_level_ups > 0
+	)
+	if has_pending:
+		_party_btn.text = "Level Up Available"
+		if _party_btn_rainbow == null or not _party_btn_rainbow.is_valid():
+			_party_btn_rainbow = create_tween().set_loops()
+			for c: Color in [
+				Color(1.0, 0.0, 0.0), Color(1.0, 0.5, 0.0), Color(1.0, 1.0, 0.0),
+				Color(0.0, 1.0, 0.0), Color(0.0, 0.5, 1.0), Color(0.6, 0.0, 1.0),
+			]:
+				_party_btn_rainbow.tween_property(_party_btn, "modulate", c, 0.32)
+		if _party_btn_pulse == null or not _party_btn_pulse.is_valid():
+			_party_btn.pivot_offset = Vector2(86.0, 18.0)
+			_party_btn_pulse = create_tween().set_loops()
+			_party_btn_pulse.tween_property(_party_btn, "scale", Vector2(1.07, 1.07), 0.55) \
+				.set_trans(Tween.TRANS_SINE)
+			_party_btn_pulse.tween_property(_party_btn, "scale", Vector2(1.0, 1.0), 0.55) \
+				.set_trans(Tween.TRANS_SINE)
+	else:
+		_party_btn.text = "Party"
+		_party_btn.modulate = Color.WHITE
+		_party_btn.scale    = Vector2.ONE
+		if _party_btn_rainbow != null:
+			_party_btn_rainbow.kill()
+			_party_btn_rainbow = null
+		if _party_btn_pulse != null:
+			_party_btn_pulse.kill()
+			_party_btn_pulse = null
+
 func _on_event_finished() -> void:
 	_refresh_threat_meter()
+	_refresh_party_btn()
 	if _is_dev_event:
 		_is_dev_event = false
 		return
@@ -1092,7 +1133,7 @@ func _build_dev_event_panel() -> void:
 	vbox.add_child(header_row)
 
 	var title_lbl := Label.new()
-	title_lbl.text = "[DEV] Event Test Menu"
+	title_lbl.text = "[DEV] Dev Menu"
 	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_lbl.add_theme_font_size_override("font_size", 16)
 	title_lbl.add_theme_color_override("font_color", Color(0.80, 0.75, 0.60))
@@ -1104,14 +1145,59 @@ func _build_dev_event_panel() -> void:
 	close_btn.pressed.connect(func(): _dev_event_panel.visible = false)
 	header_row.add_child(close_btn)
 
+	# --- XP / Level-Up section ---
+	var xp_hdr := Label.new()
+	xp_hdr.text = "XP / LEVEL"
+	xp_hdr.add_theme_font_size_override("font_size", 11)
+	xp_hdr.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
+	vbox.add_child(xp_hdr)
+
+	var xp_row := HBoxContainer.new()
+	xp_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(xp_row)
+
+	var grant_xp_btn := Button.new()
+	grant_xp_btn.text = "Grant XP +20 (all)"
+	grant_xp_btn.custom_minimum_size = Vector2(160.0, 32.0)
+	grant_xp_btn.add_theme_font_size_override("font_size", 13)
+	grant_xp_btn.pressed.connect(func() -> void:
+		GameState.grant_xp(20)
+		_refresh_party_btn()
+	)
+	xp_row.add_child(grant_xp_btn)
+
+	var force_lvl_btn := Button.new()
+	force_lvl_btn.text = "Force Level-Up (all)"
+	force_lvl_btn.custom_minimum_size = Vector2(160.0, 32.0)
+	force_lvl_btn.add_theme_font_size_override("font_size", 13)
+	force_lvl_btn.pressed.connect(func() -> void:
+		for pc: CombatantData in GameState.party:
+			if not pc.is_dead:
+				pc.level = mini(pc.level + 1, 20)
+				pc.pending_level_ups += 1
+		GameState.save()
+		_refresh_party_btn()
+	)
+	xp_row.add_child(force_lvl_btn)
+
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+
+	# --- Events section ---
+	var evt_hdr := Label.new()
+	evt_hdr.text = "EVENTS"
+	evt_hdr.add_theme_font_size_override("font_size", 11)
+	evt_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	vbox.add_child(evt_hdr)
+
 	var hint := Label.new()
 	hint.text = "Fired events do not clear the current node or consume the event pool."
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
 	vbox.add_child(hint)
 
-	var sep := HSeparator.new()
-	vbox.add_child(sep)
+	var sep2 := HSeparator.new()
+	vbox.add_child(sep2)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL

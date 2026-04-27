@@ -6,6 +6,8 @@ extends Node
 
 const SAVE_PATH := "user://save.json"
 
+const XP_THRESHOLDS: Array[int] = [20, 35, 55, 80]
+
 ## --- Map Progress ---
 
 var player_node_id: String = "badurga"
@@ -107,6 +109,9 @@ func _serialize_combatant(d: CombatantData) -> Dictionary:
 		"abilities":      d.abilities,
 		"ability_pool":   d.ability_pool,
 		"feat_ids":       Array(d.feat_ids),
+		"level":          d.level,
+		"xp":             d.xp,
+		"pending_level_ups": d.pending_level_ups,
 		"current_hp":     d.current_hp,
 		"current_energy": d.current_energy,
 		"is_dead":        d.is_dead,
@@ -183,6 +188,9 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 			if not migrated.has(fs) and fs not in _KINDRED_FEAT_IDS:
 				migrated.append(fs)
 		d.feat_ids = migrated
+	d.level             = dict.get("level", 1)
+	d.xp                = dict.get("xp", 0)
+	d.pending_level_ups = dict.get("pending_level_ups", 0)
 	d.current_hp     = dict.get("current_hp", 0)
 	d.current_energy = dict.get("current_energy", 0)
 	d.is_dead        = dict.get("is_dead", false)
@@ -205,6 +213,51 @@ func grant_feat(pc_index: int, feat_id: String) -> void:
 		return
 	pc.feat_ids.append(feat_id)
 	save()
+
+## Returns XP needed to advance from current_level to current_level+1.
+func xp_needed_for_next_level(current_level: int) -> int:
+	if current_level - 1 < XP_THRESHOLDS.size():
+		return XP_THRESHOLDS[current_level - 1]
+	return current_level * 20
+
+## Awards `amount` XP to all living party members. Advances level and queues
+## pending_level_ups when a threshold is crossed. Saves after all members are processed.
+func grant_xp(amount: int) -> void:
+	for pc: CombatantData in party:
+		if pc.is_dead:
+			continue
+		pc.xp += amount
+		while pc.level < 20 and pc.xp >= xp_needed_for_next_level(pc.level):
+			pc.xp -= xp_needed_for_next_level(pc.level)
+			pc.level += 1
+			pc.pending_level_ups += 1
+	save()
+
+## Returns up to `count` ability IDs the character can learn (not already owned).
+## Draws from class.ability_pool + kindred.ability_pool, deduplicates, shuffles.
+static func sample_ability_candidates(pc: CombatantData, count: int) -> Array[String]:
+	var class_pool: Array[String] = ClassLibrary.get_class_data(pc.unit_class).ability_pool
+	var kindred_pool: Array[String] = KindredLibrary.get_kindred(pc.kindred).ability_pool
+	var owned: Array[String] = pc.ability_pool
+	var candidates: Array[String] = []
+	for ab_id: String in class_pool + kindred_pool:
+		if ab_id not in owned and ab_id not in candidates:
+			candidates.append(ab_id)
+	candidates.shuffle()
+	return candidates.slice(0, mini(count, candidates.size()))
+
+## Returns up to `count` feat IDs the character can learn (not already owned).
+## Draws from class.feat_pool + background.feat_pool, deduplicates, shuffles.
+static func sample_feat_candidates(pc: CombatantData, count: int) -> Array[String]:
+	var class_pool: Array[String] = ClassLibrary.get_class_data(pc.unit_class).feat_pool
+	var bg_pool: Array[String] = BackgroundLibrary.get_background(pc.background).feat_pool
+	var owned: Array[String] = pc.feat_ids
+	var candidates: Array[String] = []
+	for feat_id: String in class_pool + bg_pool:
+		if feat_id not in owned and feat_id not in candidates:
+			candidates.append(feat_id)
+	candidates.shuffle()
+	return candidates.slice(0, mini(count, candidates.size()))
 
 func delete_save() -> void:
 	if FileAccess.file_exists(SAVE_PATH):
