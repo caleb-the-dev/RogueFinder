@@ -1449,11 +1449,7 @@ func _start_level_up(pc: CombatantData) -> void:
 	content.add_theme_constant_override("separation", 14)
 	panel.add_child(content)
 
-	# Even levels grant an ability; odd levels grant a feat
-	if pc.level % 2 == 0:
-		_fill_ability_phase(content, overlay, pc, pc_index)
-	else:
-		_fill_feat_phase(content, overlay, pc, pc_index)
+	_fill_next_pick(content, overlay, pc, pc_index)
 
 func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 		pc: CombatantData, pc_index: int) -> void:
@@ -1462,7 +1458,7 @@ func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 
 	var candidates: Array[String] = GameState.sample_ability_candidates(pc, 3)
 	if candidates.is_empty():
-		_finish_level_up(overlay, pc)
+		_finish_level_up(overlay, content, pc, pc_index)
 		return
 
 	var title := Label.new()
@@ -1486,8 +1482,8 @@ func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 
 	for ab_id: String in candidates:
 		var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
-		var ov: CanvasLayer = overlay
-		var pc_ref: CombatantData = pc
+		var ct: VBoxContainer = content; var ov: CanvasLayer = overlay
+		var pc_ref: CombatantData = pc; var idx: int = pc_index
 		var chosen_id: String = ab_id
 		hbox.add_child(_build_pick_card(
 			ab.ability_name,
@@ -1495,7 +1491,7 @@ func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 			ab.description,
 			func():
 				pc_ref.ability_pool.append(chosen_id)
-				_finish_level_up(ov, pc_ref)
+				_finish_level_up(ov, ct, pc_ref, idx)
 		))
 
 func _fill_feat_phase(content: VBoxContainer, overlay: CanvasLayer,
@@ -1505,7 +1501,7 @@ func _fill_feat_phase(content: VBoxContainer, overlay: CanvasLayer,
 
 	var candidates: Array[String] = GameState.sample_feat_candidates(pc, 3)
 	if candidates.is_empty():
-		_finish_level_up(overlay, pc)
+		_finish_level_up(overlay, content, pc, pc_index)
 		return
 
 	var title := Label.new()
@@ -1529,15 +1525,16 @@ func _fill_feat_phase(content: VBoxContainer, overlay: CanvasLayer,
 
 	for feat_id: String in candidates:
 		var feat: FeatData = FeatLibrary.get_feat(feat_id)
-		var chosen_id: String = feat_id; var ov: CanvasLayer = overlay
+		var ct: VBoxContainer = content; var ov: CanvasLayer = overlay
 		var pc_ref: CombatantData = pc; var idx: int = pc_index
+		var chosen_id: String = feat_id
 		hbox.add_child(_build_pick_card(
 			feat.name,
 			"",
 			feat.description,
 			func():
 				GameState.grant_feat(idx, chosen_id)
-				_finish_level_up(ov, pc_ref)
+				_finish_level_up(ov, ct, pc_ref, idx)
 		))
 
 ## Builds one clickable pick card for the level-up overlay.
@@ -1604,12 +1601,29 @@ func _build_pick_card(title: String, subtitle: String, desc: String,
 
 	return card
 
-func _finish_level_up(overlay: CanvasLayer, pc: CombatantData) -> void:
+## Routes to the correct pick phase for the current pending level-up.
+## pick_level walks from the oldest un-resolved level up to the newest:
+##   pick_level = pc.level - pc.pending_level_ups + 1
+## even pick_level → ability, odd → feat
+func _fill_next_pick(content: VBoxContainer, overlay: CanvasLayer,
+		pc: CombatantData, pc_index: int) -> void:
+	var pick_level: int = pc.level - pc.pending_level_ups + 1
+	if pick_level % 2 == 0:
+		_fill_ability_phase(content, overlay, pc, pc_index)
+	else:
+		_fill_feat_phase(content, overlay, pc, pc_index)
+
+func _finish_level_up(overlay: CanvasLayer, content: VBoxContainer,
+		pc: CombatantData, pc_index: int) -> void:
 	pc.pending_level_ups -= 1
 	GameState.save()
-	overlay.queue_free()
-	_rebuild()
-	level_up_resolved.emit()
+	if pc.pending_level_ups > 0:
+		# More picks queued — refill the same overlay immediately
+		_fill_next_pick(content, overlay, pc, pc_index)
+	else:
+		overlay.queue_free()
+		_rebuild()
+		level_up_resolved.emit()
 
 ## --- String Helpers ---
 
