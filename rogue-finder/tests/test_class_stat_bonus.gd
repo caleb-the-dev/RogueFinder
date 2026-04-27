@@ -48,9 +48,9 @@ func _bare_combatant() -> CombatantData:
 
 func test_get_class_stat_bonus_known_class() -> void:
 	var d := _bare_combatant()
-	d.unit_class = "vanguard"  # strength:1|vitality:2
-	assert(d.get_class_stat_bonus("strength") == 1,
-		"vanguard strength bonus should be 1, got %d" % d.get_class_stat_bonus("strength"))
+	d.unit_class = "vanguard"  # strength:2|vitality:2
+	assert(d.get_class_stat_bonus("strength") == 2,
+		"vanguard strength bonus should be 2, got %d" % d.get_class_stat_bonus("strength"))
 	assert(d.get_class_stat_bonus("vitality") == 2,
 		"vanguard vitality bonus should be 2, got %d" % d.get_class_stat_bonus("vitality"))
 	print("  PASS test_get_class_stat_bonus_known_class")
@@ -72,9 +72,9 @@ func test_get_class_stat_bonus_unknown_class_returns_zero() -> void:
 func test_attack_includes_class_bonus() -> void:
 	var d := _bare_combatant()
 	var base_attack: int = d.attack  # unit_class = "", so no class bonus
-	d.unit_class = "vanguard"  # str:1
-	assert(d.attack == base_attack + 1,
-		"vanguard str:1 should raise attack by 1, got %d (base %d)" % [d.attack, base_attack])
+	d.unit_class = "vanguard"  # str:2
+	assert(d.attack == base_attack + 2,
+		"vanguard str:2 should raise attack by 2, got %d (base %d)" % [d.attack, base_attack])
 	print("  PASS test_attack_includes_class_bonus")
 
 func test_hp_max_includes_class_vit_bonus() -> void:
@@ -88,9 +88,9 @@ func test_hp_max_includes_class_vit_bonus() -> void:
 func test_energy_regen_includes_class_wil_bonus() -> void:
 	var d := _bare_combatant()
 	var base_regen: int = d.energy_regen  # unit_class = ""
-	d.unit_class = "arcanist"  # wil:1
-	assert(d.energy_regen == base_regen + 1,
-		"arcanist wil:1 should raise energy_regen by 1, got %d (base %d)" % [d.energy_regen, base_regen])
+	d.unit_class = "arcanist"  # wil:2
+	assert(d.energy_regen == base_regen + 2,
+		"arcanist wil:2 should raise energy_regen by 2, got %d (base %d)" % [d.energy_regen, base_regen])
 	print("  PASS test_energy_regen_includes_class_wil_bonus")
 
 func test_speed_includes_class_dex_bonus() -> void:
@@ -185,14 +185,14 @@ func test_attack_includes_kindred_str_bonus() -> void:
 
 func test_get_background_stat_bonus_known() -> void:
 	var d := _bare_combatant()
-	d.background = "soldier"  # strength:1|vitality:1
+	d.background = "soldier"  # strength:1 only
 	assert(d.get_background_stat_bonus("strength") == 1,
 		"soldier background strength bonus should be 1, got %d" % d.get_background_stat_bonus("strength"))
-	assert(d.get_background_stat_bonus("vitality") == 1,
-		"soldier background vitality bonus should be 1, got %d" % d.get_background_stat_bonus("vitality"))
-	d.background = "scholar"  # cognition:2
-	assert(d.get_background_stat_bonus("cognition") == 2,
-		"scholar background cognition bonus should be 2, got %d" % d.get_background_stat_bonus("cognition"))
+	assert(d.get_background_stat_bonus("vitality") == 0,
+		"soldier background vitality bonus should be 0 (dropped), got %d" % d.get_background_stat_bonus("vitality"))
+	d.background = "scholar"  # cognition:1
+	assert(d.get_background_stat_bonus("cognition") == 1,
+		"scholar background cognition bonus should be 1, got %d" % d.get_background_stat_bonus("cognition"))
 	print("  PASS test_get_background_stat_bonus_known")
 
 func test_get_background_stat_bonus_unknown_returns_zero() -> void:
@@ -215,7 +215,7 @@ func test_hp_max_includes_background_vit_bonus() -> void:
 	var d := _bare_combatant()
 	d.background = ""
 	var base_hp: int = d.hp_max
-	d.background = "soldier"  # vitality:1
+	d.background = "baker"  # vitality:1
 	assert(d.hp_max == base_hp + 1,
-		"soldier vit:1 should raise hp_max by 1, got %d (base %d)" % [d.hp_max, base_hp])
+		"baker vit:1 should raise hp_max by 1, got %d (base %d)" % [d.hp_max, base_hp])
 	print("  PASS test_hp_max_includes_background_vit_bonus")

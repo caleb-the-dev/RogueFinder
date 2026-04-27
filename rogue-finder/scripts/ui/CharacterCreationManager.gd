@@ -503,6 +503,12 @@ static func _build_pc(char_name: String, kindred_id: String, class_id: String,
 		d.feat_ids.append(bg_data.starting_feat_id)
 
 	d.qte_resolution = 0.5
+
+	# Temperament is hidden from the player until after creation — randomized here.
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	d.temperament_id = TemperamentLibrary.random_id(rng)
+
 	d.current_hp     = d.hp_max
 	d.current_energy = d.energy_max
 	return d

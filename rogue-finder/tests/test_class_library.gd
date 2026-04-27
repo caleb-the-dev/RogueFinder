@@ -85,21 +85,22 @@ func test_stat_bonuses_parsed() -> void:
 	var vanguard: ClassData = ClassLibrary.get_class_data("vanguard")
 	assert(vanguard.stat_bonuses.has("strength"),  "vanguard stat_bonuses must have 'strength'")
 	assert(vanguard.stat_bonuses.has("vitality"),  "vanguard stat_bonuses must have 'vitality'")
-	assert(vanguard.stat_bonuses["strength"] == 1, "vanguard strength bonus should be 1, got %d" % vanguard.stat_bonuses.get("strength", -1))
+	assert(vanguard.stat_bonuses["strength"] == 2, "vanguard strength bonus should be 2, got %d" % vanguard.stat_bonuses.get("strength", -1))
 	assert(vanguard.stat_bonuses["vitality"] == 2, "vanguard vitality bonus should be 2, got %d" % vanguard.stat_bonuses.get("vitality", -1))
 
 	var arcanist: ClassData = ClassLibrary.get_class_data("arcanist")
 	assert(arcanist.stat_bonuses.get("cognition", 0) == 2, "arcanist cognition bonus should be 2")
-	assert(arcanist.stat_bonuses.get("willpower", 0) == 1, "arcanist willpower bonus should be 1")
+	assert(arcanist.stat_bonuses.get("willpower", 0) == 2, "arcanist willpower bonus should be 2")
 
 	var prowler: ClassData = ClassLibrary.get_class_data("prowler")
 	assert(prowler.stat_bonuses.get("dexterity", 0) == 2, "prowler dexterity bonus should be 2")
+	assert(prowler.stat_bonuses.get("cognition", 0) == 1, "prowler cognition bonus should be 1")
 	assert(prowler.stat_bonuses.get("willpower", 0) == 1, "prowler willpower bonus should be 1")
 
 	var warden: ClassData = ClassLibrary.get_class_data("warden")
 	assert(warden.stat_bonuses.get("cognition", 0) == 1, "warden cognition bonus should be 1")
 	assert(warden.stat_bonuses.get("vitality", 0) == 1, "warden vitality bonus should be 1")
-	assert(warden.stat_bonuses.get("willpower", 0) == 1, "warden willpower bonus should be 1")
+	assert(warden.stat_bonuses.get("willpower", 0) == 2, "warden willpower bonus should be 2")
 	print("  PASS test_stat_bonuses_parsed")
 
 func test_ability_pool_parsed() -> void:

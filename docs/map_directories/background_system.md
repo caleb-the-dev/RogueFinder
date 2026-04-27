@@ -1,6 +1,6 @@
 # System: Background System
 
-> Last updated: 2026-04-26 (pillar foundation — starting_feat_id, stat_bonuses, ability removed; wired into CharacterCreation and CombatantData)
+> Last updated: 2026-04-27 (balance pass — each background now gives exactly +1 to a single stat)
 
 ---
 
@@ -74,11 +74,11 @@ static func _split_pipe(val: String) -> Array[String]
 | ID | Name | Starting Feat | Feat Pool | Stat Bonuses | Tags |
 |----|------|--------------|-----------|-------------|------|
 | `crook` | Crook | `street_smart` | nimble_fingers, survival_instinct | dexterity:1 | `criminal`, `urban` |
-| `soldier` | Soldier | `combat_training` | disciplined_stance, unit_cohesion | strength:1, vitality:1 | `military`, `disciplined` |
-| `scholar` | Scholar | `analytical_mind` | focused_study, breadth_of_knowledge | cognition:2 | `academic`, `urban` |
-| `baker` | Baker | `hearty_constitution` | enduring_spirit, patient_resolve | vitality:1, willpower:1 | `commoner`, `urban` |
+| `soldier` | Soldier | `combat_training` | disciplined_stance, unit_cohesion | strength:1 | `military`, `disciplined` |
+| `scholar` | Scholar | `analytical_mind` | focused_study, breadth_of_knowledge | cognition:1 | `academic`, `urban` |
+| `baker` | Baker | `hearty_constitution` | enduring_spirit, patient_resolve | vitality:1 | `commoner`, `urban` |
 
-> **Pillar cap:** no stat gets more than +2 from any single pillar.
+> **Balance rule (2026-04-27):** each background gives **exactly +1 to a single stat** — no multi-stat spreads, no +2, no negatives.
 
 ### Parsing Rules
 
@@ -143,5 +143,6 @@ func get_background_stat_bonus(stat: String) -> int:
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Balance pass — single-stat rule.** All backgrounds now give exactly +1 to one stat. soldier: `strength:1\|vitality:1` → `strength:1`. scholar: `cognition:2` → `cognition:1`. baker: `vitality:1\|willpower:1` → `vitality:1`. crook unchanged (`dexterity:1`). |
 | 2026-04-26 | **Pillar foundation.** `starting_ability_id` removed; replaced with `starting_feat_id` + `stat_bonuses`. `BackgroundData.gd` updated. `BackgroundLibrary` gains `_parse_stat_bonuses()`. `get_background_stat_bonus()` wired into `CombatantData` derived stats. `CharacterCreationManager._build_pc()` seeds `feat_ids[0]` from `starting_feat_id`. All 4 backgrounds have concrete stat_bonuses and feat assignments. |
 | 2026-04-23 | S30 — fixed 3 broken `starting_ability_id` rows (`crook → smoke_bomb`, `scholar → acid_splash`, `baker → healing_draught`). `starting_ability_id` now removed entirely (see above). |

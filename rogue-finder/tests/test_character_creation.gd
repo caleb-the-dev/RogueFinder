@@ -114,8 +114,8 @@ func test_build_pc_deterministic_stats() -> void:
 	print("  PASS test_build_pc_deterministic_stats")
 
 func test_build_pc_arcanist_crook_human_stats() -> void:
-	# arcanist: cog:2|wil:1  Human: wil:1  crook: dex:1
-	# expected: str=4, dex=5, cog=6, wil=6, vit=4
+	# arcanist: cog:2|wil:2  Human: wil:1  crook: dex:1
+	# expected: str=4, dex=5, cog=6, wil=7, vit=4
 	var pc := CharacterCreationManager._build_pc("Tess", "Human", "arcanist", "crook", "")
 	assert(pc.strength  == 4,
 		"Human/arcanist/crook strength must be 4, got %d" % pc.strength)
@@ -123,8 +123,8 @@ func test_build_pc_arcanist_crook_human_stats() -> void:
 		"Human/arcanist/crook dexterity must be 5 (crook+1), got %d" % pc.dexterity)
 	assert(pc.cognition == 6,
 		"Human/arcanist/crook cognition must be 6 (arcanist+2), got %d" % pc.cognition)
-	assert(pc.willpower == 6,
-		"Human/arcanist/crook willpower must be 6 (arcanist+1, Human+1), got %d" % pc.willpower)
+	assert(pc.willpower == 7,
+		"Human/arcanist/crook willpower must be 7 (arcanist+2, Human+1), got %d" % pc.willpower)
 	assert(pc.vitality  == 4,
 		"Human/arcanist/crook vitality must be 4, got %d" % pc.vitality)
 	print("  PASS test_build_pc_arcanist_crook_human_stats")

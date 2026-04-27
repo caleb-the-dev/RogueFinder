@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-27 (armor mod — physical_armor_mod + magic_armor_mod transient fields added; defense formulas now sum 6 sources)
+> Last updated: 2026-04-27 (temperament system — temperament_id field + get_temperament_stat_bonus(); derived stats now include temperament source)
 
 ---
 
@@ -60,6 +60,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 |-------|------|-------|
 | `background` | `String` | Background handle. Resolves to `BackgroundData` via `BackgroundLibrary.get_background()` / `get_background_by_name()`. Currently PascalCase display strings; snake_case-id migration deferred. See `background_system.md`. |
 | `unit_class` | `String` | Lowercase class ID (e.g. `"vanguard"`, `"arcanist"`, `"prowler"`, `"warden"`). Fixed per archetype. Stored as class ID (not display name) so `get_class_stat_bonus()` can look up via `ClassLibrary`. Display via `ClassLibrary.get_class_data(unit_class).display_name`. |
+| `temperament_id` | `String` | Pokémon-style personality modifier. Key into `TemperamentLibrary` (e.g. `"fierce"`, `"nimble"`, `"even"`). Randomly assigned at creation by `ArchetypeLibrary.create()` and `CharacterCreationManager._build_pc()` via `TemperamentLibrary.random_id(rng)`. **Hidden from the player before character creation** — visible afterward in StatPanel and PartySheet. Serialized to save; old saves default to `"even"` (neutral). **Mechanically active** — `get_temperament_stat_bonus(stat)` returns `+1` for the boosted stat, `-1` for the hindered stat, `0` otherwise; wired into attack, hp_max, energy_max, energy_regen, and speed. |
 
 ### Portrait & Artwork
 | Field | Type | Notes |
@@ -126,23 +127,25 @@ Powering `stone_guard` (Dwarf kindred ancestry — `+2 PHYSICAL_ARMOR_MOD`) and 
 
 ## Derived Stats (computed properties on CombatantData)
 
-All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which sums the matching key from all three slots (weapon + armor + accessory). Five bonus sources stack: **equip + feat + class + kindred + background**. Armor (physical / magic) adds a sixth source — the transient `*_armor_mod` field — for mid-combat BUFF/DEBUFF effects.
+All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which sums the matching key from all three slots (weapon + armor + accessory). Six bonus sources stack: **equip + feat + class + kindred + background + temperament**. Armor (physical / magic) adds a seventh source — the transient `*_armor_mod` field — for mid-combat BUFF/DEBUFF effects.
 
 | Property | Formula |
 |----------|---------|
-| `hp_max` | `10 + KindredLibrary.get_hp_bonus(kindred) + (vitality × 4) + equip("vitality") + feat("vitality") + class("vitality") + kindred("vitality") + bg("vitality")` |
-| `energy_max` | `5 + vitality + equip("vitality") + feat("vitality") + class("vitality") + kindred("vitality") + bg("vitality")` |
-| `energy_regen` | `2 + willpower + equip("willpower") + feat("willpower") + class("willpower") + kindred("willpower") + bg("willpower")` |
-| `speed` | `1 + KindredLibrary.get_speed_bonus(kindred) + equip("dexterity") + feat("dexterity") + class("dexterity") + kindred("dexterity") + bg("dexterity")` |
-| `attack` | `5 + strength + equip("strength") + feat("strength") + class("strength") + kindred("strength") + bg("strength")` |
+| `hp_max` | `10 + KindredLibrary.get_hp_bonus(kindred) + (vitality × 4) + equip("vitality") + feat("vitality") + class("vitality") + kindred("vitality") + bg("vitality") + temp("vitality")` |
+| `energy_max` | `5 + vitality + equip("vitality") + feat("vitality") + class("vitality") + kindred("vitality") + bg("vitality") + temp("vitality")` |
+| `energy_regen` | `2 + willpower + equip("willpower") + feat("willpower") + class("willpower") + kindred("willpower") + bg("willpower") + temp("willpower")` |
+| `speed` | `1 + KindredLibrary.get_speed_bonus(kindred) + equip("dexterity") + feat("dexterity") + class("dexterity") + kindred("dexterity") + bg("dexterity") + temp("dexterity")` |
+| `attack` | `5 + strength + equip("strength") + feat("strength") + class("strength") + kindred("strength") + bg("strength") + temp("strength")` |
 | `physical_defense` | `physical_armor + physical_armor_mod + equip("physical_armor") + feat("physical_armor") + class("physical_armor") + kindred("physical_armor") + bg("physical_armor")` |
 | `magic_defense` | `magic_armor + magic_armor_mod + equip("magic_armor") + feat("magic_armor") + class("magic_armor") + kindred("magic_armor") + bg("magic_armor")` |
 
-`equip(stat)` = `_equip_bonus(stat)`. `feat(stat)` = `get_feat_stat_bonus(stat)`. `class(stat)` = `get_class_stat_bonus(stat)`. `kindred(stat)` = `get_kindred_stat_bonus(stat)`. `bg(stat)` = `get_background_stat_bonus(stat)`. All five are **flat bonuses to the derived result**.
+`equip(stat)` = `_equip_bonus(stat)`. `feat(stat)` = `get_feat_stat_bonus(stat)`. `class(stat)` = `get_class_stat_bonus(stat)`. `kindred(stat)` = `get_kindred_stat_bonus(stat)`. `bg(stat)` = `get_background_stat_bonus(stat)`. `temp(stat)` = `get_temperament_stat_bonus(stat)`. All six are **flat bonuses to the derived result**.
+
+> **Note:** Temperament does NOT affect `physical_defense` / `magic_defense` — those use `"physical_armor"` / `"magic_armor"` stat keys, not raw attributes. Temperament bonuses to `cognition` have no mechanical effect yet (COG reserved for ability cost scaling).
 
 > **Note:** The old single `defense` property (sourced from `armor_defense`) was removed in this session. Any code referencing `.defense` or `armor_defense` is stale. Use `physical_defense` / `magic_defense` instead.
 
-### New Methods (2026-04-26)
+### Stat Bonus Methods
 
 ```gdscript
 ## Returns flat stat bonus from kindred stat_bonuses dict. 0 for unknown.
@@ -150,6 +153,10 @@ func get_kindred_stat_bonus(stat: String) -> int
 
 ## Returns flat stat bonus from background stat_bonuses dict. 0 for unknown.
 func get_background_stat_bonus(stat: String) -> int
+
+## Returns +1 if stat == temperament's boosted_stat, -1 if hindered_stat, else 0.
+## Empty temperament_id → stub with no boosted/hindered → always 0.
+func get_temperament_stat_bonus(stat: String) -> int
 ```
 
 **Kindred bonus values (from KindredLibrary):**
@@ -208,8 +215,8 @@ static func reload() -> void                             # cache-clear for tests
 
 | Dependent | On |
 |-----------|----|
-| `CombatantData` | `EquipmentData` (equipment slots), `KindredLibrary` (speed + HP + kindred stat bonuses), `BackgroundLibrary` (background stat bonuses), `ClassLibrary` (class stat bonus), `FeatLibrary` (feat stat bonus) |
-| `ArchetypeLibrary` | `CombatantData`, `KindredLibrary` (auto-name via `get_name_pool()` in `create()`; enemies start with empty `feat_ids`) |
+| `CombatantData` | `EquipmentData` (equipment slots), `KindredLibrary` (speed + HP + kindred stat bonuses), `BackgroundLibrary` (background stat bonuses), `ClassLibrary` (class stat bonus), `FeatLibrary` (feat stat bonus), `TemperamentLibrary` (temperament stat bonus) |
+| `ArchetypeLibrary` | `CombatantData`, `KindredLibrary` (auto-name), `TemperamentLibrary` (random_id in `create()`) |
 | `Unit3D` | `CombatantData` (via `@export var data`) |
 | `StatPanel` | `CombatantData`, `Unit3D`, `FeatLibrary` (iterates `feat_ids` for the Feats section) |
 | `CombatActionPanel` | `CombatantData` (via `Unit3D.data`) |
@@ -240,6 +247,7 @@ static func reload() -> void                             # cache-clear for tests
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Temperament system.** Added `temperament_id: String = ""` to Identity section (`@export`, serialized). Added `get_temperament_stat_bonus(stat)` method: `+1` for boosted_stat, `-1` for hindered_stat, `0` otherwise. Wired into `hp_max`, `energy_max`, `energy_regen`, `speed`, and `attack` as a sixth flat bonus source. Derived stat formulas for `physical_defense` / `magic_defense` are NOT affected (those use armor stat keys, not core attributes). Depends on `TemperamentLibrary`. |
 | 2026-04-27 | **Armor mod — runtime BUFF/DEBUFF lane.** Added two transient fields: `physical_armor_mod: int = 0` and `magic_armor_mod: int = 0`. Both are plain `var` (NOT `@export`) — never serialized; combat state is transient. `physical_defense` / `magic_defense` formulas extended to include the mod field as the sixth source (after base, equip, feat, class, kindred, bg). Snapshotted by `CombatManager3D._setup_units()` (and `_setup_test_room_units()`) in `_attr_snapshots` and restored in `_end_combat()` so mid-combat changes never bleed into the next combat. Powering `stone_guard` (Dwarf kindred — `+2 PHYSICAL_ARMOR_MOD`) and `divine_ward` (Warden pool — `+2 MAGIC_ARMOR_MOD`); both were no-ops before this session. |
 | 2026-04-27 | **Dual armor system.** Removed `armor_defense: int` and `defense` computed property. Added `physical_armor: int = 3` + `magic_armor: int = 2` (both serialized). Added `physical_defense` + `magic_defense` computed properties, each summing five bonus sources with stat keys `"physical_armor"` / `"magic_armor"`. `archetypes.csv` `armor_range` column replaced by `physical_armor_range` + `magic_armor_range`. `ArchetypeData` gained two new range fields. Dwarf kindred stat_bonuses renamed `armor_defense:2` → `physical_armor:2`. feats.csv + equipment.csv armor bonus keys renamed accordingly. `CharacterCreationManager._build_pc()` seeds `physical_armor=3, magic_armor=2`. `GameState` serialization updated; old saves migrate `armor_defense` value to both lanes. |
 | 2026-04-27 | **XP + Level-Up system.** Added three persistent fields: `level: int = 1`, `xp: int = 0`, `pending_level_ups: int = 0`. All three serialized/deserialized in `GameState._serialize_combatant()` / `_deserialize_combatant()`; old saves default to `level=1, xp=0, pending=0`. `ability_pool` clarification: this field stores the PC's **owned** abilities (superset of the 4 active slots). Level-up picks append to it; the source draw pool is derived at pick-time from `ClassLibrary + KindredLibrary - owned`. |

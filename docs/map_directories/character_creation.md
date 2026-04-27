@@ -90,8 +90,9 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `abilities` | `[class.starting_ability_id, kindred.starting_ability_id, "", ""]` — always 4 slots; slot 0 = class defining, slot 1 = kindred natural attack |
 | `ability_pool` | class + kindred ability IDs, deduped |
 | `feat_ids` | `[bg_data.starting_feat_id]` — background defining feat; empty if starting_feat_id is `""` |
+| `temperament_id` | Random — `TemperamentLibrary.random_id(rng)` with a fresh `RandomNumberGenerator.randomize()`. **Hidden from the player** — not shown in the creation preview; only visible afterward in StatPanel / PartySheet. |
 | `qte_resolution` | `0.5` (fixed — player doesn't auto-resolve) |
-| `current_hp` | `hp_max` (computed property) |
+| `current_hp` | `hp_max` (computed property, which now includes temperament bonus) |
 | `current_energy` | `energy_max` (computed property) |
 | `portrait` | Not set — remains `null` (all portraits are icon.svg placeholder; serialization deferred to art pass) |
 
@@ -142,6 +143,7 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 
 - **`_build_pc()` is static** — keeps unit tests simple. Do not add instance-var access inside it.
 - **`_build_pc()` has no `rolled_stats` param** — removed in pillar-foundation session. Stats are always deterministic.
+- **Temperament is random, not deterministic** — `_build_pc()` calls `RandomNumberGenerator.randomize()` to assign a random temperament. Two calls with identical picks will produce identical raw attributes but different `temperament_id`s. `test_build_pc_deterministic_stats` tests only raw attributes (str/dex/cog/wil/vit), not derived stats or temperament.
 - **Closure int capture** — `_build_text_dial()` uses `Array[int]` (single element) as a mutable index. Replacing with a plain `int` will break cycling.
 - **Portrait not serialized** — `CombatantData.portrait` is `Texture2D` (not JSON-serializable). When real art ships: add `portrait_id: String` to `CombatantData`, serialize in `_serialize_combatant()` / `_deserialize_combatant()`.
 - **Preview signature reserved** — `_calc_preview() -> Dictionary` returns the data even though labels are pushed directly. Do not collapse to `-> void`.
@@ -152,6 +154,7 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Temperament assignment.** `_build_pc()` now assigns a random `temperament_id` via `TemperamentLibrary.random_id(rng)` after all deterministic fields. Temperament is hidden from the player during creation — not shown in the preview panel. `current_hp`/`current_energy` seeded at the end, after temperament, so they reflect the full hp_max including temperament. `TemperamentLibrary` added as a new dependency. `test_build_pc_arcanist_crook_human_stats` assertion updated for new arcanist wil:2 (wil = 7, was 6). |
 | 2026-04-26 | **Pillar foundation.** Stats fully deterministic — `_roll_stats()`, `_on_reroll_stats()`, Reroll Stats button, and `_rolled_stats` dict all removed. `_build_pc()` signature loses `rolled_stats` param; stats are `4 + class_bonus + kindred_bonus + bg_bonus`. Ability seeding changed: slot 0 = class defining ability, slot 1 = kindred natural attack (was: slot 0 = class, slot 1 = bg ability). `feat_ids` seeded from `bg_data.starting_feat_id` (was: kindred feat). Preview panel: kindred ability row added (was: bg ability row); feat row label changed to "Background Feat" (was: "Kindred Feat"). `_preview_bg_name`/`_preview_bg_desc` renamed to `_preview_kindred_name`/`_preview_kindred_desc`; new `_preview_feat_lbl`/`_preview_feat_desc` retain background feat display. 12 tests (was 11). |
 | 2026-04-24 | **Back button + stat reroll.** Back button returns to MainMenu without mutating save state. Stats rolled at `_ready()` and shown as concrete values. 🎲 Reroll Stats button (now removed). `_build_pc()` extended with optional `rolled_stats: Dictionary = {}` (now removed). 2 new tests (11 total at time). |
 | 2026-04-24 | **Slice 2 — FeatLibrary migration.** `_calc_preview()` resolves feat via `FeatLibrary.get_feat()`. Preview panel gains `_preview_feat_desc` label. |

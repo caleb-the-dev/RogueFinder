@@ -95,9 +95,10 @@ static func create(archetype_id: String, character_name: String = "",
 	data.vitality  = rng.randi_range(src.vit_range[0],   src.vit_range[1])
 	data.vitality  = maxi(1, data.vitality)  # guard: HP = 0 is invalid
 
-	data.physical_armor = rng.randi_range(src.physical_armor_range[0], src.physical_armor_range[1])
-	data.magic_armor    = rng.randi_range(src.magic_armor_range[0],    src.magic_armor_range[1])
-	data.qte_resolution = rng.randf_range(src.qte_range[0],   src.qte_range[1])
+	data.physical_armor  = rng.randi_range(src.physical_armor_range[0], src.physical_armor_range[1])
+	data.magic_armor     = rng.randi_range(src.magic_armor_range[0],    src.magic_armor_range[1])
+	data.qte_resolution  = rng.randf_range(src.qte_range[0],   src.qte_range[1])
+	data.temperament_id  = TemperamentLibrary.random_id(rng)
 
 	data.current_hp     = data.hp_max
 	data.current_energy = data.energy_max

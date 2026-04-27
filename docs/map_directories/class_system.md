@@ -1,6 +1,6 @@
 # System: Class Library
 
-> Last updated: 2026-04-26 (class pool expansion — defining abilities, 13-ability pools, 10-feat pools)
+> Last updated: 2026-04-27 (balance pass — all classes now give exactly 4 stat points, max +2 per stat, no negatives)
 
 ---
 
@@ -79,12 +79,14 @@ static func _split_pipe(val: String) -> Array[String]
 
 ### Defined Classes (4 rows)
 
-| ID | Name | Defining Ability | Stat Bonuses | Ability Pool | Feat Pool | Tags |
-|----|------|-----------------|-------------|--------------|-----------|------|
-| `vanguard` | Vanguard | `tower_slam` (STR, HARM 4 + push 1) | strength:1, vitality:2 | 13 abilities (shield_bash, heavy_strike, sweep, yank, shove, charge, strike, counter, guard, battle_surge, taunt, warcry, steadfast) | 10 feats | `melee`, `defender` |
-| `arcanist` | Arcanist | `arcane_bolt` (COG, HARM 5, range 4) | cognition:2, willpower:1 | 13 abilities (fireball, acid_splash, windblast, smoke_bomb, fire_breath, quick_wit, tinker_boost, taunt, counter, heal_burst, gust, disengage, yank) | 10 feats | `arcane`, `ranged` |
-| `prowler` | Prowler | `slipshot` (DEX, HARM 4 + free 1-tile move) | dexterity:2, willpower:1 | 13 abilities (quick_shot, piercing_shot, disengage, gust, backstab, crippling_shot, vanishing_step, counter, taunt, inspire, smoke_bomb, acid_splash, quick_wit) | 10 feats | `agile`, `stealthy` |
-| `warden` | Warden | `bless` (WIL, BUFF STR+1 to ally, range 3) | cognition:1, vitality:1, willpower:1 | 13 abilities (inspire, heal_burst, guard, taunt, healing_draught, counter, steadfast, lay_on_hands, divine_ward, rallying_shout, warcry, smoke_bomb, shield_bash) | 10 feats | `support`, `divine` |
+| ID | Name | Defining Ability | Stat Bonuses (4 pts) | Ability Pool | Feat Pool | Tags |
+|----|------|-----------------|---------------------|--------------|-----------|------|
+| `vanguard` | Vanguard | `tower_slam` (STR, HARM 4 + push 1) | strength:2, vitality:2 | 13 abilities (shield_bash, heavy_strike, sweep, yank, shove, charge, strike, counter, guard, battle_surge, taunt, warcry, steadfast) | 10 feats | `melee`, `defender` |
+| `arcanist` | Arcanist | `arcane_bolt` (COG, HARM 5, range 4) | cognition:2, willpower:2 | 13 abilities (fireball, acid_splash, windblast, smoke_bomb, fire_breath, quick_wit, tinker_boost, taunt, counter, heal_burst, gust, disengage, yank) | 10 feats | `arcane`, `ranged` |
+| `prowler` | Prowler | `slipshot` (DEX, HARM 4 + free 1-tile move) | dexterity:2, cognition:1, willpower:1 | 13 abilities (quick_shot, piercing_shot, disengage, gust, backstab, crippling_shot, vanishing_step, counter, taunt, inspire, smoke_bomb, acid_splash, quick_wit) | 10 feats | `agile`, `stealthy` |
+| `warden` | Warden | `bless` (WIL, BUFF STR+1 to ally, range 3) | cognition:1, vitality:1, willpower:2 | 13 abilities (inspire, heal_burst, guard, taunt, healing_draught, counter, steadfast, lay_on_hands, divine_ward, rallying_shout, warcry, smoke_bomb, shield_bash) | 10 feats | `support`, `divine` |
+
+> **Balance rule (2026-04-27):** every class gives **exactly 4 total stat points**, max **+2 per stat**, no negatives.
 
 ### Class Feat Pools (10 per class, ~50% overlap, 20 unique class feats)
 
@@ -151,6 +153,15 @@ func get_class_stat_bonus(stat: String) -> int:
 - **Class-based feat assignment at creation** — `feat_pool` data exists but is not wired to the creation flow. Planned for odd-level milestone.
 - **Trigger-based class effects** — `ability_pool` column is scaffolding; no level-up picker UI yet.
 - **`unit_class` stores ID not display name** — always use `ClassLibrary.get_class_data(unit_class).display_name` for UI.
+
+---
+
+## Recent Changes
+
+| Date | Change |
+|---|---|
+| 2026-04-27 | **Balance pass — 4-point rule.** All classes now give exactly 4 total stat points with no negatives and max +2 per stat. vanguard: `strength:1\|vitality:2` → `strength:2\|vitality:2`. arcanist: `cognition:2\|willpower:1` → `cognition:2\|willpower:2`. prowler: `dexterity:2\|willpower:1` → `dexterity:2\|cognition:1\|willpower:1`. warden: `cognition:1\|vitality:1\|willpower:1` → `cognition:1\|vitality:1\|willpower:2`. Tests (`test_class_library.gd`, `test_class_stat_bonus.gd`) updated to match. |
+| 2026-04-26 | Class pool expansion — 4 unique defining abilities, 13-ability pools, 10-feat pools per class. |
 
 ---
 

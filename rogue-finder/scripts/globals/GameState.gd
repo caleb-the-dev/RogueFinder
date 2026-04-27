@@ -109,6 +109,7 @@ func _serialize_combatant(d: CombatantData) -> Dictionary:
 		"unit_class":     d.unit_class,
 		"kindred":        d.kindred,
 		"background":     d.background,
+		"temperament_id": d.temperament_id,
 		"strength":       d.strength,
 		"dexterity":      d.dexterity,
 		"cognition":      d.cognition,
@@ -171,6 +172,7 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 	d.unit_class     = dict.get("unit_class", "")
 	d.kindred        = dict.get("kindred", "Unknown")
 	d.background     = dict.get("background", "")
+	d.temperament_id = dict.get("temperament_id", "even")
 	d.strength       = dict.get("strength", 2)
 	d.dexterity      = dict.get("dexterity", 2)
 	d.cognition      = dict.get("cognition", 2)

@@ -508,7 +508,21 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	kindred_lbl.add_theme_color_override("font_color",
 		Color(0.55, 0.65, 0.78).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
 	parent.add_child(kindred_lbl)
-	tl_y += 18.0
+	tl_y += 16.0
+
+	var temp_data: TemperamentData = TemperamentLibrary.get_temperament(member.temperament_id)
+	var temp_text: String = temp_data.temperament_name if temp_data.temperament_name != "" else "—"
+	if temp_data.boosted_stat != "":
+		temp_text += "  (+%s/-%s)" % [temp_data.boosted_stat.substr(0, 3).to_upper(),
+			temp_data.hindered_stat.substr(0, 3).to_upper()]
+	var temp_lbl := Label.new()
+	temp_lbl.text = "Temp: %s" % temp_text
+	temp_lbl.position = Vector2(tl_x, tl_y)
+	temp_lbl.add_theme_font_size_override("font_size", 11)
+	temp_lbl.add_theme_color_override("font_color",
+		Color(0.72, 0.55, 0.80).lerp(Color(0.4, 0.4, 0.4), 0.5 if is_dead else 0.0))
+	parent.add_child(temp_lbl)
+	tl_y += 16.0
 
 	# HP row: "HP x/x" text on the left, bar filling the remaining width
 	const HP_TEXT_W: float = 60.0

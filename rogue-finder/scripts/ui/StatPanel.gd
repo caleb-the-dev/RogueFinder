@@ -105,10 +105,11 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	var lines: PackedStringArray = []
 
 	# -- Identity --
-	lines.append("[b]Archetype:[/b]  %s" % d.archetype_id.replace("_", " ").capitalize())
-	lines.append("[b]Kindred:[/b]    %s" % _or(d.kindred))
-	lines.append("[b]Background:[/b] %s" % _or(d.background))
-	lines.append("[b]Team:[/b]       %s" % ("Player" if d.is_player_unit else "Enemy"))
+	lines.append("[b]Archetype:[/b]    %s" % d.archetype_id.replace("_", " ").capitalize())
+	lines.append("[b]Kindred:[/b]      %s" % _or(d.kindred))
+	lines.append("[b]Background:[/b]   %s" % _or(d.background))
+	lines.append("[b]Temperament:[/b]  %s" % _format_temperament(d))
+	lines.append("[b]Team:[/b]         %s" % ("Player" if d.is_player_unit else "Enemy"))
 	lines.append("")
 
 	# -- Live State --
@@ -170,6 +171,14 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 			])
 
 	return "\n".join(lines)
+
+func _format_temperament(d: CombatantData) -> String:
+	var t: TemperamentData = TemperamentLibrary.get_temperament(d.temperament_id)
+	if t.boosted_stat == "" and t.hindered_stat == "":
+		return t.temperament_name  # neutral
+	var boost: String  = t.boosted_stat.substr(0, 3).to_upper()
+	var hinder: String = t.hindered_stat.substr(0, 3).to_upper()
+	return "%s  [color=green]+%s[/color] / [color=red]-%s[/color]" % [t.temperament_name, boost, hinder]
 
 func _slot(val: String) -> String:
 	return val if val != "" else "(empty)"
