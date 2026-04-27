@@ -70,6 +70,7 @@ var _event_manager: EventManager = null
 var _is_dev_event: bool = false
 var _dev_event_panel: CanvasLayer = null
 var _add_item_panel: CanvasLayer = null
+var _add_item_list: VBoxContainer = null   ## cached child of _add_item_panel; rebuilt on every show
 var _threat_fill: ColorRect = null
 var _threat_pct_lbl: Label = null
 
@@ -1326,7 +1327,6 @@ func _build_add_item_panel() -> void:
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
-	vbox.name = "Vbox"
 	panel.add_child(vbox)
 
 	var header_row := HBoxContainer.new()
@@ -1358,20 +1358,19 @@ func _build_add_item_panel() -> void:
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.name = "Scroll"
 	vbox.add_child(scroll)
 
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 4)
-	list.name = "List"
-	scroll.add_child(list)
+	_add_item_list = VBoxContainer.new()
+	_add_item_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_add_item_list.add_theme_constant_override("separation", 4)
+	scroll.add_child(_add_item_list)
 
 ## Rebuilds the list contents from EquipmentLibrary + ConsumableLibrary, sorted A-Z by name.
 ## Called every time the panel is shown so newly-added CSV rows appear without a restart.
 func _refresh_add_item_list() -> void:
-	var list: VBoxContainer = _add_item_panel.get_node("Vbox/Scroll/List")
-	for child in list.get_children():
+	if _add_item_list == null:
+		return
+	for child in _add_item_list.get_children():
 		child.queue_free()
 
 	var rows: Array = []
@@ -1403,7 +1402,7 @@ func _refresh_add_item_list() -> void:
 		btn.custom_minimum_size = Vector2(0.0, 32.0)
 		btn.tooltip_text = row["description"]
 		btn.pressed.connect(_on_add_item_selected.bind(row))
-		list.add_child(btn)
+		_add_item_list.add_child(btn)
 
 func _on_add_item_selected(row: Dictionary) -> void:
 	GameState.add_to_inventory({
