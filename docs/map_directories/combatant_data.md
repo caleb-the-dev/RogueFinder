@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-27 (dual armor — armor_defense split into physical_armor + magic_armor; defense replaced by physical_defense + magic_defense; armor stat bonus keys renamed across all CSVs)
+> Last updated: 2026-04-27 (armor mod — physical_armor_mod + magic_armor_mod transient fields added; defense formulas now sum 6 sources)
 
 ---
 
@@ -110,6 +110,15 @@ These fields survive between combats. Seeded at creation by `ArchetypeLibrary.cr
 
 Bonus sources that contribute to these stats use the stat key strings `"physical_armor"` and `"magic_armor"` in their CSV `stat_bonuses` columns (equipment, feats, kindreds). Class and background CSV columns currently have no armor bonuses.
 
+### Armor Mods (transient — NOT serialized)
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `physical_armor_mod` | `int` | `0` | Mid-combat delta to physical defense. Set by BUFF/DEBUFF effects whose `target_stat` is `Attribute.PHYSICAL_ARMOR_MOD`. Snapshotted in `_attr_snapshots` at combat start and rolled back in `_end_combat()`. Clamped to `[-10, 10]` by `_apply_stat_delta`. Plain `var` (not `@export`) — never written to disk. |
+| `magic_armor_mod` | `int` | `0` | Same pattern for magic defense; target stat `Attribute.MAGIC_ARMOR_MOD`. |
+
+Powering `stone_guard` (Dwarf kindred ancestry — `+2 PHYSICAL_ARMOR_MOD`) and `divine_ward` (Warden pool — `+2 MAGIC_ARMOR_MOD`). Both abilities were no-ops before this session because the old `"ARMOR_DEFENSE"` JSON key didn't resolve to a real `Attribute` enum value.
+
 ### Enemy-Only
 `qte_resolution: float` — auto-resolve accuracy for enemy QTE simulation (0.0–1.0). See `qte_system.md` Enemy Simulation table.
 
@@ -117,7 +126,7 @@ Bonus sources that contribute to these stats use the stat key strings `"physical
 
 ## Derived Stats (computed properties on CombatantData)
 
-All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which sums the matching key from all three slots (weapon + armor + accessory). Five bonus sources stack: **equip + feat + class + kindred + background**.
+All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which sums the matching key from all three slots (weapon + armor + accessory). Five bonus sources stack: **equip + feat + class + kindred + background**. Armor (physical / magic) adds a sixth source — the transient `*_armor_mod` field — for mid-combat BUFF/DEBUFF effects.
 
 | Property | Formula |
 |----------|---------|
@@ -126,8 +135,8 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 | `energy_regen` | `2 + willpower + equip("willpower") + feat("willpower") + class("willpower") + kindred("willpower") + bg("willpower")` |
 | `speed` | `1 + KindredLibrary.get_speed_bonus(kindred) + equip("dexterity") + feat("dexterity") + class("dexterity") + kindred("dexterity") + bg("dexterity")` |
 | `attack` | `5 + strength + equip("strength") + feat("strength") + class("strength") + kindred("strength") + bg("strength")` |
-| `physical_defense` | `physical_armor + equip("physical_armor") + feat("physical_armor") + class("physical_armor") + kindred("physical_armor") + bg("physical_armor")` |
-| `magic_defense` | `magic_armor + equip("magic_armor") + feat("magic_armor") + class("magic_armor") + kindred("magic_armor") + bg("magic_armor")` |
+| `physical_defense` | `physical_armor + physical_armor_mod + equip("physical_armor") + feat("physical_armor") + class("physical_armor") + kindred("physical_armor") + bg("physical_armor")` |
+| `magic_defense` | `magic_armor + magic_armor_mod + equip("magic_armor") + feat("magic_armor") + class("magic_armor") + kindred("magic_armor") + bg("magic_armor")` |
 
 `equip(stat)` = `_equip_bonus(stat)`. `feat(stat)` = `get_feat_stat_bonus(stat)`. `class(stat)` = `get_class_stat_bonus(stat)`. `kindred(stat)` = `get_kindred_stat_bonus(stat)`. `bg(stat)` = `get_background_stat_bonus(stat)`. All five are **flat bonuses to the derived result**.
 
@@ -231,6 +240,7 @@ static func reload() -> void                             # cache-clear for tests
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Armor mod — runtime BUFF/DEBUFF lane.** Added two transient fields: `physical_armor_mod: int = 0` and `magic_armor_mod: int = 0`. Both are plain `var` (NOT `@export`) — never serialized; combat state is transient. `physical_defense` / `magic_defense` formulas extended to include the mod field as the sixth source (after base, equip, feat, class, kindred, bg). Snapshotted by `CombatManager3D._setup_units()` (and `_setup_test_room_units()`) in `_attr_snapshots` and restored in `_end_combat()` so mid-combat changes never bleed into the next combat. Powering `stone_guard` (Dwarf kindred — `+2 PHYSICAL_ARMOR_MOD`) and `divine_ward` (Warden pool — `+2 MAGIC_ARMOR_MOD`); both were no-ops before this session. |
 | 2026-04-27 | **Dual armor system.** Removed `armor_defense: int` and `defense` computed property. Added `physical_armor: int = 3` + `magic_armor: int = 2` (both serialized). Added `physical_defense` + `magic_defense` computed properties, each summing five bonus sources with stat keys `"physical_armor"` / `"magic_armor"`. `archetypes.csv` `armor_range` column replaced by `physical_armor_range` + `magic_armor_range`. `ArchetypeData` gained two new range fields. Dwarf kindred stat_bonuses renamed `armor_defense:2` → `physical_armor:2`. feats.csv + equipment.csv armor bonus keys renamed accordingly. `CharacterCreationManager._build_pc()` seeds `physical_armor=3, magic_armor=2`. `GameState` serialization updated; old saves migrate `armor_defense` value to both lanes. |
 | 2026-04-27 | **XP + Level-Up system.** Added three persistent fields: `level: int = 1`, `xp: int = 0`, `pending_level_ups: int = 0`. All three serialized/deserialized in `GameState._serialize_combatant()` / `_deserialize_combatant()`; old saves default to `level=1, xp=0, pending=0`. `ability_pool` clarification: this field stores the PC's **owned** abilities (superset of the 4 active slots). Level-up picks append to it; the source draw pool is derived at pick-time from `ClassLibrary + KindredLibrary - owned`. |
 | 2026-04-26 | **Pillar foundation — kindred + background stat bonuses.** Attribute defaults changed 5→4. `get_kindred_stat_bonus(stat)` + `get_background_stat_bonus(stat)` added to `CombatantData`; both wired into all 6 derived stat formulas. `feat_ids` seeding changed: kindred no longer grants a feat (stat bonuses are structural); background `starting_feat_id` is now `feat_ids[0]` for PCs. Old kindred feat IDs (`adaptive`, `relentless`, `tinkerer`, `stonehide`) stripped from `feat_ids` on save load. `ArchetypeLibrary.create()` now seeds `feat_ids = []` for all enemies (kindred bonuses flow structurally). |

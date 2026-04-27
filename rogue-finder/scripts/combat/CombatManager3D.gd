@@ -14,20 +14,24 @@ const ENEMY_TURN_DELAY: float = 0.65
 
 ## Abbreviations used in floating combat text for stat buff/debuff effects.
 const STAT_ABBREV: Dictionary = {
-	AbilityData.Attribute.STRENGTH:  "STR",
-	AbilityData.Attribute.DEXTERITY: "DEX",
-	AbilityData.Attribute.COGNITION: "COG",
-	AbilityData.Attribute.VITALITY:  "VIT",
-	AbilityData.Attribute.WILLPOWER: "WIL",
+	AbilityData.Attribute.STRENGTH:           "STR",
+	AbilityData.Attribute.DEXTERITY:          "DEX",
+	AbilityData.Attribute.COGNITION:          "COG",
+	AbilityData.Attribute.VITALITY:           "VIT",
+	AbilityData.Attribute.WILLPOWER:          "WIL",
+	AbilityData.Attribute.PHYSICAL_ARMOR_MOD: "P.ARM",
+	AbilityData.Attribute.MAGIC_ARMOR_MOD:    "M.ARM",
 }
 
 ## Display names for stat buffs and debuffs — [buff_name, debuff_name] per attribute.
 const STAT_STATUS_NAMES: Dictionary = {
-	AbilityData.Attribute.STRENGTH:  ["Empowered",  "Weakened"],
-	AbilityData.Attribute.DEXTERITY: ["Hasted",     "Slowed"],
-	AbilityData.Attribute.COGNITION: ["Focused",    "Muddled"],
-	AbilityData.Attribute.VITALITY:  ["Fortified",  "Vulnerable"],
-	AbilityData.Attribute.WILLPOWER: ["Resolute",   "Demoralized"],
+	AbilityData.Attribute.STRENGTH:           ["Empowered",  "Weakened"],
+	AbilityData.Attribute.DEXTERITY:          ["Hasted",     "Slowed"],
+	AbilityData.Attribute.COGNITION:          ["Focused",    "Muddled"],
+	AbilityData.Attribute.VITALITY:           ["Fortified",  "Vulnerable"],
+	AbilityData.Attribute.WILLPOWER:          ["Resolute",   "Demoralized"],
+	AbilityData.Attribute.PHYSICAL_ARMOR_MOD: ["P.Hardened", "P.Cracked"],
+	AbilityData.Attribute.MAGIC_ARMOR_MOD:    ["M.Warded",   "M.Exposed"],
 }
 
 enum CombatState { PLAYER_TURN, QTE_RUNNING, ENEMY_TURN, WIN, LOSE }
@@ -124,11 +128,13 @@ func _setup_units() -> void:
 		_player_units.append(unit)
 		# Snapshot attributes so stat-delta mutations are rolled back at combat end
 		_attr_snapshots[unit] = {
-			"strength":  cd.strength,
-			"dexterity": cd.dexterity,
-			"cognition": cd.cognition,
-			"vitality":  cd.vitality,
-			"willpower": cd.willpower,
+			"strength":           cd.strength,
+			"dexterity":          cd.dexterity,
+			"cognition":          cd.cognition,
+			"vitality":           cd.vitality,
+			"willpower":          cd.willpower,
+			"physical_armor_mod": cd.physical_armor_mod,
+			"magic_armor_mod":    cd.magic_armor_mod,
 		}
 		pos_idx += 1
 
@@ -194,6 +200,8 @@ func _setup_test_room_units() -> void:
 		_attr_snapshots[unit] = {
 			"strength": cd.strength, "dexterity": cd.dexterity, "cognition": cd.cognition,
 			"vitality": cd.vitality, "willpower": cd.willpower,
+			"physical_armor_mod": cd.physical_armor_mod,
+			"magic_armor_mod":    cd.magic_armor_mod,
 		}
 
 	var enemy_defs: Array[Dictionary] = [
@@ -836,9 +844,10 @@ func _get_attribute_value(unit: Unit3D, attribute: AbilityData.Attribute) -> int
 		AbilityData.Attribute.WILLPOWER: return unit.data.willpower
 		_: return 0
 
-## Applies a +/- delta to one of a unit's core attributes.
-## Clamped to [0, 5] — the defined range for all attributes.
-## Attribute mutations on player units are rolled back at combat end via _attr_snapshots.
+## Applies a +/- delta to one of a unit's core attributes (or transient armor mods).
+## Core attributes clamp to [0, 5]; armor mods clamp to [-10, 10] since armor can be
+## meaningfully debuffed below zero (the HARM formula's maxi(1, ...) provides the floor).
+## All mutations on player units are rolled back at combat end via _attr_snapshots.
 func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
 	match stat:
 		AbilityData.Attribute.STRENGTH:
@@ -851,6 +860,10 @@ func _apply_stat_delta(unit: Unit3D, stat: int, delta: int) -> void:
 			unit.data.vitality  = clampi(unit.data.vitality  + delta, 0, 5)
 		AbilityData.Attribute.WILLPOWER:
 			unit.data.willpower = clampi(unit.data.willpower + delta, 0, 5)
+		AbilityData.Attribute.PHYSICAL_ARMOR_MOD:
+			unit.data.physical_armor_mod = clampi(unit.data.physical_armor_mod + delta, -10, 10)
+		AbilityData.Attribute.MAGIC_ARMOR_MOD:
+			unit.data.magic_armor_mod    = clampi(unit.data.magic_armor_mod    + delta, -10, 10)
 
 	# Record the named status effect so the UI can display it
 	var name_pair: Array = STAT_STATUS_NAMES.get(stat, ["Buffed", "Debuffed"])
@@ -1444,14 +1457,17 @@ func _end_combat(player_won: bool) -> void:
 	_info_bar_unit = null
 	_update_status()
 	# Restore snapshotted attributes for all player units regardless of outcome.
+	# Armor mods use .get(..., 0) so old in-flight snapshots without the keys still restore safely.
 	for unit in _player_units:
 		var snap: Dictionary = _attr_snapshots.get(unit, {})
 		if not snap.is_empty():
-			unit.data.strength  = snap["strength"]
-			unit.data.dexterity = snap["dexterity"]
-			unit.data.cognition = snap["cognition"]
-			unit.data.vitality  = snap["vitality"]
-			unit.data.willpower = snap["willpower"]
+			unit.data.strength           = snap["strength"]
+			unit.data.dexterity          = snap["dexterity"]
+			unit.data.cognition          = snap["cognition"]
+			unit.data.vitality           = snap["vitality"]
+			unit.data.willpower          = snap["willpower"]
+			unit.data.physical_armor_mod = snap.get("physical_armor_mod", 0)
+			unit.data.magic_armor_mod    = snap.get("magic_armor_mod",    0)
 
 	# Test room: skip all GameState mutations and return to the map after a brief pause.
 	if GameState.test_room_mode:

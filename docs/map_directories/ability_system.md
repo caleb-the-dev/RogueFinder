@@ -1,6 +1,6 @@
 # System: Ability System
 
-> Last updated: 2026-04-27 (dual armor — DamageType enum added; damage_type field on all 42 abilities; abilities.csv gains damage_type column)
+> Last updated: 2026-04-27 (armor mod — Attribute enum gains PHYSICAL_ARMOR_MOD/MAGIC_ARMOR_MOD; stone_guard/divine_ward now mechanically active)
 
 ---
 
@@ -34,7 +34,9 @@ Resource subclass. One instance per ability, created by `AbilityLibrary.get_abil
 ### Enums
 
 **Attribute** — which stat an ability scales with; also used by EffectData as `target_stat` for BUFF/DEBUFF:
-`STRENGTH(0)`, `DEXTERITY(1)`, `COGNITION(2)`, `VITALITY(3)`, `WILLPOWER(4)`, `NONE(5)`
+`STRENGTH(0)`, `DEXTERITY(1)`, `COGNITION(2)`, `VITALITY(3)`, `WILLPOWER(4)`, `NONE(5)`, `PHYSICAL_ARMOR_MOD(6)`, `MAGIC_ARMOR_MOD(7)`
+
+`PHYSICAL_ARMOR_MOD` and `MAGIC_ARMOR_MOD` are runtime-only BUFF/DEBUFF targets — they tweak the transient `physical_armor_mod` / `magic_armor_mod` fields on `CombatantData` and roll back at combat end. They are never used as ability scaling stats.
 
 **TargetShape** — the geometry of the targeting area:
 
@@ -180,7 +182,7 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 | `warcry` | Warcry | WIL | 2 | ARC DEBUFF 1 STR (range 1) |
 | `tinker_boost` | Tinker Boost | COG | 2 | BUFF 1 COG |
 | `quick_wit` | Quick Wit | COG | 2 | DEBUFF 1 COG (range 3) |
-| `stone_guard` | Stone Guard | STR | 2 | BUFF 2 ARMOR_DEFENSE |
+| `stone_guard` | Stone Guard | STR | 2 | BUFF 2 PHYSICAL_ARMOR_MOD |
 
 #### Class Defining Abilities (4) — unique per class, assigned as `abilities[0]` at character creation
 
@@ -201,7 +203,7 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 | `crippling_shot` | Crippling Shot | DEX | 3 | 3 | Enemy | HARM 3 HP + DEBUFF 1 DEX |
 | `vanishing_step` | Vanishing Step | DEX | 2 | 0 | Self | BUFF 2 DEX |
 | `lay_on_hands` | Lay on Hands | WIL | 3 | 1 | Ally | MEND 6 HP |
-| `divine_ward` | Divine Ward | WIL | 2 | 0 | Self | BUFF 2 ARMOR_DEFENSE |
+| `divine_ward` | Divine Ward | WIL | 2 | 0 | Self | BUFF 2 MAGIC_ARMOR_MOD |
 | `rallying_shout` | Rallying Shout | WIL | 3 | 1 | Ally (Arc) | BUFF 1 STR |
 
 ### Public API
@@ -249,6 +251,7 @@ static func reload() -> void                         # cache-clear for tests/dev
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Armor mod — Attribute enum extended.** Added `PHYSICAL_ARMOR_MOD = 6` and `MAGIC_ARMOR_MOD = 7` to `AbilityData.Attribute`. `AbilityLibrary._ATTRIBUTE` gained the matching string keys so JSON `"stat":"PHYSICAL_ARMOR_MOD"` / `"MAGIC_ARMOR_MOD"` parse correctly in effects cells. `stone_guard` and `divine_ward` rows updated from the dead `"ARMOR_DEFENSE"` value to the new enum names — both are now mechanically active. No new abilities; no other ability rows changed. |
 | 2026-04-27 | **DamageType enum + damage_type field.** `AbilityData` gained `DamageType` enum (`PHYSICAL=0`, `MAGIC=1`, `NONE=2`) and `damage_type: DamageType = DamageType.NONE` field. `abilities.csv` gained `damage_type` column — all 42 abilities tagged. `AbilityLibrary` gained `_DAMAGE_TYPE` lookup dict; `_row_to_data` parses the new column. Physical: melee/ranged attacks. Magic: fire/acid/arcane/gadget. NONE: all non-HARM abilities. |
 | 2026-04-26 | **Class pool expansion** — 4 class defining abilities + 6 pool additions (Prowler + Warden); abilities.csv 32→42 rows. |
 | 2026-04-26 | **Pillar foundation** — 4 kindred natural attacks + 6 ancestry abilities added; all sourced from abilities.csv via AbilityLibrary. |

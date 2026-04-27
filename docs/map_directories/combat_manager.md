@@ -1,6 +1,6 @@
 # System: Combat Manager
 
-> Last updated: 2026-04-27 (dual armor — HARM formula subtracts armor by damage type; _run_harm_defenders signature extended; test combat room added)
+> Last updated: 2026-04-27 (armor mod — _apply_stat_delta gains PHYSICAL_ARMOR_MOD/MAGIC_ARMOR_MOD cases; _attr_snapshots snapshot/restore the new fields; STAT_STATUS_NAMES + STAT_ABBREV extended)
 
 ---
 
@@ -134,7 +134,7 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_get_harm_effect(ability)` | Returns the first HARM EffectData in an ability, or null. |
 | `_run_harm_defenders(caster, defenders, effect, energy_cost, ability)` | Sequential HARM loop: player-controlled defenders see QTE bar; AI defenders instant-sim. Reads `ability.damage_type` to select `physical_defense` or `magic_defense` on each defender; subtracts that armor from rolled damage. All 5 call sites pass the parent `AbilityData`. |
 | `_defender_roll_to_dmg_multiplier(roll)` | Maps defender QTE roll (1.25/1.0/0.75/0.25) to damage multiplier (0.5/0.75/1.0/1.25). |
-| `_apply_stat_delta(unit, stat, delta)` | Modifies `unit.data.<stat>`, clamps [0,5], calls `unit.add_stat_effect()` to record named status |
+| `_apply_stat_delta(unit, stat, delta)` | Modifies `unit.data.<stat>` and calls `unit.add_stat_effect()` to record named status. Core attributes (STR/DEX/COG/VIT/WIL) clamp to `[0, 5]`; armor mods (`PHYSICAL_ARMOR_MOD` / `MAGIC_ARMOR_MOD`) write to `unit.data.physical_armor_mod` / `magic_armor_mod` and clamp to `[-10, 10]`. |
 | `_setup_units()` | Checks `GameState.test_room_mode` first — if true, delegates entirely to `_setup_test_room_units()`. Otherwise spawns party + random enemies as normal. |
 | `_setup_test_room_units()` | Spawns a hardcoded 3v3 armor-showcase: Kara/Brak/Wren (magic/physical/mixed damage) vs Iron Wall (phys_armor 12, magic_armor 2) / Arcane Shell (phys 2, magic 12) / Balanced Guard (6/6). Builds `_attr_snapshots` for player units. |
 | `_make_test_combatant(def: Dictionary) -> CombatantData` | Constructs a `CombatantData` directly from a flat Dictionary. Used only by `_setup_test_room_units()`. |
@@ -217,13 +217,15 @@ enters TRAVEL_DESTINATION mode immediately; player picks destination tile
 
 Named status effects are recorded on each unit when `_apply_stat_delta()` fires:
 
-| Attribute | Buff name | Debuff name |
-|-----------|-----------|-------------|
-| STRENGTH | Empowered | Weakened |
-| DEXTERITY | Hasted | Slowed |
-| COGNITION | Focused | Muddled |
-| VITALITY | Fortified | Vulnerable |
-| WILLPOWER | Resolute | Demoralized |
+| Attribute | Buff name | Debuff name | Floating text |
+|-----------|-----------|-------------|---------------|
+| STRENGTH | Empowered | Weakened | STR |
+| DEXTERITY | Hasted | Slowed | DEX |
+| COGNITION | Focused | Muddled | COG |
+| VITALITY | Fortified | Vulnerable | VIT |
+| WILLPOWER | Resolute | Demoralized | WIL |
+| PHYSICAL_ARMOR_MOD | P.Hardened | P.Cracked | P.ARM |
+| MAGIC_ARMOR_MOD | M.Warded | M.Exposed | M.ARM |
 
 Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}`. Displayed in UnitInfoBar (colored chips) and StatPanel (full list). Buff/debuff billboard indicators appear above world units.
 
@@ -239,7 +241,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 - **`_apply_force` uses `target.move_to()`** — forced displacement moves the unit but does NOT consume `remaining_move`. Forced movement is involuntary and does not affect the stride budget.
 - **Hazard damage has two triggers** — `_check_hazard_damage()` fires on voluntary movement entry (stride, TRAVEL) and at start-of-turn. FORCE traversal damage is different: `_apply_force()` iterates the full path and calls `unit.take_damage(2)` + `_check_win_lose()` directly for each hazard cell crossed — it does NOT call `_check_hazard_damage()`.
 - **`_calculate_damage()` is dead code** — safe to delete when convenient.
-- **`_attr_snapshots: Dictionary`** — per-unit attribute baseline recorded in `_setup_units()` (or `_setup_test_room_units()`). `_end_combat()` restores these on both win and defeat so stat-delta mutations never bleed into the next combat.
+- **`_attr_snapshots: Dictionary`** — per-unit baseline recorded in `_setup_units()` (or `_setup_test_room_units()`). Keys: `strength`, `dexterity`, `cognition`, `vitality`, `willpower`, `physical_armor_mod`, `magic_armor_mod`. `_end_combat()` restores these on both win and defeat so stat-delta mutations (including transient armor mods) never bleed into the next combat. The armor mod keys are restored via `snap.get(..., 0)` so legacy in-flight snapshots stay safe.
 - **`_setup_units()` reads `GameState.party`** — passes the same `CombatantData` resource instance, not a copy. Mutations via `_apply_stat_delta()` hit the live party member, which is why snapshot/restore is mandatory. Not true for test room units — they are created fresh and not stored in `GameState`.
 - **Dead members are skipped on spawn** — if `cd.is_dead == true`, no unit is created for that party slot. Fewer than 3 player units may enter combat.
 - **"Redo" reloads CombatScene3D with current party state** — after Slice 3 it re-uses the (possibly damaged) party, not a fresh one. This is intentional.
@@ -254,6 +256,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Armor mod — runtime BUFF/DEBUFF lane.** `_apply_stat_delta` gained two cases: `PHYSICAL_ARMOR_MOD` and `MAGIC_ARMOR_MOD` write to `unit.data.physical_armor_mod` / `magic_armor_mod` (transient on `CombatantData`) and clamp to `[-10, 10]`. `STAT_STATUS_NAMES` + `STAT_ABBREV` extended with the new attributes (`P.Hardened`/`P.Cracked`/`P.ARM` and `M.Warded`/`M.Exposed`/`M.ARM`). `_attr_snapshots` build sites in both `_setup_units()` and `_setup_test_room_units()` now record `physical_armor_mod` + `magic_armor_mod`; `_end_combat()` restores them via `snap.get(..., 0)`. Powers `stone_guard` (Dwarf kindred ancestry) and `divine_ward` (Warden pool) — both previously no-ops because the JSON `"ARMOR_DEFENSE"` key didn't resolve to a real `Attribute` enum value. |
 | 2026-04-27 | **Dual armor + test room.** `_run_harm_defenders` signature extended with `ability: AbilityData` (5th param); HARM formula now subtracts `physical_defense` or `magic_defense` based on `ability.damage_type` (NONE = 0 armor). All 5 call sites updated. `_setup_units()` now branches on `GameState.test_room_mode`: if true, calls `_setup_test_room_units()` (hardcoded 3v3 armor showcase). `_make_test_combatant(def)` helper builds `CombatantData` from flat dict. `_end_combat()` test room branch: clears flag, shows result text, waits 2.5 s, returns to map — no XP/save/rewards. `_on_unit_died()` ally permadeath save guarded by `not GameState.test_room_mode`. |
 | 2026-04-27 | **XP on victory.** `_end_combat(true)` now calls `GameState.grant_xp(15)` immediately after writing HP/energy back, before `GameState.save()`. Debug menu (T key) gained two new buttons: "Grant XP +20" (calls `GameState.grant_xp(20)`) and "Force Level-Up" (directly increments `pc.level` by 1 and `pc.pending_level_ups` by 1 for all living party members; does not cross XP thresholds). Force Level-Up also increments `level` so the party sheet displays the correct level after picks. |
 | 2026-04-26 | QTE Session B — world-space bar + camera focus. `_run_harm_defenders` now awaits `_camera_rig.focus_on(caster.global_position).finished` (0.5 s) + 0.25 s settle before calling `start_qte(energy_cost, caster)`. After `qte_resolved` fires, calls `_camera_rig.restore()` (fire-and-forget). `start_qte` signature changed to `(energy_cost: int, attacker: Node3D)`. |
