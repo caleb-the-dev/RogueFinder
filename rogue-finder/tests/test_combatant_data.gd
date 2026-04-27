@@ -12,7 +12,7 @@ func _ready() -> void:
 	test_derived_energy_regen()
 	test_derived_speed()
 	test_derived_attack()
-	test_derived_defense_alias()
+	test_derived_defense()
 	test_unit_name_alias()
 	test_vitality_min_guard()
 	test_ability_pool_size()
@@ -81,11 +81,13 @@ func test_derived_attack() -> void:
 	assert(d.attack == 5, "attack should be 5 for strength 0, got %d" % d.attack)
 	print("  PASS test_derived_attack")
 
-func test_derived_defense_alias() -> void:
+func test_derived_defense() -> void:
 	var d := CombatantData.new()
-	d.armor_defense = 7
-	assert(d.defense == 7, "defense should alias armor_defense (7), got %d" % d.defense)
-	print("  PASS test_derived_defense_alias")
+	d.physical_armor = 7
+	d.magic_armor    = 4
+	assert(d.physical_defense == 7, "physical_defense should equal physical_armor (7), got %d" % d.physical_defense)
+	assert(d.magic_defense    == 4, "magic_defense should equal magic_armor (4), got %d" % d.magic_defense)
+	print("  PASS test_derived_defense")
 
 func test_unit_name_alias() -> void:
 	var d := CombatantData.new()
@@ -143,8 +145,10 @@ func test_archetype_grunt_class() -> void:
 func test_archetype_elite_guard_armor_range() -> void:
 	for i in range(10):
 		var d: CombatantData = ArchetypeLibrary.create("elite_guard")
-		assert(d.armor_defense >= 7 and d.armor_defense <= 10,
-			"elite_guard armor out of range [7,10]: %d" % d.armor_defense)
+		assert(d.physical_armor >= 6 and d.physical_armor <= 9,
+			"elite_guard physical_armor out of range [6,9]: %d" % d.physical_armor)
+		assert(d.magic_armor >= 2 and d.magic_armor <= 4,
+			"elite_guard magic_armor out of range [2,4]: %d" % d.magic_armor)
 		assert(d.vitality >= 4 and d.vitality <= 8,
 			"elite_guard vit out of range [4,8]: %d" % d.vitality)
 	print("  PASS test_archetype_elite_guard_armor_range")
@@ -252,10 +256,10 @@ func test_kindred_stat_bonus_structural() -> void:
 		for f_id in d.feat_ids:
 			assert(f_id not in old_kindred_feats,
 				"%s: old kindred feat '%s' should not be in feat_ids after migration" % [archetype_id, f_id])
-	# Verify the bonus still applies structurally for a Dwarf (armor_defense:2)
+	# Verify the bonus still applies structurally for a Dwarf (physical_armor:2)
 	var guard: CombatantData = ArchetypeLibrary.create("elite_guard")  # Dwarf
-	assert(guard.get_kindred_stat_bonus("armor_defense") == 2,
-		"elite_guard (Dwarf) kindred armor_defense bonus should be 2, got %d" % guard.get_kindred_stat_bonus("armor_defense"))
+	assert(guard.get_kindred_stat_bonus("physical_armor") == 2,
+		"elite_guard (Dwarf) kindred physical_armor bonus should be 2, got %d" % guard.get_kindred_stat_bonus("physical_armor"))
 	print("  PASS test_kindred_stat_bonus_structural")
 
 func test_kindred_unknown_defaults_safe() -> void:

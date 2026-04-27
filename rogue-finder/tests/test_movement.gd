@@ -33,7 +33,8 @@ func _make_unit(speed: int = 6) -> Unit3D:
 	d.willpower       = 2
 	d.strength        = 2
 	d.cognition       = 2
-	d.armor_defense   = 5
+	d.physical_armor  = 3
+	d.magic_armor     = 2
 	d.dexterity       = speed - 2  # speed = 2 + dexterity
 	d.qte_resolution  = 0.5
 	u.setup(d, Vector2i(0, 0))

@@ -545,7 +545,7 @@ func _initiate_aoe_action(attacker: Unit3D, origin_world: Vector3) -> void:
 		for unit: Unit3D in aoe_targets:
 			if unit.is_alive:
 				harm_targets.append(unit)
-		await _run_harm_defenders(attacker, harm_targets, harm_eff, _pending_ability.energy_cost)
+		await _run_harm_defenders(attacker, harm_targets, harm_eff, _pending_ability.energy_cost, _pending_ability)
 
 	_pending_ability = null
 	_aoe_origin      = Vector2i(-1, -1)
@@ -617,7 +617,7 @@ func _initiate_action(attacker: Unit3D, target: Unit3D) -> void:
 
 	var harm_eff: EffectData = _get_harm_effect(_pending_ability)
 	if harm_eff != null:
-		await _run_harm_defenders(attacker, [target], harm_eff, _pending_ability.energy_cost)
+		await _run_harm_defenders(attacker, [target], harm_eff, _pending_ability.energy_cost, _pending_ability)
 
 	_pending_ability = null
 	_attack_target   = null
@@ -671,9 +671,10 @@ func _defender_roll_to_dmg_multiplier(roll: float) -> float:
 
 ## Processes HARM for each defender sequentially.
 ## Player-controlled defenders see the QTE bar; AI-controlled defenders instant-sim.
-## Damage formula: max(1, round(dmg_mult * (base_value + caster.attack)))
+## Damage formula: max(1, round(dmg_mult * (base_value + caster.attack)) - armor)
+## armor is physical_defense or magic_defense based on ability.damage_type; NONE = 0.
 func _run_harm_defenders(caster: Unit3D, defenders: Array[Unit3D],
-		effect: EffectData, energy_cost: int) -> void:
+		effect: EffectData, energy_cost: int, ability: AbilityData) -> void:
 	for defender: Unit3D in defenders:
 		if not defender.is_alive:
 			continue
@@ -696,7 +697,12 @@ func _run_harm_defenders(caster: Unit3D, defenders: Array[Unit3D],
 			var qte_result: float = _qte_resolution_to_multiplier(defender.data.qte_resolution)
 			dmg_mult = _defender_roll_to_dmg_multiplier(qte_result)
 
-		var dmg: int = maxi(1, roundi(dmg_mult * float(effect.base_value + caster.data.attack)))
+		var armor: int
+		match ability.damage_type:
+			AbilityData.DamageType.PHYSICAL: armor = defender.data.physical_defense
+			AbilityData.DamageType.MAGIC:    armor = defender.data.magic_defense
+			_:                               armor = 0
+		var dmg: int = maxi(1, roundi(dmg_mult * float(effect.base_value + caster.data.attack)) - armor)
 		defender.take_damage(dmg)
 		_check_win_lose()
 		if state == CombatState.WIN or state == CombatState.LOSE:
@@ -1160,14 +1166,14 @@ func _process_enemy_actions() -> void:
 				await get_tree().create_timer(0.10).timeout
 				_apply_non_harm_effects(chosen, enemy, enemy)
 				if harm_eff != null:
-					await _run_harm_defenders(enemy, [enemy], harm_eff, chosen.energy_cost)
+					await _run_harm_defenders(enemy, [enemy], harm_eff, chosen.energy_cost, chosen)
 
 			AbilityData.TargetShape.SINGLE:
 				enemy.play_attack_anim(target.global_position)
 				await get_tree().create_timer(0.10).timeout
 				_apply_non_harm_effects(chosen, enemy, target)
 				if harm_eff != null:
-					await _run_harm_defenders(enemy, [target], harm_eff, chosen.energy_cost)
+					await _run_harm_defenders(enemy, [target], harm_eff, chosen.energy_cost, chosen)
 
 			_:  # AoE: RADIAL, CONE, ARC, LINE
 				var best_origin: Vector2i = _pick_best_aoe_origin(enemy, chosen)
@@ -1201,7 +1207,7 @@ func _process_enemy_actions() -> void:
 					for hu: Unit3D in aoe_hits:
 						if hu.is_alive:
 							alive_hits.append(hu)
-					await _run_harm_defenders(enemy, alive_hits, harm_eff, chosen.energy_cost)
+					await _run_harm_defenders(enemy, alive_hits, harm_eff, chosen.energy_cost, chosen)
 
 		if state == CombatState.WIN or state == CombatState.LOSE:
 			return

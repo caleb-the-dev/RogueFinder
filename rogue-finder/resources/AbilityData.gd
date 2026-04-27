@@ -42,6 +42,17 @@ enum ApplicableTo {
 }
 
 ## ======================================================
+## DamageType enum — governs which armor stat resists this ability.
+## Only meaningful for abilities that have a HARM effect.
+## NONE = no armor reduction (non-HARM abilities, or HARM that bypasses armor).
+## ======================================================
+enum DamageType {
+	PHYSICAL = 0,
+	MAGIC    = 1,
+	NONE     = 2,
+}
+
+## ======================================================
 ## --- Fields ---
 ## ======================================================
 
@@ -50,6 +61,7 @@ enum ApplicableTo {
 @export var attribute:     Attribute    = Attribute.NONE
 @export var target_shape:  TargetShape  = TargetShape.SINGLE
 @export var applicable_to: ApplicableTo = ApplicableTo.ENEMY
+@export var damage_type:   DamageType   = DamageType.NONE
 ## 0–10 tiles; -1 = whole map
 @export var tile_range:    int          = 1
 ## CONE: if false, a unit at depth-1 blocks the depth-2 crossbar.

@@ -127,7 +127,8 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	# -- Derived Stats --
 	lines.append("[b]── Derived Stats ──[/b]")
 	lines.append("[b]Attack:[/b]  %d   (5 + STR)" % d.attack)
-	lines.append("[b]Defense:[/b] %d   (armor)" % d.defense)
+	lines.append("[b]P.Def:[/b]   %d   (physical armor)" % d.physical_defense)
+	lines.append("[b]M.Def:[/b]   %d   (magic armor)" % d.magic_defense)
 	lines.append("[b]Speed:[/b]   %d tiles   (1 + kindred)" % d.speed)
 	lines.append("[b]E.Regen:[/b] %d/turn   (2 + WIL)" % d.energy_regen)
 	if not d.is_player_unit:

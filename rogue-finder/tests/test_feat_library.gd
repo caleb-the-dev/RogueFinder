@@ -65,10 +65,10 @@ func test_reload_repopulates() -> void:
 
 func test_stat_bonuses_parsed() -> void:
 	var iron_guard: FeatData = FeatLibrary.get_feat("iron_guard")
-	assert(iron_guard.stat_bonuses.has("armor_defense"),
-		"iron_guard should have armor_defense bonus, got %s" % str(iron_guard.stat_bonuses))
-	assert(iron_guard.stat_bonuses["armor_defense"] == 2,
-		"iron_guard armor_defense should be 2, got %d" % iron_guard.stat_bonuses["armor_defense"])
+	assert(iron_guard.stat_bonuses.has("physical_armor"),
+		"iron_guard should have physical_armor bonus, got %s" % str(iron_guard.stat_bonuses))
+	assert(iron_guard.stat_bonuses["physical_armor"] == 2,
+		"iron_guard physical_armor should be 2, got %d" % iron_guard.stat_bonuses["physical_armor"])
 
 	var iron_will: FeatData = FeatLibrary.get_feat("iron_will")
 	assert(iron_will.stat_bonuses.has("willpower"),

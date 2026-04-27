@@ -545,10 +545,10 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 
 	# Derived stats — 4 columns
 	var derived_defs: Array = [
-		["Speed",    str(member.speed),        "Speed\nMovement cells per turn.\n= 2 + DEX + gear bonuses"],
-		["Defense",  str(member.defense),      "Defense\nDamage reduction.\n= armor_defense + gear bonuses"],
-		["EN Max",   str(member.energy_max),   "Energy Max\nTotal energy pool.\n= 5 + VIT + gear bonuses"],
-		["EN Regen", str(member.energy_regen), "Energy Regen\nEnergy restored at turn start.\n= 2 + WIL + gear bonuses"],
+		["Speed",    str(member.speed),            "Speed\nMovement cells per turn.\n= 1 + kindred bonus + gear"],
+		["P.Def",    str(member.physical_defense), "Physical Defense\nReduces physical HARM.\n= physical_armor + gear bonuses"],
+		["M.Def",    str(member.magic_defense),    "Magic Defense\nReduces magic HARM.\n= magic_armor + gear bonuses"],
+		["EN Max",   str(member.energy_max),       "Energy Max\nTotal energy pool.\n= 5 + VIT + gear bonuses"],
 	]
 	var dcol_w: float = tr_w / float(derived_defs.size())
 	for i in range(derived_defs.size()):
@@ -1688,5 +1688,6 @@ func _stat_abbr(stat: String) -> String:
 		"cognition":     return "COG"
 		"willpower":     return "WIL"
 		"vitality":      return "VIT"
-		"armor_defense": return "DEF"
+		"physical_armor": return "P.DEF"
+		"magic_armor":    return "M.DEF"
 		_: return stat.substr(0, 3).to_upper()

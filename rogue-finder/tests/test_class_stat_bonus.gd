@@ -20,7 +20,7 @@ func _ready() -> void:
 	# Kindred stat bonus
 	test_get_kindred_stat_bonus_known()
 	test_get_kindred_stat_bonus_unknown_returns_zero()
-	test_defense_includes_kindred_armor_bonus()
+	test_physical_defense_includes_kindred_armor_bonus()
 	test_attack_includes_kindred_str_bonus()
 	# Background stat bonus
 	test_get_background_stat_bonus_known()
@@ -38,7 +38,8 @@ func _bare_combatant() -> CombatantData:
 	d.cognition     = 5
 	d.willpower     = 5
 	d.vitality      = 5
-	d.armor_defense = 0
+	d.physical_armor = 0
+	d.magic_armor    = 0
 	d.feat_ids      = []
 	d.unit_class    = ""
 	return d
@@ -144,9 +145,9 @@ func test_get_kindred_stat_bonus_known() -> void:
 	d.kindred = "Half-Orc"  # strength:1
 	assert(d.get_kindred_stat_bonus("strength") == 1,
 		"Half-Orc kindred strength bonus should be 1, got %d" % d.get_kindred_stat_bonus("strength"))
-	d.kindred = "Dwarf"  # armor_defense:2
-	assert(d.get_kindred_stat_bonus("armor_defense") == 2,
-		"Dwarf kindred armor_defense bonus should be 2, got %d" % d.get_kindred_stat_bonus("armor_defense"))
+	d.kindred = "Dwarf"  # physical_armor:2
+	assert(d.get_kindred_stat_bonus("physical_armor") == 2,
+		"Dwarf kindred physical_armor bonus should be 2, got %d" % d.get_kindred_stat_bonus("physical_armor"))
 	d.kindred = "Gnome"  # cognition:1
 	assert(d.get_kindred_stat_bonus("cognition") == 1,
 		"Gnome kindred cognition bonus should be 1, got %d" % d.get_kindred_stat_bonus("cognition"))
@@ -162,14 +163,14 @@ func test_get_kindred_stat_bonus_unknown_returns_zero() -> void:
 		"unknown kindred should return 0 for any stat bonus")
 	print("  PASS test_get_kindred_stat_bonus_unknown_returns_zero")
 
-func test_defense_includes_kindred_armor_bonus() -> void:
+func test_physical_defense_includes_kindred_armor_bonus() -> void:
 	var d := _bare_combatant()
 	d.kindred = ""
-	var base_defense: int = d.defense
-	d.kindred = "Dwarf"  # armor_defense:2
-	assert(d.defense == base_defense + 2,
-		"Dwarf armor_defense:2 should raise defense by 2, got %d (base %d)" % [d.defense, base_defense])
-	print("  PASS test_defense_includes_kindred_armor_bonus")
+	var base_pdef: int = d.physical_defense
+	d.kindred = "Dwarf"  # physical_armor:2
+	assert(d.physical_defense == base_pdef + 2,
+		"Dwarf physical_armor:2 should raise physical_defense by 2, got %d (base %d)" % [d.physical_defense, base_pdef])
+	print("  PASS test_physical_defense_includes_kindred_armor_bonus")
 
 func test_attack_includes_kindred_str_bonus() -> void:
 	var d := _bare_combatant()
