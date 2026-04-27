@@ -1,5 +1,5 @@
 id,name,description,starting_feat_id,feat_pool,unlocked_by_default,tags,stat_bonuses,notes
 crook,Crook,Grew up light-fingered in Badurga's alleys.,street_smart,nimble_fingers|survival_instinct,true,criminal|urban,dexterity:1,
-soldier,Soldier,Served a tour under some banner that mattered once.,combat_training,disciplined_stance|unit_cohesion,true,military|disciplined,strength:1|vitality:1,
-scholar,Scholar,Traded sunlight for ink and ancient texts.,analytical_mind,focused_study|breadth_of_knowledge,true,academic|urban,cognition:2,
-baker,Baker,Flour-dusted and endlessly patient.,hearty_constitution,enduring_spirit|patient_resolve,true,commoner|urban,vitality:1|willpower:1,
+soldier,Soldier,Served a tour under some banner that mattered once.,combat_training,disciplined_stance|unit_cohesion,true,military|disciplined,strength:1,
+scholar,Scholar,Traded sunlight for ink and ancient texts.,analytical_mind,focused_study|breadth_of_knowledge,true,academic|urban,cognition:1,
+baker,Baker,Flour-dusted and endlessly patient.,hearty_constitution,enduring_spirit|patient_resolve,true,commoner|urban,vitality:1,

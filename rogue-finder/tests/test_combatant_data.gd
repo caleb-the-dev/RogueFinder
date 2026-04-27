@@ -97,10 +97,10 @@ func test_unit_name_alias() -> void:
 
 func test_vitality_min_guard() -> void:
 	# ArchetypeLibrary guards vitality >= 1. Alchemist is Gnome (+2 hp_bonus), VIT min 1.
-	# Minimum hp_max = 10 + 2 + 1*4 = 16 (multiplier changed to *4 for 1-10 scale).
+	# Base min: 10 + 2 + 1*4 = 16. Temperament can shift by -1, so floor is 15.
 	var d: CombatantData = ArchetypeLibrary.create("alchemist")
 	assert(d.vitality >= 1, "vitality must be at least 1 after factory creation")
-	assert(d.hp_max   >= 16, "hp_max must be >= 16 for Gnome at VIT 1, got %d" % d.hp_max)
+	assert(d.hp_max   >= 15, "hp_max must be >= 15 for Gnome at VIT 1 (±1 temperament), got %d" % d.hp_max)
 	print("  PASS test_vitality_min_guard")
 
 ## --- Archetype Factory Tests ---

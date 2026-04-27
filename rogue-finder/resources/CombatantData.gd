@@ -30,6 +30,9 @@ extends Resource
 @export var background: String  = ""
 ## Combat role. Fixed per archetype. e.g. "Rogue", "Barbarian", "Wizard".
 @export var unit_class: String  = ""
+## Pokémon-style personality modifier. Randomly assigned at creation; never changes.
+## Gives +1 to one attribute and -1 to another (or no effect for "even").
+@export var temperament_id: String = ""
 
 ## ======================================================
 ## --- Portrait (UI display — shown in StatPanel / UnitInfoBar) ---
@@ -156,25 +159,32 @@ func get_kindred_stat_bonus(stat: String) -> int:
 func get_background_stat_bonus(stat: String) -> int:
 	return BackgroundLibrary.get_background(background).stat_bonuses.get(stat, 0)
 
+## Returns +1 if stat is the temperament's boosted_stat, -1 if it's the hindered_stat, else 0.
+func get_temperament_stat_bonus(stat: String) -> int:
+	var t: TemperamentData = TemperamentLibrary.get_temperament(temperament_id)
+	if t.boosted_stat  == stat and stat != "": return  1
+	if t.hindered_stat == stat and stat != "": return -1
+	return 0
+
 ## hp_max: flat 10 + kindred bonus + vitality*4. Feat/equip/class/kindred/bg bonuses are flat additions.
 ## Multiplier is 4 (not 6) to keep HP in the 14–50 range with the 1–10 attribute scale.
 var hp_max: int:
 	get: return 10 + KindredLibrary.get_hp_bonus(kindred) + (vitality * 4) \
 		+ _equip_bonus("vitality") + get_feat_stat_bonus("vitality") \
 		+ get_class_stat_bonus("vitality") + get_kindred_stat_bonus("vitality") \
-		+ get_background_stat_bonus("vitality")
+		+ get_background_stat_bonus("vitality") + get_temperament_stat_bonus("vitality")
 
 ## energy_max: 5 + vitality
 var energy_max: int:
 	get: return 5 + vitality + _equip_bonus("vitality") + get_feat_stat_bonus("vitality") \
 		+ get_class_stat_bonus("vitality") + get_kindred_stat_bonus("vitality") \
-		+ get_background_stat_bonus("vitality")
+		+ get_background_stat_bonus("vitality") + get_temperament_stat_bonus("vitality")
 
 ## energy_regen: energy restored at the start of each turn — 2 + willpower
 var energy_regen: int:
 	get: return 2 + willpower + _equip_bonus("willpower") + get_feat_stat_bonus("willpower") \
 		+ get_class_stat_bonus("willpower") + get_kindred_stat_bonus("willpower") \
-		+ get_background_stat_bonus("willpower")
+		+ get_background_stat_bonus("willpower") + get_temperament_stat_bonus("willpower")
 
 ## speed: movement range in grid cells — 1 + kindred bonus.
 ## DEX removed from base formula; reserved for dodge/evasion (future).
@@ -183,7 +193,7 @@ var speed: int:
 	get: return 1 + KindredLibrary.get_speed_bonus(kindred) \
 		+ _equip_bonus("dexterity") + get_feat_stat_bonus("dexterity") \
 		+ get_class_stat_bonus("dexterity") + get_kindred_stat_bonus("dexterity") \
-		+ get_background_stat_bonus("dexterity")
+		+ get_background_stat_bonus("dexterity") + get_temperament_stat_bonus("dexterity")
 
 ## physical_defense: resists PHYSICAL HARM — base + transient mod + 5 pillar bonuses keyed "physical_armor".
 var physical_defense: int:
@@ -203,7 +213,7 @@ var magic_defense: int:
 var attack: int:
 	get: return 5 + strength + _equip_bonus("strength") + get_feat_stat_bonus("strength") \
 		+ get_class_stat_bonus("strength") + get_kindred_stat_bonus("strength") \
-		+ get_background_stat_bonus("strength")
+		+ get_background_stat_bonus("strength") + get_temperament_stat_bonus("strength")
 
 ## unit_name: alias for character_name.
 ## Keeps HUD.gd and Unit3D.gd working without changes — they duck-type on this field.
