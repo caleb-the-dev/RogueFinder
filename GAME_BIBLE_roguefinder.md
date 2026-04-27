@@ -120,37 +120,25 @@ Class is the dominant source of run-time growth — ~85% of ability and feat dra
 - **Armor provides defense values** split across Physical and Arcane (see Combat → Damage Types & Defense)
 - Consumables and accessories — schemas TBD
 
-#### Weapon Schema (CSV fields)
+#### Equipment Schema (CSV fields)
+All gear — weapons, armor, and accessories — lives in a single `equipment.csv`, differentiated by a `slot` field.
+
 | Field | Type | Description |
 |---|---|---|
 | `id` | string | Unique identifier |
 | `name` | string | Display name |
+| `slot` | enum | WEAPON / ARMOR / ACCESSORY |
+| `stat_bonuses` | pipe-separated pairs | Stat deltas applied while equipped, e.g. `physical_armor:1\|dexterity:-1`. Supports any `CombatantData` stat key. |
 | `description` | string | Player-facing flavor text |
 | `notes` | string | Dev-only notes for design/balance |
-| `rarity` | enum | common / uncommon / rare / epic / legendary |
-| `attribute` | enum | STR / DEX / COG — which attribute this weapon boosts when attacking |
-| `attack_bonus` | int | Integer added to the wielder's chosen attribute |
-| `abilities_granted` | array\<ability_id\> | Abilities added to the wielder's available pool while equipped |
-| `effects` | JSON array | Additional modifiers for magic/rare weapons (e.g. `[{"stat":"STR","mod":1}]`) |
 
-- Default: one weapon boosts one attribute. Multi-attribute or exotic bonuses are handled via `effects`.
-- A character can equip an "off-attribute" weapon (e.g. a COG staff on a STR fighter) — it's a build trade-off, not a trap, since `abilities_granted` and `effects` still apply.
+**Planned fields (not yet implemented):** `rarity`, `abilities_granted` (abilities added to the bearer's pool while equipped).
+
+- Weapons boost attack stats (typically `strength`, `dexterity`, or `cognition`) via `stat_bonuses`.
+- Armor provides defense values (`physical_armor`, `magic_armor`) and may apply stat penalties (e.g. `dexterity:-2` on heavy plate).
+- A character can equip an "off-attribute" weapon — it's a build trade-off, not a trap.
 - Weapons do **not** carry a damage value or damage type — those live with the ability being used.
-
-#### Armor Schema (CSV fields)
-| Field | Type | Description |
-|---|---|---|
-| `id` | string | Unique identifier |
-| `name` | string | Display name |
-| `description` | string | Player-facing flavor text |
-| `notes` | string | Dev-only notes for design/balance |
-| `rarity` | enum | common / uncommon / rare / epic / legendary |
-| `phys_def` | int | Physical Defense value |
-| `arc_def` | int | Arcane Defense value |
-| `abilities_granted` | array\<ability_id\> | Abilities added to the wearer's available pool while equipped |
-| `effects` | JSON array | Additional modifiers for magic/rare armor |
-
-- Armor pieces can skew heavily to one defense type (plate → high PhysDef, low ArcDef), provide a balanced split, or offer unusual profiles via rarity and effects.
+- Armor pieces can skew to one defense lane (plate → high physical, low magic), provide a balanced split, or offer unusual profiles.
 
 ---
 
@@ -167,12 +155,20 @@ Every damaging or healing action resolves against a specific defense stat, creat
 
 #### Two Defense Stats
 - **Physical Defense (PhysDef)** — resists Physical-typed attacks
-- **Arcane Defense (ArcDef)** — resists Arcane-typed attacks
+- **Magic Defense (MagicDef)** — resists Magic-typed attacks
 
 Armor provides values in one or both, shaping a character's vulnerability profile.
 
+#### Armor Mods (Runtime BUFF/DEBUFF)
+Abilities can transiently raise or lower either defense lane during combat via **`physical_armor_mod`** and **`magic_armor_mod`** — integer fields on each combatant, default 0, added on top of the base armor stat.
+
+- Both values clamp to **[-10, +10]** when modified.
+- They are **not serialized** — values are snapshotted at combat start and restored on combat end (win or loss), so no mid-combat state bleeds into the next fight.
+- Abilities use `EffectType.BUFF` or `DEBUFF` with `target_stat = PHYSICAL_ARMOR_MOD` or `MAGIC_ARMOR_MOD`.
+- Example abilities: **stone_guard** (Dwarf ancestry — raises `physical_armor_mod`) and **divine_ward** (Warden pool — raises `magic_armor_mod`).
+
 #### Attack Resolution
-- Every offensive ability has a **damage type tag: Physical or Arcane**
+- Every offensive ability has a **damage type tag: Physical or Magic**
 - The tag determines which of the target's two defense stats is used in the Stat Delta comparison
 - The attacker side of the Stat Delta is the **attacker's attribute** (STR, DEX, or COG — specified by the ability) plus any weapon `attack_bonus` if the weapon boosts that attribute
 - Ability damage scale is owned by the ability's **Base Power** — it does not add to the attacker's stat
@@ -185,10 +181,10 @@ This yields three clean knobs per ability:
 #### Attribute / Damage Type Decoupling
 Attribute and damage type are **independent**. The default alignment is intuitive:
 - STR / DEX abilities → Physical damage
-- COG abilities → Arcane damage
+- COG abilities → Magic damage
 
 But **off-type abilities** — roughly 15–25% of the ability pool — break this default for build expression:
-- *Flaming Sword:* STR attribute, **Arcane** damage
+- *Flaming Sword:* STR attribute, **Magic** damage
 - *Fissure:* COG attribute, **Physical** damage
 - *Blood Spike:* COG attribute, **Physical** damage
 
@@ -196,11 +192,11 @@ This means any character archetype can, with the right gear or ability choices, 
 
 #### Enemy Roster Balance
 - Ability distribution across the player's available pool will naturally settle roughly 60/40 physical-leaning
-- **Enemy roster is designed for a roughly even spread** of Physical-threat, Arcane-threat, and mixed-threat encounters
-- This keeps ArcDef a live build stat even when the player's own kit skews physical — ArcDef matters because ~⅔ of fights test it, not because the player uses it
+- **Enemy roster is designed for a roughly even spread** of Physical-threat, Magic-threat, and mixed-threat encounters
+- This keeps MagicDef a live build stat even when the player's own kit skews physical — MagicDef matters because ~⅔ of fights test it, not because the player uses it
 
 #### Design Intent
-Typing integrates *into* the Stat Delta rather than sitting on top of it. The single `attribute vs defense` comparison already answers "is this matchup favorable?" — the Physical/Arcane split just determines *which* defense is tested. No new multiplier, no redundant layer; a legible, gear-interactive matchup system.
+Typing integrates *into* the Stat Delta rather than sitting on top of it. The single `attribute vs defense` comparison already answers "is this matchup favorable?" — the Physical/Magic split just determines *which* defense is tested. No new multiplier, no redundant layer; a legible, gear-interactive matchup system.
 
 ### Grid & Positioning
 - Combat takes place on a **tight grid map** 10x10 (Into the Breach-style)
