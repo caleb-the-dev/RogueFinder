@@ -1,6 +1,6 @@
 # System: Equipment & Consumables
 
-> Last updated: 2026-04-23 (S32 — EquipmentLibrary migrated to CSV)
+> Last updated: 2026-04-27 (added plate_cuirass + warded_robe — first magic_armor equipment piece)
 
 ---
 
@@ -22,7 +22,7 @@ Gear comes from rewards — no archetype starts with equipment. Consumables are 
 | `resources/EquipmentData.gd` | Resource — one equipment item |
 | `resources/ConsumableData.gd` | Resource — one consumable item |
 | `scripts/globals/EquipmentLibrary.gd` | Static catalog — CSV-sourced (`res://data/equipment.csv`), `get_equipment()` / `all_equipment()` / `reload()` |
-| `data/equipment.csv` | Source of truth — 6 items; `stat_bonuses` as `stat:value\|stat:value` pipe pairs |
+| `data/equipment.csv` | Source of truth — 9 items; `stat_bonuses` as `stat:value\|stat:value` pipe pairs |
 | `scripts/globals/ConsumableLibrary.gd` | Static catalog — CSV-sourced (`res://data/consumables.csv`), `get_consumable()` / `all_consumables()` / `reload()` |
 | `data/consumables.csv` | Source of truth — 2 consumables; edit here |
 
@@ -53,13 +53,16 @@ func get_bonus(stat_name: String) -> int
 
 Static class. Internal storage: `const _ITEMS: Array[Dictionary]`.
 
-### Defined Items (6 — 2 per slot)
+### Defined Items (9)
 
 | ID | Name | Slot | Bonuses | Description |
 |----|------|------|---------|-------------|
 | `leather_armor` | Leather Armor | ARMOR | physical_armor +1 | Light protection. |
 | `chain_mail` | Chain Mail | ARMOR | physical_armor +2, dexterity -1 | Heavier. Slower. |
+| `plate_cuirass` | Plate Cuirass | ARMOR | physical_armor +3, dexterity -2 | Heavy steel plate. Soaks blows but you'll feel every step. |
+| `warded_robe` | Warded Robe | ARMOR | magic_armor +2 | First magic_armor equipment piece — exercises the `_equip_bonus("magic_armor")` codepath that previously had no live data. |
 | `short_sword` | Short Sword | WEAPON | strength +1 | A simple blade. |
+| `rusted_dagger` | Rusted Dagger | WEAPON | (none) | A dagger eaten by rust. Still sharp enough. |
 | `hunters_bow` | Hunter's Bow | WEAPON | dexterity +1 | Better range. |
 | `iron_ring` | Iron Ring | ACCESSORY | vitality +1 | Adds constitution. |
 | `lucky_charm` | Lucky Charm | ACCESSORY | willpower +1 | Luck of the draw. |
@@ -69,7 +72,7 @@ Static class. Internal storage: `const _ITEMS: Array[Dictionary]`.
 ```gdscript
 ## Returns a populated EquipmentData. Never returns null — falls back to a stub for unknown IDs.
 static func get_equipment(id: String) -> EquipmentData
-## Returns all 6 defined items. Use for reward pools.
+## Returns all 9 defined items. Use for reward pools.
 static func all_equipment() -> Array[EquipmentData]
 ```
 

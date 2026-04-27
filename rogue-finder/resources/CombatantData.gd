@@ -119,6 +119,14 @@ extends Resource
 @export var physical_armor: int = 3
 @export var magic_armor:    int = 2
 
+## --- Mid-combat armor mods (transient — not serialized) ---
+## Set by BUFF/DEBUFF effects targeting PHYSICAL_ARMOR_MOD / MAGIC_ARMOR_MOD.
+## Snapshotted by CombatManager3D._setup_units() and rolled back in _end_combat()
+## via _attr_snapshots, so they always default to 0 outside of combat.
+## NOT saved to disk — combat state is transient.
+var physical_armor_mod: int = 0
+var magic_armor_mod:    int = 0
+
 ## ======================================================
 ## Derived Stats — computed from core attributes + equipped items + feats
 ## ======================================================
@@ -177,15 +185,17 @@ var speed: int:
 		+ get_class_stat_bonus("dexterity") + get_kindred_stat_bonus("dexterity") \
 		+ get_background_stat_bonus("dexterity")
 
-## physical_defense: resists PHYSICAL HARM — physical_armor + all pillar bonuses keyed "physical_armor".
+## physical_defense: resists PHYSICAL HARM — base + transient mod + 5 pillar bonuses keyed "physical_armor".
 var physical_defense: int:
-	get: return physical_armor + _equip_bonus("physical_armor") + get_feat_stat_bonus("physical_armor") \
+	get: return physical_armor + physical_armor_mod \
+		+ _equip_bonus("physical_armor") + get_feat_stat_bonus("physical_armor") \
 		+ get_class_stat_bonus("physical_armor") + get_kindred_stat_bonus("physical_armor") \
 		+ get_background_stat_bonus("physical_armor")
 
-## magic_defense: resists MAGIC HARM — magic_armor + all pillar bonuses keyed "magic_armor".
+## magic_defense: resists MAGIC HARM — base + transient mod + 5 pillar bonuses keyed "magic_armor".
 var magic_defense: int:
-	get: return magic_armor + _equip_bonus("magic_armor") + get_feat_stat_bonus("magic_armor") \
+	get: return magic_armor + magic_armor_mod \
+		+ _equip_bonus("magic_armor") + get_feat_stat_bonus("magic_armor") \
 		+ get_class_stat_bonus("magic_armor") + get_kindred_stat_bonus("magic_armor") \
 		+ get_background_stat_bonus("magic_armor")
 

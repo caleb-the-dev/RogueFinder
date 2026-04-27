@@ -69,6 +69,8 @@ var _party_btn_pulse: Tween = null
 var _event_manager: EventManager = null
 var _is_dev_event: bool = false
 var _dev_event_panel: CanvasLayer = null
+var _add_item_panel: CanvasLayer = null
+var _add_item_list: VBoxContainer = null   ## cached child of _add_item_panel; rebuilt on every show
 var _threat_fill: ColorRect = null
 var _threat_pct_lbl: Label = null
 
@@ -108,6 +110,8 @@ func _input(event: InputEvent) -> void:
 	if _event_manager != null and _event_manager.visible:
 		return
 	if _dev_event_panel != null and _dev_event_panel.visible:
+		return
+	if _add_item_panel != null and _add_item_panel.visible:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
@@ -1190,19 +1194,56 @@ func _build_dev_event_panel() -> void:
 	combat_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
 	vbox.add_child(combat_hdr)
 
-	var test_room_btn := Button.new()
-	test_room_btn.text = "⚔ Test Room (armor showcase)"
-	test_room_btn.custom_minimum_size = Vector2(220.0, 32.0)
-	test_room_btn.add_theme_font_size_override("font_size", 13)
-	test_room_btn.pressed.connect(func() -> void:
+	var test_room_row := HBoxContainer.new()
+	test_room_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(test_room_row)
+
+	var armor_showcase_btn := Button.new()
+	armor_showcase_btn.text = "⚔ Test Room — Armor Showcase"
+	armor_showcase_btn.custom_minimum_size = Vector2(220.0, 32.0)
+	armor_showcase_btn.add_theme_font_size_override("font_size", 13)
+	armor_showcase_btn.pressed.connect(func() -> void:
 		_dev_event_panel.visible = false
 		GameState.test_room_mode = true
+		GameState.test_room_kind = "armor_showcase"
 		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
 	)
-	vbox.add_child(test_room_btn)
+	test_room_row.add_child(armor_showcase_btn)
+
+	var armor_mod_btn := Button.new()
+	armor_mod_btn.text = "⚔ Test Room — Armor Mod"
+	armor_mod_btn.custom_minimum_size = Vector2(220.0, 32.0)
+	armor_mod_btn.add_theme_font_size_override("font_size", 13)
+	armor_mod_btn.pressed.connect(func() -> void:
+		_dev_event_panel.visible = false
+		GameState.test_room_mode = true
+		GameState.test_room_kind = "armor_mod"
+		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+	)
+	test_room_row.add_child(armor_mod_btn)
 
 	var sep_combat := HSeparator.new()
 	vbox.add_child(sep_combat)
+
+	# --- Inventory section ---
+	var inv_hdr := Label.new()
+	inv_hdr.text = "INVENTORY"
+	inv_hdr.add_theme_font_size_override("font_size", 11)
+	inv_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	vbox.add_child(inv_hdr)
+
+	var add_item_btn := Button.new()
+	add_item_btn.text = "+ Add Item to Inventory"
+	add_item_btn.custom_minimum_size = Vector2(220.0, 32.0)
+	add_item_btn.add_theme_font_size_override("font_size", 13)
+	add_item_btn.pressed.connect(func() -> void:
+		_dev_event_panel.visible = false
+		_show_add_item_panel()
+	)
+	vbox.add_child(add_item_btn)
+
+	var sep_inv := HSeparator.new()
+	vbox.add_child(sep_inv)
 
 	# --- Events section ---
 	var evt_hdr := Label.new()
@@ -1244,3 +1285,131 @@ func _on_dev_event_selected(event_data: EventData) -> void:
 	_dev_event_panel.visible = false
 	_is_dev_event = true
 	_event_manager.show_event(event_data)
+
+## --- Add Item Dev Panel ---
+
+## Lazy-built modal listing every equipment piece + every consumable in A-Z order.
+## Click a row to drop the item directly into GameState.inventory and close the panel.
+## Uses the same CanvasLayer pattern as the dev event panel so input gating already works.
+func _show_add_item_panel() -> void:
+	if _add_item_panel == null:
+		_build_add_item_panel()
+	_refresh_add_item_list()
+	_add_item_panel.visible = true
+
+func _build_add_item_panel() -> void:
+	_add_item_panel = CanvasLayer.new()
+	_add_item_panel.layer = 30
+	add_child(_add_item_panel)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.0, 0.82)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	_add_item_panel.add_child(bg)
+
+	var pw := 600.0
+	var ph := 540.0
+	var panel := PanelContainer.new()
+	panel.position = Vector2((VIEWPORT_SIZE.x - pw) * 0.5, (VIEWPORT_SIZE.y - ph) * 0.5)
+	panel.custom_minimum_size = Vector2(pw, ph)
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color            = Color(0.08, 0.06, 0.04, 0.96)
+	pstyle.border_width_left   = 2; pstyle.border_width_right  = 2
+	pstyle.border_width_top    = 2; pstyle.border_width_bottom = 2
+	pstyle.border_color              = Color(0.40, 0.30, 0.20)
+	pstyle.corner_radius_top_left    = 6; pstyle.corner_radius_top_right   = 6
+	pstyle.corner_radius_bottom_left = 6; pstyle.corner_radius_bottom_right = 6
+	pstyle.content_margin_left   = 20.0; pstyle.content_margin_right  = 20.0
+	pstyle.content_margin_top    = 16.0; pstyle.content_margin_bottom = 16.0
+	panel.add_theme_stylebox_override("panel", pstyle)
+	_add_item_panel.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	panel.add_child(vbox)
+
+	var header_row := HBoxContainer.new()
+	vbox.add_child(header_row)
+
+	var title_lbl := Label.new()
+	title_lbl.text = "[DEV] Add Item to Inventory"
+	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_lbl.add_theme_font_size_override("font_size", 16)
+	title_lbl.add_theme_color_override("font_color", Color(0.80, 0.75, 0.60))
+	header_row.add_child(title_lbl)
+
+	var close_btn := Button.new()
+	close_btn.text = "X"
+	close_btn.custom_minimum_size = Vector2(32.0, 32.0)
+	close_btn.pressed.connect(func(): _add_item_panel.visible = false)
+	header_row.add_child(close_btn)
+
+	var hint := Label.new()
+	hint.text = "Click any row to drop a copy into the bag. Equipment and consumables are listed alphabetically."
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(pw - 40.0, 0.0)
+	vbox.add_child(hint)
+
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(scroll)
+
+	_add_item_list = VBoxContainer.new()
+	_add_item_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_add_item_list.add_theme_constant_override("separation", 4)
+	scroll.add_child(_add_item_list)
+
+## Rebuilds the list contents from EquipmentLibrary + ConsumableLibrary, sorted A-Z by name.
+## Called every time the panel is shown so newly-added CSV rows appear without a restart.
+func _refresh_add_item_list() -> void:
+	if _add_item_list == null:
+		return
+	for child in _add_item_list.get_children():
+		child.queue_free()
+
+	var rows: Array = []
+	for eq: EquipmentData in EquipmentLibrary.all_equipment():
+		rows.append({
+			"name": eq.equipment_name,
+			"id":   eq.equipment_id,
+			"slot": EquipmentData.Slot.keys()[eq.slot].capitalize(),
+			"item_type": "equipment",
+			"description": eq.description,
+		})
+	for con: ConsumableData in ConsumableLibrary.all_consumables():
+		rows.append({
+			"name": con.consumable_name,
+			"id":   con.consumable_id,
+			"slot": "Consumable",
+			"item_type": "consumable",
+			"description": con.description,
+		})
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return a["name"].to_lower() < b["name"].to_lower()
+	)
+
+	for row in rows:
+		var btn := Button.new()
+		btn.text = "%s  [%s]" % [row["name"], row["slot"]]
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_font_size_override("font_size", 13)
+		btn.custom_minimum_size = Vector2(0.0, 32.0)
+		btn.tooltip_text = row["description"]
+		btn.pressed.connect(_on_add_item_selected.bind(row))
+		_add_item_list.add_child(btn)
+
+func _on_add_item_selected(row: Dictionary) -> void:
+	GameState.add_to_inventory({
+		"id":          row["id"],
+		"name":        row["name"],
+		"description": row["description"],
+		"item_type":   row["item_type"],
+	})
+	GameState.save()
+	_add_item_panel.visible = false

@@ -30,6 +30,12 @@ var run_summary: Dictionary = {}      # populated before run-end transition; cle
 ## CombatManager3D reads it to spawn hardcoded test units instead of GameState.party.
 var test_room_mode: bool = false
 
+## Which test room scenario to spawn — read by CombatManager3D when test_room_mode is true.
+## Valid values: "armor_showcase" (dual-armor: phys/magic damage vs phys/magic-armored enemies),
+## "armor_mod" (BUFF/DEBUFF showcase featuring stone_guard + divine_ward).
+## Reset to default in CombatManager3D._end_combat() so the next normal combat is unaffected.
+var test_room_kind: String = "armor_showcase"
+
 ## --- Inventory (party bag) ---
 ## Stores raw reward dicts: {id, name, description, item_type}.
 ## item_type is "equipment" or "consumable" — used for tab filtering in the bag UI (Stage 2).

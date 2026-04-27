@@ -18,12 +18,14 @@ static var _icon: Texture2D = null
 ## --- Enum name → value lookup tables ---
 ## Keyed by the string stored in each CSV cell; returns the enum int.
 const _ATTRIBUTE: Dictionary = {
-	"STRENGTH":  AbilityData.Attribute.STRENGTH,
-	"DEXTERITY": AbilityData.Attribute.DEXTERITY,
-	"COGNITION": AbilityData.Attribute.COGNITION,
-	"VITALITY":  AbilityData.Attribute.VITALITY,
-	"WILLPOWER": AbilityData.Attribute.WILLPOWER,
-	"NONE":      AbilityData.Attribute.NONE,
+	"STRENGTH":           AbilityData.Attribute.STRENGTH,
+	"DEXTERITY":          AbilityData.Attribute.DEXTERITY,
+	"COGNITION":          AbilityData.Attribute.COGNITION,
+	"VITALITY":           AbilityData.Attribute.VITALITY,
+	"WILLPOWER":          AbilityData.Attribute.WILLPOWER,
+	"NONE":               AbilityData.Attribute.NONE,
+	"PHYSICAL_ARMOR_MOD": AbilityData.Attribute.PHYSICAL_ARMOR_MOD,
+	"MAGIC_ARMOR_MOD":    AbilityData.Attribute.MAGIC_ARMOR_MOD,
 }
 const _TARGET_SHAPE: Dictionary = {
 	"SELF":   AbilityData.TargetShape.SELF,

@@ -8,14 +8,18 @@ extends Resource
 ## ======================================================
 ## Attribute enum — which stat this ability scales with.
 ## Also used by EffectData.target_stat (stored as int) for BUFF/DEBUFF targets.
+## PHYSICAL_ARMOR_MOD / MAGIC_ARMOR_MOD are runtime-only BUFF targets — they tweak the
+## transient armor mod fields on CombatantData and are not used as ability scaling stats.
 ## ======================================================
 enum Attribute {
-	STRENGTH  = 0,
-	DEXTERITY = 1,
-	COGNITION = 2,
-	VITALITY  = 3,
-	WILLPOWER = 4,
-	NONE      = 5,
+	STRENGTH           = 0,
+	DEXTERITY          = 1,
+	COGNITION          = 2,
+	VITALITY           = 3,
+	WILLPOWER          = 4,
+	NONE               = 5,
+	PHYSICAL_ARMOR_MOD = 6,
+	MAGIC_ARMOR_MOD    = 7,
 }
 
 ## ======================================================
