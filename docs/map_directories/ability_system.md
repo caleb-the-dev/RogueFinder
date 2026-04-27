@@ -1,6 +1,6 @@
 # System: Ability System
 
-> Last updated: 2026-04-23 (S35 — AbilityLibrary migrated from inline const dict to abilities.csv + CSV-native loader)
+> Last updated: 2026-04-26 (class pool expansion — 4 class defining abilities + 6 new pool abilities; 42 total)
 
 ---
 
@@ -10,7 +10,7 @@ The ability system defines **what a combatant can do on their turn**. Three coll
 
 - `AbilityData` — one ability (identity, shape, cost, effects list).
 - `EffectData` — one effect inside an ability (the actual math).
-- `AbilityLibrary` — static factory that builds 22 predefined abilities.
+- `AbilityLibrary` — static factory that builds 42 predefined abilities.
 
 One QTE fires per ability. The resulting `multiplier` float is shared across every effect in the ability's `effects` array.
 
@@ -22,8 +22,8 @@ One QTE fires per ability. The resulting `multiplier` float is shared across eve
 |------|------|
 | `resources/AbilityData.gd` | Ability resource — identity, targeting shape, cost, effects array |
 | `resources/EffectData.gd` | Sub-resource — one effect within an ability |
-| `scripts/globals/AbilityLibrary.gd` | CSV-native loader — 22 abilities, `get_ability()` / `all_abilities()` / `reload()` API |
-| `data/abilities.csv` | Data source — 22 ability rows; `effects` column is a JSON array of effect objects |
+| `scripts/globals/AbilityLibrary.gd` | CSV-native loader — 42 abilities, `get_ability()` / `all_abilities()` / `reload()` API |
+| `data/abilities.csv` | Data source — 42 ability rows; `effects` column is a JSON array of effect objects |
 
 ---
 
@@ -120,7 +120,11 @@ One QTE fires per ability. The resulting `multiplier: float` is shared across al
 
 CSV-native lazy-loaded class. Same pattern as all other data libraries. `ABILITIES` const dict removed; data now sourced from `abilities.csv`. Effects column stores a JSON array — each object has `type` (string), `base_value` (int), and type-specific optional keys (`pool`, `stat`, `move`, `force`).
 
-### Defined Abilities (22)
+### Defined Abilities (42)
+
+Rows are grouped by origin; all share the same CSV format and `get_ability()` lookup.
+
+#### Base Abilities (22)
 
 | ID | Name | Attr | Cost | Range | Shape | Targets | Effects |
 |----|------|------|------|-------|-------|---------|---------|
@@ -146,6 +150,48 @@ CSV-native lazy-loaded class. Same pattern as all other data libraries. `ABILITI
 | `yank` | Yank | STR | 2 | 3 | Single | Any | FORCE PULL 2 |
 | `shove` | Shove | STR | 3 | 1 | Single | Enemy | FORCE PUSH 2 |
 | `windblast` | Windblast | COG | 3 | 3 | Radial | Enemy | FORCE RADIAL 2 |
+
+#### Kindred Natural Attacks (4) — assigned as `abilities[1]` at character creation
+
+| ID | Name | Kindred | Attr | Cost | Effects |
+|----|------|---------|------|------|---------|
+| `focused_strike` | Focused Strike | Human | STR | 2 | HARM 5 HP |
+| `savage_blow` | Savage Blow | Half-Orc | STR | 2 | HARM 6 HP |
+| `gadget_spark` | Gadget Spark | Gnome | COG | 2 | HARM 4 HP (range 2) |
+| `stone_fist` | Stone Fist | Dwarf | STR | 2 | HARM 5 HP |
+
+#### Kindred Ancestry Abilities (6) — in kindred `ability_pool` (not granted at creation)
+
+| ID | Name | Attr | Cost | Effects |
+|----|------|------|------|---------|
+| `steadfast` | Steadfast | WIL | 2 | BUFF 2 VIT |
+| `battle_surge` | Battle Surge | STR | 3 | BUFF 2 STR |
+| `warcry` | Warcry | WIL | 2 | ARC DEBUFF 1 STR (range 1) |
+| `tinker_boost` | Tinker Boost | COG | 2 | BUFF 1 COG |
+| `quick_wit` | Quick Wit | COG | 2 | DEBUFF 1 COG (range 3) |
+| `stone_guard` | Stone Guard | STR | 2 | BUFF 2 ARMOR_DEFENSE |
+
+#### Class Defining Abilities (4) — unique per class, assigned as `abilities[0]` at character creation
+
+| ID | Name | Class | Attr | Cost | Range | Targets | Effects |
+|----|------|-------|------|------|-------|---------|---------|
+| `tower_slam` | Tower Slam | Vanguard | STR | 3 | 1 | Enemy | HARM 4 HP + FORCE PUSH 1 |
+| `arcane_bolt` | Arcane Bolt | Arcanist | COG | 3 | 4 | Enemy | HARM 5 HP |
+| `slipshot` | Slipshot | Prowler | DEX | 3 | 3 | Enemy | HARM 4 HP + TRAVEL 1 FREE |
+| `bless` | Bless | Warden | WIL | 2 | 3 | Ally | BUFF 1 STR |
+
+> Defining abilities must **not** appear in any class's `ability_pool` — they are auto-granted separately.
+
+#### Class Pool Additions (6) — added this session for Prowler / Warden pools
+
+| ID | Name | Attr | Cost | Range | Targets | Effects |
+|----|------|------|------|-------|---------|---------|
+| `backstab` | Backstab | DEX | 3 | 1 | Enemy | HARM 6 HP |
+| `crippling_shot` | Crippling Shot | DEX | 3 | 3 | Enemy | HARM 3 HP + DEBUFF 1 DEX |
+| `vanishing_step` | Vanishing Step | DEX | 2 | 0 | Self | BUFF 2 DEX |
+| `lay_on_hands` | Lay on Hands | WIL | 3 | 1 | Ally | MEND 6 HP |
+| `divine_ward` | Divine Ward | WIL | 2 | 0 | Self | BUFF 2 ARMOR_DEFENSE |
+| `rallying_shout` | Rallying Shout | WIL | 3 | 1 | Ally (Arc) | BUFF 1 STR |
 
 ### Public API
 

@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-26 (pillar foundation — kindred + background stat bonuses, deterministic stats, ability/feat lane split) |
+| last_updated | 2026-04-26 (class pool expansion — class defining abilities, 13-ability/10-feat pools, 42 abilities, 32 feats) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 6 |
+| sessions_since_groom | 7 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -30,10 +30,10 @@
 | [Camera System](camera_system.md) | `camera_system.md` | ✅ Active (3D only) | Presentation |
 | [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
 | [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34) | Data |
-| [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (22 abilities, CSV-sourced S35) | Data |
+| [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (42 abilities — 22 base + 4 kindred natural attacks + 6 ancestry + 4 class definings + 6 class pool additions, CSV-sourced) | Data |
 | [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (6 equipment CSV-sourced S32; 2 consumables CSV-sourced S31) | Data |
 | [Background System](background_system.md) | `background_system.md` | ✅ Active (owns feat lane — starting_feat_id + stat_bonuses + 2-feat pool; wired into CombatantData) | Data |
-| [Class Library](class_system.md) | `class_system.md` | ✅ Active (4 classes, stat_bonuses + ability_pool; wired into CombatantData) | Data |
+| [Class Library](class_system.md) | `class_system.md` | ✅ Active (4 classes, unique defining abilities, 13-ability pool, 10-feat pool per class; wired into CombatantData) | Data |
 | [Portrait Library](portrait_system.md) | `portrait_system.md` | ✅ Active (dormant — 6 placeholder portraits, CSV-sourced, S30) | Data |
 | [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (owns ability lane — starting_ability_id + ability_pool + stat_bonuses; no longer grants feats) | Data |
 | [Main Menu + Character Creation](character_creation.md) | `character_creation.md` | ✅ Active (deterministic stats; slot 0 = class ability, slot 1 = kindred ability; bg feat seeds feat_ids; 12 tests) | Presentation |
@@ -42,7 +42,7 @@
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay, layer 20) | Presentation |
 | [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker + 15 events (3 smoke + 12 authored) (Slices 1/3/4/5/6) | Data / World Map |
-| [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ✅ Active — 24 feats (kindred rows removed), stat bonuses applied, grant_feat() API live | Data |
+| [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ✅ Active — 32 feats (20 class, 12 background), stat bonuses applied, grant_feat() API live | Data |
 
 ---
 
@@ -164,7 +164,7 @@ rogue-finder/
 │   ├── events/
 │   │   └── EventManager.gd             ← CanvasLayer (layer 10) overlay; show/hide event UI; static condition evaluator + effect dispatcher
 │   ├── globals/
-│   │   ├── AbilityLibrary.gd           ← CSV-sourced (res://data/abilities.csv); 32 abilities (+ 4 kindred natural attacks + 6 ancestry abilities)
+│   │   ├── AbilityLibrary.gd           ← CSV-sourced (res://data/abilities.csv); 42 abilities (22 base + 4 kindred natural attacks + 6 ancestry + 4 class definings + 6 class pool)
 │   │   ├── ArchetypeLibrary.gd         ← CSV-sourced (res://data/archetypes.csv); 5 archetypes
 │   │   ├── BackgroundLibrary.gd        ← CSV-sourced (res://data/backgrounds.csv)
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
@@ -172,7 +172,7 @@ rogue-finder/
 │   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 7 items
 │   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 15 events (3 smoke + 12 authored)
 │   │   ├── EventSelector.gd            ← static picker; ring filter + exhaustion fallback; appends to GameState.used_event_ids
-│   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 24 feats (kindred rows removed); parses stat_bonuses
+│   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 32 feats (20 class, 12 background); parses stat_bonuses
 │   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 4 kindreds
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
@@ -205,7 +205,7 @@ rogue-finder/
 │   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
 ├── data/
-│   ├── abilities.csv                   ← 32 abilities; effects as JSON arrays; read via res://data/
+│   ├── abilities.csv                   ← 42 abilities; effects as JSON arrays; read via res://data/
 │   ├── archetypes.csv                  ← 5 archetypes; read via res://data/
 │   ├── backgrounds.csv                 ← 4 backgrounds; read via res://data/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
@@ -213,7 +213,7 @@ rogue-finder/
 │   ├── equipment.csv                   ← 7 items (rusted_dagger added Slice 4); stat_bonuses as stat:value|stat:value pairs
 │   ├── event_choices.csv               ← 46 choice rows; joined to events by event_id; effects as JSON arrays
 │   ├── events.csv                      ← 15 events (3 smoke + 12 authored); ring_eligibility as pipe list
-│   ├── feats.csv                       ← 24 feats (12 class, 12 background); kindred rows removed
+│   ├── feats.csv                       ← 32 feats (20 class, 12 background); kindred rows removed
 │   ├── kindreds.csv                    ← 4 kindreds; feat_id removed; stat_bonuses + starting_ability_id + ability_pool added; read via res://data/
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
@@ -245,6 +245,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-26 | abilities.csv, classes.csv, feats.csv, tests | **Class Pool Expansion — defining abilities + full pools.** 4 class defining abilities added to `abilities.csv` (`tower_slam` STR HARM4+push1, `arcane_bolt` COG HARM5 range4, `slipshot` DEX HARM4+travel1, `bless` WIL BUFF STR+1 ally). 6 new class-pool abilities added (`backstab`, `crippling_shot`, `vanishing_step` for Prowler; `lay_on_hands`, `divine_ward`, `rallying_shout` for Warden). abilities.csv: 32→42 total. `classes.csv` `starting_ability_id` updated to new definings; `ability_pool` 5→13 per class; `feat_pool` 3→10 per class. `feats.csv` +8 new class feats (`iron_constitution`, `combat_mastery`, `spell_memory`, `evasive_footwork`, `relentless_assault`, `arcane_resilience`, `iron_will`, `veteran_instinct`) → 32 total (20 class, 12 bg). Test suite cleanup: pre-existing `test_feat_library.gd` + `test_feat_stat_bonus.gd` failures (stale kindred feat refs `adaptive`/`stonehide`/`relentless`) fixed. 70 tests passing across 7 suites. |
 | 2026-04-26 | kindreds.csv, backgrounds.csv, feats.csv, abilities.csv, KindredData, BackgroundData, KindredLibrary, BackgroundLibrary, CombatantData, CharacterCreationManager, GameState, tests | **Pillar Foundation — ability/feat lane split + deterministic stats.** Kindreds now own the ability lane: `stat_bonuses`, `starting_ability_id`, `ability_pool` added to `kindreds.csv` + `KindredData` + `KindredLibrary`; `feat_id` removed. 4 kindred natural attacks + 6 ancestry abilities added to `abilities.csv` (32 total). Backgrounds now own the feat lane: `starting_feat_id` + `stat_bonuses` added to `backgrounds.csv` + `BackgroundData` + `BackgroundLibrary`; `starting_ability_id` removed. `feats.csv` drops 4 kindred rows → 24 feats. `CombatantData` attribute defaults changed 5→4; `get_kindred_stat_bonus()` + `get_background_stat_bonus()` added and wired into all 6 derived stat formulas. `CharacterCreationManager`: `_roll_stats()` + Reroll button removed; stats now `base 4 + pillar bonuses`; slot 0 = class ability, slot 1 = kindred natural attack; `feat_ids` seeded from `bg.starting_feat_id`. Preview panel shows class/kindred ability + background feat. `GameState._deserialize_combatant()` strips old kindred feat IDs on load. `ArchetypeLibrary.create()` seeds `feat_ids = []` (enemies). 77 tests passing across 7 suites (test_class_stat_bonus.gd new, all existing suites updated). |
 | 2026-04-26 | feats.csv, FeatData, FeatLibrary, CombatantData, GameState, EventManager, UI | **Feat System Slices 1–7 — mechanically active.** feats.csv expanded to 28 rows (4 kindred, 12 class, 12 background) with `source_type`, `stat_bonuses` (parsed to Dictionary), `effects`, `notes` columns. FeatData gained those fields. FeatLibrary parses `stat:value\|stat:value`. kindreds.csv dropped `feat_name`/`feat_desc`; KindredData + KindredLibrary cleaned up. classes.csv + ClassData + ClassLibrary gained `feat_pool: Array[String]`. CombatantData: `kindred_feat_id` + `feats` consolidated into `feat_ids: Array[String]`; `get_feat_stat_bonus(stat)` added; all 6 derived stat formulas include feat bonuses (flat, same as equipment). GameState: `grant_feat(pc_index, feat_id)` added (deduplication + save); `_serialize_combatant` writes `feat_ids`; `_deserialize_combatant` migrates old saves (kindred_feat_id + feats → feat_ids). EventManager: `feat_grant` effect calls `GameState.grant_feat()`; `feat:ID` condition checks `member.feat_ids`. StatPanel + PartySheet iterate `feat_ids`. 3 new test files (17 new tests); 4 existing test files updated. 84 tests total passing. |
 | 2026-04-26 | CameraController.gd, tests/ | **Camera pan session — WASD pan + full orbit right-click + Q/E pivot-Y + QTE zoom.** WASD / arrow keys pan orbit pivot in yaw-relative XZ (W=NE at default yaw). Right-click drag now controls full orbit: horizontal = yaw, vertical = elevation pitch (drag up = more top-down, 15°–80°). `DRAG_SENSITIVITY` halved to 0.2. Q/E repurposed: raise/lower orbit pivot on world Y (`PIVOT_Y_SPEED=5` u/s, clamped −3 to 8). `focus_on` / `restore` upgraded to parallel tweens — pivot position + distance animate simultaneously; zooms to `QTE_DISTANCE=10.0` on focus and back on restore. `_set_distance()` tween helper added; `_pre_qte_distance` field added. ELEVATION_STEP/ELEVATION_SPEED removed; PIVOT_Y_SPEED/MIN/MAX, PAN_SPEED/MIN/MAX, QTE_DISTANCE added. test_camera_controls.gd expanded to 6 assertions. |
