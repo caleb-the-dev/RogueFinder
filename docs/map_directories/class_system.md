@@ -1,6 +1,6 @@
 # System: Class Library
 
-> Last updated: 2026-04-26 (class rename + stat_bonuses + ability_pool; wired into CombatantData)
+> Last updated: 2026-04-26 (class pool expansion — defining abilities, 13-ability pools, 10-feat pools)
 
 ---
 
@@ -79,12 +79,37 @@ static func _split_pipe(val: String) -> Array[String]
 
 ### Defined Classes (4 rows)
 
-| ID | Name | Starting Ability | Stat Bonuses | Feat Pool | Tags |
-|----|------|-----------------|-------------|-----------|------|
-| `vanguard` | Vanguard | `shield_bash` | strength:1, vitality:2 | iron_guard, stalwart, battle_hardened | `melee`, `defender` |
-| `arcanist` | Arcanist | `fireball` | cognition:2, willpower:1 | arcane_focus, mana_well, studied_reflexes | `arcane`, `ranged` |
-| `prowler` | Prowler | `quick_shot` | dexterity:2, willpower:1 | shadow_step, quick_reflexes, poisoners_precision | `agile`, `stealthy` |
-| `warden` | Warden | `inspire` | cognition:1, vitality:1, willpower:1 | war_cry_discipline, thick_skin, shield_discipline | `support`, `divine` |
+| ID | Name | Defining Ability | Stat Bonuses | Ability Pool | Feat Pool | Tags |
+|----|------|-----------------|-------------|--------------|-----------|------|
+| `vanguard` | Vanguard | `tower_slam` (STR, HARM 4 + push 1) | strength:1, vitality:2 | 13 abilities (shield_bash, heavy_strike, sweep, yank, shove, charge, strike, counter, guard, battle_surge, taunt, warcry, steadfast) | 10 feats | `melee`, `defender` |
+| `arcanist` | Arcanist | `arcane_bolt` (COG, HARM 5, range 4) | cognition:2, willpower:1 | 13 abilities (fireball, acid_splash, windblast, smoke_bomb, fire_breath, quick_wit, tinker_boost, taunt, counter, heal_burst, gust, disengage, yank) | 10 feats | `arcane`, `ranged` |
+| `prowler` | Prowler | `slipshot` (DEX, HARM 4 + free 1-tile move) | dexterity:2, willpower:1 | 13 abilities (quick_shot, piercing_shot, disengage, gust, backstab, crippling_shot, vanishing_step, counter, taunt, inspire, smoke_bomb, acid_splash, quick_wit) | 10 feats | `agile`, `stealthy` |
+| `warden` | Warden | `bless` (WIL, BUFF STR+1 to ally, range 3) | cognition:1, vitality:1, willpower:1 | 13 abilities (inspire, heal_burst, guard, taunt, healing_draught, counter, steadfast, lay_on_hands, divine_ward, rallying_shout, warcry, smoke_bomb, shield_bash) | 10 feats | `support`, `divine` |
+
+### Class Feat Pools (10 per class, ~50% overlap, 20 unique class feats)
+
+| Feat ID | Stat Bonus | Classes |
+|---------|-----------|---------|
+| `battle_hardened` | strength:2 | Vanguard |
+| `iron_guard` | armor_defense:2 | Vanguard |
+| `stalwart` | vitality:1 | Vanguard, Arcanist, Warden |
+| `thick_skin` | vitality:1 | All 4 |
+| `war_cry_discipline` | willpower:1 | All 4 |
+| `shield_discipline` | armor_defense:1 | Vanguard, Warden |
+| `arcane_focus` | cognition:2 | Arcanist |
+| `mana_well` | willpower:1 | Arcanist, Prowler, Warden |
+| `studied_reflexes` | cognition:1 | Arcanist |
+| `shadow_step` | dexterity:2 | Prowler |
+| `poisoners_precision` | strength:1 | Prowler |
+| `quick_reflexes` | dexterity:1 | Prowler |
+| `iron_constitution` | vitality:2 | Vanguard, Warden |
+| `combat_mastery` | strength:1 | Vanguard, Prowler |
+| `spell_memory` | cognition:1 | Arcanist, Warden |
+| `evasive_footwork` | dexterity:1 | Arcanist, Prowler |
+| `relentless_assault` | strength:1 | Vanguard, Prowler |
+| `arcane_resilience` | vitality:1 | Arcanist, Warden |
+| `iron_will` | willpower:2 | Arcanist, Prowler, Warden |
+| `veteran_instinct` | armor_defense:1 | Vanguard, Warden |
 
 ---
 

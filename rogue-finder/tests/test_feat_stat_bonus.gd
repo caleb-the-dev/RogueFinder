@@ -37,52 +37,52 @@ func test_no_feats_returns_zero() -> void:
 
 func test_single_feat_sums_correctly() -> void:
 	var d := _bare_combatant()
-	d.feat_ids = ["adaptive"]  # willpower:1
+	d.feat_ids = ["war_cry_discipline"]  # willpower:1
 	assert(d.get_feat_stat_bonus("willpower") == 1,
-		"adaptive feat: willpower bonus should be 1, got %d" % d.get_feat_stat_bonus("willpower"))
+		"war_cry_discipline feat: willpower bonus should be 1, got %d" % d.get_feat_stat_bonus("willpower"))
 	assert(d.get_feat_stat_bonus("strength") == 0,
-		"adaptive feat: strength bonus should be 0")
+		"war_cry_discipline feat: strength bonus should be 0")
 	print("  PASS test_single_feat_sums_correctly")
 
 func test_multiple_feats_sum() -> void:
 	var d := _bare_combatant()
-	# relentless = strength:1, battle_hardened = strength:2
-	d.feat_ids = ["relentless", "battle_hardened"]
+	# combat_mastery = strength:1, battle_hardened = strength:2
+	d.feat_ids = ["combat_mastery", "battle_hardened"]
 	assert(d.get_feat_stat_bonus("strength") == 3,
-		"relentless+battle_hardened: strength bonus should be 3, got %d" % d.get_feat_stat_bonus("strength"))
+		"combat_mastery+battle_hardened: strength bonus should be 3, got %d" % d.get_feat_stat_bonus("strength"))
 	print("  PASS test_multiple_feats_sum")
 
 func test_wrong_stat_returns_zero() -> void:
 	var d := _bare_combatant()
-	d.feat_ids = ["stonehide"]  # armor_defense:2
+	d.feat_ids = ["iron_guard"]  # armor_defense:2
 	assert(d.get_feat_stat_bonus("strength") == 0,
-		"stonehide: strength bonus should be 0")
+		"iron_guard: strength bonus should be 0")
 	assert(d.get_feat_stat_bonus("armor_defense") == 2,
-		"stonehide: armor_defense bonus should be 2, got %d" % d.get_feat_stat_bonus("armor_defense"))
+		"iron_guard: armor_defense bonus should be 2, got %d" % d.get_feat_stat_bonus("armor_defense"))
 	print("  PASS test_wrong_stat_returns_zero")
 
 func test_attack_increases_with_strength_feat() -> void:
 	var d := _bare_combatant()
 	var base_attack: int = d.attack
-	d.feat_ids = ["relentless"]  # strength:1
+	d.feat_ids = ["combat_mastery"]  # strength:1
 	assert(d.attack == base_attack + 1,
-		"relentless should raise attack by 1, got %d (base %d)" % [d.attack, base_attack])
+		"combat_mastery should raise attack by 1, got %d (base %d)" % [d.attack, base_attack])
 	print("  PASS test_attack_increases_with_strength_feat")
 
 func test_defense_increases_with_armor_feat() -> void:
 	var d := _bare_combatant()
 	var base_defense: int = d.defense
-	d.feat_ids = ["stonehide"]  # armor_defense:2
+	d.feat_ids = ["iron_guard"]  # armor_defense:2
 	assert(d.defense == base_defense + 2,
-		"stonehide should raise defense by 2, got %d (base %d)" % [d.defense, base_defense])
+		"iron_guard should raise defense by 2, got %d (base %d)" % [d.defense, base_defense])
 	print("  PASS test_defense_increases_with_armor_feat")
 
 func test_energy_regen_increases_with_willpower_feat() -> void:
 	var d := _bare_combatant()
 	var base_regen: int = d.energy_regen
-	d.feat_ids = ["adaptive"]  # willpower:1
+	d.feat_ids = ["war_cry_discipline"]  # willpower:1
 	assert(d.energy_regen == base_regen + 1,
-		"adaptive should raise energy_regen by 1, got %d (base %d)" % [d.energy_regen, base_regen])
+		"war_cry_discipline should raise energy_regen by 1, got %d (base %d)" % [d.energy_regen, base_regen])
 	print("  PASS test_energy_regen_increases_with_willpower_feat")
 
 func test_unknown_feat_id_does_not_crash() -> void:

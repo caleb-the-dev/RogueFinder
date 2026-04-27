@@ -104,8 +104,8 @@ func test_stat_bonuses_parsed() -> void:
 
 func test_ability_pool_parsed() -> void:
 	for c in ClassLibrary.all_classes():
-		assert(c.ability_pool.size() >= 3,
-			"%s: ability_pool should have at least 3 entries, got %d" % [c.class_id, c.ability_pool.size()])
+		assert(c.ability_pool.size() >= 13,
+			"%s: ability_pool should have at least 13 entries, got %d" % [c.class_id, c.ability_pool.size()])
 	var vanguard: ClassData = ClassLibrary.get_class_data("vanguard")
 	assert("shield_bash" in vanguard.ability_pool, "vanguard ability_pool should include shield_bash")
 	print("  PASS test_ability_pool_parsed")

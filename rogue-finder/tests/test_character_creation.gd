@@ -70,17 +70,17 @@ func test_abilities_four_slots() -> void:
 
 func test_abilities_from_class_and_kindred() -> void:
 	var pc := CharacterCreationManager._build_pc("Tess", "Human", "arcanist", "crook", "portrait_human_f")
-	# arcanist → fireball (class defining); Human → focused_strike (kindred natural attack)
-	assert(pc.abilities[0] == "fireball",
-		"slot 0 must be arcanist defining ability 'fireball', got '%s'" % pc.abilities[0])
+	# arcanist → arcane_bolt (class defining); Human → focused_strike (kindred natural attack)
+	assert(pc.abilities[0] == "arcane_bolt",
+		"slot 0 must be arcanist defining ability 'arcane_bolt', got '%s'" % pc.abilities[0])
 	assert(pc.abilities[1] == "focused_strike",
 		"slot 1 must be Human kindred ability 'focused_strike', got '%s'" % pc.abilities[1])
 	print("  PASS test_abilities_from_class_and_kindred")
 
 func test_ability_pool_contains_class_and_kindred() -> void:
 	var pc := CharacterCreationManager._build_pc("Tess", "Human", "arcanist", "crook", "portrait_human_f")
-	assert("fireball" in pc.ability_pool,
-		"ability_pool must contain class ability 'fireball'")
+	assert("arcane_bolt" in pc.ability_pool,
+		"ability_pool must contain class ability 'arcane_bolt'")
 	assert("focused_strike" in pc.ability_pool,
 		"ability_pool must contain kindred ability 'focused_strike'")
 	print("  PASS test_ability_pool_contains_class_and_kindred")
