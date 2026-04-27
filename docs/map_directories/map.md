@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-27 (armor mod test room + plate_cuirass/warded_robe equipment + Add Item dev tool) |
+| last_updated | 2026-04-27 (temperament system + background/class stat balance) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 10 |
+| sessions_since_groom | 11 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -32,8 +32,9 @@
 | [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34) | Data |
 | [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (42 abilities — 22 base + 4 kindred natural attacks + 6 ancestry + 4 class definings + 6 class pool additions, CSV-sourced) | Data |
 | [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (6 equipment CSV-sourced S32; 2 consumables CSV-sourced S31) | Data |
-| [Background System](background_system.md) | `background_system.md` | ✅ Active (owns feat lane — starting_feat_id + stat_bonuses + 2-feat pool; wired into CombatantData) | Data |
-| [Class Library](class_system.md) | `class_system.md` | ✅ Active (4 classes, unique defining abilities, 13-ability pool, 10-feat pool per class; wired into CombatantData) | Data |
+| [Background System](background_system.md) | `background_system.md` | ✅ Active (owns feat lane; +1 single stat per background) | Data |
+| [Class Library](class_system.md) | `class_system.md` | ✅ Active (4 classes; 4 total stat points, max +2 per stat; 13-ability pool, 10-feat pool; wired into CombatantData) | Data |
+| [Temperament System](combatant_data.md) | `combatant_data.md` | ✅ Active (21 temperaments; +1 boosted / -1 hindered / Even neutral; randomly assigned at creation; hidden until post-creation) | Data |
 | [Portrait Library](portrait_system.md) | `portrait_system.md` | ✅ Active (dormant — 6 placeholder portraits, CSV-sourced, S30) | Data |
 | [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (owns ability lane — starting_ability_id + ability_pool + stat_bonuses; no longer grants feats) | Data |
 | [Main Menu + Character Creation](character_creation.md) | `character_creation.md` | ✅ Active (deterministic stats; slot 0 = class ability, slot 1 = kindred ability; bg feat seeds feat_ids; 12 tests) | Presentation |
@@ -85,6 +86,7 @@ CharacterCreationManager
   ├── PortraitLibrary             (portrait id list)
   ├── AbilityLibrary              (resolves class + kindred starting abilities for preview panel)
   ├── FeatLibrary                 (background feat name + description for preview panel)
+  ├── TemperamentLibrary          (random_id() for hidden temperament assignment in _build_pc())
   ├── CombatantData               (built by _build_pc())
   └── GameState                   (appends PC to party on confirm)
 
@@ -178,6 +180,7 @@ rogue-finder/
 │   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 32 feats (20 class, 12 background); parses stat_bonuses
 │   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 4 kindreds
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
+│   │   └── TemperamentLibrary.gd       ← CSV-sourced (res://data/temperaments.csv); 21 temperaments (20 + Even neutral); random_id(rng) helper
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
 │   │   └── GameState.gd                ← autoload
 │   ├── map/MapManager.gd
@@ -205,6 +208,7 @@ rogue-finder/
 │   ├── EventData.gd                    ← one non-combat event (id, title, body, ring_eligibility, choices)
 │   ├── FeatData.gd                     ← one feat (id, name, description, source_type, stat_bonuses, effects)
 │   ├── KindredData.gd                  ← one kindred (speed/HP bonuses + stat_bonuses + starting_ability_id + ability_pool + name_pool; feat_id removed)
+│   ├── TemperamentData.gd              ← one temperament (id, name, boosted_stat, hindered_stat — both empty for neutral "even")
 │   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
 ├── data/
@@ -218,6 +222,7 @@ rogue-finder/
 │   ├── events.csv                      ← 15 events (3 smoke + 12 authored); ring_eligibility as pipe list
 │   ├── feats.csv                       ← 32 feats (20 class, 12 background); kindred rows removed
 │   ├── kindreds.csv                    ← 4 kindreds; feat_id removed; stat_bonuses + starting_ability_id + ability_pool added; read via res://data/
+│   ├── temperaments.csv                ← 21 rows; columns: id, name, boosted_stat, hindered_stat; "even" row has empty stats (neutral)
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
 │   ├── city/BadurgaScene.tscn
@@ -237,7 +242,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 33 test scripts + 20 scene runners; includes test_armor_mod.gd/.tscn (11 assertions covering the runtime armor mod lane); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). Some `.gd` tests extend SceneTree and are run via `--script` instead of a `.tscn` runner (e.g. test_ability_library, test_consumables, test_effect_data, test_enemy_ai)
+└── tests/                              ← 35 test scripts + 21 scene runners (test_temperament.gd/.tscn added 2026-04-27; 14 assertions); includes test_armor_mod.gd/.tscn (11 assertions covering the runtime armor mod lane); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). Some `.gd` tests extend SceneTree and are run via `--script` instead of a `.tscn` runner (e.g. test_ability_library, test_consumables, test_effect_data, test_enemy_ai)
 ```
 
 ---
@@ -248,6 +253,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-27 | temperaments.csv, TemperamentData, TemperamentLibrary, CombatantData, ArchetypeLibrary, CharacterCreationManager, GameState, StatPanel, PartySheet, backgrounds.csv, classes.csv, tests | **Temperament system + stat balance.** New Pokémon-style temperament system: `temperaments.csv` (21 rows — 20 non-neutral + "Even"), `TemperamentData.gd` resource, `TemperamentLibrary.gd` (lazy CSV load, `get_temperament()`, `all_temperaments()`, `random_id(rng)`, `reload()`). `CombatantData.temperament_id: String` (@export, serialized); `get_temperament_stat_bonus(stat)` method (+1/−1/0); wired into attack, hp_max, energy_max, energy_regen, speed as sixth flat bonus source. `ArchetypeLibrary.create()` and `CharacterCreationManager._build_pc()` both call `TemperamentLibrary.random_id(rng)` — temperament is hidden from the player before creation. `GameState` serializes `temperament_id`; old saves default to `"even"`. StatPanel: "Temperament: Fierce +STR / -DEX" line with BBCode color-coding (green+/red−) added after Background. PartySheet: "Temp: Fierce (+STR/-DEX)" line in TOP-LEFT (11 px purple-grey) after Kindred; attribute values remain plain yellow (green/red reserved for future equipment indicators). Background balance: all 4 backgrounds now give exactly +1 to one stat (soldier vit dropped, scholar cog reduced to 1, baker wil dropped). Class balance: all 4 classes now give exactly 4 total stat points, max +2 per stat (vanguard +1 str, arcanist +1 wil, prowler cog:1 added, warden +1 wil). 14 new headless tests (`test_temperament.gd`) covering library load, neutral, +1/−1/0 bonus, derived-stat wiring ×4, archetype creation, and CSV rule enforcement for both backgrounds and classes. Test suites updated: test_class_stat_bonus, test_class_library, test_character_creation, test_combatant_data. |
 | 2026-04-27 | equipment.csv, GameState, CombatManager3D, MapManager, tests, docs | **Armor Mod test room + new armor pieces + Add Item dev tool.** `equipment.csv` gained `plate_cuirass` (ARMOR — physical_armor +3, dexterity -2) and `warded_robe` (ARMOR — magic_armor +2 — first equipment piece exercising the `_equip_bonus("magic_armor")` codepath). `GameState.test_room_kind: String = "armor_showcase"` added (transient, not serialized) so multiple test scenarios can share `test_room_mode`. `CombatManager3D._setup_test_room_units()` is now a dispatcher; common spawning factored to `_spawn_test_room(player_defs, enemy_defs)`; per-scenario data in `_armor_showcase_*` and `_armor_mod_*` getters. New `armor_mod` scenario: Boran (Dwarf vanguard, `stone_guard`) / Velis (Human warden, `divine_ward`) / Rune (Gnome arcanist) vs Stone Bruiser / Pyromancer / Twin Threat (all 4/4 armor). `MapManager` dev menu: existing "⚔ Test Room" renamed "Armor Showcase"; new sibling "Armor Mod" button. New "INVENTORY" section with "+ Add Item to Inventory" button → modal A-Z list of every equipment + consumable; click drops a copy into `GameState.inventory`. 4 new tests in `test_equipment.gd` (plate_cuirass, warded_robe, magic-armor independence, library size 9); all prior suites still green. |
 | 2026-04-27 | AbilityData, CombatantData, AbilityLibrary, CombatManager3D, abilities.csv, tests | **Armor Mod — runtime BUFF/DEBUFF lane.** `AbilityData.Attribute` enum extended with `PHYSICAL_ARMOR_MOD = 6` and `MAGIC_ARMOR_MOD = 7`. `AbilityLibrary._ATTRIBUTE` lookup gained matching string keys. `CombatantData` gained two transient (NOT serialized) `int` fields — `physical_armor_mod` + `magic_armor_mod` — both default 0. `physical_defense` / `magic_defense` formulas extended with the mod field as the sixth source. `CombatManager3D._apply_stat_delta` gained the two new cases (clamp `[-10, 10]`); `STAT_STATUS_NAMES` + `STAT_ABBREV` extended (`P.Hardened`/`P.Cracked`/`P.ARM`, `M.Warded`/`M.Exposed`/`M.ARM`); `_attr_snapshots` build sites in both `_setup_units()` and `_setup_test_room_units()` record the mod fields; `_end_combat()` restores them via `snap.get(..., 0)`. `stone_guard` and `divine_ward` CSV rows updated from the dead `"ARMOR_DEFENSE"` `target_stat` to `"PHYSICAL_ARMOR_MOD"` / `"MAGIC_ARMOR_MOD"` — both abilities now mechanically active. 11 new tests (`test_armor_mod.gd`); all prior 92 tests still pass. |
 | 2026-04-27 | AbilityData, CombatantData, ArchetypeData, CombatManager3D, AbilityLibrary, ArchetypeLibrary, GameState, MapManager, PartySheet, StatPanel, CharacterCreationManager, 5 CSVs, tests | **Dual Armor + Test Room.** `armor_defense` field + `defense` property removed from `CombatantData`; replaced by `physical_armor: int` + `magic_armor: int` fields and `physical_defense` + `magic_defense` computed properties, each summing 5 bonus sources. All CSV armor stat keys renamed `armor_defense` → `physical_armor` (feats, kindreds, equipment). `archetypes.csv` `armor_range` column split into `physical_armor_range` + `magic_armor_range` with per-archetype design flavor (grunt physical, alchemist magic). `AbilityData` gained `DamageType` enum + `damage_type` field; all 42 abilities tagged in CSV. `AbilityLibrary` gained `_DAMAGE_TYPE` lookup. `CombatManager3D._run_harm_defenders()` extended with 5th `ability: AbilityData` param; HARM formula now subtracts matching defense post-QTE. `GameState`: serialization writes `physical_armor`/`magic_armor`; deserializer migrates old `armor_defense` to both lanes; `test_room_mode: bool` transient flag added. `MapManager` dev panel gained COMBAT section with "⚔ Test Room" button; sets `test_room_mode` and transitions to combat. `CombatManager3D` test room path: `_setup_test_room_units()` + `_make_test_combatant()`; `_end_combat()` test room branch skips all save/XP/rewards. `_on_unit_died()` guarded against test room. UI: PartySheet derives P.Def+M.Def; StatPanel shows both. 11 new tests (`test_dual_armor.gd`); 92 total passing. |
