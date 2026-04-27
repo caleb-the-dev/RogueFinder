@@ -26,6 +26,10 @@ var used_event_ids: Array[String] = [] # event ids drawn this run; used by Event
 var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
 var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
 
+## Transient — never saved. Set true before entering the test combat room from the dev menu.
+## CombatManager3D reads it to spawn hardcoded test units instead of GameState.party.
+var test_room_mode: bool = false
+
 ## --- Inventory (party bag) ---
 ## Stores raw reward dicts: {id, name, description, item_type}.
 ## item_type is "equipment" or "consumable" — used for tab filtering in the bag UI (Stage 2).

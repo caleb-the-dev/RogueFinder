@@ -102,6 +102,10 @@ func _setup_environment_tiles() -> void:
 	_grid.set_cell_type(Vector2i(7, 2), Grid3D.CellType.HAZARD)
 
 func _setup_units() -> void:
+	if GameState.test_room_mode:
+		_setup_test_room_units()
+		return
+
 	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
 
 	# --- Player units — driven by GameState.party ---
@@ -142,6 +146,120 @@ func _setup_units() -> void:
 		_grid.set_occupied(pos, unit)
 		unit.unit_died.connect(_on_unit_died)
 		_enemy_units.append(unit)
+
+## --- Test Room ---
+
+## Spawns a hardcoded 3v3 designed to showcase the dual armor system.
+## Player team covers physical + magic damage; enemies each emphasize one armor type.
+## Called by _setup_units() when GameState.test_room_mode is true.
+func _setup_test_room_units() -> void:
+	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
+
+	var player_defs: Array[Dictionary] = [
+		{
+			"name": "Kara", "archetype": "RogueFinder", "kindred": "Gnome",
+			"class": "arcanist", "is_player": true,
+			"str": 4, "dex": 4, "cog": 8, "wil": 6, "vit": 4,
+			"phys_arm": 2, "magic_arm": 2,
+			"abilities": ["arcane_bolt", "fireball", "acid_splash", "gadget_spark"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Brak", "archetype": "test_ally", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": true,
+			"str": 8, "dex": 2, "cog": 2, "wil": 3, "vit": 6,
+			"phys_arm": 2, "magic_arm": 2,
+			"abilities": ["tower_slam", "heavy_strike", "sweep", "shove"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Wren", "archetype": "test_ally", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 5, "dex": 7, "cog": 4, "wil": 4, "vit": 4,
+			"phys_arm": 2, "magic_arm": 2,
+			"abilities": ["slipshot", "backstab", "crippling_shot", "quick_shot"],
+			"qte": 0.0,
+		},
+	]
+	var player_positions: Array[Vector2i] = [Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)]
+	for i in player_defs.size():
+		var cd: CombatantData = _make_test_combatant(player_defs[i])
+		var unit: Unit3D = unit_scene.instantiate()
+		add_child(unit)
+		unit.setup(cd, player_positions[i])
+		unit.global_position = _grid.grid_to_world(player_positions[i])
+		_grid.set_occupied(player_positions[i], unit)
+		unit.unit_died.connect(_on_unit_died)
+		_player_units.append(unit)
+		_attr_snapshots[unit] = {
+			"strength": cd.strength, "dexterity": cd.dexterity, "cognition": cd.cognition,
+			"vitality": cd.vitality, "willpower": cd.willpower,
+		}
+
+	var enemy_defs: Array[Dictionary] = [
+		{
+			## High physical armor — physical attacks barely scratch it; magic melts it.
+			"name": "Iron Wall", "archetype": "test_enemy", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 7, "dex": 2, "cog": 2, "wil": 3, "vit": 7,
+			"phys_arm": 12, "magic_arm": 2,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.3,
+		},
+		{
+			## High magic armor — magic spells fizzle; physical hits land hard.
+			"name": "Arcane Shell", "archetype": "test_enemy", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 3, "dex": 4, "cog": 8, "wil": 6, "vit": 4,
+			"phys_arm": 2, "magic_arm": 12,
+			"abilities": ["fireball", "fire_breath", "acid_splash", "smoke_bomb"],
+			"qte": 0.6,
+		},
+		{
+			## Balanced — both armor types moderate; neither damage type has a free ride.
+			"name": "Balanced Guard", "archetype": "test_enemy", "kindred": "Dwarf",
+			"class": "warden", "is_player": false,
+			"str": 6, "dex": 3, "cog": 3, "wil": 5, "vit": 6,
+			"phys_arm": 6, "magic_arm": 6,
+			"abilities": ["shield_bash", "sweep", "windblast", "yank"],
+			"qte": 0.5,
+		},
+	]
+	var enemy_positions: Array[Vector2i] = [Vector2i(6, 3), Vector2i(6, 5), Vector2i(7, 4)]
+	for i in enemy_defs.size():
+		var cd: CombatantData = _make_test_combatant(enemy_defs[i])
+		var unit: Unit3D = unit_scene.instantiate()
+		add_child(unit)
+		unit.setup(cd, enemy_positions[i])
+		unit.global_position = _grid.grid_to_world(enemy_positions[i])
+		_grid.set_occupied(enemy_positions[i], unit)
+		unit.unit_died.connect(_on_unit_died)
+		_enemy_units.append(unit)
+
+func _make_test_combatant(def: Dictionary) -> CombatantData:
+	var cd := CombatantData.new()
+	cd.character_name = def["name"]
+	cd.archetype_id   = def["archetype"]
+	cd.is_player_unit = def["is_player"]
+	cd.kindred        = def["kindred"]
+	cd.unit_class     = def["class"]
+	cd.strength       = def["str"]
+	cd.dexterity      = def["dex"]
+	cd.cognition      = def["cog"]
+	cd.willpower      = def["wil"]
+	cd.vitality       = def["vit"]
+	cd.physical_armor = def["phys_arm"]
+	cd.magic_armor    = def["magic_arm"]
+	cd.qte_resolution = def["qte"]
+	cd.feat_ids       = []
+	var abs: Array[String] = []
+	for a in def["abilities"]:
+		abs.append(str(a))
+	cd.abilities      = abs
+	cd.ability_pool   = abs.duplicate()
+	cd.current_hp     = cd.hp_max
+	cd.current_energy = cd.energy_max
+	return cd
 
 func _setup_ui() -> void:
 	_qte_bar = preload("res://scenes/combat/QTEBar.tscn").instantiate()
@@ -1294,7 +1412,9 @@ func _on_unit_died(unit: Unit3D) -> void:
 		_action_menu.close()
 	# Allies die permanently on death. PC death is resolved at combat end:
 	# if the team wins the PC revives at 1 HP; if all units die the run ends.
-	if unit.data.is_player_unit and unit.data.archetype_id != "RogueFinder":
+	# Test room units are transient — no permadeath, no save.
+	if unit.data.is_player_unit and unit.data.archetype_id != "RogueFinder" \
+			and not GameState.test_room_mode:
 		unit.data.is_dead = true
 		GameState.save()
 	_check_win_lose()
@@ -1332,6 +1452,14 @@ func _end_combat(player_won: bool) -> void:
 			unit.data.cognition = snap["cognition"]
 			unit.data.vitality  = snap["vitality"]
 			unit.data.willpower = snap["willpower"]
+
+	# Test room: skip all GameState mutations and return to the map after a brief pause.
+	if GameState.test_room_mode:
+		GameState.test_room_mode = false
+		_status_label.text = "TEST ROOM: %s — returning to map..." % ("Victory!" if player_won else "Defeated.")
+		await get_tree().create_timer(2.5).timeout
+		get_tree().change_scene_to_file("res://scenes/map/MapScene.tscn")
+		return
 
 	if player_won:
 		for unit in _player_units:

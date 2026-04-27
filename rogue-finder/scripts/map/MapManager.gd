@@ -1183,6 +1183,27 @@ func _build_dev_event_panel() -> void:
 	var sep := HSeparator.new()
 	vbox.add_child(sep)
 
+	# --- Combat section ---
+	var combat_hdr := Label.new()
+	combat_hdr.text = "COMBAT"
+	combat_hdr.add_theme_font_size_override("font_size", 11)
+	combat_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	vbox.add_child(combat_hdr)
+
+	var test_room_btn := Button.new()
+	test_room_btn.text = "⚔ Test Room (armor showcase)"
+	test_room_btn.custom_minimum_size = Vector2(220.0, 32.0)
+	test_room_btn.add_theme_font_size_override("font_size", 13)
+	test_room_btn.pressed.connect(func() -> void:
+		_dev_event_panel.visible = false
+		GameState.test_room_mode = true
+		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+	)
+	vbox.add_child(test_room_btn)
+
+	var sep_combat := HSeparator.new()
+	vbox.add_child(sep_combat)
+
 	# --- Events section ---
 	var evt_hdr := Label.new()
 	evt_hdr.text = "EVENTS"
