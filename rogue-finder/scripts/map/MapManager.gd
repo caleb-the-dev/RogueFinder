@@ -1245,6 +1245,42 @@ func _build_dev_event_panel() -> void:
 	var sep_inv := HSeparator.new()
 	vbox.add_child(sep_inv)
 
+	# --- Bench section ---
+	var bench_hdr := Label.new()
+	bench_hdr.text = "BENCH"
+	bench_hdr.add_theme_font_size_override("font_size", 11)
+	bench_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	vbox.add_child(bench_hdr)
+
+	var bench_count_lbl := Label.new()
+	bench_count_lbl.add_theme_font_size_override("font_size", 11)
+	bench_count_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
+	bench_count_lbl.text = "Bench: %d / %d" % [GameState.bench.size(), GameState.BENCH_CAP]
+	vbox.add_child(bench_count_lbl)
+
+	var inject_btn := Button.new()
+	inject_btn.text = "+ Inject Follower to Bench"
+	inject_btn.custom_minimum_size = Vector2(220.0, 32.0)
+	inject_btn.add_theme_font_size_override("font_size", 13)
+	inject_btn.disabled = GameState.bench.size() >= GameState.BENCH_CAP
+	inject_btn.pressed.connect(func() -> void:
+		# Rotate through the three non-player archetypes for variety
+		const _FOLLOWER_ARCHETYPES: Array[String] = ["grunt", "archer_bandit", "alchemist"]
+		var pick: String = _FOLLOWER_ARCHETYPES[GameState.bench.size() % _FOLLOWER_ARCHETYPES.size()]
+		var follower: CombatantData = ArchetypeLibrary.create(pick, "", true)
+		if GameState.add_to_bench(follower):
+			GameState.save()
+			print("[DevMenu] Injected '%s' (%s) to bench — bench now %d / %d" % [
+				follower.character_name, follower.unit_class,
+				GameState.bench.size(), GameState.BENCH_CAP])
+		else:
+			print("[DevMenu] Bench full — injection skipped")
+	)
+	vbox.add_child(inject_btn)
+
+	var sep_bench := HSeparator.new()
+	vbox.add_child(sep_bench)
+
 	# --- Events section ---
 	var evt_hdr := Label.new()
 	evt_hdr.text = "EVENTS"

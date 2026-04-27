@@ -130,9 +130,9 @@ func _build_overlay() -> void:
 	_overlay_layer.layer = 5
 	add_child(_overlay_layer)
 
-	# Semi-transparent backdrop dims the city menu behind the overlay
+	# Opaque backdrop — fully hides the city menu behind the overlay
 	var backdrop := ColorRect.new()
-	backdrop.color = Color(0.0, 0.0, 0.0, 0.80)
+	backdrop.color = Color(0.06, 0.05, 0.07, 0.97)
 	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	_overlay_layer.add_child(backdrop)
