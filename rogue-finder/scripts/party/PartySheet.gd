@@ -589,15 +589,13 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	tr_y += 36.0
 
 	# Base attributes — 5 columns
-	# attr_key matches the temperament boosted_stat/hindered_stat strings for tinting.
 	var attr_defs: Array = [
-		["STR", member.strength,  "strength",  "Strength\nDrives physical power. Used in attack formulas."],
-		["DEX", member.dexterity, "dexterity", "Dexterity\nSpeed = 2 + DEX cells of movement per turn."],
-		["COG", member.cognition, "cognition", "Cognition\nIntelligence. Reserved for future ability cost scaling."],
-		["WIL", member.willpower, "willpower", "Willpower\nEnergy Regen = 2 + WIL energy restored each turn."],
-		["VIT", member.vitality,  "vitality",  "Vitality\nHP Max = 10 × VIT.  Energy Max = 5 + VIT."],
+		["STR", member.strength,  "Strength\nDrives physical power. Used in attack formulas."],
+		["DEX", member.dexterity, "Dexterity\nSpeed = 2 + DEX cells of movement per turn."],
+		["COG", member.cognition, "Cognition\nIntelligence. Reserved for future ability cost scaling."],
+		["WIL", member.willpower, "Willpower\nEnergy Regen = 2 + WIL energy restored each turn."],
+		["VIT", member.vitality,  "Vitality\nHP Max = 10 × VIT.  Energy Max = 5 + VIT."],
 	]
-	var _temp: TemperamentData = TemperamentLibrary.get_temperament(member.temperament_id)
 	var acol_w: float = tr_w / float(attr_defs.size())
 	for i in range(attr_defs.size()):
 		var ad: Array = attr_defs[i]
@@ -608,22 +606,16 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		abbr.add_theme_font_size_override("font_size", 10)
 		abbr.add_theme_color_override("font_color",
 			Color(0.80, 0.72, 0.34).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
-		abbr.tooltip_text = ad[3]
+		abbr.tooltip_text = ad[2]
 		abbr.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(abbr)
 		var val := Label.new()
 		val.text = str(ad[1])
 		val.position = Vector2(ax, tr_y + 12.0)
 		val.add_theme_font_size_override("font_size", 16)
-		# Color-tint value: green if temperament boosts this attr, red if it hinders.
-		var base_val_color: Color = Color(0.98, 0.92, 0.52)
-		if not is_dead and _temp.boosted_stat  == ad[2] and ad[2] != "":
-			base_val_color = Color(0.40, 0.90, 0.40)
-		elif not is_dead and _temp.hindered_stat == ad[2] and ad[2] != "":
-			base_val_color = Color(0.90, 0.35, 0.35)
 		val.add_theme_color_override("font_color",
-			base_val_color.lerp(Color(0.45, 0.45, 0.45), 0.5 if is_dead else 0.0))
-		val.tooltip_text = ad[3]
+			Color(0.98, 0.92, 0.52).lerp(Color(0.45, 0.45, 0.45), 0.5 if is_dead else 0.0))
+		val.tooltip_text = ad[2]
 		val.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(val)
 
