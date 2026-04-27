@@ -95,7 +95,8 @@ static func create(archetype_id: String, character_name: String = "",
 	data.vitality  = rng.randi_range(src.vit_range[0],   src.vit_range[1])
 	data.vitality  = maxi(1, data.vitality)  # guard: HP = 0 is invalid
 
-	data.armor_defense  = rng.randi_range(src.armor_range[0], src.armor_range[1])
+	data.physical_armor = rng.randi_range(src.physical_armor_range[0], src.physical_armor_range[1])
+	data.magic_armor    = rng.randi_range(src.magic_armor_range[0],    src.magic_armor_range[1])
 	data.qte_resolution = rng.randf_range(src.qte_range[0],   src.qte_range[1])
 
 	data.current_hp     = data.hp_max
@@ -170,8 +171,10 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				archetype.wil_range = _split_pipe_int(val)
 			"vit_range":
 				archetype.vit_range = _split_pipe_int(val)
-			"armor_range":
-				archetype.armor_range = _split_pipe_int(val)
+			"physical_armor_range":
+				archetype.physical_armor_range = _split_pipe_int(val)
+			"magic_armor_range":
+				archetype.magic_armor_range = _split_pipe_int(val)
 			"qte_range":
 				archetype.qte_range = _split_pipe_float(val)
 			"artwork_idle":

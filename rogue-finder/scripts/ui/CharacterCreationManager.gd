@@ -484,7 +484,8 @@ static func _build_pc(char_name: String, kindred_id: String, class_id: String,
 		+ kindred_data.stat_bonuses.get("willpower", 0) + bg_data.stat_bonuses.get("willpower", 0)
 	d.vitality  = 4 + class_data.stat_bonuses.get("vitality",  0) \
 		+ kindred_data.stat_bonuses.get("vitality",  0) + bg_data.stat_bonuses.get("vitality",  0)
-	d.armor_defense = 5
+	d.physical_armor = 3
+	d.magic_armor    = 2
 
 	# Abilities: slot 0 = class defining, slot 1 = kindred natural attack
 	var class_ab: String   = class_data.starting_ability_id

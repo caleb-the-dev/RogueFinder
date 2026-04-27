@@ -19,7 +19,8 @@ extends Resource
 @export var cog_range:       Array[int]    = [0, 0]
 @export var wil_range:       Array[int]    = [0, 0]
 @export var vit_range:       Array[int]    = [1, 1]
-@export var armor_range:     Array[int]    = [0, 0]
+@export var physical_armor_range: Array[int] = [0, 0]
+@export var magic_armor_range:    Array[int] = [0, 0]
 @export var qte_range:       Array[float]  = [0.0, 0.0]
 @export var artwork_idle:    String        = ""
 @export var artwork_attack:  String        = ""

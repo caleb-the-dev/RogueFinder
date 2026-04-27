@@ -111,11 +111,13 @@ extends Resource
 @export_range(0.0, 1.0) var qte_resolution: float = 0.3
 
 ## ======================================================
-## --- Armor Defense ---
-## Set by ArchetypeLibrary at creation time.
+## --- Armor ---
+## Both fields set by ArchetypeLibrary at creation time.
+## physical_armor resists PHYSICAL HARM; magic_armor resists MAGIC HARM.
 ## ======================================================
 
-@export var armor_defense: int = 5
+@export var physical_armor: int = 3
+@export var magic_armor:    int = 2
 
 ## ======================================================
 ## Derived Stats — computed from core attributes + equipped items + feats
@@ -175,11 +177,17 @@ var speed: int:
 		+ get_class_stat_bonus("dexterity") + get_kindred_stat_bonus("dexterity") \
 		+ get_background_stat_bonus("dexterity")
 
-## defense: armor_defense + any armor_defense bonuses from equipped items + feats + class + kindred + bg.
-var defense: int:
-	get: return armor_defense + _equip_bonus("armor_defense") + get_feat_stat_bonus("armor_defense") \
-		+ get_class_stat_bonus("armor_defense") + get_kindred_stat_bonus("armor_defense") \
-		+ get_background_stat_bonus("armor_defense")
+## physical_defense: resists PHYSICAL HARM — physical_armor + all pillar bonuses keyed "physical_armor".
+var physical_defense: int:
+	get: return physical_armor + _equip_bonus("physical_armor") + get_feat_stat_bonus("physical_armor") \
+		+ get_class_stat_bonus("physical_armor") + get_kindred_stat_bonus("physical_armor") \
+		+ get_background_stat_bonus("physical_armor")
+
+## magic_defense: resists MAGIC HARM — magic_armor + all pillar bonuses keyed "magic_armor".
+var magic_defense: int:
+	get: return magic_armor + _equip_bonus("magic_armor") + get_feat_stat_bonus("magic_armor") \
+		+ get_class_stat_bonus("magic_armor") + get_kindred_stat_bonus("magic_armor") \
+		+ get_background_stat_bonus("magic_armor")
 
 ## attack: 5 + strength + any strength bonuses from equipped items + feats + class + kindred + bg.
 var attack: int:

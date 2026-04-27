@@ -33,13 +33,13 @@ func test_get_bonus_returns_zero_for_missing_stat() -> void:
 
 func test_get_bonus_returns_correct_value_for_present_stat() -> void:
 	var eq := EquipmentData.new()
-	eq.stat_bonuses = {"strength": 3, "dexterity": -1, "armor_defense": 2}
+	eq.stat_bonuses = {"strength": 3, "dexterity": -1, "physical_armor": 2}
 	assert(eq.get_bonus("strength") == 3,
 		"get_bonus(strength) should be 3, got %d" % eq.get_bonus("strength"))
 	assert(eq.get_bonus("dexterity") == -1,
 		"get_bonus(dexterity) should be -1, got %d" % eq.get_bonus("dexterity"))
-	assert(eq.get_bonus("armor_defense") == 2,
-		"get_bonus(armor_defense) should be 2, got %d" % eq.get_bonus("armor_defense"))
+	assert(eq.get_bonus("physical_armor") == 2,
+		"get_bonus(physical_armor) should be 2, got %d" % eq.get_bonus("physical_armor"))
 	print("  PASS test_get_bonus_returns_correct_value_for_present_stat")
 
 ## --- CombatantData null-equipment regression ---
@@ -56,8 +56,10 @@ func test_null_equipment_attack_no_regression() -> void:
 
 func test_null_equipment_defense_no_regression() -> void:
 	var d := CombatantData.new()
-	d.armor_defense = 6
-	assert(d.defense == 6, "defense with armor_defense=6, no equip: expected 6, got %d" % d.defense)
+	d.physical_armor = 6
+	d.magic_armor    = 3
+	assert(d.physical_defense == 6, "physical_defense=6, no equip: expected 6, got %d" % d.physical_defense)
+	assert(d.magic_defense    == 3, "magic_defense=3, no equip: expected 3, got %d" % d.magic_defense)
 	print("  PASS test_null_equipment_defense_no_regression")
 
 func test_null_equipment_speed_no_regression() -> void:
@@ -92,21 +94,21 @@ func test_null_equipment_energy_regen_no_regression() -> void:
 
 func test_leather_armor_defense_plus_one() -> void:
 	var d := CombatantData.new()
-	d.armor_defense = 5
+	d.physical_armor = 5
 	d.armor = EquipmentLibrary.get_equipment("leather_armor")
-	# leather_armor: armor_defense +1
-	assert(d.defense == 6,
-		"defense with leather_armor (ad+1) should be 6, got %d" % d.defense)
+	# leather_armor: physical_armor +1
+	assert(d.physical_defense == 6,
+		"physical_defense with leather_armor (+1) should be 6, got %d" % d.physical_defense)
 	print("  PASS test_leather_armor_defense_plus_one")
 
 func test_chain_mail_defense_plus_two_speed_minus_one() -> void:
 	var d := CombatantData.new()
-	d.armor_defense = 5
+	d.physical_armor = 5
 	d.dexterity = 3
 	d.armor = EquipmentLibrary.get_equipment("chain_mail")
-	# chain_mail: armor_defense +2, dexterity -1
-	assert(d.defense == 7,
-		"defense with chain_mail (ad+2) should be 7, got %d" % d.defense)
+	# chain_mail: physical_armor +2, dexterity -1
+	assert(d.physical_defense == 7,
+		"physical_defense with chain_mail (+2) should be 7, got %d" % d.physical_defense)
 	# speed = 1 + kindred_bonus + equip_dex_bonus; chain_mail dex -1 → 1 + 0 + (-1) = 0
 	assert(d.speed == 0,
 		"speed with no kindred + chain_mail (dex-1) should be 0, got %d" % d.speed)

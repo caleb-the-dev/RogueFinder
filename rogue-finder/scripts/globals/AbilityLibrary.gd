@@ -61,6 +61,11 @@ const _FORCE_TYPE: Dictionary = {
 	"RIGHT":  EffectData.ForceType.RIGHT,
 	"RADIAL": EffectData.ForceType.RADIAL,
 }
+const _DAMAGE_TYPE: Dictionary = {
+	"PHYSICAL": AbilityData.DamageType.PHYSICAL,
+	"MAGIC":    AbilityData.DamageType.MAGIC,
+	"NONE":     AbilityData.DamageType.NONE,
+}
 
 ## ======================================================
 ## Public API
@@ -151,6 +156,8 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray,
 				a.description = val
 			"effects":
 				a.effects = _parse_effects(val, row_num)
+			"damage_type":
+				a.damage_type = _DAMAGE_TYPE.get(val, AbilityData.DamageType.NONE)
 			"notes":
 				pass  # designer free-text; intentionally ignored
 			_:

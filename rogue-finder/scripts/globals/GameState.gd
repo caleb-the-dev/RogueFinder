@@ -26,6 +26,10 @@ var used_event_ids: Array[String] = [] # event ids drawn this run; used by Event
 var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
 var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
 
+## Transient — never saved. Set true before entering the test combat room from the dev menu.
+## CombatManager3D reads it to spawn hardcoded test units instead of GameState.party.
+var test_room_mode: bool = false
+
 ## --- Inventory (party bag) ---
 ## Stores raw reward dicts: {id, name, description, item_type}.
 ## item_type is "equipment" or "consumable" — used for tab filtering in the bag UI (Stage 2).
@@ -104,7 +108,8 @@ func _serialize_combatant(d: CombatantData) -> Dictionary:
 		"cognition":      d.cognition,
 		"willpower":      d.willpower,
 		"vitality":       d.vitality,
-		"armor_defense":  d.armor_defense,
+		"physical_armor": d.physical_armor,
+		"magic_armor":    d.magic_armor,
 		"qte_resolution": d.qte_resolution,
 		"abilities":      d.abilities,
 		"ability_pool":   d.ability_pool,
@@ -165,7 +170,14 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 	d.cognition      = dict.get("cognition", 2)
 	d.willpower      = dict.get("willpower", 2)
 	d.vitality       = dict.get("vitality", 2)
-	d.armor_defense  = dict.get("armor_defense", 5)
+	# Migrate old saves that stored a single armor_defense value — apply to both lanes.
+	if dict.has("physical_armor"):
+		d.physical_armor = dict.get("physical_armor", 3)
+		d.magic_armor    = dict.get("magic_armor", 2)
+	else:
+		var legacy: int  = dict.get("armor_defense", 5)
+		d.physical_armor = legacy
+		d.magic_armor    = legacy
 	d.qte_resolution = float(dict.get("qte_resolution", 0.3))
 	var raw_abilities: Array = dict.get("abilities", [])
 	d.abilities    = Array(raw_abilities, TYPE_STRING, "", null)

@@ -10,7 +10,7 @@ func _ready() -> void:
 	test_multiple_feats_sum()
 	test_wrong_stat_returns_zero()
 	test_attack_increases_with_strength_feat()
-	test_defense_increases_with_armor_feat()
+	test_physical_defense_increases_with_armor_feat()
 	test_energy_regen_increases_with_willpower_feat()
 	test_unknown_feat_id_does_not_crash()
 	print("=== All feat stat bonus tests passed ===")
@@ -23,7 +23,8 @@ func _bare_combatant() -> CombatantData:
 	d.cognition = 2
 	d.willpower = 2
 	d.vitality  = 2
-	d.armor_defense = 0
+	d.physical_armor = 0
+	d.magic_armor    = 0
 	return d
 
 func test_no_feats_returns_zero() -> void:
@@ -54,11 +55,11 @@ func test_multiple_feats_sum() -> void:
 
 func test_wrong_stat_returns_zero() -> void:
 	var d := _bare_combatant()
-	d.feat_ids = ["iron_guard"]  # armor_defense:2
+	d.feat_ids = ["iron_guard"]  # physical_armor:2
 	assert(d.get_feat_stat_bonus("strength") == 0,
 		"iron_guard: strength bonus should be 0")
-	assert(d.get_feat_stat_bonus("armor_defense") == 2,
-		"iron_guard: armor_defense bonus should be 2, got %d" % d.get_feat_stat_bonus("armor_defense"))
+	assert(d.get_feat_stat_bonus("physical_armor") == 2,
+		"iron_guard: physical_armor bonus should be 2, got %d" % d.get_feat_stat_bonus("physical_armor"))
 	print("  PASS test_wrong_stat_returns_zero")
 
 func test_attack_increases_with_strength_feat() -> void:
@@ -69,13 +70,13 @@ func test_attack_increases_with_strength_feat() -> void:
 		"combat_mastery should raise attack by 1, got %d (base %d)" % [d.attack, base_attack])
 	print("  PASS test_attack_increases_with_strength_feat")
 
-func test_defense_increases_with_armor_feat() -> void:
+func test_physical_defense_increases_with_armor_feat() -> void:
 	var d := _bare_combatant()
-	var base_defense: int = d.defense
-	d.feat_ids = ["iron_guard"]  # armor_defense:2
-	assert(d.defense == base_defense + 2,
-		"iron_guard should raise defense by 2, got %d (base %d)" % [d.defense, base_defense])
-	print("  PASS test_defense_increases_with_armor_feat")
+	var base_pdef: int = d.physical_defense
+	d.feat_ids = ["iron_guard"]  # physical_armor:2
+	assert(d.physical_defense == base_pdef + 2,
+		"iron_guard should raise physical_defense by 2, got %d (base %d)" % [d.physical_defense, base_pdef])
+	print("  PASS test_physical_defense_increases_with_armor_feat")
 
 func test_energy_regen_increases_with_willpower_feat() -> void:
 	var d := _bare_combatant()
