@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-26 (class pool expansion — class defining abilities, 13-ability/10-feat pools, 42 abilities, 32 feats) |
+| last_updated | 2026-04-27 (XP + Level-Up system — grant_xp, level/xp/pending fields, pick overlay, map button glow) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 7 |
+| sessions_since_groom | 8 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -38,9 +38,9 @@
 | [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (owns ability lane — starting_ability_id + ability_pool + stat_bonuses; no longer grants feats) | Data |
 | [Main Menu + Character Creation](character_creation.md) | `character_creation.md` | ✅ Active (deterministic stats; slot 0 = class ability, slot 1 = kindred ability; bg feat seeds feat_ids; 12 tests) | Presentation |
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
-| [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory) | Global |
+| [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory + XP/level-up) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
-| [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay, layer 20) | Presentation |
+| [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay layer 20; level-up pick overlay layer 25) | Presentation |
 | [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker + 15 events (3 smoke + 12 authored) (Slices 1/3/4/5/6) | Data / World Map |
 | [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ✅ Active — 32 feats (20 class, 12 background), stat bonuses applied, grant_feat() API live | Data |
 
@@ -115,7 +115,10 @@ BadurgaManager    → standalone (no deps; returns to MapScene on back)
 
 GameState (autoload)
   ├── ArchetypeLibrary      (init_party() safety-fallback creates default PC)
-  └── EquipmentLibrary      (load_save resolves equipment slot ids)
+  ├── EquipmentLibrary      (load_save resolves equipment slot ids)
+  ├── ClassLibrary          (sample_ability_candidates + sample_feat_candidates)
+  ├── KindredLibrary        (sample_ability_candidates)
+  └── BackgroundLibrary     (sample_feat_candidates)
 ```
 
 ---
@@ -245,6 +248,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-27 | CombatantData, GameState, CombatManager3D, MapManager, PartySheet, tests | **XP + Level-Up system.** `CombatantData` gained `level: int`, `xp: int`, `pending_level_ups: int` (all serialized; old saves default 1/0/0). `GameState` gained `XP_THRESHOLDS = [20,35,55,80]`, `grant_xp(15)` (15 XP/win; level+pending incremented on threshold cross; level cap 20), `xp_needed_for_next_level()`, `sample_ability_candidates()`, `sample_feat_candidates()` (both static). `CombatManager3D._end_combat(true)` calls `grant_xp(15)` on victory; debug T menu gained "Grant XP +20" and "Force Level-Up" buttons (latter also increments level). `MapManager`: party button promoted to class var `_party_btn`; `_refresh_party_btn()` shows "Level Up Available" with rainbow modulate tween + scale pulse when pending > 0; Dev Menu (bottom-right, renamed from "Events [DEV]") gained XP/LEVEL section with Grant XP + Force Level-Up options. `PartySheet`: `level_up_resolved` signal added; TR quadrant shows "Lv. X" (centered) or rainbow Level Up button (suppresses label); level-up pick overlay (layer 25) shows 3 horizontal `_build_pick_card()` cards matching EndCombatScreen reward style; even levels → ability pick, odd levels → feat pick; multiple pending picks chain back-to-back in one overlay via `_fill_next_pick()` formula `pick_level = pc.level - pc.pending_level_ups + 1`. 11 headless tests added (`test_game_state_xp.gd`); all 70 prior tests still passing. |
 | 2026-04-26 | abilities.csv, classes.csv, feats.csv, tests | **Class Pool Expansion — defining abilities + full pools.** 4 class defining abilities added to `abilities.csv` (`tower_slam` STR HARM4+push1, `arcane_bolt` COG HARM5 range4, `slipshot` DEX HARM4+travel1, `bless` WIL BUFF STR+1 ally). 6 new class-pool abilities added (`backstab`, `crippling_shot`, `vanishing_step` for Prowler; `lay_on_hands`, `divine_ward`, `rallying_shout` for Warden). abilities.csv: 32→42 total. `classes.csv` `starting_ability_id` updated to new definings; `ability_pool` 5→13 per class; `feat_pool` 3→10 per class. `feats.csv` +8 new class feats (`iron_constitution`, `combat_mastery`, `spell_memory`, `evasive_footwork`, `relentless_assault`, `arcane_resilience`, `iron_will`, `veteran_instinct`) → 32 total (20 class, 12 bg). Test suite cleanup: pre-existing `test_feat_library.gd` + `test_feat_stat_bonus.gd` failures (stale kindred feat refs `adaptive`/`stonehide`/`relentless`) fixed. 70 tests passing across 7 suites. |
 | 2026-04-26 | kindreds.csv, backgrounds.csv, feats.csv, abilities.csv, KindredData, BackgroundData, KindredLibrary, BackgroundLibrary, CombatantData, CharacterCreationManager, GameState, tests | **Pillar Foundation — ability/feat lane split + deterministic stats.** Kindreds now own the ability lane: `stat_bonuses`, `starting_ability_id`, `ability_pool` added to `kindreds.csv` + `KindredData` + `KindredLibrary`; `feat_id` removed. 4 kindred natural attacks + 6 ancestry abilities added to `abilities.csv` (32 total). Backgrounds now own the feat lane: `starting_feat_id` + `stat_bonuses` added to `backgrounds.csv` + `BackgroundData` + `BackgroundLibrary`; `starting_ability_id` removed. `feats.csv` drops 4 kindred rows → 24 feats. `CombatantData` attribute defaults changed 5→4; `get_kindred_stat_bonus()` + `get_background_stat_bonus()` added and wired into all 6 derived stat formulas. `CharacterCreationManager`: `_roll_stats()` + Reroll button removed; stats now `base 4 + pillar bonuses`; slot 0 = class ability, slot 1 = kindred natural attack; `feat_ids` seeded from `bg.starting_feat_id`. Preview panel shows class/kindred ability + background feat. `GameState._deserialize_combatant()` strips old kindred feat IDs on load. `ArchetypeLibrary.create()` seeds `feat_ids = []` (enemies). 77 tests passing across 7 suites (test_class_stat_bonus.gd new, all existing suites updated). |
 | 2026-04-26 | feats.csv, FeatData, FeatLibrary, CombatantData, GameState, EventManager, UI | **Feat System Slices 1–7 — mechanically active.** feats.csv expanded to 28 rows (4 kindred, 12 class, 12 background) with `source_type`, `stat_bonuses` (parsed to Dictionary), `effects`, `notes` columns. FeatData gained those fields. FeatLibrary parses `stat:value\|stat:value`. kindreds.csv dropped `feat_name`/`feat_desc`; KindredData + KindredLibrary cleaned up. classes.csv + ClassData + ClassLibrary gained `feat_pool: Array[String]`. CombatantData: `kindred_feat_id` + `feats` consolidated into `feat_ids: Array[String]`; `get_feat_stat_bonus(stat)` added; all 6 derived stat formulas include feat bonuses (flat, same as equipment). GameState: `grant_feat(pc_index, feat_id)` added (deduplication + save); `_serialize_combatant` writes `feat_ids`; `_deserialize_combatant` migrates old saves (kindred_feat_id + feats → feat_ids). EventManager: `feat_grant` effect calls `GameState.grant_feat()`; `feat:ID` condition checks `member.feat_ids`. StatPanel + PartySheet iterate `feat_ids`. 3 new test files (17 new tests); 4 existing test files updated. 84 tests total passing. |

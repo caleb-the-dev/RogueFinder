@@ -1,6 +1,6 @@
 # System: Map Scene
 
-> Last updated: 2026-04-25 (Events Slice 6 — dev event panel, live threat meter refresh, CITY stamp guard)
+> Last updated: 2026-04-27 (Level-Up — party button glow, UI chrome layout, Dev Menu XP options)
 
 ---
 
@@ -188,9 +188,9 @@ Built in `_add_ui_chrome()` and `_add_threat_meter()`. Children of the root MapM
 |---|---|---|
 | `"[MAP SCENE]"` debug label | top-left `(12, 8)` | Scene-load confirmation |
 | Threat meter | left side `(12, 46)` | Run-wide danger gauge |
-| `"Party"` button | top-right `(VIEWPORT_SIZE.x - 300, 8)`, 80×36 | Opens `PartySheet` overlay. See `party_sheet.md`. |
-| `"Events [DEV]"` button | top-right `(VIEWPORT_SIZE.x - 430, 8)`, 110×36 | Toggles the dev event test menu (see Dev Event Panel section below). |
-| `"🗑 Delete Save (debug)"` button | top-right `(VIEWPORT_SIZE.x - 212, 8)` | Calls `GameState.delete_save()` + `reset()` then `reload_current_scene()` |
+| `"Party"` / `"Level Up Available"` button | top-right `(VIEWPORT_SIZE.x - 180, 8)`, 172×36 | Opens `PartySheet`. Text + modulate controlled by `_refresh_party_btn()`. When any party member has `pending_level_ups > 0`: text = "Level Up Available", rainbow modulate tween + scale pulse (1.0↔1.07 sine) start; when all resolved: text = "Party", modulate reset to WHITE, tweens killed. |
+| `"Dev Menu"` button | bottom-right `(VIEWPORT_SIZE.x - 314, VIEWPORT_SIZE.y - 40)`, 100×32 | Toggles the dev panel (see Dev Panel section). |
+| `"Delete Save (debug)"` button | bottom-right `(VIEWPORT_SIZE.x - 210, VIEWPORT_SIZE.y - 40)`, 202×32 | Calls `GameState.delete_save()` + `reset()` then `reload_current_scene()` |
 
 ### Threat Meter — `_add_threat_meter()` / `_refresh_threat_meter()`
 
@@ -270,18 +270,23 @@ Result: 2–3 forced bottleneck passages between each ring pair, no straight cut
 
 ---
 
-## Dev Event Panel
+## Dev Panel
 
-Accessed via the `"Events [DEV]"` button in the map UI chrome. Not part of normal gameplay.
+Accessed via the `"Dev Menu"` button in the map UI chrome (bottom-right). Not part of normal gameplay. Formerly labelled "Events [DEV]".
 
 | Variable | Type | Description |
 |---|---|---|
 | `_is_dev_event` | `bool` | Set to `true` immediately before `show_event()` is called from dev panel. Cleared in `_on_event_finished` / `_on_event_nav`. Prevents node clearing and nav routing. |
 | `_dev_event_panel` | `CanvasLayer` | `null` until first open. Built lazily by `_build_dev_event_panel()`. |
+| `_party_btn` | `Button` | Reference to the Party / "Level Up Available" button. Promoted from local to class var so `_refresh_party_btn()` can update it after scene setup. |
+| `_party_btn_rainbow` | `Tween` | Looping modulate tween on `_party_btn`. `null` when inactive. Killed and set to `null` when reverting to "Party" state. |
+| `_party_btn_pulse` | `Tween` | Looping scale tween on `_party_btn`. Same lifecycle as `_party_btn_rainbow`. |
 
 **`_toggle_dev_event_panel()`** — calls `_build_dev_event_panel()` on first invocation, then toggles `.visible`.
 
-**`_build_dev_event_panel()`** — creates a `CanvasLayer` (layer 30) with a full-screen dark overlay (`ColorRect`, `MOUSE_FILTER_STOP` to block map clicks) and a centered 680×520 `PanelContainer`. Inside: title row + close button, a hint label, and a `ScrollContainer` with one `Button` per event from `EventLibrary.all_events()` (label: `"<title>  [<rings>]"`). Iterates via `ev as EventData`.
+**`_refresh_party_btn()`** — reads `GameState.party` for any member with `pending_level_ups > 0`. If found: sets button text to "Level Up Available", starts `_party_btn_rainbow` (6-color looping modulate cycle, 0.32 s/step) and `_party_btn_pulse` (scale 1.0↔1.07, TRANS_SINE, 0.55 s) if not already valid; pivot set to button center. If none: resets text to "Party", modulate to WHITE, scale to ONE, kills both tweens. Called from `_ready()` (after `_build_scene()`), `_on_event_finished()`, and on `PartySheet.level_up_resolved` signal.
+
+**`_build_dev_event_panel()`** — creates a `CanvasLayer` (layer 30) with a full-screen dark overlay (`ColorRect`, `MOUSE_FILTER_STOP` to block map clicks) and a centered 680×520 `PanelContainer`. Inside: title row + close button; **XP/LEVEL section** with "Grant XP +20 (all)" and "Force Level-Up (all)" buttons (both call `_refresh_party_btn()` after applying); separator; EVENTS section with a hint label and a `ScrollContainer` with one `Button` per event from `EventLibrary.all_events()` (label: `"<title>  [<rings>]"`). Iterates via `ev as EventData`.
 
 **`_on_dev_event_selected(event_data: EventData)`** — hides panel, sets `_is_dev_event = true`, calls `_event_manager.show_event(event_data)`.
 
@@ -322,6 +327,7 @@ Accessed via the `"Events [DEV]"` button in the map UI chrome. Not part of norma
 | Date | Session | What changed |
 |---|---|---|
 | 2026-04-23 | S28 | Doc split — PartySheet section moved to `party_sheet.md`. No `MapManager` behavior change. |
+| 2026-04-27 | Level-Up | **Party button glow + UI chrome layout + Dev Menu XP options.** Party button promoted to `_party_btn: Button` class var; `_party_btn_rainbow: Tween` and `_party_btn_pulse: Tween` class vars added. `_refresh_party_btn()` added: shows "Level Up Available" (gold) with rainbow modulate + scale pulse when any member has pending picks; reverts to "Party" (white, no animation) when all resolved; called from `_ready()`, `_on_event_finished()`, and `PartySheet.level_up_resolved` signal. UI chrome layout changed: Party button moved to sole top-right position (172×36 px); "Dev Menu" + "Delete Save" moved to bottom-right corner (100×32 and 202×32 px). Dev panel renamed "Dev Menu"; XP/LEVEL section added at top with "Grant XP +20 (all)" and "Force Level-Up (all)" buttons. `_ready()` now also connects `_party_sheet.level_up_resolved` → `_refresh_party_btn`. |
 | 2026-04-25 | Events Slice 6 | **Dev event panel + live threat meter + CITY stamp guard.** `_toggle_dev_event_panel()`, `_build_dev_event_panel()`, `_on_dev_event_selected()` added. `_is_dev_event: bool` and `_dev_event_panel: CanvasLayer` instance vars added. `_on_event_finished()` and `_on_event_nav()` both check `_is_dev_event` first — if true, clear flag and return without clearing nodes or routing. `_input()` gains `_dev_event_panel.visible` guard. Threat meter: fill rect always created (was conditional on `t > 0.0`); `_threat_fill: ColorRect` and `_threat_pct_lbl: Label` refs stored; `_refresh_threat_meter()` added; called from `_move_player_to()`, `_enter_current_node()`, and `_on_event_finished()`. Visual: `is_cleared` in `_refresh_all_node_visuals()` now excludes `node_type == "CITY"` — Badurga never shows ✗. |
 | 2026-04-25 | Events Slice 4 | `_event_manager: EventManager` field added. `_ready()` instantiates `EventScene.tscn` after `PartySheet`; connects `event_finished` → `_on_event_finished()` and `event_nav` → `_on_event_nav()`. `_enter_current_node()`: EVENT branch now calls `EventSelector.pick_for_node(_get_ring(...))` + `_event_manager.show_event()` instead of NodeStub. `_get_ring()` private helper added. `_input()` gains `_event_manager.visible` early-return guard. `_on_node_clicked()` guards same condition. Cleared stamp: CURRENT+CLEARED case now also renders ✗; stamp font size 18, bright red, dark outline, centered via PRESET_FULL_RECT. EVENT nodes appended to `cleared_nodes` by both `_on_event_finished` and `_on_event_nav`. |
 | 2026-04-24 | Events Slice 3 | `_move_player_to()`: `GameState.save()` added at end of method after dispatch block, covering VENDOR/CITY "Keep Moving" path. |

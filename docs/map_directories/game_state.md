@@ -27,6 +27,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | Constant | Value | Description |
 |----------|-------|-------------|
 | `SAVE_PATH` | `"user://save.json"` | Godot user data directory — platform-resolved at runtime |
+| `XP_THRESHOLDS` | `[20, 35, 55, 80]` | XP needed to advance from level N to N+1 for the first 4 levels. Beyond index 3, the formula `level × 20` is used. |
 
 ---
 
@@ -59,6 +60,10 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `add_to_inventory` | `(item: Dictionary) -> void` | Stamps `item["seen"] = false` on the dict, then appends to the party bag. Always marks new — even unequipped items returning to the bag will glow until hovered. No routing — both equipment and consumables land here. |
 | `remove_from_inventory` | `(item_id: String) -> bool` | Removes the first bag entry whose `id` matches `item_id`. Returns `true` if found and removed, `false` if not present. |
 | `grant_feat` | `(pc_index: int, feat_id: String) -> void` | Appends `feat_id` to `party[pc_index].feat_ids` if not already present (deduplicates). Calls `save()` immediately. `push_error` + no-op on invalid index. The canonical way to add feats during a run — `EventManager.dispatch_effect` routes `feat_grant` effects here. |
+| `xp_needed_for_next_level` | `(current_level: int) -> int` | Returns the XP threshold to advance from `current_level` to `current_level + 1`. Uses `XP_THRESHOLDS` for levels 1–4; `current_level × 20` for level 5+. |
+| `grant_xp` | `(amount: int) -> void` | Awards `amount` XP to every non-dead party member. For each member, while XP ≥ threshold and level < 20: subtracts threshold XP, increments `level`, increments `pending_level_ups`. Calls `save()` once after all members are processed. Called by `CombatManager3D._end_combat(true)` with `amount = 15` on every combat victory. |
+| `sample_ability_candidates` | `static (pc: CombatantData, count: int) -> Array[String]` | Returns up to `count` ability IDs the character can learn. Draws from `class.ability_pool + kindred.ability_pool`, deduplicates, excludes IDs already in `pc.ability_pool` (owned), shuffles, then slices to `count`. Returns fewer than `count` if the combined pool is exhausted. |
+| `sample_feat_candidates` | `static (pc: CombatantData, count: int) -> Array[String]` | Returns up to `count` feat IDs the character can learn. Draws from `class.feat_pool + background.feat_pool`, deduplicates, excludes IDs already in `pc.feat_ids`, shuffles, slices to `count`. |
 
 ### Save / Load
 
@@ -82,7 +87,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `cleared_nodes` | `GameState.cleared_nodes` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load |
 | `threat_level` | `GameState.threat_level` | float — read back via `float(parsed.get("threat_level", 0.0))` (no typed-array conversion needed) |
 | `used_event_ids` | `GameState.used_event_ids` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load; defaults to `[]` if key absent (old saves) |
-| `party` | `GameState.party` | JSON Array of dicts — each dict holds all scalar fields + `abilities`/`ability_pool` as string arrays + `feat_ids` as string array + `weapon_id`/`armor_id`/`accessory_id` as strings. Deserialized back to `Array[CombatantData]` by `_deserialize_combatant()`. **Migration:** if the save has `feat_ids`, it is used directly; if not, `kindred_feat_id` (string) + `feats` (array) are merged into `feat_ids` (deduped). Missing `kindred` key defaults to `"Unknown"`. |
+| `party` | `GameState.party` | JSON Array of dicts — each dict holds all scalar fields + `abilities`/`ability_pool` as string arrays + `feat_ids` as string array + `level`/`xp`/`pending_level_ups` as ints + `weapon_id`/`armor_id`/`accessory_id` as strings. Deserialized back to `Array[CombatantData]` by `_deserialize_combatant()`. **Migration:** if the save has `feat_ids`, it is used directly; if not, `kindred_feat_id` (string) + `feats` (array) are merged into `feat_ids` (deduped). Missing `kindred` key defaults to `"Unknown"`. Missing `level`/`xp`/`pending_level_ups` keys default to `1`/`0`/`0`. |
 | `inventory` | `GameState.inventory` | JSON Array of reward dicts `{id, name, description, item_type, seen}`. Stored and loaded as-is — no resolution step needed. `seen` persists naturally in JSON; old saves without the key read as `true` via `.get("seen", true)`. |
 
 **What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, party roster (all CombatantData fields including persistent run state), inventory (equipment item ids).
@@ -132,3 +137,14 @@ None currently.
 - **GameState persists across `change_scene_to_file()` calls** — as an autoload it is never freed. In-memory fields survive scene transitions without saving; `save()` is called explicitly to persist to disk.
 - **`load_save()` does NOT reset fields on a missing file** — it returns `false` immediately if `user://save.json` doesn't exist, leaving all in-memory fields unchanged. This means calling `delete_save()` alone before a scene reload is NOT enough for a clean fresh-run state in a live session; you must also call `reset()` to clear the in-memory fields. If you only delete the file, the player marker and visited state persist in memory for the remainder of the session.
 - **`_serialize_combatant()` / `_deserialize_combatant()`** — private helpers that convert a `CombatantData` to/from a plain Dictionary for JSON. Equipment slots serialize as their `equipment_id: String`; on deserialize, `EquipmentLibrary.get_equipment(id)` resolves back to the item. These methods are the only place where `CombatantData` ↔ JSON translation lives; extend them (not `save()`/`load_save()`) when new fields are added to `CombatantData`. **`feat_ids`** is written as `Array(d.feat_ids)` (untyped for JSON); on load it is converted back with `Array(raw, TYPE_STRING, "", null)`. **Save migration:** if the save dict has `feat_ids`, it is used directly; otherwise, `kindred_feat_id` (string) and `feats` (array) are merged into `feat_ids` deduplicated. This preserves all feats from saves that predate the unified format.
+- **`sample_ability_candidates()` / `sample_feat_candidates()` are static** — they take a `CombatantData` and count, returning a shuffled, deduplicated slice of the draw pool minus already-owned. Can be called headlessly (no autoload context needed). They do NOT call `save()`.
+- **`grant_xp()` increments level and pending simultaneously** — all level crossings in a single XP batch are resolved in one `while` loop before `save()` is called. If a PC jumps multiple levels, `pending_level_ups` accumulates accordingly. The `PartySheet` presents the pending picks back-to-back in a single overlay session.
+
+---
+
+## Recent Changes
+
+| Date | Change |
+|---|---|
+| 2026-04-27 | **XP + Level-Up system.** `XP_THRESHOLDS: Array[int] = [20, 35, 55, 80]` constant added. New methods: `xp_needed_for_next_level(level)`, `grant_xp(amount)`, `sample_ability_candidates(pc, count)` (static), `sample_feat_candidates(pc, count)` (static). `_serialize_combatant()` + `_deserialize_combatant()` extended with `level`, `xp`, `pending_level_ups` fields. Old saves default: `level=1, xp=0, pending_level_ups=0`. `grant_xp()` also called by `CombatManager3D._end_combat(true)` with `amount=15` on every win. `GameState` now depends on `ClassLibrary`, `KindredLibrary`, and `BackgroundLibrary` for the static candidate samplers. |
+| 2026-04-26 | **Feat system — `grant_feat()`.** `grant_feat(pc_index, feat_id)` added (dedup + save). `_serialize_combatant` writes `feat_ids`; `_deserialize_combatant` migrates old saves. |

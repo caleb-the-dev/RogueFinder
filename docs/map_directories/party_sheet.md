@@ -1,14 +1,14 @@
 # System: Party Sheet
 
-> Last updated: 2026-04-23 (split from map_scene.md during map audit; S28 kindred row and 30/40/30 column rebalance)
+> Last updated: 2026-04-27 (XP + Level-Up system — level indicator, level-up overlay, level_up_resolved signal)
 
 ---
 
 ## Purpose
 
-Full-screen interactive overlay for reviewing and managing the party. Opened from the "Party" button in `MapManager`'s UI chrome. This is where the player equips gear, swaps abilities, compares items, and reads stat blocks between encounters.
+Full-screen interactive overlay for reviewing and managing the party. Opened from the "Party" / "Level Up Available" button in `MapManager`'s UI chrome. This is where the player equips gear, swaps abilities, compares items, reads stat blocks, and resolves level-up picks between encounters.
 
-Runs on `CanvasLayer` at layer 20 — above every other overlay in the map scene. All mutations write directly to the live `CombatantData` instances in `GameState.party`; persistence is deferred to the next map travel (`MapManager` handles the save).
+Runs on `CanvasLayer` at layer 20 — above every other overlay in the map scene. The level-up pick overlay runs at layer 25, above the party sheet itself. All mutations write directly to the live `CombatantData` instances in `GameState.party`; equipment/ability mutations are NOT saved immediately — `GameState.save()` is called explicitly by the level-up path only (feat grant + pending decrement).
 
 ---
 
@@ -25,12 +25,23 @@ Runs on `CanvasLayer` at layer 20 — above every other overlay in the map scene
 
 | System | How it's used |
 |--------|--------------|
-| `GameState` | Reads `party` and `inventory` directly on every `show_sheet()` call and after every mutation |
+| `GameState` | Reads `party` and `inventory` directly on every `show_sheet()` call and after every mutation; `grant_feat()` + `save()` called from level-up overlay; `sample_ability_candidates()` + `sample_feat_candidates()` used to build pick pools |
 | `EquipmentLibrary` | Resolves equipment ids (when a slot holds an id string rather than an `EquipmentData` instance) |
 | `ConsumableLibrary` | Resolves consumable ids for tooltip + compare panels |
-| `AbilityLibrary` | Resolves ability ids for the ability pool tab and slot labels |
-| `FeatLibrary` | Resolves each id in `member.feat_ids` to `FeatData` (name + description) for the Feats tab |
-| `MapManager` | Owns the `PartySheet` instance; the `_input()` guard blocks map pan/zoom while the sheet is visible |
+| `AbilityLibrary` | Resolves ability ids for the ability pool tab, slot labels, and level-up pick cards |
+| `FeatLibrary` | Resolves each id in `member.feat_ids` to `FeatData` (name + description) for the Feats tab and level-up feat cards |
+| `ClassLibrary` | Used indirectly via `GameState.sample_ability_candidates()` / `sample_feat_candidates()` |
+| `KindredLibrary` | Used indirectly via `GameState.sample_ability_candidates()` |
+| `BackgroundLibrary` | Used indirectly via `GameState.sample_feat_candidates()` |
+| `MapManager` | Owns the `PartySheet` instance; listens for `level_up_resolved` to refresh the party button; the `_input()` guard blocks map pan/zoom while the sheet is visible |
+
+---
+
+## Signals
+
+| Signal | Args | Description |
+|--------|------|-------------|
+| `level_up_resolved` | — | Emitted after the last pending level-up pick overlay closes. `MapManager` listens to refresh the party button glow. |
 
 ---
 
@@ -81,7 +92,7 @@ Header row: "BAG" label + `1×/2×` view toggle. Sort row: Name / Type. Search b
 Each card divided into 4 quadrants by 50%-alpha separators:
 
 - **TOP-LEFT:** Name (17 px), Class (13 px gold), Background (13 px green), **Kindred (13 px blue-grey)**, HP row — text "HP x/x" left-aligned + bar filling remaining width on the same line.
-- **TOP-RIGHT:** Derived stats — Speed / Defense / EN Max / EN Regen (blue, 4 cols). Base attributes — STR / DEX / COG / WIL / VIT (yellow, 5 cols). All labels: `tooltip_text` + `MOUSE_FILTER_PASS`.
+- **TOP-RIGHT:** Derived stats — Speed / Defense / EN Max / EN Regen (blue, 4 cols). Base attributes — STR / DEX / COG / WIL / VIT (yellow, 5 cols). **Level row** (below attributes): "Lv. X" (13 px, blue-grey, centered in TR width) OR "Level Up! (N)" button when `pending_level_ups > 0` (rainbow modulate tween + scale pulse 1.0↔1.07; draws on top of the level label which is suppressed when pending > 0). All labels: `tooltip_text` + `MOUSE_FILTER_PASS`.
 - **BOTTOM-LEFT:** "EQUIPMENT" + 2×2 grid. Each slot is a flat `Button` with sprite icon. Drop target via `set_drag_forwarding()`. **Right-click** an occupied slot to unequip. Dragging bag item over a filled slot shows a compare panel. Disabled when dead.
 - **BOTTOM-RIGHT:** "ABILITIES" + 2×2 grid of slotted abilities as `Control` + `Label`. Drop target for abilities from the right panel. **Right-click** to clear. Hovering drag over a filled slot shows a side-by-side compare panel (`_show_drag_compare()`). Cross-member ability drops are rejected via `_can_drop_ability_here()`.
 
@@ -134,9 +145,35 @@ A `Theme` with a `StyleBoxFlat` for `TooltipPanel` (dark bg, gold border) is set
 
 ---
 
+## Level-Up Overlay (CanvasLayer layer 25)
+
+Opened from the "Level Up! (N)" button in a member card. Runs above the party sheet (layer 25 vs layer 20).
+
+**Entry point:** `_start_level_up(pc: CombatantData)` — finds `pc`'s index in `GameState.party`, builds the overlay, and calls `_fill_next_pick()`.
+
+**Pick routing** — `_fill_next_pick(content, overlay, pc, pc_index)`:
+- Computes `pick_level = pc.level - pc.pending_level_ups + 1` to identify which historical level is being resolved.
+- `pick_level % 2 == 0` → `_fill_ability_phase()` (ability pick).
+- `pick_level % 2 == 1` → `_fill_feat_phase()` (feat pick).
+- This correctly orders picks for multi-level batches (e.g., 3 pending at level 4 → picks for lv2/lv3/lv4 in order).
+
+**Each phase** shows a title ("Level Up! — Name"), a subtitle ("Choose an Ability" / "Choose a Feat"), and 3 horizontal pick cards (`_build_pick_card()`). Fewer than 3 cards if the pool is smaller. If the pool is empty, the phase is silently skipped.
+
+**`_build_pick_card(title, subtitle, desc, on_pick)`** — shared helper for both ability and feat phases. Returns a `PanelContainer` with dark background, hover gold-border highlight, and a click handler. Style mirrors `EndCombatScreen`'s reward cards — update both together to keep visual consistency.
+
+**`_finish_level_up(overlay, content, pc, pc_index)`**:
+1. Decrements `pc.pending_level_ups`.
+2. Calls `GameState.save()`.
+3. If `pending_level_ups > 0`: calls `_fill_next_pick()` to show the next pick immediately in the same overlay — no overlay close/reopen.
+4. If `pending_level_ups == 0`: calls `overlay.queue_free()`, `_rebuild()`, `level_up_resolved.emit()`.
+
+**Persistence gotcha:** ability picks (`pc.ability_pool.append()`) are NOT saved until `_finish_level_up()` calls `GameState.save()`. Feat picks call `GameState.grant_feat()` which saves internally AND then `_finish_level_up()` saves again — double-save is harmless.
+
+---
+
 ## Persistence
 
-All mutations write directly to the live `CombatantData` instance in `GameState.party[i]`. `GameState.save()` is **NOT** called here — MapScene saves on the next map travel. Dead members cannot be equipped (drop rejected, buttons disabled). Instance vars (`_sort_fields`, `_search_texts`, `_abil_views_wide`, etc.) survive `_rebuild()` but reset on scene reload.
+**Equipment/ability mutations** write to the live `CombatantData` in `GameState.party[i]` but do NOT call `GameState.save()` — the map saves on next travel. **Level-up picks** call `GameState.save()` explicitly (via `_finish_level_up()`). Dead members cannot be equipped (drop rejected, buttons disabled). Instance vars (`_sort_fields`, `_search_texts`, `_abil_views_wide`, etc.) survive `_rebuild()` but reset on scene reload.
 
 ---
 
@@ -144,6 +181,7 @@ All mutations write directly to the live `CombatantData` instance in `GameState.
 
 | Date | Session | What changed |
 |---|---|---|
+| 2026-04-27 | Level-Up | **XP + Level-Up system.** `level_up_resolved` signal added. TR quadrant now shows "Lv. X" (centered, font 13, blue-grey) below STR/DEX/COG/WIL/VIT; label suppressed when `pending_level_ups > 0`. "Level Up! (N)" button shown instead: centered in TR, rainbow modulate tween (red→orange→yellow→green→blue→purple, 0.32 s/step), scale pulse 1.0↔1.07 (0.55 s, TRANS_SINE). Level-up overlay (layer 25): `_start_level_up()` → `_fill_next_pick()` routes by `pick_level % 2`; even = ability, odd = feat. Each phase shows 3 horizontal `_build_pick_card()` cards (style mirrors EndCombatScreen). Multiple pending picks chain back-to-back in one overlay via `_finish_level_up()` → `_fill_next_pick()` loop. `GameState.save()` called on each pick resolution. `level_up_resolved` emitted when all pending are resolved. |
 | 2026-04-25 | Slice 5 | **New-item glow.** `_build_draggable_item` checks `item.get("seen", true)`. Unseen items get gold border + looping alpha tween (0.7→1.0, 0.8 s). `mouse_entered` sets `seen = true` on the live dict (shared reference from `GameState.inventory` via shallow `Array.duplicate()`) and calls `_rebuild()`, clearing the glow. |
 | 2026-04-24 | Slice 2 | **Feats tab upgraded from placeholder.** Full Abilities-tab-style layout: 1×/2× toggle, Name sort, search bar, scrollable `PanelContainer` feat cards with hover tooltip. Three new per-member state arrays (`_feat_views_wide`, `_feat_sort_ascs`, `_feat_search_texts`). `FeatLibrary` added as dependency. Source is `member.kindred_feat_id` only — Slice 4 extends when `CombatantData.feats` lands. |
 | 2026-04-23 | S28 | Kindred label (blue-grey, 13 px) added to TOP-LEFT card below Background. HP row restructured: "HP x/x" text now left-aligned on the same row as the bar. Column widths rebalanced: LEFT 240→376 px, MIDDLE 530→500 px, RIGHT 480→374 px (~30/40/30). Horizontal divider moved y+108→y+118 for the extra text line. |
