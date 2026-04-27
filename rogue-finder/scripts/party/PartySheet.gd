@@ -2,6 +2,8 @@ class_name PartySheet
 extends CanvasLayer
 
 ## --- PartySheet ---
+
+signal level_up_resolved
 ## Full-screen overlay: LEFT = inventory bag (drag source),
 ## MIDDLE = member cards (4 quadrants: name/hp | stats | equip | abilities),
 ## RIGHT = ability pool tabs (Abilities / Feats).
@@ -535,6 +537,27 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		bar_fill.position = Vector2(bar_x, tl_y + 4.0)
 		bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		parent.add_child(bar_fill)
+
+	# Level indicator row — below HP bar
+	var lv_y: float = tl_y + 15.0
+	var lv_lbl := Label.new()
+	lv_lbl.text = "Lv. %d / 20" % member.level
+	lv_lbl.position = Vector2(tl_x, lv_y)
+	lv_lbl.add_theme_font_size_override("font_size", 10)
+	lv_lbl.add_theme_color_override("font_color",
+		Color(0.55, 0.55, 0.55).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
+	parent.add_child(lv_lbl)
+
+	if member.pending_level_ups > 0 and not is_dead:
+		var lvlup_btn := Button.new()
+		lvlup_btn.text = "Level Up! (%d)" % member.pending_level_ups
+		lvlup_btn.position = Vector2(tl_x + 58.0, lv_y - 2.0)
+		lvlup_btn.custom_minimum_size = Vector2(130.0, 17.0)
+		lvlup_btn.add_theme_font_size_override("font_size", 10)
+		lvlup_btn.modulate = Color(1.0, 0.9, 0.3)
+		var pc_cap: CombatantData = member
+		lvlup_btn.pressed.connect(func(): _start_level_up(pc_cap))
+		parent.add_child(lvlup_btn)
 
 	# === TOP RIGHT: Derived Stats (BLUE) + Base Attributes (YELLOW) ===
 	var tr_x: float = x + half_w + 8.0
@@ -1367,6 +1390,126 @@ func _push_consumable_to_bag(consumable_id: String) -> void:
 		"id": cd.consumable_id, "name": cd.consumable_name,
 		"description": cd.description, "item_type": "consumable",
 	})
+
+## --- Level-Up Overlay (CanvasLayer layer 25) ---
+
+func _start_level_up(pc: CombatantData) -> void:
+	var pc_index: int = GameState.party.find(pc)
+	if pc_index < 0:
+		return
+
+	var overlay := CanvasLayer.new()
+	overlay.layer = 25
+	add_child(overlay)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.0, 0.88)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.add_child(bg)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(520.0, 0.0)
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color = Color(0.07, 0.06, 0.10, 0.97)
+	pstyle.border_width_left = 2; pstyle.border_width_right = 2
+	pstyle.border_width_top = 2; pstyle.border_width_bottom = 2
+	pstyle.border_color = Color(0.55, 0.44, 0.80, 0.90)
+	pstyle.set_corner_radius_all(6)
+	pstyle.content_margin_left = 20; pstyle.content_margin_right = 20
+	pstyle.content_margin_top = 16; pstyle.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", pstyle)
+	center.add_child(panel)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 10)
+	panel.add_child(content)
+
+	_fill_ability_phase(content, overlay, pc, pc_index)
+
+func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
+		pc: CombatantData, pc_index: int) -> void:
+	for child in content.get_children():
+		child.queue_free()
+
+	var candidates: Array[String] = GameState.sample_ability_candidates(pc, 3)
+	if candidates.is_empty():
+		_fill_feat_phase(content, overlay, pc, pc_index)
+		return
+
+	var title := Label.new()
+	title.text = "Level Up!  —  %s\nChoose an Ability" % pc.character_name
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
+	content.add_child(title)
+
+	content.add_child(HSeparator.new())
+
+	for ab_id: String in candidates:
+		var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
+		var btn := Button.new()
+		btn.text = "%s  [%d EN · %s]\n%s" % [
+			ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description
+		]
+		btn.custom_minimum_size = Vector2(480.0, 56.0)
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_font_size_override("font_size", 13)
+		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var chosen_id: String = ab_id
+		var ct: VBoxContainer = content; var ov: CanvasLayer = overlay
+		var pc_ref: CombatantData = pc; var idx: int = pc_index
+		btn.pressed.connect(func():
+			pc_ref.ability_pool.append(chosen_id)
+			_fill_feat_phase(ct, ov, pc_ref, idx)
+		)
+		content.add_child(btn)
+
+func _fill_feat_phase(content: VBoxContainer, overlay: CanvasLayer,
+		pc: CombatantData, pc_index: int) -> void:
+	for child in content.get_children():
+		child.queue_free()
+
+	var candidates: Array[String] = GameState.sample_feat_candidates(pc, 3)
+	if candidates.is_empty():
+		_finish_level_up(overlay, pc)
+		return
+
+	var title := Label.new()
+	title.text = "Level Up!  —  %s\nChoose a Feat" % pc.character_name
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
+	content.add_child(title)
+
+	content.add_child(HSeparator.new())
+
+	for feat_id: String in candidates:
+		var feat: FeatData = FeatLibrary.get_feat(feat_id)
+		var btn := Button.new()
+		btn.text = "%s\n%s" % [feat.name, feat.description]
+		btn.custom_minimum_size = Vector2(480.0, 56.0)
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_font_size_override("font_size", 13)
+		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var chosen_id: String = feat_id; var ov: CanvasLayer = overlay
+		var pc_ref: CombatantData = pc; var idx: int = pc_index
+		btn.pressed.connect(func():
+			GameState.grant_feat(idx, chosen_id)
+			_finish_level_up(ov, pc_ref)
+		)
+		content.add_child(btn)
+
+func _finish_level_up(overlay: CanvasLayer, pc: CombatantData) -> void:
+	pc.pending_level_ups -= 1
+	GameState.save()
+	overlay.queue_free()
+	_rebuild()
+	level_up_resolved.emit()
 
 ## --- String Helpers ---
 

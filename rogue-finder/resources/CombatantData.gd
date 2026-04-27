@@ -88,6 +88,12 @@ extends Resource
 ## Replaces the old split of kindred_feat_id + feats. Populated by GameState.grant_feat().
 @export var feat_ids: Array[String] = []
 
+## Level-up progress. level/xp drive the XP threshold ladder; pending_level_ups accumulates
+## while in combat and is consumed one at a time via the PartySheet select-3 overlay.
+@export var level:             int = 1
+@export var xp:                int = 0
+@export var pending_level_ups: int = 0
+
 ## Live HP that persists between combats. Seeded to hp_max at creation.
 @export var current_hp: int = 0
 

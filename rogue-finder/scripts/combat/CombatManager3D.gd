@@ -1336,6 +1336,7 @@ func _end_combat(player_won: bool) -> void:
 				# PC was downed but allies won — revive at 1 HP, never permanently dead
 				unit.data.current_hp = 1
 				unit.data.current_energy = 0
+		GameState.grant_xp(15)
 		GameState.save()
 		_end_combat_screen.show_victory(RewardGenerator.roll(3))
 	else:

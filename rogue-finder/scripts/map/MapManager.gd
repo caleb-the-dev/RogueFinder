@@ -63,6 +63,7 @@ var _outer_bridge_ids: Array[String] = []
 
 var _node_prompt: Control = null
 var _party_sheet: PartySheet = null
+var _party_btn: Button = null
 var _event_manager: EventManager = null
 var _is_dev_event: bool = false
 var _dev_event_panel: CanvasLayer = null
@@ -94,6 +95,8 @@ func _ready() -> void:
 	_event_manager.event_finished.connect(_on_event_finished)
 	_event_manager.event_nav.connect(_on_event_nav)
 	_build_scene()
+	_party_sheet.level_up_resolved.connect(_refresh_party_btn)
+	_refresh_party_btn()
 
 # _input (not _unhandled_input) so drag is captured even when the press starts on a Button
 func _input(event: InputEvent) -> void:
@@ -458,12 +461,12 @@ func _add_ui_chrome() -> void:
 
 	_add_threat_meter()
 
-	var party_btn := Button.new()
-	party_btn.text = "Party"
-	party_btn.size = Vector2(80.0, 36.0)
-	party_btn.position = Vector2(VIEWPORT_SIZE.x - 300.0, 8.0)
-	party_btn.pressed.connect(func(): _party_sheet.show_sheet())
-	add_child(party_btn)
+	_party_btn = Button.new()
+	_party_btn.text = "Party"
+	_party_btn.size = Vector2(80.0, 36.0)
+	_party_btn.position = Vector2(VIEWPORT_SIZE.x - 300.0, 8.0)
+	_party_btn.pressed.connect(func(): _party_sheet.show_sheet())
+	add_child(_party_btn)
 
 	var dev_events_btn := Button.new()
 	dev_events_btn.text = "Events [DEV]"
@@ -1019,8 +1022,22 @@ func _get_ring(node_id: String) -> String:
 		return "outer"
 	return "outer"  # fallback for badurga or unrecognized
 
+func _refresh_party_btn() -> void:
+	if _party_btn == null or not is_instance_valid(_party_btn):
+		return
+	var has_pending: bool = GameState.party.any(func(pc: CombatantData) -> bool:
+		return pc.pending_level_ups > 0
+	)
+	if has_pending:
+		_party_btn.text = "Party ⬆"
+		_party_btn.modulate = Color(1.0, 0.9, 0.3)
+	else:
+		_party_btn.text = "Party"
+		_party_btn.modulate = Color.WHITE
+
 func _on_event_finished() -> void:
 	_refresh_threat_meter()
+	_refresh_party_btn()
 	if _is_dev_event:
 		_is_dev_event = false
 		return
