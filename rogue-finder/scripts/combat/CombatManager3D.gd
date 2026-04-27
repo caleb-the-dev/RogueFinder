@@ -1433,6 +1433,7 @@ func _dbg_grant_xp() -> void:
 func _dbg_force_levelup() -> void:
 	for pc: CombatantData in GameState.party:
 		if not pc.is_dead:
+			pc.level = mini(pc.level + 1, 20)
 			pc.pending_level_ups += 1
 	GameState.save()
 	_debug_menu.visible = false

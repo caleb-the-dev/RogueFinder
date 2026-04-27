@@ -1149,6 +1149,7 @@ func _build_dev_event_panel() -> void:
 	force_lvl_btn.pressed.connect(func() -> void:
 		for pc: CombatantData in GameState.party:
 			if not pc.is_dead:
+				pc.level = mini(pc.level + 1, 20)
 				pc.pending_level_ups += 1
 		GameState.save()
 		_refresh_party_btn()
