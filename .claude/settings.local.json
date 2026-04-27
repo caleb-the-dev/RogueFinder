@@ -137,6 +137,28 @@
       "Bash(awk '/===== res:\\\\/\\\\/tests\\\\/test_combat_manager.tscn =====/,/===== res:\\\\/\\\\/tests\\\\/test_armor_mod.tscn =====/' reg.log)",
       "Bash(timeout 60 '/c/Users/caleb/Documents/Video Game Developement/Godot/Godot_v4.5.1-stable_win64_console.exe' --headless --path rogue-finder --script tests/test_ability_library.gd)",
       "Bash(timeout 60 '/c/Users/caleb/Documents/Video Game Developement/Godot/Godot_v4.5.1-stable_win64_console.exe' --headless --path rogue-finder --script tests/__TRACKED_VAR__)"
-    ]
+    ],
+    "deny": [
+      "Bash(gh repo delete*)",
+      "Bash(gh repo archive*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * --force-with-lease*)",
+      "Bash(git reset --hard*)",
+      "Bash(git branch -D*)",
+      "Bash(git filter-branch*)",
+      "Bash(git filter-repo*)",
+      "Bash(git update-ref -d*)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf /c)",
+      "Bash(rm -rf /c/Users)",
+      "Bash(rm -rf /c/Users/caleb)",
+      "Bash(rm -rf $HOME)",
+      "PowerShell(Remove-Item -Recurse -Force /)",
+      "PowerShell(Remove-Item -Recurse -Force ~)"
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }

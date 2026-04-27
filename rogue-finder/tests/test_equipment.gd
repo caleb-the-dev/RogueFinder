@@ -17,7 +17,10 @@ func _ready() -> void:
 	test_null_equipment_energy_regen_no_regression()
 	test_leather_armor_defense_plus_one()
 	test_chain_mail_defense_plus_two_speed_minus_one()
-	test_equipment_library_all_returns_six_items()
+	test_plate_cuirass_heavy_physical()
+	test_warded_robe_magic_defense()
+	test_warded_robe_does_not_affect_physical()
+	test_equipment_library_all_returns_nine_items()
 	print("=== All equipment tests passed ===")
 
 ## --- EquipmentData.get_bonus() ---
@@ -114,14 +117,44 @@ func test_chain_mail_defense_plus_two_speed_minus_one() -> void:
 		"speed with no kindred + chain_mail (dex-1) should be 0, got %d" % d.speed)
 	print("  PASS test_chain_mail_defense_plus_two_speed_minus_one")
 
+func test_plate_cuirass_heavy_physical() -> void:
+	var d := CombatantData.new()
+	d.physical_armor = 4
+	d.dexterity = 4
+	d.armor = EquipmentLibrary.get_equipment("plate_cuirass")
+	# plate_cuirass: physical_armor +3, dexterity -2
+	assert(d.physical_defense == 7,
+		"physical_defense with plate_cuirass (+3) should be 7, got %d" % d.physical_defense)
+	# speed = 1 + kindred + equip_dex_bonus; plate_cuirass dex -2 → 1 + 0 + (-2) = -1
+	assert(d.speed == -1,
+		"speed with no kindred + plate_cuirass (dex-2) should be -1, got %d" % d.speed)
+	print("  PASS test_plate_cuirass_heavy_physical")
+
+func test_warded_robe_magic_defense() -> void:
+	var d := CombatantData.new()
+	d.magic_armor = 3
+	d.armor = EquipmentLibrary.get_equipment("warded_robe")
+	# warded_robe: magic_armor +2 — first equipment piece exercising the magic_armor equip path
+	assert(d.magic_defense == 5,
+		"magic_defense with warded_robe (+2) should be 5, got %d" % d.magic_defense)
+	print("  PASS test_warded_robe_magic_defense")
+
+func test_warded_robe_does_not_affect_physical() -> void:
+	var d := CombatantData.new()
+	d.physical_armor = 4
+	d.armor = EquipmentLibrary.get_equipment("warded_robe")
+	assert(d.physical_defense == 4,
+		"warded_robe must not affect physical_defense, got %d" % d.physical_defense)
+	print("  PASS test_warded_robe_does_not_affect_physical")
+
 ## --- EquipmentLibrary ---
 
-func test_equipment_library_all_returns_six_items() -> void:
+func test_equipment_library_all_returns_nine_items() -> void:
 	var all: Array[EquipmentData] = EquipmentLibrary.all_equipment()
-	assert(all.size() == 7,
-		"all_equipment() should return 7 items, got %d" % all.size())
+	assert(all.size() == 9,
+		"all_equipment() should return 9 items, got %d" % all.size())
 	# Verify no nulls slipped in
 	for item in all:
 		assert(item != null, "all_equipment() should not contain null entries")
 		assert(item.equipment_id != "", "every item should have a non-empty equipment_id")
-	print("  PASS test_equipment_library_all_returns_six_items")
+	print("  PASS test_equipment_library_all_returns_nine_items")

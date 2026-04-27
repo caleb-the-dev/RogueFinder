@@ -155,13 +155,54 @@ func _setup_units() -> void:
 
 ## --- Test Room ---
 
-## Spawns a hardcoded 3v3 designed to showcase the dual armor system.
-## Player team covers physical + magic damage; enemies each emphasize one armor type.
-## Called by _setup_units() when GameState.test_room_mode is true.
+## Routes to the right scenario based on GameState.test_room_kind.
+## Default ("armor_showcase") preserves the original 3v3 dual-armor demo.
 func _setup_test_room_units() -> void:
+	match GameState.test_room_kind:
+		"armor_mod":
+			_spawn_test_room(_armor_mod_player_defs(), _armor_mod_enemy_defs())
+		_:
+			_spawn_test_room(_armor_showcase_player_defs(), _armor_showcase_enemy_defs())
+
+## Generic spawner — given two lists of combatant definitions, build the 3v3
+## board, register attribute snapshots for player units, and connect death signals.
+## Both scenarios share the same 6-cell positional layout.
+func _spawn_test_room(player_defs: Array[Dictionary], enemy_defs: Array[Dictionary]) -> void:
 	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
 
-	var player_defs: Array[Dictionary] = [
+	var player_positions: Array[Vector2i] = [Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)]
+	for i in player_defs.size():
+		var cd: CombatantData = _make_test_combatant(player_defs[i])
+		var unit: Unit3D = unit_scene.instantiate()
+		add_child(unit)
+		unit.setup(cd, player_positions[i])
+		unit.global_position = _grid.grid_to_world(player_positions[i])
+		_grid.set_occupied(player_positions[i], unit)
+		unit.unit_died.connect(_on_unit_died)
+		_player_units.append(unit)
+		_attr_snapshots[unit] = {
+			"strength": cd.strength, "dexterity": cd.dexterity, "cognition": cd.cognition,
+			"vitality": cd.vitality, "willpower": cd.willpower,
+			"physical_armor_mod": cd.physical_armor_mod,
+			"magic_armor_mod":    cd.magic_armor_mod,
+		}
+
+	var enemy_positions: Array[Vector2i] = [Vector2i(6, 3), Vector2i(6, 5), Vector2i(7, 4)]
+	for i in enemy_defs.size():
+		var cd: CombatantData = _make_test_combatant(enemy_defs[i])
+		var unit: Unit3D = unit_scene.instantiate()
+		add_child(unit)
+		unit.setup(cd, enemy_positions[i])
+		unit.global_position = _grid.grid_to_world(enemy_positions[i])
+		_grid.set_occupied(enemy_positions[i], unit)
+		unit.unit_died.connect(_on_unit_died)
+		_enemy_units.append(unit)
+
+## --- Armor Showcase scenario (original test room) ---
+## Player team covers physical + magic damage; enemies each emphasize one armor type.
+
+func _armor_showcase_player_defs() -> Array[Dictionary]:
+	return [
 		{
 			"name": "Kara", "archetype": "RogueFinder", "kindred": "Gnome",
 			"class": "arcanist", "is_player": true,
@@ -187,24 +228,9 @@ func _setup_test_room_units() -> void:
 			"qte": 0.0,
 		},
 	]
-	var player_positions: Array[Vector2i] = [Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)]
-	for i in player_defs.size():
-		var cd: CombatantData = _make_test_combatant(player_defs[i])
-		var unit: Unit3D = unit_scene.instantiate()
-		add_child(unit)
-		unit.setup(cd, player_positions[i])
-		unit.global_position = _grid.grid_to_world(player_positions[i])
-		_grid.set_occupied(player_positions[i], unit)
-		unit.unit_died.connect(_on_unit_died)
-		_player_units.append(unit)
-		_attr_snapshots[unit] = {
-			"strength": cd.strength, "dexterity": cd.dexterity, "cognition": cd.cognition,
-			"vitality": cd.vitality, "willpower": cd.willpower,
-			"physical_armor_mod": cd.physical_armor_mod,
-			"magic_armor_mod":    cd.magic_armor_mod,
-		}
 
-	var enemy_defs: Array[Dictionary] = [
+func _armor_showcase_enemy_defs() -> Array[Dictionary]:
+	return [
 		{
 			## High physical armor — physical attacks barely scratch it; magic melts it.
 			"name": "Iron Wall", "archetype": "test_enemy", "kindred": "Half-Orc",
@@ -233,16 +259,71 @@ func _setup_test_room_units() -> void:
 			"qte": 0.5,
 		},
 	]
-	var enemy_positions: Array[Vector2i] = [Vector2i(6, 3), Vector2i(6, 5), Vector2i(7, 4)]
-	for i in enemy_defs.size():
-		var cd: CombatantData = _make_test_combatant(enemy_defs[i])
-		var unit: Unit3D = unit_scene.instantiate()
-		add_child(unit)
-		unit.setup(cd, enemy_positions[i])
-		unit.global_position = _grid.grid_to_world(enemy_positions[i])
-		_grid.set_occupied(enemy_positions[i], unit)
-		unit.unit_died.connect(_on_unit_died)
-		_enemy_units.append(unit)
+
+## --- Armor Mod scenario ---
+## Boran owns stone_guard (PHYSICAL_ARMOR_MOD +2). Velis owns divine_ward
+## (MAGIC_ARMOR_MOD +2). Rune is a pure magic caster used both as damage source
+## and as a vulnerable target for incoming magic threats. Enemies hit hard with
+## a mix of physical and magic so the armor mods are consequential, not cosmetic.
+
+func _armor_mod_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			"name": "Boran", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "vanguard", "is_player": true,
+			"str": 7, "dex": 2, "cog": 2, "wil": 4, "vit": 6,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["stone_guard", "tower_slam", "heavy_strike", "shove"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Velis", "archetype": "test_ally", "kindred": "Human",
+			"class": "warden", "is_player": true,
+			"str": 4, "dex": 3, "cog": 3, "wil": 8, "vit": 5,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["divine_ward", "bless", "lay_on_hands", "rallying_shout"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Rune", "archetype": "test_ally", "kindred": "Gnome",
+			"class": "arcanist", "is_player": true,
+			"str": 2, "dex": 4, "cog": 9, "wil": 5, "vit": 3,
+			"phys_arm": 2, "magic_arm": 2,
+			"abilities": ["arcane_bolt", "fireball", "fire_breath", "acid_splash"],
+			"qte": 0.0,
+		},
+	]
+
+func _armor_mod_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## Heavy physical pressure — Boran's stone_guard is the natural counter.
+			"name": "Stone Bruiser", "archetype": "test_enemy", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 8, "dex": 2, "cog": 2, "wil": 3, "vit": 7,
+			"phys_arm": 4, "magic_arm": 4,
+			"abilities": ["heavy_strike", "sweep", "shove", "taunt"],
+			"qte": 0.4,
+		},
+		{
+			## Heavy magic pressure — Velis's divine_ward is the natural counter.
+			"name": "Pyromancer", "archetype": "test_enemy", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 3, "dex": 4, "cog": 8, "wil": 6, "vit": 4,
+			"phys_arm": 4, "magic_arm": 4,
+			"abilities": ["fireball", "fire_breath", "acid_splash", "smoke_bomb"],
+			"qte": 0.6,
+		},
+		{
+			## Mixed threat — forces the player to time both buffs across turns.
+			"name": "Twin Threat", "archetype": "test_enemy", "kindred": "Dwarf",
+			"class": "warden", "is_player": false,
+			"str": 6, "dex": 3, "cog": 6, "wil": 5, "vit": 6,
+			"phys_arm": 4, "magic_arm": 4,
+			"abilities": ["strike", "arcane_bolt", "sweep", "fire_breath"],
+			"qte": 0.5,
+		},
+	]
 
 func _make_test_combatant(def: Dictionary) -> CombatantData:
 	var cd := CombatantData.new()
@@ -1472,6 +1553,7 @@ func _end_combat(player_won: bool) -> void:
 	# Test room: skip all GameState mutations and return to the map after a brief pause.
 	if GameState.test_room_mode:
 		GameState.test_room_mode = false
+		GameState.test_room_kind = "armor_showcase"  # reset to default for next normal combat
 		_status_label.text = "TEST ROOM: %s — returning to map..." % ("Victory!" if player_won else "Defeated.")
 		await get_tree().create_timer(2.5).timeout
 		get_tree().change_scene_to_file("res://scenes/map/MapScene.tscn")

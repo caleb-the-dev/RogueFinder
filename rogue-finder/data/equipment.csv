@@ -1,6 +1,8 @@
 id,name,slot,stat_bonuses,description,notes
 leather_armor,Leather Armor,ARMOR,physical_armor:1,Light protection.,
 chain_mail,Chain Mail,ARMOR,physical_armor:2|dexterity:-1,Heavier. Slower.,
+plate_cuirass,Plate Cuirass,ARMOR,physical_armor:3|dexterity:-2,Heavy steel plate. Soaks blows but you'll feel every step.,
+warded_robe,Warded Robe,ARMOR,magic_armor:2,Stitched with protective sigils — turns aside fire and arcane bolts alike.,first magic_armor equipment piece
 short_sword,Short Sword,WEAPON,strength:1,A simple blade.,
 rusted_dagger,Rusted Dagger,WEAPON,,A dagger eaten by rust. Still sharp enough.,
 hunters_bow,Hunter's Bow,WEAPON,dexterity:1,Better range.,
