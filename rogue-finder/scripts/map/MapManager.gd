@@ -461,24 +461,26 @@ func _add_ui_chrome() -> void:
 
 	_add_threat_meter()
 
+	# Party / Level-Up button — top right, sole action button in the chrome
 	_party_btn = Button.new()
 	_party_btn.text = "Party"
-	_party_btn.size = Vector2(80.0, 36.0)
-	_party_btn.position = Vector2(VIEWPORT_SIZE.x - 300.0, 8.0)
+	_party_btn.size = Vector2(172.0, 36.0)
+	_party_btn.position = Vector2(VIEWPORT_SIZE.x - 180.0, 8.0)
 	_party_btn.pressed.connect(func(): _party_sheet.show_sheet())
 	add_child(_party_btn)
 
+	# Debug controls — bottom right, out of the normal play area
 	var dev_events_btn := Button.new()
 	dev_events_btn.text = "Dev Menu"
-	dev_events_btn.size = Vector2(90.0, 36.0)
-	dev_events_btn.position = Vector2(VIEWPORT_SIZE.x - 410.0, 8.0)
+	dev_events_btn.size = Vector2(100.0, 32.0)
+	dev_events_btn.position = Vector2(VIEWPORT_SIZE.x - 314.0, VIEWPORT_SIZE.y - 40.0)
 	dev_events_btn.pressed.connect(_toggle_dev_event_panel)
 	add_child(dev_events_btn)
 
 	var del_btn := Button.new()
-	del_btn.text = "🗑 Delete Save (debug)"
-	del_btn.size = Vector2(200.0, 36.0)
-	del_btn.position = Vector2(VIEWPORT_SIZE.x - 212.0, 8.0)
+	del_btn.text = "Delete Save (debug)"
+	del_btn.size = Vector2(202.0, 32.0)
+	del_btn.position = Vector2(VIEWPORT_SIZE.x - 210.0, VIEWPORT_SIZE.y - 40.0)
 	del_btn.pressed.connect(_on_debug_delete_save_pressed)
 	add_child(del_btn)
 
@@ -1029,7 +1031,7 @@ func _refresh_party_btn() -> void:
 		return pc.pending_level_ups > 0
 	)
 	if has_pending:
-		_party_btn.text = "Party ⬆"
+		_party_btn.text = "Level Up Available"
 		_party_btn.modulate = Color(1.0, 0.9, 0.3)
 	else:
 		_party_btn.text = "Party"

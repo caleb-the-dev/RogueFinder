@@ -605,23 +605,27 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		val.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(val)
 
-	# Level row — bottom of TR quadrant, below base attributes
+	# Level row — centered in TR quadrant, below base attributes
 	var lv_tr_y: float = tr_y + 42.0
 	var lv_tr_lbl := Label.new()
 	lv_tr_lbl.text = "Lv. %d" % member.level
 	lv_tr_lbl.position = Vector2(tr_x, lv_tr_y)
+	lv_tr_lbl.size = Vector2(tr_w, 20.0)
+	lv_tr_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lv_tr_lbl.add_theme_font_size_override("font_size", 13)
 	lv_tr_lbl.add_theme_color_override("font_color",
 		Color(0.55, 0.62, 0.75).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
 	parent.add_child(lv_tr_lbl)
 
 	if member.pending_level_ups > 0 and not is_dead:
+		# Button drawn on top of the level label — centered in TR
+		const BTN_W: float = 162.0; const BTN_H: float = 22.0
 		var lvlup_btn := Button.new()
 		lvlup_btn.text = "Level Up! (%d)" % member.pending_level_ups
-		lvlup_btn.position = Vector2(tr_x + 56.0, lv_tr_y - 1.0)
-		lvlup_btn.custom_minimum_size = Vector2(152.0, 20.0)
+		lvlup_btn.position = Vector2(tr_x + (tr_w - BTN_W) * 0.5, lv_tr_y - 1.0)
+		lvlup_btn.size = Vector2(BTN_W, BTN_H)
 		lvlup_btn.add_theme_font_size_override("font_size", 11)
-		lvlup_btn.pivot_offset = Vector2(76.0, 10.0)
+		lvlup_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
 		var pc_cap: CombatantData = member
 		lvlup_btn.pressed.connect(func(): _start_level_up(pc_cap))
 		parent.add_child(lvlup_btn)
@@ -1442,7 +1446,11 @@ func _start_level_up(pc: CombatantData) -> void:
 	content.add_theme_constant_override("separation", 14)
 	panel.add_child(content)
 
-	_fill_ability_phase(content, overlay, pc, pc_index)
+	# Even levels grant an ability; odd levels grant a feat
+	if pc.level % 2 == 0:
+		_fill_ability_phase(content, overlay, pc, pc_index)
+	else:
+		_fill_feat_phase(content, overlay, pc, pc_index)
 
 func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 		pc: CombatantData, pc_index: int) -> void:
@@ -1451,7 +1459,7 @@ func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 
 	var candidates: Array[String] = GameState.sample_ability_candidates(pc, 3)
 	if candidates.is_empty():
-		_fill_feat_phase(content, overlay, pc, pc_index)
+		_finish_level_up(overlay, pc)
 		return
 
 	var title := Label.new()
@@ -1475,8 +1483,8 @@ func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 
 	for ab_id: String in candidates:
 		var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
-		var ct: VBoxContainer = content; var ov: CanvasLayer = overlay
-		var pc_ref: CombatantData = pc; var idx: int = pc_index
+		var ov: CanvasLayer = overlay
+		var pc_ref: CombatantData = pc
 		var chosen_id: String = ab_id
 		hbox.add_child(_build_pick_card(
 			ab.ability_name,
@@ -1484,7 +1492,7 @@ func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 			ab.description,
 			func():
 				pc_ref.ability_pool.append(chosen_id)
-				_fill_feat_phase(ct, ov, pc_ref, idx)
+				_finish_level_up(ov, pc_ref)
 		))
 
 func _fill_feat_phase(content: VBoxContainer, overlay: CanvasLayer,
