@@ -57,8 +57,8 @@ Static class. Internal storage: `const _ITEMS: Array[Dictionary]`.
 
 | ID | Name | Slot | Bonuses | Description |
 |----|------|------|---------|-------------|
-| `leather_armor` | Leather Armor | ARMOR | armor_defense +1 | Light protection. |
-| `chain_mail` | Chain Mail | ARMOR | armor_defense +2, dexterity -1 | Heavier. Slower. |
+| `leather_armor` | Leather Armor | ARMOR | physical_armor +1 | Light protection. |
+| `chain_mail` | Chain Mail | ARMOR | physical_armor +2, dexterity -1 | Heavier. Slower. |
 | `short_sword` | Short Sword | WEAPON | strength +1 | A simple blade. |
 | `hunters_bow` | Hunter's Bow | WEAPON | dexterity +1 | Better range. |
 | `iron_ring` | Iron Ring | ACCESSORY | vitality +1 | Adds constitution. |

@@ -1,6 +1,6 @@
 # System: Combat Manager
 
-> Last updated: 2026-04-23 (S28 — kindred field displayed in CombatActionPanel; map audit grooming)
+> Last updated: 2026-04-27 (dual armor — HARM formula subtracts armor by damage type; _run_harm_defenders signature extended; test combat room added)
 
 ---
 
@@ -132,9 +132,12 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_initiate_aoe_action(attacker, origin_world)` | AoE equivalent of `_initiate_action`; collects all hit units, applies non-HARM to all, then queues HARM through `_run_harm_defenders` |
 | `_apply_non_harm_effects(ability, caster, target, blast_origin)` | Applies MEND/BUFF/DEBUFF/FORCE at full strength (multiplier 1.0). HARM and TRAVEL skipped. |
 | `_get_harm_effect(ability)` | Returns the first HARM EffectData in an ability, or null. |
-| `_run_harm_defenders(caster, defenders, effect, energy_cost)` | Sequential HARM loop: player-controlled defenders see QTE bar (await `start_qte(energy_cost, caster)`); AI-controlled defenders instant-sim via `qte_resolution`. Applies damage per-defender. |
+| `_run_harm_defenders(caster, defenders, effect, energy_cost, ability)` | Sequential HARM loop: player-controlled defenders see QTE bar; AI defenders instant-sim. Reads `ability.damage_type` to select `physical_defense` or `magic_defense` on each defender; subtracts that armor from rolled damage. All 5 call sites pass the parent `AbilityData`. |
 | `_defender_roll_to_dmg_multiplier(roll)` | Maps defender QTE roll (1.25/1.0/0.75/0.25) to damage multiplier (0.5/0.75/1.0/1.25). |
 | `_apply_stat_delta(unit, stat, delta)` | Modifies `unit.data.<stat>`, clamps [0,5], calls `unit.add_stat_effect()` to record named status |
+| `_setup_units()` | Checks `GameState.test_room_mode` first — if true, delegates entirely to `_setup_test_room_units()`. Otherwise spawns party + random enemies as normal. |
+| `_setup_test_room_units()` | Spawns a hardcoded 3v3 armor-showcase: Kara/Brak/Wren (magic/physical/mixed damage) vs Iron Wall (phys_armor 12, magic_armor 2) / Arcane Shell (phys 2, magic 12) / Balanced Guard (6/6). Builds `_attr_snapshots` for player units. |
+| `_make_test_combatant(def: Dictionary) -> CombatantData` | Constructs a `CombatantData` directly from a flat Dictionary. Used only by `_setup_test_room_units()`. |
 | `_apply_force(caster, target, effect, blast_origin)` | Slides target along computed direction for `base_value` tiles; stops at wall/unit. Tracks full path; applies 2 HP hazard damage for **every** hazard cell traversed (including landing cell). Direction from `effect.force_type` (PUSH/PULL/LEFT/RIGHT/RADIAL). |
 | `_get_shape_cells(caster_pos, origin_pos, ability)` | Returns all cells in the ability's AoE footprint, respecting `passthrough` for CONE and RADIAL |
 | `_get_units_in_cells(cells, applicable_to)` | Filters cell list to living units matching ALLY/ENEMY/ANY |
@@ -165,8 +168,13 @@ defender_roll  = player QTE result OR _qte_resolution_to_multiplier(defender.dat
 dmg_multiplier = _defender_roll_to_dmg_multiplier(defender_roll)
                : 1.25→0.5, 1.0→0.75, 0.75→1.0, 0.25→1.25
 
-dmg = max(1, round(dmg_multiplier * (effect.base_value + caster.data.attack)))
+armor = defender.data.physical_defense  (if ability.damage_type == PHYSICAL)
+      | defender.data.magic_defense     (if ability.damage_type == MAGIC)
+      | 0                               (if ability.damage_type == NONE)
+
+dmg = max(1, round(dmg_multiplier * (effect.base_value + caster.data.attack)) - armor)
 ```
+Armor is subtracted **after** the QTE roll multiplier, so armor is a flat post-roll mitigation.
 
 **MEND** (auto-resolve, full strength, no QTE):
 ```
@@ -231,12 +239,14 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 - **`_apply_force` uses `target.move_to()`** — forced displacement moves the unit but does NOT consume `remaining_move`. Forced movement is involuntary and does not affect the stride budget.
 - **Hazard damage has two triggers** — `_check_hazard_damage()` fires on voluntary movement entry (stride, TRAVEL) and at start-of-turn. FORCE traversal damage is different: `_apply_force()` iterates the full path and calls `unit.take_damage(2)` + `_check_win_lose()` directly for each hazard cell crossed — it does NOT call `_check_hazard_damage()`.
 - **`_calculate_damage()` is dead code** — safe to delete when convenient.
-- **`_attr_snapshots: Dictionary`** — per-unit attribute baseline recorded in `_setup_units()`. `_end_combat()` restores these on both win and defeat so stat-delta mutations never bleed into the next combat.
-- **`_setup_units()` reads `GameState.party`** — passes the same `CombatantData` resource instance, not a copy. Mutations via `_apply_stat_delta()` hit the live party member, which is why snapshot/restore is mandatory.
+- **`_attr_snapshots: Dictionary`** — per-unit attribute baseline recorded in `_setup_units()` (or `_setup_test_room_units()`). `_end_combat()` restores these on both win and defeat so stat-delta mutations never bleed into the next combat.
+- **`_setup_units()` reads `GameState.party`** — passes the same `CombatantData` resource instance, not a copy. Mutations via `_apply_stat_delta()` hit the live party member, which is why snapshot/restore is mandatory. Not true for test room units — they are created fresh and not stored in `GameState`.
 - **Dead members are skipped on spawn** — if `cd.is_dead == true`, no unit is created for that party slot. Fewer than 3 player units may enter combat.
 - **"Redo" reloads CombatScene3D with current party state** — after Slice 3 it re-uses the (possibly damaged) party, not a fresh one. This is intentional.
-- **Ally permadeath vs PC permadeath are separate paths** — `_on_unit_died()` only sets `is_dead = true` and saves for non-RogueFinder player units (allies). The PC's death is deferred to `_end_combat()`: on victory the PC revives at 1 HP; on defeat `_end_combat()` marks the PC dead and triggers the run-end flow. Check `unit.data.archetype_id != "RogueFinder"` before touching `is_dead` in `_on_unit_died()`.
+- **Ally permadeath vs PC permadeath are separate paths** — `_on_unit_died()` only sets `is_dead = true` and saves for non-RogueFinder player units (allies), and only when `GameState.test_room_mode` is false. PC death is deferred to `_end_combat()`.
 - **Defeat path does NOT use EndCombatScreen** — it calls `_show_run_end_overlay()` directly. `EndCombatScreen.show_defeat()` is now dead code (no callers).
+- **Test room mode bypasses all GameState mutations** — `_end_combat()` checks `GameState.test_room_mode`: if true, clears the flag, shows a brief "TEST ROOM: Victory! / Defeated." status, waits 2.5 s, then returns to MapScene. No XP, no save, no EndCombatScreen, no run-end flow. Test room units are not in `GameState.party` so no HP/energy writeback occurs.
+- **`_run_harm_defenders` now requires the parent `ability: AbilityData`** — added as 5th parameter so armor type can be looked up. All call sites (2 player-path, 3 enemy-path) pass `_pending_ability` or `chosen` respectively.
 
 ---
 
@@ -244,6 +254,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Dual armor + test room.** `_run_harm_defenders` signature extended with `ability: AbilityData` (5th param); HARM formula now subtracts `physical_defense` or `magic_defense` based on `ability.damage_type` (NONE = 0 armor). All 5 call sites updated. `_setup_units()` now branches on `GameState.test_room_mode`: if true, calls `_setup_test_room_units()` (hardcoded 3v3 armor showcase). `_make_test_combatant(def)` helper builds `CombatantData` from flat dict. `_end_combat()` test room branch: clears flag, shows result text, waits 2.5 s, returns to map — no XP/save/rewards. `_on_unit_died()` ally permadeath save guarded by `not GameState.test_room_mode`. |
 | 2026-04-27 | **XP on victory.** `_end_combat(true)` now calls `GameState.grant_xp(15)` immediately after writing HP/energy back, before `GameState.save()`. Debug menu (T key) gained two new buttons: "Grant XP +20" (calls `GameState.grant_xp(20)`) and "Force Level-Up" (directly increments `pc.level` by 1 and `pc.pending_level_ups` by 1 for all living party members; does not cross XP thresholds). Force Level-Up also increments `level` so the party sheet displays the correct level after picks. |
 | 2026-04-26 | QTE Session B — world-space bar + camera focus. `_run_harm_defenders` now awaits `_camera_rig.focus_on(caster.global_position).finished` (0.5 s) + 0.25 s settle before calling `start_qte(energy_cost, caster)`. After `qte_resolved` fires, calls `_camera_rig.restore()` (fire-and-forget). `start_qte` signature changed to `(energy_cost: int, attacker: Node3D)`. |
 | 2026-04-26 | QTE reactive overhaul (Session A) — defender-driven HARM-only QTE. Deleted `_on_qte_resolved`, `_apply_effects`. Added `_apply_non_harm_effects`, `_get_harm_effect`, `_run_harm_defenders`, `_defender_roll_to_dmg_multiplier`. Energy spent upfront in `_initiate_action`. TRAVEL always succeeds (no QTE miss). Enemy actions use `_run_harm_defenders` so player units see QTE when defending. |

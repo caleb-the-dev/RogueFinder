@@ -37,7 +37,7 @@ Displays: portrait · name · class · HP bar · Energy bar.
 
 Displays: portrait · name · archetype · kindred · background · team · live state · attributes · derived stats · equipment · abilities · **feats**. No artwork section. Content is scrollable.
 
-Sections (in order): Identity → Live State → Attributes → Derived Stats → Equipment → Abilities → **Feats**. Feats appear as a `[b]── Feats ──[/b]` RTL section immediately after Abilities, with numbered entries (`1. Adaptive`). Feat resolved via `FeatLibrary.get_feat(d.kindred_feat_id)`. Speed label reads `(1 + kindred)` since S29.
+Sections (in order): Identity → Live State → Attributes → Derived Stats → Equipment → Abilities → **Feats**. Derived stats section shows: Attack, **P.Def** (`physical_defense`), **M.Def** (`magic_defense`), Speed, E.Regen; and QTE Res for non-player units. Feats appear as a `[b]── Feats ──[/b]` RTL section immediately after Abilities, with numbered entries. Speed label reads `(1 + kindred)`.
 
 ### Public API
 
@@ -50,6 +50,7 @@ Sections (in order): Identity → Live State → Attributes → Derived Stats �
 
 | Date | Change |
 |------|--------|
+| 2026-04-27 | **Dual armor.** Derived stats section replaced single `Defense` line with two lines: `P.Def: X (physical armor)` + `M.Def: X (magic armor)`, reading `d.physical_defense` + `d.magic_defense`. |
 | 2026-04-24 | **Slice 2.** Feats section added to the RTL after Abilities (`── Feats ──` bold header, `1. <FeatName>` numbered entry). Resolved via `FeatLibrary.get_feat(d.kindred_feat_id)` — no longer calls `KindredLibrary.get_feat_name()`. `FeatLibrary` is now a dependency. |
 
 ---

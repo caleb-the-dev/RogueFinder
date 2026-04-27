@@ -1,6 +1,6 @@
 # System: Ability System
 
-> Last updated: 2026-04-26 (class pool expansion — 4 class defining abilities + 6 new pool abilities; 42 total)
+> Last updated: 2026-04-27 (dual armor — DamageType enum added; damage_type field on all 42 abilities; abilities.csv gains damage_type column)
 
 ---
 
@@ -50,6 +50,16 @@ Resource subclass. One instance per ability, created by `AbilityLibrary.get_abil
 **ApplicableTo** — which units can be affected:
 `ALLY(0)`, `ENEMY(1)`, `ANY(2)`
 
+**DamageType** — which armor type resists this ability's HARM. Only meaningful when the ability has a HARM effect:
+
+| Value | Meaning |
+|-------|---------|
+| `PHYSICAL(0)` | Resisted by `physical_defense` — melee, ranged physical attacks |
+| `MAGIC(1)` | Resisted by `magic_defense` — fire, acid, arcane, gadget attacks |
+| `NONE(2)` | No armor reduction — used for non-HARM abilities (MEND/BUFF/FORCE/TRAVEL) |
+
+Parsed from the `damage_type` column in `abilities.csv` by `AbilityLibrary._DAMAGE_TYPE` lookup dict.
+
 ### Fields
 
 | Field | Type | Notes |
@@ -59,6 +69,7 @@ Resource subclass. One instance per ability, created by `AbilityLibrary.get_abil
 | `attribute` | `Attribute` | Stat this ability scales with |
 | `target_shape` | `TargetShape` | Area geometry |
 | `applicable_to` | `ApplicableTo` | Which units can be affected |
+| `damage_type` | `DamageType` | Which armor lane resists HARM from this ability. `NONE` for non-HARM abilities. |
 | `tile_range` | `int` | 0–10; `-1` = whole map |
 | `passthrough` | `bool` | CONE: crossbar/back not blocked by stem unit. RADIAL: cardinal back cells not blocked. LINE: continues past first unit. |
 | `energy_cost` | `int` | Subtracted from unit energy on use |
@@ -226,6 +237,18 @@ static func reload() -> void                         # cache-clear for tests/dev
 
 ## Key Patterns & Gotchas
 
-- **`get_ability()` never returns null** — safe to call without nil checks. Unknown IDs return a stub AbilityData.
+- **`get_ability()` never returns null** — safe to call without nil checks. Unknown IDs return a stub AbilityData with `damage_type = DamageType.NONE`.
 - **One QTE per ability, not per effect** — `AbilityData.effects` can contain multiple entries (e.g. `acid_splash`: HARM + DEBUFF); they all receive the same `multiplier`.
 - **CSV effects format** — each row's `effects` cell is a JSON array. String enum names (e.g. `"HARM"`, `"DEXTERITY"`) are mapped to int values by lookup tables inside `AbilityLibrary`. Edit the CSV in a spreadsheet; the `""` escaping of double quotes is standard CSV and handled transparently.
+- **`damage_type` lives on `AbilityData`, not `EffectData`** — it is ability-level, shared by all effects in the ability. This means an ability cannot mix PHYSICAL and MAGIC damage from a single cast.
+- **Physical vs magic tagging:** physical = melee/ranged weapon attacks; magic = fire/acid/arcane/gadget. Non-HARM abilities (MEND/BUFF/DEBUFF/FORCE/TRAVEL) use `NONE`.
+
+---
+
+## Recent Changes
+
+| Date | Change |
+|---|---|
+| 2026-04-27 | **DamageType enum + damage_type field.** `AbilityData` gained `DamageType` enum (`PHYSICAL=0`, `MAGIC=1`, `NONE=2`) and `damage_type: DamageType = DamageType.NONE` field. `abilities.csv` gained `damage_type` column — all 42 abilities tagged. `AbilityLibrary` gained `_DAMAGE_TYPE` lookup dict; `_row_to_data` parses the new column. Physical: melee/ranged attacks. Magic: fire/acid/arcane/gadget. NONE: all non-HARM abilities. |
+| 2026-04-26 | **Class pool expansion** — 4 class defining abilities + 6 pool additions (Prowler + Warden); abilities.csv 32→42 rows. |
+| 2026-04-26 | **Pillar foundation** — 4 kindred natural attacks + 6 ancestry abilities added; all sourced from abilities.csv via AbilityLibrary. |

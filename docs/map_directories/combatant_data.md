@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-26 (pillar foundation — kindred + background stat bonuses wired; attribute defaults 5→4; get_kindred_stat_bonus() + get_background_stat_bonus() added)
+> Last updated: 2026-04-27 (dual armor — armor_defense split into physical_armor + magic_armor; defense replaced by physical_defense + magic_defense; armor stat bonus keys renamed across all CSVs)
 
 ---
 
@@ -102,6 +102,14 @@ These fields survive between combats. Seeded at creation by `ArchetypeLibrary.cr
 
 **Pool ⊇ Slots invariant:** every non-empty entry in `abilities` must also appear in `ability_pool`. True by construction in `create()` since both are seeded from the same archetype source.
 
+### Armor (base fields — set at creation, not serialized mid-combat)
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `physical_armor` | `int` | `3` | Base resistance to PHYSICAL HARM. Set by `ArchetypeLibrary.create()` from `physical_armor_range` in `archetypes.csv`. Serialized to save. |
+| `magic_armor` | `int` | `2` | Base resistance to MAGIC HARM. Set by `ArchetypeLibrary.create()` from `magic_armor_range`. Serialized to save. |
+
+Bonus sources that contribute to these stats use the stat key strings `"physical_armor"` and `"magic_armor"` in their CSV `stat_bonuses` columns (equipment, feats, kindreds). Class and background CSV columns currently have no armor bonuses.
+
 ### Enemy-Only
 `qte_resolution: float` — auto-resolve accuracy for enemy QTE simulation (0.0–1.0). See `qte_system.md` Enemy Simulation table.
 
@@ -118,9 +126,12 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 | `energy_regen` | `2 + willpower + equip("willpower") + feat("willpower") + class("willpower") + kindred("willpower") + bg("willpower")` |
 | `speed` | `1 + KindredLibrary.get_speed_bonus(kindred) + equip("dexterity") + feat("dexterity") + class("dexterity") + kindred("dexterity") + bg("dexterity")` |
 | `attack` | `5 + strength + equip("strength") + feat("strength") + class("strength") + kindred("strength") + bg("strength")` |
-| `defense` | `armor_defense + equip("armor_defense") + feat("armor_defense") + class("armor_defense") + kindred("armor_defense") + bg("armor_defense")` |
+| `physical_defense` | `physical_armor + equip("physical_armor") + feat("physical_armor") + class("physical_armor") + kindred("physical_armor") + bg("physical_armor")` |
+| `magic_defense` | `magic_armor + equip("magic_armor") + feat("magic_armor") + class("magic_armor") + kindred("magic_armor") + bg("magic_armor")` |
 
-`equip(stat)` = `_equip_bonus(stat)`. `feat(stat)` = `get_feat_stat_bonus(stat)`. `class(stat)` = `get_class_stat_bonus(stat)`. `kindred(stat)` = `get_kindred_stat_bonus(stat)`. `bg(stat)` = `get_background_stat_bonus(stat)`. All five are **flat bonuses to the derived result** — a `vitality:1` bonus adds +1 to `hp_max` and +1 to `energy_max`, not +4.
+`equip(stat)` = `_equip_bonus(stat)`. `feat(stat)` = `get_feat_stat_bonus(stat)`. `class(stat)` = `get_class_stat_bonus(stat)`. `kindred(stat)` = `get_kindred_stat_bonus(stat)`. `bg(stat)` = `get_background_stat_bonus(stat)`. All five are **flat bonuses to the derived result**.
+
+> **Note:** The old single `defense` property (sourced from `armor_defense`) was removed in this session. Any code referencing `.defense` or `armor_defense` is stale. Use `physical_defense` / `magic_defense` instead.
 
 ### New Methods (2026-04-26)
 
@@ -134,13 +145,15 @@ func get_background_stat_bonus(stat: String) -> int
 
 **Kindred bonus values (from KindredLibrary):**
 
-| Kindred | speed_bonus → speed | hp_bonus | HP range (no class/equip/feat) |
-|---------|---------------------|----------|-------------------------------|
-| Human | 3 → 4 | +5 | 19–55 (VIT 1–10) |
-| Half-Orc | 2 → 3 | +12 | 26–62 (VIT 1–10) |
-| Gnome | 4 → 5 | +2 | 16–52 (VIT 1–10) |
-| Dwarf | 1 → 2 | +8 | 22–58 (VIT 1–10) |
-| Unknown / empty | 0 → 1 | 0 | safe default, no crash |
+| Kindred | speed_bonus → speed | hp_bonus | stat_bonuses | HP range (no class/equip/feat) |
+|---------|---------------------|----------|--------------|-------------------------------|
+| Human | 3 → 4 | +5 | willpower:1 | 19–55 (VIT 1–10) |
+| Half-Orc | 2 → 3 | +12 | strength:1 | 26–62 (VIT 1–10) |
+| Gnome | 4 → 5 | +2 | cognition:1 | 16–52 (VIT 1–10) |
+| Dwarf | 1 → 2 | +8 | **physical_armor:2** | 22–58 (VIT 1–10) |
+| Unknown / empty | 0 → 1 | 0 | — | safe default, no crash |
+
+> Dwarf's kindred stat bonus was renamed from `armor_defense:2` → `physical_armor:2` this session. All derived stat lookups use `get_kindred_stat_bonus("physical_armor")`.
 
 ---
 
@@ -148,13 +161,15 @@ func get_background_stat_bonus(stat: String) -> int
 
 ### Defined Archetypes (5)
 
-| ID | Class | Kindred | STR | DEX | COG | WIL | VIT | Armor | Abilities | Consumable |
-|----|-------|---------|-----|-----|-----|-----|-----|-------|-----------|------------|
-| `RogueFinder` | Custom | Human | 2–8 | 2–8 | 2–8 | 2–8 | 3–9 | 4–8 | strike, guard, fireball, sweep | `power_tonic` |
-| `archer_bandit` | prowler | Human | 2–5 | 6–9 | 2–5 | 1–4 | 2–6 | 3–5 | quick_shot, gust, acid_splash, piercing_shot | — |
-| `grunt` | vanguard | Half-Orc | 5–9 | 1–4 | 1–3 | 1–4 | 4–8 | 4–7 | heavy_strike, shove, sweep, taunt | — |
-| `alchemist` | arcanist | Gnome | 1–3 | 2–6 | 6–10 | 4–8 | 2–5 | 2–4 | smoke_bomb, fire_breath, acid_splash, healing_draught | `healing_potion` |
-| `elite_guard` | warden | Dwarf | 4–8 | 2–6 | 2–5 | 4–8 | 4–8 | 7–10 | shield_bash, yank, windblast, sweep | — |
+| ID | Class | Kindred | STR | DEX | COG | WIL | VIT | Phys Armor | Magic Armor | Abilities | Consumable |
+|----|-------|---------|-----|-----|-----|-----|-----|-----------|------------|-----------|------------|
+| `RogueFinder` | Custom | Human | 2–8 | 2–8 | 2–8 | 2–8 | 3–9 | 3–6 | 2–4 | strike, guard, fireball, sweep | `power_tonic` |
+| `archer_bandit` | prowler | Human | 2–5 | 6–9 | 2–5 | 1–4 | 2–6 | 2–4 | 1–3 | quick_shot, gust, acid_splash, piercing_shot | — |
+| `grunt` | vanguard | Half-Orc | 5–9 | 1–4 | 1–3 | 1–4 | 4–8 | 4–7 | 1–2 | heavy_strike, shove, sweep, taunt | — |
+| `alchemist` | arcanist | Gnome | 1–3 | 2–6 | 6–10 | 4–8 | 2–5 | 1–2 | 3–6 | smoke_bomb, fire_breath, acid_splash, healing_draught | `healing_potion` |
+| `elite_guard` | warden | Dwarf | 4–8 | 2–6 | 2–5 | 4–8 | 4–8 | 6–9 | 2–4 | shield_bash, yank, windblast, sweep | — |
+
+Design intent: grunt = physical tank, alchemist = magic-hardened, elite_guard = physical fortress. See `archetypes.csv` for authoritative values.
 
 ### Schema (archetypes.csv columns)
 
@@ -165,6 +180,7 @@ func get_background_stat_bonus(stat: String) -> int
 - `abilities: Array[String]` — pipe-separated; 4 active slot ids.
 - `pool_extras: Array[String]` — pipe-separated; additional ids appended to `ability_pool` beyond the 4 slots. RogueFinder/archer_bandit/grunt have +4; alchemist/elite_guard empty.
 - Attribute ranges stored as `min|max` pipe pairs; `create()` samples via `randi_range()`.
+- `physical_armor_range` / `magic_armor_range` — pipe `min|max` pairs for each armor type. **Replaced the old single `armor_range` column** (2026-04-27).
 - `qte_range` stored as float `min|max`.
 
 ### Public API
@@ -215,6 +231,7 @@ static func reload() -> void                             # cache-clear for tests
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Dual armor system.** Removed `armor_defense: int` and `defense` computed property. Added `physical_armor: int = 3` + `magic_armor: int = 2` (both serialized). Added `physical_defense` + `magic_defense` computed properties, each summing five bonus sources with stat keys `"physical_armor"` / `"magic_armor"`. `archetypes.csv` `armor_range` column replaced by `physical_armor_range` + `magic_armor_range`. `ArchetypeData` gained two new range fields. Dwarf kindred stat_bonuses renamed `armor_defense:2` → `physical_armor:2`. feats.csv + equipment.csv armor bonus keys renamed accordingly. `CharacterCreationManager._build_pc()` seeds `physical_armor=3, magic_armor=2`. `GameState` serialization updated; old saves migrate `armor_defense` value to both lanes. |
 | 2026-04-27 | **XP + Level-Up system.** Added three persistent fields: `level: int = 1`, `xp: int = 0`, `pending_level_ups: int = 0`. All three serialized/deserialized in `GameState._serialize_combatant()` / `_deserialize_combatant()`; old saves default to `level=1, xp=0, pending=0`. `ability_pool` clarification: this field stores the PC's **owned** abilities (superset of the 4 active slots). Level-up picks append to it; the source draw pool is derived at pick-time from `ClassLibrary + KindredLibrary - owned`. |
 | 2026-04-26 | **Pillar foundation — kindred + background stat bonuses.** Attribute defaults changed 5→4. `get_kindred_stat_bonus(stat)` + `get_background_stat_bonus(stat)` added to `CombatantData`; both wired into all 6 derived stat formulas. `feat_ids` seeding changed: kindred no longer grants a feat (stat bonuses are structural); background `starting_feat_id` is now `feat_ids[0]` for PCs. Old kindred feat IDs (`adaptive`, `relentless`, `tinkerer`, `stonehide`) stripped from `feat_ids` on save load. `ArchetypeLibrary.create()` now seeds `feat_ids = []` for all enemies (kindred bonuses flow structurally). |
 | 2026-04-26 | Class system wired — renamed 4 classes (rogue→prowler, barbarian→vanguard, wizard→arcanist, warrior→warden). Added `ClassData.stat_bonuses` + `ClassData.ability_pool`. `CombatantData.get_class_stat_bonus()` added; wired into all 6 derived stat formulas. Attribute `@export_range` changed 0–5 → 1–10, defaults 2→5. `hp_max` multiplier changed VIT×6→VIT×4 for the new scale. `unit_class` now stores lowercase class ID (e.g. `"vanguard"`), not display name — all UI points use `ClassLibrary.get_class_data().display_name`. archetypes.csv class column and stat ranges updated accordingly. |
