@@ -607,22 +607,25 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 
 	# Level row — centered in TR quadrant, below base attributes
 	var lv_tr_y: float = tr_y + 42.0
-	var lv_tr_lbl := Label.new()
-	lv_tr_lbl.text = "Lv. %d" % member.level
-	lv_tr_lbl.position = Vector2(tr_x, lv_tr_y)
-	lv_tr_lbl.size = Vector2(tr_w, 20.0)
-	lv_tr_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lv_tr_lbl.add_theme_font_size_override("font_size", 13)
-	lv_tr_lbl.add_theme_color_override("font_color",
-		Color(0.55, 0.62, 0.75).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
-	parent.add_child(lv_tr_lbl)
+
+	# Hide the label when the Level Up button is present — button replaces it
+	if member.pending_level_ups == 0 or is_dead:
+		var lv_tr_lbl := Label.new()
+		lv_tr_lbl.text = "Lv. %d" % member.level
+		lv_tr_lbl.position = Vector2(tr_x, lv_tr_y)
+		lv_tr_lbl.size = Vector2(tr_w, 20.0)
+		lv_tr_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lv_tr_lbl.add_theme_font_size_override("font_size", 13)
+		lv_tr_lbl.add_theme_color_override("font_color",
+			Color(0.55, 0.62, 0.75).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
+		parent.add_child(lv_tr_lbl)
 
 	if member.pending_level_ups > 0 and not is_dead:
-		# Button drawn on top of the level label — centered in TR
+		# Button centered in TR, raised slightly above the label's natural position
 		const BTN_W: float = 162.0; const BTN_H: float = 22.0
 		var lvlup_btn := Button.new()
 		lvlup_btn.text = "Level Up! (%d)" % member.pending_level_ups
-		lvlup_btn.position = Vector2(tr_x + (tr_w - BTN_W) * 0.5, lv_tr_y - 1.0)
+		lvlup_btn.position = Vector2(tr_x + (tr_w - BTN_W) * 0.5, lv_tr_y - 4.0)
 		lvlup_btn.size = Vector2(BTN_W, BTN_H)
 		lvlup_btn.add_theme_font_size_override("font_size", 11)
 		lvlup_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)

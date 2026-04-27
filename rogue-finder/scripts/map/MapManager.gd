@@ -64,6 +64,8 @@ var _outer_bridge_ids: Array[String] = []
 var _node_prompt: Control = null
 var _party_sheet: PartySheet = null
 var _party_btn: Button = null
+var _party_btn_rainbow: Tween = null
+var _party_btn_pulse: Tween = null
 var _event_manager: EventManager = null
 var _is_dev_event: bool = false
 var _dev_event_panel: CanvasLayer = null
@@ -1032,10 +1034,30 @@ func _refresh_party_btn() -> void:
 	)
 	if has_pending:
 		_party_btn.text = "Level Up Available"
-		_party_btn.modulate = Color(1.0, 0.9, 0.3)
+		if _party_btn_rainbow == null or not _party_btn_rainbow.is_valid():
+			_party_btn_rainbow = create_tween().set_loops()
+			for c: Color in [
+				Color(1.0, 0.0, 0.0), Color(1.0, 0.5, 0.0), Color(1.0, 1.0, 0.0),
+				Color(0.0, 1.0, 0.0), Color(0.0, 0.5, 1.0), Color(0.6, 0.0, 1.0),
+			]:
+				_party_btn_rainbow.tween_property(_party_btn, "modulate", c, 0.32)
+		if _party_btn_pulse == null or not _party_btn_pulse.is_valid():
+			_party_btn.pivot_offset = Vector2(86.0, 18.0)
+			_party_btn_pulse = create_tween().set_loops()
+			_party_btn_pulse.tween_property(_party_btn, "scale", Vector2(1.07, 1.07), 0.55) \
+				.set_trans(Tween.TRANS_SINE)
+			_party_btn_pulse.tween_property(_party_btn, "scale", Vector2(1.0, 1.0), 0.55) \
+				.set_trans(Tween.TRANS_SINE)
 	else:
 		_party_btn.text = "Party"
 		_party_btn.modulate = Color.WHITE
+		_party_btn.scale    = Vector2.ONE
+		if _party_btn_rainbow != null:
+			_party_btn_rainbow.kill()
+			_party_btn_rainbow = null
+		if _party_btn_pulse != null:
+			_party_btn_pulse.kill()
+			_party_btn_pulse = null
 
 func _on_event_finished() -> void:
 	_refresh_threat_meter()
