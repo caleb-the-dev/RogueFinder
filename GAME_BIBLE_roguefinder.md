@@ -82,14 +82,15 @@ The NPC party system is the heart of the game. Think of it like Pokémon: your r
 ## Build System
 
 ### Character Structure (applies to player character and all NPCs)
-Each character has three identity pillars — **Class**, **Kindred**, **Background** — plus equipment, level, and stats.
+Each character has three identity pillars — **Class**, **Kindred**, **Background** — plus a **Temperament**, equipment, level, and stats.
 
 - **A Kindred** — the character's species or ancestry (e.g. Human, Dwarf, Gnome, Half-Orc, Griffin). Fixed at creation. Provides a stat bump, 1 starting *natural-attack* ability, and 2 ancestry abilities in the run-time ability pool.
-- **A Class** — defines role and is the dominant source of run-time growth. Provides a stat bump, 1 *defining* ability (unique per class, auto-granted at run start), 13 abilities in the run-time ability pool, and 10 feats in the run-time feat pool.
-- **A Background** — the character's past. Provides a stat bump, 1 *defining* feat, and 2 background feats in the run-time feat pool. May occasionally branch event outcomes or gate content, but not frequently.
+- **A Class** — defines role and is the dominant source of run-time growth. Provides exactly **4 stat points** (max +2 per stat, no negatives), 1 *defining* ability (unique per class, auto-granted at run start), 13 abilities in the run-time ability pool, and 10 feats in the run-time feat pool.
+- **A Background** — the character's past. Provides exactly **+1 to one stat**, 1 *defining* feat, and 2 background feats in the run-time feat pool. May occasionally branch event outcomes or gate content, but not frequently.
+- **A Temperament** — a hidden Pokémon-style personality modifier, randomly assigned at creation and revealed only after the character is built. Gives **+1 to one attribute and −1 to another** (or no effect for the neutral "Even" temperament). Affects derived stats (attack, HP, energy regen, speed) but not armor defenses. Temperament never changes during a run.
 - **4 Equipment Slots:** Weapon, Armor, Consumable, Accessory
 - **A Level** (max level 20)
-- **Stats** — attributes (STR, DEX, COG, WIL, VIT, plus the defenses) all start at base **4** and are modified by pillar bumps capped at **+2 max / −1 min per stat per pillar**.
+- **Stats** — attributes (STR, DEX, COG, WIL, VIT, plus the defenses) all start at base **4** and are modified by pillar bumps. Class: 4 points total, max +2 per stat, no negatives. Background: exactly +1 to one stat. Kindred: variable (see KindredLibrary). Temperament: +1 one stat / −1 another (or neutral).
 - **Ability Pool** — 6 abilities at end-of-run (1 kindred + 5 class), 4 of which can be slotted in any combat.
 - **Feats** — dynamic stat/effect modifiers, similar to relics in Slay the Spire — they change how a character functions, not just their numbers. End-of-run total: 5 feats (1 background + 4 class).
 
@@ -97,11 +98,12 @@ Each character has three identity pillars — **Class**, **Kindred**, **Backgrou
 
 | Pillar | Stat bump | Starting (auto-granted) | Run-time pool |
 |---|---|---|---|
-| **Class** | ✓ | 1 *defining* ability (unique per class, never shared) | 13 abilities + 10 feats |
-| **Kindred** | ✓ | 1 *natural-attack* ability (sharable across kindreds) | 2 ancestry abilities (sharable) |
-| **Background** | ✓ | 1 *defining* feat | 2 background feats (sharable) |
+| **Class** | +4 total, max +2 per stat, no negatives | 1 *defining* ability (unique per class, never shared) | 13 abilities + 10 feats |
+| **Kindred** | variable | 1 *natural-attack* ability (sharable across kindreds) | 2 ancestry abilities (sharable) |
+| **Background** | +1 to one stat | 1 *defining* feat | 2 background feats (sharable) |
+| **Temperament** | +1 one stat / −1 another (hidden until post-creation; "Even" = neutral) | — | — |
 
-Class is the dominant source of run-time growth — ~85% of ability and feat draws come from the class pool. Kindred and Background each contribute ~13–17% of their respective lanes. Lanes stay clean: kindred only contributes abilities, background only contributes feats, class contributes to both.
+Class is the dominant source of run-time growth — ~85% of ability and feat draws come from the class pool. Kindred and Background each contribute ~13–17% of their respective lanes. Lanes stay clean: kindred only contributes abilities, background only contributes feats, class contributes to both. Temperament is purely a stat modifier with no lane association.
 
 ### Leveling & Abilities
 
