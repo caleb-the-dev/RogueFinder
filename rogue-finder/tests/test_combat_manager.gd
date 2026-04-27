@@ -37,7 +37,7 @@ func _mock_unit(atk: int, def_: int) -> Unit:
 ## Mirrors CombatManager._calculate_damage() — kept here so tests run standalone.
 func _calc_damage(atk: int, def_: int, accuracy: float) -> int:
 	var stat_delta: float   = float(atk - def_)
-	var effectiveness: float = clampf(1.0 + stat_delta / 20.0, 0.5, 2.0)
+	var effectiveness: float = clampf(1.0 + stat_delta / 10.0, 0.5, 2.0)
 	var skill: float         = clampf(accuracy, 0.1, 1.0)
 	return maxi(1, roundi(float(atk) * effectiveness * skill))
 
