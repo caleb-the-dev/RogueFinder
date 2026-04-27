@@ -172,7 +172,7 @@ rogue-finder/
 │   │   ├── BackgroundLibrary.gd        ← CSV-sourced (res://data/backgrounds.csv)
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); healing_potion, power_tonic
-│   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 7 items
+│   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 9 items
 │   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 15 events (3 smoke + 12 authored)
 │   │   ├── EventSelector.gd            ← static picker; ring filter + exhaustion fallback; appends to GameState.used_event_ids
 │   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 32 feats (20 class, 12 background); parses stat_bonuses
@@ -213,7 +213,7 @@ rogue-finder/
 │   ├── backgrounds.csv                 ← 4 backgrounds; read via res://data/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
 │   ├── consumables.csv                 ← 2 consumables; read via res://data/
-│   ├── equipment.csv                   ← 7 items (rusted_dagger added Slice 4); stat_bonuses as stat:value|stat:value pairs
+│   ├── equipment.csv                   ← 9 items (plate_cuirass + warded_robe added 2026-04-27); stat_bonuses as stat:value|stat:value pairs
 │   ├── event_choices.csv               ← 46 choice rows; joined to events by event_id; effects as JSON arrays
 │   ├── events.csv                      ← 15 events (3 smoke + 12 authored); ring_eligibility as pipe list
 │   ├── feats.csv                       ← 32 feats (20 class, 12 background); kindred rows removed
@@ -237,7 +237,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 25 test scripts + 13 scene runners; includes test_event_manager.gd/.tscn + test_event_manager_slice5.gd/.tscn; see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree)
+└── tests/                              ← 33 test scripts + 20 scene runners; includes test_armor_mod.gd/.tscn (11 assertions covering the runtime armor mod lane); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). Some `.gd` tests extend SceneTree and are run via `--script` instead of a `.tscn` runner (e.g. test_ability_library, test_consumables, test_effect_data, test_enemy_ai)
 ```
 
 ---
