@@ -4,3 +4,7 @@ archer_bandit,prowler,Human,Crook|Soldier,quick_shot|gust|acid_splash|piercing_s
 grunt,vanguard,Half-Orc,Crook|Soldier,heavy_strike|shove|sweep|taunt,strike|shield_bash|charge|yank,,5|9,1|4,1|3,1|4,4|8,4|7,1|2,0.2|0.5,,,brawny melee fighter; high str and vit; low magic resist
 alchemist,arcanist,Gnome,Baker|Scholar|Merchant,smoke_bomb|fire_breath|acid_splash|healing_draught,,healing_potion,1|3,2|6,6|10,4|8,2|5,1|2,3|6,0.5|0.8,,,crafty support caster; high cog; magic-hardened
 elite_guard,warden,Dwarf,Soldier|Noble,shield_bash|yank|windblast|sweep,,,4|8,2|6,2|5,4|8,4|8,6|9,2|4,0.6|0.9,,,heavily armored veteran; high physical armor
+skeleton_warrior,vanguard,Skeleton,,bone_strike|heavy_strike|sweep|shield_bash,guard|counter|steadfast|yank,,4|7,1|3,1|3,3|6,1|3,6|9,0|2,0.2|0.4,,,undead frontliner; bone-hard physical armor; near-zero magic resist; low HP compensated by armor
+rat_scrapper,prowler,Giant Rat,,gnaw|quick_shot|disengage|vanishing_step,gust|counter|taunt|smoke_bomb,,2|4,7|10,2|5,1|4,2|5,1|3,0|2,0.5|0.8,,,fast fragile skirmisher; high dex and qte; blows and bails
+cave_spider,arcanist,Spider,,venom_bite|web_shot|acid_splash|smoke_bomb,quick_wit|disengage|windblast|gust,,1|3,5|8,4|7,3|6,2|5,1|3,1|3,0.5|0.7,,,debuffer and controller; webs and poison and area denial
+young_dragon,vanguard,Dragon,,claw_swipe|draconic_breath|heavy_strike|sweep,counter|guard|yank|charge,,6|10,1|3,3|6,3|5,5|9,4|7,3|6,0.1|0.3,,,apex frontliner; slow but tanky; hits through both armor types

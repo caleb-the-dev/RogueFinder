@@ -3,3 +3,7 @@ Human,3,5,willpower:1,focused_strike,steadfast|quick_wit,Kale|Sora|Wren|Dax|Mira
 Half-Orc,2,12,strength:1,savage_blow,battle_surge|warcry,Brak|Mord|Thug|Krak|Uge|Dorn,
 Gnome,4,2,cognition:1,gadget_spark,tinker_boost|quick_wit,Finch|Alda|Quill|Senna|Pip|Loris,
 Dwarf,1,8,physical_armor:2,stone_fist,stone_guard|steadfast,Sven|Holt|Cara|Brix|Edda|Vale,
+Skeleton,2,4,physical_armor:2,bone_strike,grim_endurance|death_rattle,Bones|Grim|Mort|Rattle|Dusk|Ashen,
+Giant Rat,5,3,dexterity:2,gnaw,scatter|pack_instinct,Scratch|Squeak|Gnaw|Nibble|Fitch|Scurry,
+Spider,3,4,dexterity:1,venom_bite,web_shot|skitter,Silk|Vex|Spindle|Thread|Fang|Lace,
+Dragon,1,15,strength:2,claw_swipe,draconic_breath|scales_up,Aer|Vrax|Sorn|Ignis|Keth|Zara,
