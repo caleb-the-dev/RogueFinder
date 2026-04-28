@@ -471,7 +471,7 @@ func _add_ui_chrome() -> void:
 	_party_btn = Button.new()
 	_party_btn.text = "Party"
 	_party_btn.size = Vector2(172.0, 36.0)
-	_party_btn.position = Vector2(VIEWPORT_SIZE.x - 180.0, 8.0)
+	_party_btn.position = Vector2(VIEWPORT_SIZE.x - 236.0, 8.0)
 	_party_btn.pressed.connect(func(): _party_sheet.show_sheet())
 	add_child(_party_btn)
 
