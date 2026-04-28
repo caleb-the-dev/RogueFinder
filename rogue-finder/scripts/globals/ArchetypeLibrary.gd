@@ -182,6 +182,8 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				archetype.artwork_idle = val
 			"artwork_attack":
 				archetype.artwork_attack = val
+			"hire_cost":
+				archetype.hire_cost = int(val)
 			"notes":
 				pass  # designer free-text; intentionally ignored
 			_:

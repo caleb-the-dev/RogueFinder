@@ -7,6 +7,7 @@ const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 
 const SECTIONS: Array = [
 	["Party Management",                     "party_management"],
+	["Hire Roster",                          "hire_roster"],
 	["The Broken Compass  [Tavern]",         "tavern"],
 	["Bulletin Board",                       "bulletin"],
 	["Ironmonger's Stall  [Weapons]",        "vendor_weapon"],
@@ -25,6 +26,14 @@ const ICON_CONSUMABLE: String = "res://assets/icons/sConsumableIcon.png"
 ## --- Overlay State ---
 
 var _overlay_layer: CanvasLayer = null
+
+## Hire roster overlay state
+var _hire_layer: CanvasLayer = null
+var _hire_gold_lbl: Label = null
+var _hire_roster: Array[CombatantData] = []   # pre-generated; what you see is what you hire
+var _hire_card_idx: int = 0
+var _hire_card_area: Control = null
+var _hire_nav_lbl: Label = null
 
 ## Drag compare panel — added to _overlay_layer; cleared in _process when drag ends.
 var _drag_compare_panel: Control = null
@@ -142,6 +151,9 @@ func _on_section_pressed(section_id: String) -> void:
 	if section_id == "party_management":
 		_open_party_management()
 		return
+	if section_id == "hire_roster":
+		_open_hire_roster()
+		return
 	print("[Badurga] ", section_id, " not yet implemented")
 
 func _on_return_pressed() -> void:
@@ -247,6 +259,627 @@ func _build_overlay() -> void:
 		var si: LineEdit = _active_bag_search
 		si.grab_focus.call_deferred()
 		(func() -> void: si.set_caret_column(si.text.length())).call_deferred()
+
+## --- Hire Roster Overlay ---
+
+func _open_hire_roster() -> void:
+	if _hire_layer != null and is_instance_valid(_hire_layer):
+		_hire_layer.queue_free()
+	_hire_layer = null
+	_hire_gold_lbl = null
+	_hire_card_area = null
+	_hire_nav_lbl = null
+	_hire_card_idx = 0
+	_hire_roster = _generate_hire_candidates(
+		GameState.map_seed + GameState.visited_nodes.size(), 4
+	)
+	_build_hire_overlay()
+
+func _close_hire_roster() -> void:
+	if _hire_layer != null and is_instance_valid(_hire_layer):
+		_hire_layer.queue_free()
+	_hire_layer = null
+	_hire_gold_lbl = null
+	_hire_card_area = null
+	_hire_nav_lbl = null
+	_hire_roster = []
+	_hire_card_idx = 0
+
+func _build_hire_overlay() -> void:
+	_hire_layer = CanvasLayer.new()
+	_hire_layer.layer = 18
+	add_child(_hire_layer)
+
+	var backdrop := ColorRect.new()
+	backdrop.color = Color(0.06, 0.05, 0.07, 0.97)
+	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	_hire_layer.add_child(backdrop)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	_hire_layer.add_child(margin)
+
+	var root_vbox := VBoxContainer.new()
+	root_vbox.add_theme_constant_override("separation", 6)
+	root_vbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_child(root_vbox)
+
+	# Header: title | gold | close
+	var header_row := HBoxContainer.new()
+	root_vbox.add_child(header_row)
+
+	var title_lbl := Label.new()
+	title_lbl.text = "Hire Roster"
+	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_lbl.add_theme_font_size_override("font_size", 22)
+	title_lbl.add_theme_color_override("font_color", Color(0.95, 0.88, 0.65))
+	header_row.add_child(title_lbl)
+
+	_hire_gold_lbl = Label.new()
+	_hire_gold_lbl.text = "Gold: %d" % GameState.gold
+	_hire_gold_lbl.add_theme_font_size_override("font_size", 18)
+	_hire_gold_lbl.add_theme_color_override("font_color", Color(0.90, 0.80, 0.30))
+	header_row.add_child(_hire_gold_lbl)
+
+	var close_btn := Button.new()
+	close_btn.text = "✕  Close"
+	close_btn.custom_minimum_size = Vector2(120.0, 34.0)
+	close_btn.add_theme_font_size_override("font_size", 14)
+	close_btn.pressed.connect(_close_hire_roster)
+	header_row.add_child(close_btn)
+
+	root_vbox.add_child(_make_hsep())
+
+	# Nav row: ◀ | N / Total | ▶
+	var nav_row := HBoxContainer.new()
+	nav_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	nav_row.add_theme_constant_override("separation", 14)
+	root_vbox.add_child(nav_row)
+
+	var prev_btn := Button.new()
+	prev_btn.text = "◀"
+	prev_btn.custom_minimum_size = Vector2(44.0, 32.0)
+	prev_btn.add_theme_font_size_override("font_size", 16)
+	prev_btn.disabled = _hire_roster.size() <= 1
+	prev_btn.pressed.connect(func() -> void: _on_hire_navigate(-1))
+	nav_row.add_child(prev_btn)
+
+	_hire_nav_lbl = Label.new()
+	_hire_nav_lbl.text = "%d / %d" % [_hire_card_idx + 1, _hire_roster.size()]
+	_hire_nav_lbl.custom_minimum_size = Vector2(64.0, 0.0)
+	_hire_nav_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hire_nav_lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	_hire_nav_lbl.add_theme_font_size_override("font_size", 16)
+	_hire_nav_lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.58))
+	nav_row.add_child(_hire_nav_lbl)
+
+	var next_btn := Button.new()
+	next_btn.text = "▶"
+	next_btn.custom_minimum_size = Vector2(44.0, 32.0)
+	next_btn.add_theme_font_size_override("font_size", 16)
+	next_btn.disabled = _hire_roster.size() <= 1
+	next_btn.pressed.connect(func() -> void: _on_hire_navigate(1))
+	nav_row.add_child(next_btn)
+
+	root_vbox.add_child(_make_hsep())
+
+	# Card area — single card, rebuilt on navigate
+	_hire_card_area = VBoxContainer.new()
+	_hire_card_area.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	_hire_card_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.add_child(_hire_card_area)
+
+	_build_hire_card_area()
+
+func _build_hire_card_area() -> void:
+	for child in _hire_card_area.get_children():
+		child.queue_free()
+
+	if _hire_roster.is_empty():
+		var empty := Label.new()
+		empty.text = "No recruits available."
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.add_theme_font_size_override("font_size", 16)
+		empty.add_theme_color_override("font_color", Color(0.50, 0.48, 0.45))
+		_hire_card_area.add_child(empty)
+		return
+
+	_hire_card_area.add_child(_build_hire_card(_hire_roster[_hire_card_idx], _hire_card_idx))
+
+	if _hire_nav_lbl != null and is_instance_valid(_hire_nav_lbl):
+		_hire_nav_lbl.text = "%d / %d" % [_hire_card_idx + 1, _hire_roster.size()]
+
+func _on_hire_navigate(delta: int) -> void:
+	if _hire_roster.is_empty():
+		return
+	_hire_card_idx = (_hire_card_idx + delta + _hire_roster.size()) % _hire_roster.size()
+	_build_hire_card_area()
+
+static func _generate_hire_roster(seed: int, count: int) -> Array[ArchetypeData]:
+	var pool: Array[ArchetypeData] = []
+	for arch: ArchetypeData in ArchetypeLibrary.all_archetypes():
+		if arch.hire_cost > 0:
+			pool.append(arch)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	for i in range(pool.size() - 1, 0, -1):
+		var j: int = rng.randi_range(0, i)
+		var tmp: ArchetypeData = pool[i]
+		pool[i] = pool[j]
+		pool[j] = tmp
+	return pool.slice(0, mini(count, pool.size()))
+
+## Pre-generates seeded CombatantData for each roster slot so the displayed card
+## matches exactly what the player receives on hire.
+static func _generate_hire_candidates(seed: int, count: int) -> Array[CombatantData]:
+	var archetypes: Array[ArchetypeData] = _generate_hire_roster(seed, count)
+	var candidates: Array[CombatantData] = []
+	for i in archetypes.size():
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed + i + 1
+		candidates.append(_create_hire_candidate(archetypes[i], rng))
+	return candidates
+
+## Mirrors ArchetypeLibrary.create() with a caller-supplied RNG for determinism.
+static func _create_hire_candidate(arch: ArchetypeData, rng: RandomNumberGenerator) -> CombatantData:
+	var data := CombatantData.new()
+	data.archetype_id   = arch.archetype_id
+	data.is_player_unit = true
+	data.unit_class     = arch.unit_class
+	data.kindred        = arch.kindred
+	data.feat_ids       = []
+	data.artwork_idle   = arch.artwork_idle
+	data.artwork_attack = arch.artwork_attack
+
+	data.abilities.clear()
+	for ab in arch.abilities:
+		data.abilities.append(str(ab))
+	while data.abilities.size() < 4:
+		data.abilities.append("")
+
+	data.ability_pool.clear()
+	for ab in arch.abilities:
+		if ab != "":
+			data.ability_pool.append(str(ab))
+	for ab in arch.pool_extras:
+		var ab_str: String = str(ab)
+		if ab_str != "" and not data.ability_pool.has(ab_str):
+			data.ability_pool.append(ab_str)
+
+	data.consumable = arch.consumable
+
+	var bgs: Array[String] = arch.backgrounds
+	data.background = bgs[rng.randi_range(0, bgs.size() - 1)] if not bgs.is_empty() else ""
+
+	data.strength        = rng.randi_range(arch.str_range[0],            arch.str_range[1])
+	data.dexterity       = rng.randi_range(arch.dex_range[0],            arch.dex_range[1])
+	data.cognition       = rng.randi_range(arch.cog_range[0],            arch.cog_range[1])
+	data.willpower       = rng.randi_range(arch.wil_range[0],            arch.wil_range[1])
+	data.vitality        = maxi(1, rng.randi_range(arch.vit_range[0],    arch.vit_range[1]))
+	data.physical_armor  = rng.randi_range(arch.physical_armor_range[0], arch.physical_armor_range[1])
+	data.magic_armor     = rng.randi_range(arch.magic_armor_range[0],    arch.magic_armor_range[1])
+	data.qte_resolution  = rng.randf_range(arch.qte_range[0],            arch.qte_range[1])
+	data.temperament_id  = TemperamentLibrary.random_id(rng)
+
+	var name_pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
+	data.character_name = name_pool[rng.randi_range(0, name_pool.size() - 1)] \
+		if not name_pool.is_empty() else "Unit"
+
+	data.current_hp     = data.hp_max
+	data.current_energy = data.energy_max
+	return data
+
+func _build_hire_card(candidate: CombatantData, card_index: int) -> Control:
+	var hire_cost: int = ArchetypeLibrary.get_archetype(candidate.archetype_id).hire_cost
+	var can_afford: bool = GameState.gold >= hire_cost
+
+	var card := PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	var style := StyleBoxFlat.new()
+	style.bg_color     = Color(0.10, 0.10, 0.14) if can_afford else Color(0.09, 0.08, 0.09)
+	style.border_color = Color(0.38, 0.38, 0.55) if can_afford else Color(0.25, 0.25, 0.28)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(4)
+	style.content_margin_left   = 12.0; style.content_margin_right  = 12.0
+	style.content_margin_top    = 10.0; style.content_margin_bottom = 10.0
+	card.add_theme_stylebox_override("panel", style)
+	if not can_afford:
+		card.modulate = Color(1.0, 1.0, 1.0, 0.65)
+
+	var outer_vbox := VBoxContainer.new()
+	outer_vbox.add_theme_constant_override("separation", 8)
+	outer_vbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	outer_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.add_child(outer_vbox)
+
+	# Header: portrait | identity (expand) | cost + hire
+	var top_hbox := HBoxContainer.new()
+	top_hbox.add_theme_constant_override("separation", 14)
+	outer_vbox.add_child(top_hbox)
+
+	var portrait := TextureRect.new()
+	portrait.custom_minimum_size = Vector2(90.0, 90.0)
+	portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait.texture = load(candidate.artwork_idle) as Texture2D if candidate.artwork_idle != "" \
+		else load("res://icon.svg") as Texture2D
+	top_hbox.add_child(portrait)
+
+	var id_vbox := VBoxContainer.new()
+	id_vbox.add_theme_constant_override("separation", 4)
+	id_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	id_vbox.size_flags_vertical   = Control.SIZE_SHRINK_CENTER
+	top_hbox.add_child(id_vbox)
+
+	var name_lbl := Label.new()
+	name_lbl.text = candidate.character_name
+	name_lbl.add_theme_font_size_override("font_size", 20)
+	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.72))
+	id_vbox.add_child(name_lbl)
+
+	var arch_lbl := Label.new()
+	arch_lbl.text = "Archetype: %s" % candidate.archetype_id.replace("_", " ").capitalize()
+	arch_lbl.add_theme_font_size_override("font_size", 14)
+	arch_lbl.add_theme_color_override("font_color", Color(0.68, 0.65, 0.80))
+	id_vbox.add_child(arch_lbl)
+
+	var class_bg_parts: Array[String] = [
+		"Class: %s" % candidate.unit_class.capitalize(),
+		"Kindred: %s" % candidate.kindred,
+	]
+	if candidate.background != "":
+		class_bg_parts.append("Background: %s" % candidate.background)
+	var class_bg_lbl := Label.new()
+	class_bg_lbl.text = "  ·  ".join(class_bg_parts)
+	class_bg_lbl.add_theme_font_size_override("font_size", 12)
+	class_bg_lbl.add_theme_color_override("font_color", Color(0.62, 0.60, 0.55))
+	id_vbox.add_child(class_bg_lbl)
+
+	if candidate.temperament_id != "" and candidate.temperament_id != "even":
+		var t: TemperamentData = TemperamentLibrary.get_temperament(candidate.temperament_id)
+		var temp_lbl := Label.new()
+		temp_lbl.text = "Temperament: %s  (+%s / −%s)" % [
+			t.temperament_name, _stat_abbrev(t.boosted_stat), _stat_abbrev(t.hindered_stat)]
+		temp_lbl.add_theme_font_size_override("font_size", 12)
+		temp_lbl.add_theme_color_override("font_color", Color(0.65, 0.58, 0.78))
+		id_vbox.add_child(temp_lbl)
+
+	var hire_col := VBoxContainer.new()
+	hire_col.add_theme_constant_override("separation", 6)
+	hire_col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top_hbox.add_child(hire_col)
+
+	var cost_lbl := Label.new()
+	cost_lbl.text = "%d Gold" % hire_cost
+	cost_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cost_lbl.add_theme_font_size_override("font_size", 18)
+	cost_lbl.add_theme_color_override("font_color",
+		Color(0.90, 0.80, 0.30) if can_afford else Color(0.55, 0.50, 0.35))
+	hire_col.add_child(cost_lbl)
+
+	var cap_candidate := candidate
+	var cap_index := card_index
+
+	var hire_btn := Button.new()
+	hire_btn.text = "Hire"
+	hire_btn.custom_minimum_size = Vector2(110.0, 40.0)
+	hire_btn.add_theme_font_size_override("font_size", 16)
+	hire_btn.disabled = not can_afford
+	hire_btn.pressed.connect(func() -> void: _on_hire_pressed(cap_candidate, cap_index))
+	hire_col.add_child(hire_btn)
+
+	outer_vbox.add_child(_make_hsep())
+
+	# Body: stats (left fixed) | vsep | tabs (right expand)
+	var body_hbox := HBoxContainer.new()
+	body_hbox.add_theme_constant_override("separation", 14)
+	body_hbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	body_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outer_vbox.add_child(body_hbox)
+
+	# --- Left: all 10 stats, large 2-line chips ---
+	var stats_col := VBoxContainer.new()
+	stats_col.custom_minimum_size = Vector2(320.0, 0.0)
+	stats_col.add_theme_constant_override("separation", 8)
+	stats_col.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	body_hbox.add_child(stats_col)
+
+	var stats_hdr := Label.new()
+	stats_hdr.text = "STATS"
+	stats_hdr.add_theme_font_size_override("font_size", 11)
+	stats_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	stats_col.add_child(stats_hdr)
+
+	var stat_grid := GridContainer.new()
+	stat_grid.columns = 5
+	stat_grid.add_theme_constant_override("h_separation", 18)
+	stat_grid.add_theme_constant_override("v_separation", 12)
+	stats_col.add_child(stat_grid)
+
+	for pair: Array in [
+		["Health",       candidate.hp_max],
+		["Energy",       candidate.energy_max],
+		["Speed",        candidate.speed],
+		["Phys Armor",   candidate.physical_armor],
+		["Magic Armor",  candidate.magic_armor],
+		["Strength",     candidate.strength],
+		["Dexterity",    candidate.dexterity],
+		["Cognition",    candidate.cognition],
+		["Willpower",    candidate.willpower],
+		["Vitality",     candidate.vitality],
+	]:
+		var cell := VBoxContainer.new()
+		cell.add_theme_constant_override("separation", 0)
+		var slbl := Label.new()
+		slbl.text = pair[0]
+		slbl.add_theme_font_size_override("font_size", 11)
+		slbl.add_theme_color_override("font_color", Color(0.60, 0.58, 0.50))
+		cell.add_child(slbl)
+		var vlbl := Label.new()
+		vlbl.text = str(pair[1])
+		vlbl.add_theme_font_size_override("font_size", 26)
+		vlbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.72))
+		cell.add_child(vlbl)
+		stat_grid.add_child(cell)
+
+	body_hbox.add_child(_make_vsep())
+
+	# --- Right: Abilities + Feats tabs ---
+	var tabs := TabContainer.new()
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	body_hbox.add_child(tabs)
+
+	# Abilities tab — flat list of entire ability_pool (no active/pool distinction)
+	var abil_tab := VBoxContainer.new()
+	abil_tab.name = "Abilities"
+	abil_tab.add_theme_constant_override("separation", 3)
+	tabs.add_child(abil_tab)
+
+	var abil_scroll := ScrollContainer.new()
+	abil_scroll.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	abil_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	abil_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
+	abil_tab.add_child(abil_scroll)
+
+	var abil_vbox := VBoxContainer.new()
+	abil_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	abil_vbox.add_theme_constant_override("separation", 3)
+	abil_scroll.add_child(abil_vbox)
+
+	if candidate.ability_pool.is_empty():
+		var empty := Label.new()
+		empty.text = "No abilities."
+		empty.add_theme_font_size_override("font_size", 12)
+		empty.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		abil_vbox.add_child(empty)
+	else:
+		for ab_id: String in candidate.ability_pool:
+			abil_vbox.add_child(_hire_ability_row(ab_id))
+
+	# Feats tab — from the background this candidate actually rolled
+	var feat_tab := VBoxContainer.new()
+	feat_tab.name = "Feats"
+	feat_tab.add_theme_constant_override("separation", 3)
+	tabs.add_child(feat_tab)
+
+	var feat_scroll := ScrollContainer.new()
+	feat_scroll.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	feat_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	feat_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
+	feat_tab.add_child(feat_scroll)
+
+	var feat_vbox := VBoxContainer.new()
+	feat_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	feat_vbox.add_theme_constant_override("separation", 3)
+	feat_scroll.add_child(feat_vbox)
+
+	if candidate.background == "":
+		var no_bg := Label.new()
+		no_bg.text = "No background — no feats available."
+		no_bg.add_theme_font_size_override("font_size", 12)
+		no_bg.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		feat_vbox.add_child(no_bg)
+	else:
+		var bg: BackgroundData = BackgroundLibrary.get_background(candidate.background)
+		var feat_ids: Array[String] = []
+		if bg.starting_feat_id != "":
+			feat_ids.append(bg.starting_feat_id)
+		for fid: String in bg.feat_pool:
+			if fid not in feat_ids:
+				feat_ids.append(fid)
+		if feat_ids.is_empty():
+			var empty := Label.new()
+			empty.text = "No feats available."
+			empty.add_theme_font_size_override("font_size", 12)
+			empty.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+			feat_vbox.add_child(empty)
+		else:
+			for fid: String in feat_ids:
+				feat_vbox.add_child(_hire_feat_row(fid))
+
+	return card
+
+func _hire_ability_row(ab_id: String) -> Control:
+	var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
+	var tip: String = _hire_wrap_tooltip("%s\nCost: %d Energy  ·  %s\n\n%s" % [
+		ab.ability_name, ab.energy_cost, _hire_attr_name(ab.attribute), ab.description])
+
+	var pnl := PanelContainer.new()
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color      = Color(0.12, 0.12, 0.15, 0.80)
+	sbox.border_color  = Color(0.25, 0.25, 0.30, 0.60)
+	sbox.border_width_bottom = 1
+	sbox.set_corner_radius_all(2)
+	pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pnl.add_theme_stylebox_override("panel", sbox)
+	pnl.tooltip_text = tip
+
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 1)
+	pnl.add_child(inner)
+
+	var name_lbl := Label.new()
+	name_lbl.text = ab.ability_name
+	name_lbl.add_theme_font_size_override("font_size", 12)
+	name_lbl.add_theme_color_override("font_color", Color(0.90, 0.86, 0.72))
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_lbl.tooltip_text = tip
+	inner.add_child(name_lbl)
+
+	var sub_lbl := Label.new()
+	sub_lbl.text = "%d EN  ·  %s" % [ab.energy_cost, _hire_attr_name(ab.attribute)]
+	sub_lbl.add_theme_font_size_override("font_size", 10)
+	sub_lbl.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
+	sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sub_lbl.tooltip_text = tip
+	inner.add_child(sub_lbl)
+
+	return pnl
+
+func _hire_feat_row(feat_id: String) -> Control:
+	var feat: FeatData = FeatLibrary.get_feat(feat_id)
+	var bonus_parts: Array[String] = []
+	for stat: String in feat.stat_bonuses:
+		var val: int = feat.stat_bonuses[stat]
+		if val != 0:
+			bonus_parts.append("%s %+d" % [_stat_abbrev(stat), val])
+	var tip_text: String = feat.name + "\n\n" + feat.description
+	if not bonus_parts.is_empty():
+		tip_text += "\n\n" + "  ·  ".join(bonus_parts)
+	var tip: String = _hire_wrap_tooltip(tip_text)
+
+	var pnl := PanelContainer.new()
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color = Color(0.12, 0.12, 0.15, 0.80)
+	sbox.border_color = Color(0.25, 0.25, 0.30, 0.60)
+	sbox.border_width_bottom = 1
+	sbox.set_corner_radius_all(2)
+	pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pnl.add_theme_stylebox_override("panel", sbox)
+	pnl.tooltip_text = tip
+
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 1)
+	pnl.add_child(inner)
+
+	var name_lbl := Label.new()
+	name_lbl.text = feat.name
+	name_lbl.add_theme_font_size_override("font_size", 12)
+	name_lbl.add_theme_color_override("font_color", Color(0.80, 0.76, 0.60))
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_lbl.tooltip_text = tip
+	inner.add_child(name_lbl)
+
+	if feat.description != "":
+		var desc_lbl := Label.new()
+		desc_lbl.text = feat.description
+		desc_lbl.add_theme_font_size_override("font_size", 10)
+		desc_lbl.add_theme_color_override("font_color", Color(0.55, 0.52, 0.48))
+		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		desc_lbl.tooltip_text = tip
+		inner.add_child(desc_lbl)
+
+	if not bonus_parts.is_empty():
+		var bonus_lbl := Label.new()
+		bonus_lbl.text = "  ".join(bonus_parts)
+		bonus_lbl.add_theme_font_size_override("font_size", 10)
+		bonus_lbl.add_theme_color_override("font_color", Color(0.60, 0.80, 0.60))
+		bonus_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bonus_lbl.tooltip_text = tip
+		inner.add_child(bonus_lbl)
+
+	return pnl
+
+static func _hire_wrap_tooltip(text: String, max_line: int = 40) -> String:
+	var sections: PackedStringArray = text.split("\n\n")
+	var result_sections: PackedStringArray = []
+	for section: String in sections:
+		var wrapped: PackedStringArray = []
+		for line: String in section.split("\n"):
+			if line.length() <= max_line:
+				wrapped.append(line)
+				continue
+			var words := line.split(" ", false)
+			var cur := ""
+			for w: String in words:
+				if cur == "":        cur = w
+				elif cur.length() + 1 + w.length() <= max_line: cur += " " + w
+				else:
+					wrapped.append(cur)
+					cur = w
+			if cur != "": wrapped.append(cur)
+		result_sections.append("\n".join(wrapped))
+	return "\n\n".join(result_sections)
+
+static func _hire_attr_name(attr: int) -> String:
+	match attr:
+		AbilityData.Attribute.STRENGTH:  return "Strength"
+		AbilityData.Attribute.DEXTERITY: return "Dexterity"
+		AbilityData.Attribute.COGNITION: return "Cognition"
+		AbilityData.Attribute.WILLPOWER: return "Willpower"
+		AbilityData.Attribute.VITALITY:  return "Vitality"
+		_: return "—"
+
+func _on_hire_pressed(candidate: CombatantData, card_index: int) -> void:
+	var hire_cost: int = ArchetypeLibrary.get_archetype(candidate.archetype_id).hire_cost
+	if GameState.gold < hire_cost:
+		return
+	GameState.gold -= hire_cost
+
+	# Level-match to party leader; reset transient fields
+	if not GameState.party.is_empty():
+		candidate.level = GameState.party[0].level
+	candidate.xp = 0
+	candidate.pending_level_ups = 0
+	candidate.current_hp     = candidate.hp_max
+	candidate.current_energy = candidate.energy_max
+
+	if GameState.bench.size() < GameState.BENCH_CAP:
+		GameState.add_to_bench(candidate)
+		GameState.save()
+		_hire_roster.remove_at(card_index)
+		if _hire_card_idx >= _hire_roster.size() and _hire_card_idx > 0:
+			_hire_card_idx -= 1
+		if _hire_gold_lbl != null and is_instance_valid(_hire_gold_lbl):
+			_hire_gold_lbl.text = "Gold: %d" % GameState.gold
+		_build_hire_card_area()
+	else:
+		# Bench full — BenchSwapPanel on layer above hire overlay
+		var swap_layer := CanvasLayer.new()
+		swap_layer.layer = 19
+		add_child(swap_layer)
+
+		var cap_index := card_index
+
+		var panel: Control = BenchSwapPanel.build_panel(
+			candidate,
+			"Cancel Hire",
+			func(bench_idx: int) -> void:
+				GameState.release_from_bench(bench_idx)
+				GameState.add_to_bench(candidate)
+				GameState.save()
+				swap_layer.queue_free()
+				_hire_roster.remove_at(cap_index)
+				if _hire_card_idx >= _hire_roster.size() and _hire_card_idx > 0:
+					_hire_card_idx -= 1
+				if _hire_gold_lbl != null and is_instance_valid(_hire_gold_lbl):
+					_hire_gold_lbl.text = "Gold: %d" % GameState.gold
+				_build_hire_card_area(),
+			func() -> void:
+				GameState.gold += hire_cost  # restore on cancel
+				swap_layer.queue_free()
+		)
+		swap_layer.add_child(panel)
 
 ## --- Inventory Column ---
 

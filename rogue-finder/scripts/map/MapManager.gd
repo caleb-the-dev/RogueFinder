@@ -1277,6 +1277,16 @@ func _build_dev_event_panel() -> void:
 	)
 	inv_row.add_child(add_bench_btn)
 
+	var give_gold_btn := Button.new()
+	give_gold_btn.text = "+ Give Gold +100"
+	give_gold_btn.custom_minimum_size = Vector2(180.0, 32.0)
+	give_gold_btn.add_theme_font_size_override("font_size", 13)
+	give_gold_btn.pressed.connect(func() -> void:
+		GameState.gold += 100
+		GameState.save()
+	)
+	inv_row.add_child(give_gold_btn)
+
 	var sep_inv := HSeparator.new()
 	vbox.add_child(sep_inv)
 
