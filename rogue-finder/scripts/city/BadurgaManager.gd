@@ -624,20 +624,18 @@ func _build_bench_col() -> VBoxContainer:
 		col.add_child(empty_lbl)
 		return col
 
-	var hint := Label.new()
-	hint.text = "Drag to party slot to swap. Drag to Release to discard."
-	hint.add_theme_font_size_override("font_size", 10)
-	hint.add_theme_color_override("font_color", Color(0.50, 0.48, 0.44))
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(hint)
+	# 2-column grid; ScrollContainer handles overflow when bench fills 5 rows
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.add_child(scroll)
 
-	# Fixed 3×3 grid — no scroll, 9 cap means it always fits
 	var grid := GridContainer.new()
-	grid.columns = 3
+	grid.columns = 2
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
-	col.add_child(grid)
+	scroll.add_child(grid)
 
 	for i in range(GameState.bench.size()):
 		grid.add_child(_build_bench_card(i, GameState.bench[i]))
