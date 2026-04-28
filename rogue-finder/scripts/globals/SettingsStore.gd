@@ -39,11 +39,5 @@ func load_settings() -> void:
 
 func set_fullscreen(value: bool) -> void:
 	fullscreen = value
-	_apply_fullscreen()
 	save_settings()
-
-func _apply_fullscreen() -> void:
-	if not is_inside_tree():
-		return
-	# Setting root.mode is more reliable than DisplayServer.window_set_mode on Windows.
-	get_tree().root.mode = Window.MODE_FULLSCREEN if fullscreen else Window.MODE_WINDOWED
+	# Window mode is applied by the caller (PauseMenuManager) which has a live window context.

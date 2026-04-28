@@ -500,7 +500,11 @@ func _on_confirm_yes() -> void:
 ## --- Settings Handlers ---
 
 func _on_fullscreen_toggled(pressed: bool) -> void:
-	SettingsStore.set_fullscreen(pressed)
+	SettingsStore.fullscreen = pressed
+	SettingsStore.save_settings()
+	var target: Window.Mode = Window.MODE_FULLSCREEN if pressed else Window.MODE_WINDOWED
+	get_window().mode = target
+	print("[PauseMenu] fullscreen toggled: %s — window mode now %d" % [pressed, get_window().mode])
 	emit_signal("settings_changed")
 
 func _on_master_changed(value: float) -> void:
