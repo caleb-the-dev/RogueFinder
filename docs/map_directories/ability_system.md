@@ -1,6 +1,6 @@
 # System: Ability System
 
-> Last updated: 2026-04-27 (armor mod — Attribute enum gains PHYSICAL_ARMOR_MOD/MAGIC_ARMOR_MOD; stone_guard/divine_ward now mechanically active)
+> Last updated: 2026-04-27 (kindred expansion — 12 new abilities for 4 new kindreds; total 54)
 
 ---
 
@@ -23,7 +23,7 @@ One QTE fires per ability. The resulting `multiplier` float is shared across eve
 | `resources/AbilityData.gd` | Ability resource — identity, targeting shape, cost, effects array |
 | `resources/EffectData.gd` | Sub-resource — one effect within an ability |
 | `scripts/globals/AbilityLibrary.gd` | CSV-native loader — 42 abilities, `get_ability()` / `all_abilities()` / `reload()` API |
-| `data/abilities.csv` | Data source — 42 ability rows; `effects` column is a JSON array of effect objects |
+| `data/abilities.csv` | Data source — 54 ability rows; `effects` column is a JSON array of effect objects |
 
 ---
 
@@ -133,7 +133,7 @@ One QTE fires per ability. The resulting `multiplier: float` is shared across al
 
 CSV-native lazy-loaded class. Same pattern as all other data libraries. `ABILITIES` const dict removed; data now sourced from `abilities.csv`. Effects column stores a JSON array — each object has `type` (string), `base_value` (int), and type-specific optional keys (`pool`, `stat`, `move`, `force`).
 
-### Defined Abilities (42)
+### Defined Abilities (54)
 
 Rows are grouped by origin; all share the same CSV format and `get_ability()` lookup.
 
@@ -164,7 +164,7 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 | `shove` | Shove | STR | 3 | 1 | Single | Enemy | FORCE PUSH 2 |
 | `windblast` | Windblast | COG | 3 | 3 | Radial | Enemy | FORCE RADIAL 2 |
 
-#### Kindred Natural Attacks (4) — assigned as `abilities[1]` at character creation
+#### Kindred Natural Attacks (8) — assigned as `abilities[1]` at character creation
 
 | ID | Name | Kindred | Attr | Cost | Effects |
 |----|------|---------|------|------|---------|
@@ -172,8 +172,12 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 | `savage_blow` | Savage Blow | Half-Orc | STR | 2 | HARM 6 HP |
 | `gadget_spark` | Gadget Spark | Gnome | COG | 2 | HARM 4 HP (range 2) |
 | `stone_fist` | Stone Fist | Dwarf | STR | 2 | HARM 5 HP |
+| `bone_strike` | Bone Strike | Skeleton | STR | 2 | HARM 5 HP |
+| `gnaw` | Gnaw | Giant Rat | STR | 2 | HARM 4 HP |
+| `venom_bite` | Venom Bite | Spider | DEX | 2 | HARM 3 HP + DEBUFF 1 DEX |
+| `claw_swipe` | Claw Swipe | Dragon | STR | 2 | ARC HARM 5 HP |
 
-#### Kindred Ancestry Abilities (6) — in kindred `ability_pool` (not granted at creation)
+#### Kindred Ancestry Abilities (12) — in kindred `ability_pool` (not granted at creation)
 
 | ID | Name | Attr | Cost | Effects |
 |----|------|------|------|---------|
@@ -183,6 +187,14 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 | `tinker_boost` | Tinker Boost | COG | 2 | BUFF 1 COG |
 | `quick_wit` | Quick Wit | COG | 2 | DEBUFF 1 COG (range 3) |
 | `stone_guard` | Stone Guard | STR | 2 | BUFF 2 PHYSICAL_ARMOR_MOD |
+| `grim_endurance` | Grim Endurance | WIL | 2 | BUFF 2 VIT (Skeleton) |
+| `death_rattle` | Death Rattle | WIL | 2 | DEBUFF 1 WIL range 2 (Skeleton) |
+| `scatter` | Scatter | DEX | 1 | TRAVEL 2 FREE — cost 1, cheapest ability (Giant Rat) |
+| `pack_instinct` | Pack Instinct | WIL | 2 | ARC BUFF 1 STR (Giant Rat) |
+| `web_shot` | Web Shot | COG | 3 | DEBUFF 2 DEX range 3 (Spider) |
+| `skitter` | Skitter | DEX | 2 | BUFF 2 DEX (Spider) |
+| `draconic_breath` | Draconic Breath | COG | 3 | CONE HARM 4 MAGIC (Dragon) |
+| `scales_up` | Scales Up | STR | 2 | BUFF 2 PHYSICAL_ARMOR_MOD (Dragon) |
 
 #### Class Defining Abilities (4) — unique per class, assigned as `abilities[0]` at character creation
 
@@ -251,6 +263,7 @@ static func reload() -> void                         # cache-clear for tests/dev
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Kindred expansion — 12 new abilities.** 4 new kindreds (Skeleton, Giant Rat, Spider, Dragon) each received a natural attack + 2 ancestry pool abilities. Total 42→54. Notable: `scatter` (cost 1) is intentionally the cheapest ability in the game. `venom_bite` is the first natural attack with a dual effect (HARM + DEBUFF). `claw_swipe` uses ARC shape at natural-attack cost 2. No code changes — data-only additions to `abilities.csv`. |
 | 2026-04-27 | **Armor mod — Attribute enum extended.** Added `PHYSICAL_ARMOR_MOD = 6` and `MAGIC_ARMOR_MOD = 7` to `AbilityData.Attribute`. `AbilityLibrary._ATTRIBUTE` gained the matching string keys so JSON `"stat":"PHYSICAL_ARMOR_MOD"` / `"MAGIC_ARMOR_MOD"` parse correctly in effects cells. `stone_guard` and `divine_ward` rows updated from the dead `"ARMOR_DEFENSE"` value to the new enum names — both are now mechanically active. No new abilities; no other ability rows changed. |
 | 2026-04-27 | **DamageType enum + damage_type field.** `AbilityData` gained `DamageType` enum (`PHYSICAL=0`, `MAGIC=1`, `NONE=2`) and `damage_type: DamageType = DamageType.NONE` field. `abilities.csv` gained `damage_type` column — all 42 abilities tagged. `AbilityLibrary` gained `_DAMAGE_TYPE` lookup dict; `_row_to_data` parses the new column. Physical: melee/ranged attacks. Magic: fire/acid/arcane/gadget. NONE: all non-HARM abilities. |
 | 2026-04-26 | **Class pool expansion** — 4 class defining abilities + 6 pool additions (Prowler + Warden); abilities.csv 32→42 rows. |

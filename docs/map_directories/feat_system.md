@@ -24,7 +24,7 @@ Central registry for passive character feats. Each background grants one definin
 |------|------|
 | `resources/FeatData.gd` | Resource: one feat (id, name, description, source_type, stat_bonuses, effects) |
 | `scripts/globals/FeatLibrary.gd` | CSV-native loader; `get_feat()` / `all_feats()` / `reload()` |
-| `data/feats.csv` | Data source: 32 feats (20 class, 12 background — kindred rows removed) |
+| `data/feats.csv` | Data source: 38 feats (20 class, 18 background — kindred rows removed) |
 
 ---
 

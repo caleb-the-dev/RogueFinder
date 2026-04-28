@@ -1,6 +1,6 @@
 # System: Equipment & Consumables
 
-> Last updated: 2026-04-27 (added plate_cuirass + warded_robe — first magic_armor equipment piece)
+> Last updated: 2026-04-27 (kindred expansion — equipment 9→20, consumables 2→6)
 
 ---
 
@@ -22,9 +22,9 @@ Gear comes from rewards — no archetype starts with equipment. Consumables are 
 | `resources/EquipmentData.gd` | Resource — one equipment item |
 | `resources/ConsumableData.gd` | Resource — one consumable item |
 | `scripts/globals/EquipmentLibrary.gd` | Static catalog — CSV-sourced (`res://data/equipment.csv`), `get_equipment()` / `all_equipment()` / `reload()` |
-| `data/equipment.csv` | Source of truth — 9 items; `stat_bonuses` as `stat:value\|stat:value` pipe pairs |
+| `data/equipment.csv` | Source of truth — 20 items; `stat_bonuses` as `stat:value\|stat:value` pipe pairs |
 | `scripts/globals/ConsumableLibrary.gd` | Static catalog — CSV-sourced (`res://data/consumables.csv`), `get_consumable()` / `all_consumables()` / `reload()` |
-| `data/consumables.csv` | Source of truth — 2 consumables; edit here |
+| `data/consumables.csv` | Source of truth — 6 consumables; edit here |
 
 ---
 
@@ -53,19 +53,42 @@ func get_bonus(stat_name: String) -> int
 
 Static class. Internal storage: `const _ITEMS: Array[Dictionary]`.
 
-### Defined Items (9)
+### Defined Items (20)
 
-| ID | Name | Slot | Bonuses | Description |
-|----|------|------|---------|-------------|
-| `leather_armor` | Leather Armor | ARMOR | physical_armor +1 | Light protection. |
-| `chain_mail` | Chain Mail | ARMOR | physical_armor +2, dexterity -1 | Heavier. Slower. |
-| `plate_cuirass` | Plate Cuirass | ARMOR | physical_armor +3, dexterity -2 | Heavy steel plate. Soaks blows but you'll feel every step. |
-| `warded_robe` | Warded Robe | ARMOR | magic_armor +2 | First magic_armor equipment piece — exercises the `_equip_bonus("magic_armor")` codepath that previously had no live data. |
-| `short_sword` | Short Sword | WEAPON | strength +1 | A simple blade. |
-| `rusted_dagger` | Rusted Dagger | WEAPON | (none) | A dagger eaten by rust. Still sharp enough. |
-| `hunters_bow` | Hunter's Bow | WEAPON | dexterity +1 | Better range. |
-| `iron_ring` | Iron Ring | ACCESSORY | vitality +1 | Adds constitution. |
-| `lucky_charm` | Lucky Charm | ACCESSORY | willpower +1 | Luck of the draw. |
+**ARMOR (7):**
+
+| ID | Name | Bonuses |
+|----|------|---------|
+| `leather_armor` | Leather Armor | physical_armor +1 |
+| `chain_mail` | Chain Mail | physical_armor +2, dexterity -1 |
+| `plate_cuirass` | Plate Cuirass | physical_armor +3, dexterity -2 |
+| `warded_robe` | Warded Robe | magic_armor +2 |
+| `hide_armor` | Hide Armor | physical_armor +1, vitality +1 |
+| `silk_shroud` | Silk Shroud | magic_armor +1, dexterity +1 |
+| `dragonscale_vest` | Dragonscale Vest | physical_armor +2, magic_armor +1 |
+
+**WEAPON (7):**
+
+| ID | Name | Bonuses |
+|----|------|---------|
+| `short_sword` | Short Sword | strength +1 |
+| `rusted_dagger` | Rusted Dagger | (none) |
+| `hunters_bow` | Hunter's Bow | dexterity +1 |
+| `war_hammer` | War Hammer | strength +2, dexterity -1 |
+| `twin_daggers` | Twin Daggers | dexterity +2 |
+| `mages_staff` | Mage's Staff | cognition +1, willpower +1 |
+| `bone_club` | Bone Club | strength +1 |
+
+**ACCESSORY (6):**
+
+| ID | Name | Bonuses |
+|----|------|---------|
+| `iron_ring` | Iron Ring | vitality +1 |
+| `lucky_charm` | Lucky Charm | willpower +1 |
+| `swift_boots` | Swift Boots | dexterity +1 |
+| `scholars_ring` | Scholar's Ring | cognition +1 |
+| `amulet_of_will` | Amulet of Will | willpower +1 |
+| `fang_necklace` | Fang Necklace | strength +1 |
 
 ### Public API
 
@@ -99,12 +122,16 @@ Only MEND, BUFF, and DEBUFF are valid — consumables never HARM, FORCE, or TRAV
 
 Static class. Internal storage: `const CONSUMABLES: Dictionary`.
 
-### Defined Consumables (2)
+### Defined Consumables (6)
 
 | ID | Name | Effect | Value |
 |----|------|--------|-------|
 | `healing_potion` | Healing Potion | MEND HP | 15 |
 | `power_tonic` | Power Tonic | BUFF STR | +2 |
+| `rage_draught` | Rage Draught | BUFF STR | +3 |
+| `focus_brew` | Focus Brew | BUFF COG | +2 |
+| `swiftness_tonic` | Swiftness Tonic | BUFF DEX | +2 |
+| `antidote` | Antidote | MEND HP | 8 |
 
 ### Public API
 

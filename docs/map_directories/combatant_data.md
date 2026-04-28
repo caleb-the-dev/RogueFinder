@@ -52,7 +52,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `character_name` | `String` | Display name; player-editable. When `is_player=true` and no explicit name is supplied to `ArchetypeLibrary.create()`, auto-drawn from the character's kindred name pool via `KindredLibrary.get_name_pool()`. Falls back to `"Unit"` if the kindred's pool is empty. |
 | `archetype_id` | `String` | Key into `ArchetypeLibrary` (via `get_archetype()` → `archetypes.csv`). |
 | `is_player_unit` | `bool` | Team assignment; drives AI vs. player control. |
-| `kindred` | `String` | Species/ancestry (e.g. `"Human"`, `"Dwarf"`, `"Gnome"`, `"Half-Orc"`). Fixed per archetype; set in `create()` from `def["kindred"]` via `.get("kindred", "Unknown")`. Persisted to save. Old saves default to `"Unknown"`. **Mechanically active:** drives `speed` and `hp_max` via `KindredLibrary`. |
+| `kindred` | `String` | Species/ancestry. Current values: `"Human"`, `"Half-Orc"`, `"Gnome"`, `"Dwarf"`, `"Skeleton"`, `"Giant Rat"`, `"Spider"`, `"Dragon"`. Fixed per archetype; set in `create()` from `def["kindred"]`. Persisted to save. Old saves default to `"Unknown"`. **Mechanically active:** drives `speed` and `hp_max` via `KindredLibrary`. |
 | ~~`kindred_feat_id`~~ | ~~removed~~ | Replaced by `feat_ids` (see Persistent Run State). |
 
 ### Background & Class

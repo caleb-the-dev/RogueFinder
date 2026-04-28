@@ -1,6 +1,6 @@
 # System: Background System
 
-> Last updated: 2026-04-27 (balance pass — each background now gives exactly +1 to a single stat)
+> Last updated: 2026-04-27 (kindred expansion — added scavenger + pit_fighter; now 6 backgrounds)
 
 ---
 
@@ -69,7 +69,7 @@ static func _parse_stat_bonuses(val: String) -> Dictionary
 static func _split_pipe(val: String) -> Array[String]
 ```
 
-### Defined Backgrounds (4 rows)
+### Defined Backgrounds (6 rows)
 
 | ID | Name | Starting Feat | Feat Pool | Stat Bonuses | Tags |
 |----|------|--------------|-----------|-------------|------|
@@ -77,8 +77,11 @@ static func _split_pipe(val: String) -> Array[String]
 | `soldier` | Soldier | `combat_training` | disciplined_stance, unit_cohesion | strength:1 | `military`, `disciplined` |
 | `scholar` | Scholar | `analytical_mind` | focused_study, breadth_of_knowledge | cognition:1 | `academic`, `urban` |
 | `baker` | Baker | `hearty_constitution` | enduring_spirit, patient_resolve | vitality:1 | `commoner`, `urban` |
+| `scavenger` | Scavenger | `opportunist` | quick_grab, waste_not | dexterity:1 | `criminal`, `feral` |
+| `pit_fighter` | Pit Fighter | `crowd_pleaser` | brutal_technique, iron_chin | strength:1 | `combat`, `criminal` |
 
 > **Balance rule (2026-04-27):** each background gives **exactly +1 to a single stat** — no multi-stat spreads, no +2, no negatives.
+> **Design note:** Scavenger and Pit Fighter are intentionally species-agnostic — a Giant Rat with Baker background is perfectly valid lore-wise.
 
 ### Parsing Rules
 
@@ -143,6 +146,7 @@ func get_background_stat_bonus(stat: String) -> int:
 
 | Date | Change |
 |---|---|
+| 2026-04-27 | **Kindred expansion — 2 new backgrounds.** `scavenger` (DEX+1, criminal/feral, feat pool: quick_grab/waste_not) and `pit_fighter` (STR+1, combat/criminal, feat pool: brutal_technique/iron_chin) added. 6 new background feats added to feats.csv. Species-agnostic by design — valid for humanoid and non-humanoid kindreds alike. Backgrounds: 4→6, background feats: 12→18. |
 | 2026-04-27 | **Balance pass — single-stat rule.** All backgrounds now give exactly +1 to one stat. soldier: `strength:1\|vitality:1` → `strength:1`. scholar: `cognition:2` → `cognition:1`. baker: `vitality:1\|willpower:1` → `vitality:1`. crook unchanged (`dexterity:1`). |
 | 2026-04-26 | **Pillar foundation.** `starting_ability_id` removed; replaced with `starting_feat_id` + `stat_bonuses`. `BackgroundData.gd` updated. `BackgroundLibrary` gains `_parse_stat_bonuses()`. `get_background_stat_bonus()` wired into `CombatantData` derived stats. `CharacterCreationManager._build_pc()` seeds `feat_ids[0]` from `starting_feat_id`. All 4 backgrounds have concrete stat_bonuses and feat assignments. |
 | 2026-04-23 | S30 — fixed 3 broken `starting_ability_id` rows (`crook → smoke_bomb`, `scholar → acid_splash`, `baker → healing_draught`). `starting_ability_id` now removed entirely (see above). |

@@ -3,3 +3,5 @@ crook,Crook,Grew up light-fingered in Badurga's alleys.,street_smart,nimble_fing
 soldier,Soldier,Served a tour under some banner that mattered once.,combat_training,disciplined_stance|unit_cohesion,true,military|disciplined,strength:1,
 scholar,Scholar,Traded sunlight for ink and ancient texts.,analytical_mind,focused_study|breadth_of_knowledge,true,academic|urban,cognition:1,
 baker,Baker,Flour-dusted and endlessly patient.,hearty_constitution,enduring_spirit|patient_resolve,true,commoner|urban,vitality:1,
+scavenger,Scavenger,Picking through what others threw away — and finding it was never worthless.,opportunist,quick_grab|waste_not,true,criminal|feral,dexterity:1,
+pit_fighter,Pit Fighter,Sold your body to the crowd — and found you liked winning.,crowd_pleaser,brutal_technique|iron_chin,true,combat|criminal,strength:1,
