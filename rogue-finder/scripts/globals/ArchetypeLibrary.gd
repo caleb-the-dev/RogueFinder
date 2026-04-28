@@ -86,7 +86,7 @@ static func create(archetype_id: String, character_name: String = "",
 	data.consumable = src.consumable
 
 	var bgs: Array[String] = src.backgrounds
-	data.background = bgs[rng.randi_range(0, bgs.size() - 1)]
+	data.background = bgs[rng.randi_range(0, bgs.size() - 1)] if not bgs.is_empty() else ""
 
 	data.strength  = rng.randi_range(src.str_range[0],   src.str_range[1])
 	data.dexterity = rng.randi_range(src.dex_range[0],   src.dex_range[1])

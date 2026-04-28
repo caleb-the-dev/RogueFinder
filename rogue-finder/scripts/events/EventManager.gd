@@ -236,6 +236,10 @@ func _on_continue_pressed() -> void:
 ## --- Static: Condition Evaluator ---
 
 static func evaluate_condition(condition: String, party: Array[CombatantData]) -> bool:
+	# Zero-argument conditions
+	if condition == "bench_not_full":
+		return GameState.bench.size() < GameState.BENCH_CAP
+
 	var parts := condition.split(":")
 	if parts.size() < 2:
 		push_warning("EventManager: unknown condition format '%s' — failing open" % condition)
@@ -366,6 +370,22 @@ static func dispatch_effect(effect: Dictionary, party: Array[CombatantData],
 			var feat_id: String = effect.get("feat_id", "")
 			if not feat_id.is_empty():
 				GameState.grant_feat(party.find(t), feat_id)
+		"recruit_follower":
+			var arch_id: String = effect.get("archetype_id", "grunt")
+			var arch: ArchetypeData = ArchetypeLibrary.get_archetype(arch_id)
+			var name_val: String = effect.get("name", "")
+			if name_val.is_empty():
+				var pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
+				name_val = pool[randi() % pool.size()] if not pool.is_empty() else "Recruit"
+			var follower: CombatantData = ArchetypeLibrary.create(arch_id, name_val, true)
+			if not GameState.party.is_empty():
+				follower.level = GameState.party[0].level
+			follower.xp = 0
+			follower.pending_level_ups = 0
+			follower.current_hp     = follower.hp_max
+			follower.current_energy = follower.energy_max
+			if not GameState.add_to_bench(follower):
+				push_warning("EventManager: recruit_follower — bench full, follower not added")
 		"open_vendor", "open_bench":
 			pass  # nav effects handled in _on_choice_pressed
 		_:

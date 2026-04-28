@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-28 (Follower Slice 4 — recruit success path + bench persistence + Party Management restore) |
+| last_updated | 2026-04-28 (Follower Slice 5 — event follower channel: recruit_follower effect + bench_not_full condition + 3 follower events) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 14 |
+| sessions_since_groom | 15 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -42,7 +42,7 @@
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + bench + inventory + XP/level-up) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay layer 20; level-up pick overlay layer 25) | Presentation |
-| [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker + 15 events (3 smoke + 12 authored) (Slices 1/3/4/5/6) | Data / World Map |
+| [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker + 17 events (3 smoke + 14 authored) + recruit_follower effect (Slices 1/3/4/5/6/7) | Data / World Map |
 | [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ✅ Active — 38 feats (20 class, 18 background), stat bonuses applied, grant_feat() API live | Data |
 
 ---

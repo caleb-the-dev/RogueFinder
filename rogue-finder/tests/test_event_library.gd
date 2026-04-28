@@ -26,8 +26,8 @@ func test_load_succeeds() -> void:
 	print("  PASS test_load_succeeds")
 
 func test_event_count() -> void:
-	assert(EventLibrary.all_events().size() == 3,
-		"Expected 3 smoke events, got %d" % EventLibrary.all_events().size())
+	assert(EventLibrary.all_events().size() == 17,
+		"Expected 17 events, got %d" % EventLibrary.all_events().size())
 	print("  PASS test_event_count")
 
 func test_get_known_event() -> void:
@@ -103,28 +103,28 @@ func test_noop_choice_empty_effects() -> void:
 
 func test_ring_filter_outer() -> void:
 	var outer_events: Array[EventData] = EventLibrary.all_events_for_ring("outer")
-	assert(outer_events.size() == 3,
-		"outer ring should have 3 events, got %d" % outer_events.size())
+	assert(outer_events.size() == 10,
+		"outer ring should have 10 events, got %d" % outer_events.size())
 	print("  PASS test_ring_filter_outer")
 
 func test_ring_filter_middle() -> void:
 	var middle_events: Array[EventData] = EventLibrary.all_events_for_ring("middle")
-	assert(middle_events.size() == 3,
-		"middle ring should have 3 events, got %d" % middle_events.size())
+	assert(middle_events.size() == 10,
+		"middle ring should have 10 events, got %d" % middle_events.size())
 	print("  PASS test_ring_filter_middle")
 
 func test_ring_filter_inner() -> void:
 	var inner_events: Array[EventData] = EventLibrary.all_events_for_ring("inner")
-	assert(inner_events.size() == 1,
-		"inner ring should have 1 event, got %d" % inner_events.size())
+	assert(inner_events.size() == 5,
+		"inner ring should have 5 events, got %d" % inner_events.size())
 	assert(inner_events[0].id == "wounded_traveler",
-		"inner ring event should be 'wounded_traveler', got '%s'" % inner_events[0].id)
+		"first inner ring event should be 'wounded_traveler', got '%s'" % inner_events[0].id)
 	print("  PASS test_ring_filter_inner")
 
 func test_reload_repopulates() -> void:
 	EventLibrary.reload()
-	assert(EventLibrary.all_events().size() == 3,
-		"reload() should restore 3 events, got %d" % EventLibrary.all_events().size())
+	assert(EventLibrary.all_events().size() == 17,
+		"reload() should restore 17 events, got %d" % EventLibrary.all_events().size())
 	var chest: EventData = EventLibrary.get_event("chest_rusty")
 	assert(chest.choices.size() == 2,
 		"reload() should re-attach choices (expected 2, got %d)" % chest.choices.size())

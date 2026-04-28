@@ -8,7 +8,7 @@
 
 | Layer | Status |
 |---|---|
-| Data library (EventLibrary + CSVs) | ✅ Active (15 events, 46 choice rows, 12 tests) |
+| Data library (EventLibrary + CSVs) | ✅ Active (17 events, 53 choice rows, 12 tests) |
 | EventSelector (ring filter + no-repeat) | ✅ Active — Slice 3 (5 tests) |
 | EventScene overlay + EventManager | ✅ Active — Slice 4 (19 tests) |
 | Effect dispatch + condition evaluator | ✅ Active — Slice 4 |
@@ -35,6 +35,8 @@
 | `rogue-finder/tests/test_event_manager.tscn` | Test runner scene |
 | `rogue-finder/tests/test_event_manager_slice5.gd` | 7 headless tests (player_pick picker flow, forced_target dispatch, new-item glow stamps) |
 | `rogue-finder/tests/test_event_manager_slice5.tscn` | Test runner scene |
+| `rogue-finder/tests/test_event_follower.gd` | 5 headless tests (recruit_follower effect, bench_not_full condition) |
+| `rogue-finder/tests/test_event_follower.tscn` | Test runner scene |
 
 ---
 
@@ -107,6 +109,7 @@ Returns `true` if ANY party member satisfies the condition. Supported forms:
 | `background:ID` | Any member's `background == ID` |
 | `feat:ID` | Any member's `feat_ids` array contains ID |
 | `item:ID` | Any entry in `GameState.inventory` has `id == ID` |
+| `bench_not_full` | Bench has fewer than `BENCH_CAP` (9) followers; zero-argument form (no `:`) |
 
 Unknown form → `push_warning` + return `true` (fail open — never silently gate a choice).
 
@@ -209,6 +212,7 @@ All methods are `static`. No instantiation required.
 | `xp_grant` | `value` | Log-only stub until party XP system lands |
 | `threat_delta` | `value` | Signed int; updates threat meter |
 | `feat_grant` | `target`, `feat_id` | Appends feat to combatant's feat list |
+| `recruit_follower` | `archetype_id`, `name` (optional) | Builds a follower from archetype, level-matches to party[0], inserts into bench. `name` field used as-is; if absent, picks from kindred pool. No-op + push_warning when bench is full. |
 | `open_bench` | — | Nav effect; terminates event, routes to bench |
 | `open_vendor` | — | Nav effect; terminates event, routes to vendor |
 
@@ -272,6 +276,7 @@ All methods are `static`. No instantiation required.
 
 | Date | Change |
 |---|---|
+| 2026-04-28 | **Follower Slice 5 — Event follower channel.** `recruit_follower` effect added to `dispatch_effect()`: builds a CombatantData from archetype, level-matches to party[0], inserts into bench (no-op + warning when full). `bench_not_full` zero-argument condition added to `evaluate_condition()` (checked before the `:` split). 3 follower-offer events authored: `wandering_sellsword` (outer/middle), `skeletal_wanderer` (middle/inner), `stray_dog` choice 0 upgraded from no-op to live recruit. `ArchetypeLibrary.create()` defensively guards empty `backgrounds` array (empty string instead of crash). events.csv: 17 rows. event_choices.csv: 53 rows. 5 new headless tests (`test_event_follower.gd`). |
 | 2026-04-25 | **Slice 6b — Event revisions.** Post-testing pass: 13 changes to authored events. `wounded_traveler` rewritten as Wandering Medic (healer NPC, not victim). `fallen_signpost` body reworded. `stray_dog` choice 0 changed to recruit placeholder (no-op). `abandoned_campfire` choice 1 label/result clarified. `road_patrol`: "Cite your service" → no-op (was −5% threat); "Take the long way" → +10% threat (was no-op). `mercenary_camp`: dropped COG-gated "Trade information"; "Hire escort" → recruit placeholder no-op. `burned_farmhouse`: tend-to-child → `item_gain lucky_charm` (was heal PC). `river_crossing`: "Turn back" → +10% threat (was no-op). `survivor_in_the_dark` removed entirely. `mass_grave`: dropped COG-gated "Examine carefully"; "Disturb soil" → harm 5 + `item_gain rusted_dagger` (was harm-only). `ember_idol`: dropped `item:lucky_charm`-gated "Leave the charm" choice. Final counts: events.csv 15 rows, event_choices.csv 46 rows. |
 | 2026-04-25 | **Slice 6** — Authoring pass. 12 new events authored across all three rings. events.csv: 15 rows. event_choices.csv: 46 rows. No GDScript changes. Ring coverage: outer (fallen_signpost, roadside_shrine, dry_well, abandoned_campfire, stray_dog, road_patrol), middle (road_patrol, mercenary_camp, burned_farmhouse, standing_stone, river_crossing), inner (standing_stone, mass_grave, ember_idol). Effects used: item_gain, item_remove, harm, heal, threat_delta, feat_grant. `wounded_traveler` preserved as canonical player_pick test event. |
 | 2026-04-25 | **Slice 5** — `player_pick` picker overlay + `target_picked` signal. `_on_choice_pressed` is now a coroutine (`await`): pre-scans effects for `player_pick`, shows picker if needed, awaits `target_picked`, then dispatches with `forced_target`. `dispatch_effect` signature extended with optional `forced_target: CombatantData = null`; new `_resolve_with_override` helper routes it. Picker: `CenterContainer` + `PanelContainer` (~500×200 px), one button per alive party member, freed after pick. 7 new headless tests (96 total). |
