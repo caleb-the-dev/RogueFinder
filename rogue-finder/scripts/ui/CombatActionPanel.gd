@@ -379,6 +379,10 @@ func _refresh_recruit(unit: Unit3D) -> void:
 	var is_pathfinder: bool = unit.data.is_player_unit \
 		and not GameState.party.is_empty() \
 		and unit.data == GameState.party[0]
+	# In recruit_test room the party is empty; use archetype_id instead.
+	if GameState.test_room_kind == "recruit_test" \
+			and unit.data.is_player_unit and unit.data.archetype_id == "RogueFinder":
+		is_pathfinder = true
 	_recruit_btn.visible = is_pathfinder
 	if is_pathfinder:
 		var can_recruit: bool = (not unit.has_acted) \

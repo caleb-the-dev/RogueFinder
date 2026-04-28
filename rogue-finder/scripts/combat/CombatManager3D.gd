@@ -174,6 +174,8 @@ func _setup_test_room_units() -> void:
 	match GameState.test_room_kind:
 		"armor_mod":
 			_spawn_test_room(_armor_mod_player_defs(), _armor_mod_enemy_defs())
+		"recruit_test":
+			_spawn_test_room(_recruit_test_player_defs(), _recruit_test_enemy_defs())
 		_:
 			_spawn_test_room(_armor_showcase_player_defs(), _armor_showcase_enemy_defs())
 
@@ -359,9 +361,70 @@ func _make_test_combatant(def: Dictionary) -> CombatantData:
 		abs.append(str(a))
 	cd.abilities      = abs
 	cd.ability_pool   = abs.duplicate()
-	cd.current_hp     = cd.hp_max
+	# "hp" key overrides current_hp (used by recruit_test to force 1 HP enemies)
+	cd.current_hp     = def.get("hp", cd.hp_max)
 	cd.current_energy = cd.energy_max
 	return cd
+
+## --- Recruit Test scenario ---
+## RogueFinder with high HP and energy vs 3 weaklings at 1 HP — fast recruit loop for QTE testing.
+
+func _recruit_test_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			"name": "The RogueFinder", "archetype": "RogueFinder", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 4, "cog": 4, "wil": 4, "vit": 10,
+			"phys_arm": 5, "magic_arm": 5,
+			"abilities": ["slipshot", "quick_shot", "backstab", "crippling_shot"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Ally A", "archetype": "test_ally", "kindred": "Human",
+			"class": "vanguard", "is_player": true,
+			"str": 4, "dex": 3, "cog": 3, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Ally B", "archetype": "test_ally", "kindred": "Human",
+			"class": "warden", "is_player": true,
+			"str": 3, "dex": 3, "cog": 3, "wil": 5, "vit": 5,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["bless", "lay_on_hands", "rallying_shout", "shield_bash"],
+			"qte": 0.0,
+		},
+	]
+
+func _recruit_test_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## 1 HP — trivially recruitable; low qte so they barely dodge
+			"name": "Whelp A", "archetype": "grunt", "kindred": "Human",
+			"class": "vanguard", "is_player": false,
+			"str": 2, "dex": 2, "cog": 2, "wil": 2, "vit": 1,
+			"phys_arm": 0, "magic_arm": 0,
+			"abilities": ["strike", "heavy_strike", "shove", "sweep"],
+			"qte": 0.05, "hp": 1,
+		},
+		{
+			"name": "Whelp B", "archetype": "grunt", "kindred": "Human",
+			"class": "vanguard", "is_player": false,
+			"str": 2, "dex": 2, "cog": 2, "wil": 2, "vit": 1,
+			"phys_arm": 0, "magic_arm": 0,
+			"abilities": ["strike", "heavy_strike", "shove", "sweep"],
+			"qte": 0.05, "hp": 1,
+		},
+		{
+			"name": "Whelp C", "archetype": "grunt", "kindred": "Human",
+			"class": "vanguard", "is_player": false,
+			"str": 2, "dex": 2, "cog": 2, "wil": 2, "vit": 1,
+			"phys_arm": 0, "magic_arm": 0,
+			"abilities": ["strike", "heavy_strike", "shove", "sweep"],
+			"qte": 0.05, "hp": 1,
+		},
+	]
 
 func _setup_ui() -> void:
 	_qte_bar = preload("res://scenes/combat/QTEBar.tscn").instantiate()
@@ -1776,8 +1839,12 @@ func _unit_can_still_act(unit: Unit3D) -> bool:
 		var ability: AbilityData = AbilityLibrary.get_ability(ability_id)
 		if unit.current_energy >= ability.energy_cost:
 			return true
-	# Pathfinder can also act via Recruit when energy and bench allow
-	if not GameState.party.is_empty() and unit.data == GameState.party[0]:
+	# Pathfinder can also act via Recruit when energy and bench allow.
+	# In the recruit_test room party is empty, so we check archetype_id directly.
+	var is_pathfinder: bool = (not GameState.party.is_empty() and unit.data == GameState.party[0]) \
+		or (GameState.test_room_kind == "recruit_test" \
+			and unit.data.is_player_unit and unit.data.archetype_id == "RogueFinder")
+	if is_pathfinder:
 		if unit.current_energy >= RECRUIT_ENERGY_COST \
 				and GameState.bench.size() < GameState.BENCH_CAP:
 			return true

@@ -1222,6 +1222,18 @@ func _build_dev_event_panel() -> void:
 	)
 	test_room_row.add_child(armor_mod_btn)
 
+	var recruit_test_btn := Button.new()
+	recruit_test_btn.text = "⊕ Test Room — Recruit"
+	recruit_test_btn.custom_minimum_size = Vector2(220.0, 32.0)
+	recruit_test_btn.add_theme_font_size_override("font_size", 13)
+	recruit_test_btn.pressed.connect(func() -> void:
+		_dev_event_panel.visible = false
+		GameState.test_room_mode = true
+		GameState.test_room_kind = "recruit_test"
+		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+	)
+	test_room_row.add_child(recruit_test_btn)
+
 	var sep_combat := HSeparator.new()
 	vbox.add_child(sep_combat)
 
