@@ -38,8 +38,12 @@ const STAT_STATUS_NAMES: Dictionary = {
 enum CombatState { PLAYER_TURN, QTE_RUNNING, ENEMY_TURN, WIN, LOSE }
 enum PlayerMode  { IDLE, STRIDE_MODE, ABILITY_TARGET_MODE, TRAVEL_DESTINATION, RECRUIT_TARGET_MODE }
 
-## Emitted when a Recruit QTE succeeds. Slice 4 connects this to bench insertion + enemy removal.
+## Emitted when a Recruit QTE succeeds — external listeners can hook this.
 signal recruit_attempt_succeeded(target: Unit3D)
+
+## Internal one-shot signals for the blocking rename and bench-full modal flows.
+signal _recruit_rename_confirmed
+signal _bench_full_resolved
 
 var state: CombatState = CombatState.PLAYER_TURN
 var mode:  PlayerMode  = PlayerMode.IDLE
@@ -1859,16 +1863,9 @@ func _initiate_recruit(caster: Unit3D, target: Unit3D) -> void:
 		_check_auto_end_turn()
 		return
 
-	# Slice 4: handle success here
-	recruit_attempt_succeeded.emit(target)
-	state = CombatState.PLAYER_TURN
-	if _selected_unit and _selected_unit.is_alive:
-		_select_unit(_selected_unit)
-		_info_bar.refresh(_selected_unit)
-	else:
-		_deselect()
-	_update_status()
-	_check_auto_end_turn()
+	# Full success path: remove enemy, rename, bench-insert, then resume turn.
+	# await keeps this coroutine suspended until the entire flow (including rename prompt) finishes.
+	await _on_recruit_succeeded(target)
 
 ## Computes recruit success probability [0.05, 0.95].
 ## Primary driver: target HP% (lower = easier). Light WIL delta modifier.
@@ -1933,6 +1930,219 @@ func _show_recruit_odds(target: Unit3D) -> void:
 func _clear_recruit_odds_label() -> void:
 	if _recruit_odds_label_node != null:
 		_recruit_odds_label_node.visible = false
+
+## --- Recruit Success Path ---
+
+## Main async handler for a successful recruit QTE. Removes the enemy, runs the rename prompt,
+## inserts the follower onto the bench (or shows bench-full release modal), then resumes the turn.
+## Called via `await` in _initiate_recruit so the turn state is correct throughout.
+func _on_recruit_succeeded(target: Unit3D) -> void:
+	recruit_attempt_succeeded.emit(target)
+
+	# Step 1: Remove target from combat board.
+	_enemy_units.erase(target)
+	_grid.clear_occupied(target.grid_pos)
+	var target_world_pos: Vector3 = target.global_position
+	target.show_floating_text("Recruited!", Color(0.20, 0.80, 0.68))
+	# Brief pause so the floating text is visible before the unit disappears.
+	await get_tree().create_timer(0.4).timeout
+	target.visible = false
+
+	# Step 2: Build follower CombatantData from the captured unit.
+	var follower: CombatantData = _build_follower(target.data)
+
+	# Step 3: Let the player name the follower (blocking).
+	await _show_recruit_rename_prompt(follower)
+
+	# Step 4: Bench insertion.
+	if GameState.add_to_bench(follower):
+		GameState.save()
+		_show_bench_add_label(target_world_pos)
+	else:
+		# Bench is full — let player release a slot or discard the recruit.
+		await _show_bench_full_modal(follower)
+
+	# Step 5: Post-success cleanup.
+	target.queue_free()
+	_camera_rig.trigger_shake()
+	_check_win_lose()
+	_update_status()
+	if state == CombatState.WIN or state == CombatState.LOSE:
+		return
+	state = CombatState.PLAYER_TURN
+	if _selected_unit and _selected_unit.is_alive:
+		_select_unit(_selected_unit)
+		_info_bar.refresh(_selected_unit)
+	else:
+		_deselect()
+	_update_status()
+	_check_auto_end_turn()
+
+## Copies stats from a captured enemy into a new player-side CombatantData.
+## Level matches the current party level (guards against empty party in test room mode).
+func _build_follower(source: CombatantData) -> CombatantData:
+	var f := CombatantData.new()
+	f.archetype_id   = source.archetype_id
+	f.is_player_unit = true
+	f.unit_class     = source.unit_class
+	f.kindred        = source.kindred
+	f.background     = source.background
+	f.temperament_id = source.temperament_id
+	f.strength       = source.strength
+	f.dexterity      = source.dexterity
+	f.cognition      = source.cognition
+	f.willpower      = source.willpower
+	f.vitality       = source.vitality
+	f.physical_armor = source.physical_armor
+	f.magic_armor    = source.magic_armor
+	f.qte_resolution = 0.0
+	f.abilities      = source.abilities.duplicate()
+	f.ability_pool   = source.ability_pool.duplicate()
+	f.feat_ids       = []
+	# Level-match to the party (bible rule). Falls back to 1 in test room where party is empty.
+	var party_level: int = GameState.party[0].level if not GameState.party.is_empty() else 1
+	f.level          = party_level
+	f.xp             = 0
+	f.pending_level_ups = 0
+	f.current_hp     = f.hp_max
+	f.current_energy = f.energy_max
+	f.is_dead        = false
+	f.consumable     = ""
+	# character_name set by _show_recruit_rename_prompt
+	return f
+
+## Blocking rename overlay. Pre-fills from the kindred's name pool. Awaits Confirm (button or Enter).
+## Cannot be cancelled — once recruited, the player must name the follower.
+func _show_recruit_rename_prompt(follower: CombatantData) -> void:
+	var overlay := CanvasLayer.new()
+	overlay.layer = 16
+	add_child(overlay)
+
+	var bg := ColorRect.new()
+	bg.color    = Color(0.08, 0.08, 0.14, 0.97)
+	bg.size     = Vector2(380.0, 162.0)
+	bg.position = Vector2(490.0, 285.0)
+	overlay.add_child(bg)
+
+	var title := Label.new()
+	title.text     = "Name your new follower"
+	title.add_theme_font_size_override("font_size", 15)
+	title.add_theme_color_override("font_color", Color(0.20, 0.80, 0.68))
+	title.position = Vector2(12.0, 10.0)
+	title.size     = Vector2(356.0, 24.0)
+	bg.add_child(title)
+
+	var name_field := LineEdit.new()
+	name_field.position = Vector2(12.0, 46.0)
+	name_field.size     = Vector2(356.0, 36.0)
+	name_field.add_theme_font_size_override("font_size", 15)
+	var pool: Array[String] = KindredLibrary.get_name_pool(follower.kindred)
+	name_field.text = pool[randi() % pool.size()] if not pool.is_empty() else "Recruit"
+	bg.add_child(name_field)
+
+	var confirm_btn := Button.new()
+	confirm_btn.text     = "Confirm"
+	confirm_btn.position = Vector2(12.0, 114.0)
+	confirm_btn.size     = Vector2(356.0, 36.0)
+	bg.add_child(confirm_btn)
+
+	var _confirmed := false
+	var _do_confirm := func() -> void:
+		if _confirmed:
+			return
+		_confirmed = true
+		var name: String = name_field.text.strip_edges()
+		if name.is_empty():
+			name = pool[randi() % pool.size()] if not pool.is_empty() else "Recruit"
+		follower.character_name = name
+		overlay.queue_free()
+		_recruit_rename_confirmed.emit()
+
+	confirm_btn.pressed.connect(_do_confirm)
+	name_field.text_submitted.connect(func(_t: String) -> void: _do_confirm.call())
+
+	await get_tree().process_frame
+	name_field.grab_focus()
+	name_field.select_all()
+
+	await _recruit_rename_confirmed
+
+## Blocking modal listing all bench slots. Player picks one to release (making room), or loses the recruit.
+func _show_bench_full_modal(follower: CombatantData) -> void:
+	var overlay := CanvasLayer.new()
+	overlay.layer = 16
+	add_child(overlay)
+
+	var slot_count: int   = GameState.bench.size()
+	var bg_height: float  = 66.0 + (slot_count + 1) * 44.0 + 12.0
+	var bg := ColorRect.new()
+	bg.color    = Color(0.06, 0.07, 0.16, 0.97)
+	bg.size     = Vector2(400.0, bg_height)
+	bg.position = Vector2(480.0, 60.0)
+	overlay.add_child(bg)
+
+	var title := Label.new()
+	title.text          = "Bench is full. Release a follower to make room, or lose this recruit."
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.position      = Vector2(12.0, 8.0)
+	title.size          = Vector2(376.0, 52.0)
+	title.add_theme_font_size_override("font_size", 13)
+	bg.add_child(title)
+
+	var _resolved := false
+
+	for i in range(slot_count):
+		var f: CombatantData = GameState.bench[i]
+		var slot_btn := Button.new()
+		slot_btn.text = "%s (%s · %s)" % [f.character_name, f.kindred, f.unit_class]
+		slot_btn.position = Vector2(12.0, 66.0 + i * 44.0)
+		slot_btn.size     = Vector2(376.0, 38.0)
+		slot_btn.add_theme_font_size_override("font_size", 13)
+		var idx := i
+		slot_btn.pressed.connect(func() -> void:
+			if _resolved:
+				return
+			_resolved = true
+			GameState.release_from_bench(idx)
+			GameState.add_to_bench(follower)
+			GameState.save()
+			overlay.queue_free()
+			_bench_full_resolved.emit()
+		)
+		bg.add_child(slot_btn)
+
+	var lose_btn := Button.new()
+	lose_btn.text     = "Lose Recruit"
+	lose_btn.position = Vector2(12.0, 66.0 + slot_count * 44.0)
+	lose_btn.size     = Vector2(376.0, 38.0)
+	lose_btn.add_theme_font_size_override("font_size", 13)
+	lose_btn.pressed.connect(func() -> void:
+		if _resolved:
+			return
+		_resolved = true
+		overlay.queue_free()
+		_bench_full_resolved.emit()
+	)
+	bg.add_child(lose_btn)
+
+	await _bench_full_resolved
+
+## Shows a world-space "Added to bench!" label at the target's last position (fire-and-forget).
+## Parented to CM3D (Node3D at origin) so it stays visible after the target is hidden.
+func _show_bench_add_label(world_pos: Vector3) -> void:
+	var lbl := Label3D.new()
+	lbl.text          = "Added to bench!"
+	lbl.modulate      = Color(0.20, 0.80, 0.68)
+	lbl.font_size     = 28
+	lbl.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.no_depth_test = true
+	lbl.position      = world_pos + Vector3(0, 1.0, 0)
+	add_child(lbl)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(lbl, "position:y", lbl.position.y + 1.5, 2.0)
+	tw.tween_property(lbl, "modulate:a", 0.0, 2.0)
+	tw.finished.connect(func() -> void: if is_instance_valid(lbl): lbl.queue_free())
 
 ## --- Status ---
 
