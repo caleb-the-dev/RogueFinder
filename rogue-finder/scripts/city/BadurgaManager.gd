@@ -35,6 +35,10 @@ var _is_bench_drag: bool = false
 var _inv_col_ref:   Control = null
 var _bench_col_ref: Control = null
 
+## Which party member has equipment panel open (-1 = all closed).
+## Only one can be open at a time.
+var _open_equip_party_idx: int = -1
+
 ## Bag sort / search / view state — preserved across overlay rebuilds.
 var _bag_sort_field: String  = "name"
 var _bag_sort_asc:   bool    = true
@@ -153,11 +157,12 @@ func _close_party_management() -> void:
 	if _overlay_layer != null and is_instance_valid(_overlay_layer):
 		_overlay_layer.queue_free()
 	_overlay_layer = null
-	_inv_col_ref    = null
-	_bench_col_ref  = null
-	_is_bench_drag  = false
-	_focus_bag_search = false
-	_active_bag_search = null
+	_inv_col_ref         = null
+	_bench_col_ref       = null
+	_is_bench_drag       = false
+	_open_equip_party_idx = -1
+	_focus_bag_search    = false
+	_active_bag_search   = null
 
 func _build_overlay() -> void:
 	_clear_drag_compare()
@@ -440,21 +445,12 @@ func _build_party_col() -> VBoxContainer:
 	hdr.add_theme_color_override("font_color", Color(0.78, 0.72, 0.58))
 	col.add_child(hdr)
 
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	col.add_child(scroll)
-
-	var cards_vbox := VBoxContainer.new()
-	cards_vbox.add_theme_constant_override("separation", 6)
-	cards_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(cards_vbox)
-
+	# No ScrollContainer — with accordion equipment, all 3 cards always fit
 	for i in range(3):
 		if i < GameState.party.size():
-			cards_vbox.add_child(_build_party_card(i, GameState.party[i]))
+			col.add_child(_build_party_card(i, GameState.party[i]))
 		else:
-			cards_vbox.add_child(_build_empty_party_slot())
+			col.add_child(_build_empty_party_slot())
 
 	return col
 
@@ -479,15 +475,59 @@ func _build_party_card(party_idx: int, member: CombatantData) -> Control:
 	if member.is_dead:
 		card.modulate = Color(1.0, 1.0, 1.0, 0.55)
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 3)
-	card.add_child(vbox)
+	# Outer HBox: info column (left, expand) | portrait (right, fixed)
+	var card_hbox := HBoxContainer.new()
+	card_hbox.add_theme_constant_override("separation", 8)
+	card.add_child(card_hbox)
 
-	_add_member_identity(vbox, member)
-	vbox.add_child(_make_hsep())
-	_add_member_base_stats(vbox, member)
-	vbox.add_child(_make_hsep())
-	_add_equipment_slots(vbox, party_idx, member)
+	var info_vbox := VBoxContainer.new()
+	info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_vbox.add_theme_constant_override("separation", 3)
+	card_hbox.add_child(info_vbox)
+
+	_add_member_identity(info_vbox, member)
+	info_vbox.add_child(_make_hsep())
+	_add_member_base_stats(info_vbox, member)
+
+	# Accordion chevron — only one party member's equipment is open at a time
+	var is_open: bool = (_open_equip_party_idx == party_idx)
+	var chevron_btn := Button.new()
+	chevron_btn.text = "▲ Equipment" if is_open else "▼ Equipment"
+	chevron_btn.flat = true
+	chevron_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	chevron_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chevron_btn.add_theme_font_size_override("font_size", 10)
+	chevron_btn.add_theme_color_override("font_color", Color(0.58, 0.58, 0.72))
+	var pi_chev: int = party_idx
+	chevron_btn.pressed.connect(func() -> void:
+		_open_equip_party_idx = pi_chev if _open_equip_party_idx != pi_chev else -1
+		_build_overlay()
+	)
+	info_vbox.add_child(chevron_btn)
+
+	if is_open and not member.is_dead:
+		info_vbox.add_child(_make_hsep())
+		_add_equipment_slots_2x2(info_vbox, party_idx, member)
+
+	# Portrait — top-right, fixed size
+	var portrait_pnl := PanelContainer.new()
+	portrait_pnl.custom_minimum_size = Vector2(68.0, 68.0)
+	portrait_pnl.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.08, 0.08, 0.12)
+	ps.border_color = Color(0.38, 0.38, 0.55)
+	ps.set_border_width_all(1)
+	ps.set_corner_radius_all(6)
+	ps.content_margin_left = 2.0; ps.content_margin_right = 2.0
+	ps.content_margin_top = 2.0; ps.content_margin_bottom = 2.0
+	portrait_pnl.add_theme_stylebox_override("panel", ps)
+	var portrait_tex := TextureRect.new()
+	portrait_tex.texture = member.portrait if member.portrait != null \
+		else load("res://icon.svg") as Texture2D
+	portrait_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait_tex.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait_pnl.add_child(portrait_tex)
+	card_hbox.add_child(portrait_pnl)
 
 	var cap_card: PanelContainer  = card
 	var cap_member: CombatantData = member
@@ -651,17 +691,42 @@ func _build_bench_card(bench_idx: int, follower: CombatantData) -> Control:
 	style.content_margin_top = 6.0; style.content_margin_bottom = 6.0
 	card.add_theme_stylebox_override("panel", style)
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 2)
-	card.add_child(vbox)
+	# HBox: info (expand) | portrait (fixed 50×50)
+	var card_hbox := HBoxContainer.new()
+	card_hbox.add_theme_constant_override("separation", 6)
+	card.add_child(card_hbox)
 
-	_add_member_identity(vbox, follower)
-	vbox.add_child(_make_hsep())
-	_add_member_base_stats(vbox, follower)
+	var info_vbox := VBoxContainer.new()
+	info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_vbox.add_theme_constant_override("separation", 2)
+	card_hbox.add_child(info_vbox)
 
-	var cap_card: PanelContainer   = card
+	_add_member_identity(info_vbox, follower)
+	info_vbox.add_child(_make_hsep())
+	_add_member_base_stats(info_vbox, follower)
+
+	var portrait_pnl := PanelContainer.new()
+	portrait_pnl.custom_minimum_size = Vector2(50.0, 50.0)
+	portrait_pnl.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.08, 0.08, 0.12)
+	ps.border_color = Color(0.30, 0.30, 0.42)
+	ps.set_border_width_all(1)
+	ps.set_corner_radius_all(5)
+	ps.content_margin_left = 2.0; ps.content_margin_right = 2.0
+	ps.content_margin_top = 2.0; ps.content_margin_bottom = 2.0
+	portrait_pnl.add_theme_stylebox_override("panel", ps)
+	var portrait_tex := TextureRect.new()
+	portrait_tex.texture = follower.portrait if follower.portrait != null \
+		else load("res://icon.svg") as Texture2D
+	portrait_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait_tex.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait_pnl.add_child(portrait_tex)
+	card_hbox.add_child(portrait_pnl)
+
+	var cap_card: PanelContainer    = card
 	var cap_follower: CombatantData = follower
-	var bi: int                    = bench_idx
+	var bi: int                     = bench_idx
 
 	card.set_drag_forwarding(
 		func(_at: Vector2) -> Variant:
@@ -733,7 +798,15 @@ func _add_stat_chip(parent: Control, stat_name: String, value: int) -> void:
 	lbl.add_theme_color_override("font_color", Color(0.78, 0.80, 0.72))
 	parent.add_child(lbl)
 
-func _add_equipment_slots(vbox: VBoxContainer, party_idx: int, member: CombatantData) -> void:
+func _add_equipment_slots_2x2(parent: VBoxContainer, party_idx: int, member: CombatantData) -> void:
+	# 2×2 grid: weapon | armor / accessory | consumable
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 4)
+	grid.add_theme_constant_override("v_separation", 4)
+	parent.add_child(grid)
+
 	var slots: Array = [
 		["weapon",     ICON_WEAPON,     member.weapon,    EquipmentData.Slot.WEAPON],
 		["armor",      ICON_ARMOR,      member.armor,     EquipmentData.Slot.ARMOR],
@@ -744,12 +817,12 @@ func _add_equipment_slots(vbox: VBoxContainer, party_idx: int, member: Combatant
 	for slot_entry: Array in slots:
 		var slot_field: String    = slot_entry[0]
 		var icon_path: String     = slot_entry[1]
-		var cur_eq: EquipmentData = slot_entry[2]  # null for consumable
+		var cur_eq: EquipmentData = slot_entry[2]
 		var slot_int: int         = slot_entry[3]
 
 		var btn := Button.new()
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0.0, 24.0)
+		btn.custom_minimum_size = Vector2(0.0, 26.0)
 		btn.add_theme_font_size_override("font_size", 10)
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.expand_icon = false
@@ -774,39 +847,35 @@ func _add_equipment_slots(vbox: VBoxContainer, party_idx: int, member: Combatant
 			btn.text = "— empty —"
 			btn.add_theme_color_override("font_color", Color(0.42, 0.40, 0.38))
 
-		if not member.is_dead:
-			var sf: String            = slot_field
-			var pi: int               = party_idx
-			var cap_eq: EquipmentData = cur_eq
-			var si: int               = slot_int
+		var sf: String            = slot_field
+		var pi: int               = party_idx
+		var cap_eq: EquipmentData = cur_eq
+		var si: int               = slot_int
 
-			# Right-click to unequip
-			if slot_field == "consumable" and member.consumable != "":
-				btn.gui_input.connect(func(ev: InputEvent) -> void:
-					if ev is InputEventMouseButton \
-							and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT \
-							and (ev as InputEventMouseButton).pressed:
-						_pm_unequip_consumable(pi)
-				)
-			elif slot_field != "consumable" and cap_eq != null:
-				btn.gui_input.connect(func(ev: InputEvent) -> void:
-					if ev is InputEventMouseButton \
-							and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT \
-							and (ev as InputEventMouseButton).pressed:
-						_pm_unequip_item(pi, sf)
-				)
-
-			btn.set_drag_forwarding(
-				Callable(),
-				func(_at: Vector2, data: Variant) -> bool:
-					return _pm_can_drop_here(data, si, member.is_dead),
-				func(_at: Vector2, data: Variant) -> void:
-					_pm_drop_to_slot((data as Dictionary)["item"], pi, sf)
+		if slot_field == "consumable" and member.consumable != "":
+			btn.gui_input.connect(func(ev: InputEvent) -> void:
+				if ev is InputEventMouseButton \
+						and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT \
+						and (ev as InputEventMouseButton).pressed:
+					_pm_unequip_consumable(pi)
 			)
-		else:
-			btn.disabled = true
+		elif slot_field != "consumable" and cap_eq != null:
+			btn.gui_input.connect(func(ev: InputEvent) -> void:
+				if ev is InputEventMouseButton \
+						and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT \
+						and (ev as InputEventMouseButton).pressed:
+					_pm_unequip_item(pi, sf)
+			)
 
-		vbox.add_child(btn)
+		btn.set_drag_forwarding(
+			Callable(),
+			func(_at: Vector2, data: Variant) -> bool:
+				return _pm_can_drop_here(data, si, member.is_dead),
+			func(_at: Vector2, data: Variant) -> void:
+				_pm_drop_to_slot((data as Dictionary)["item"], pi, sf)
+		)
+
+		grid.add_child(btn)
 
 ## --- Drag-and-Drop Handlers ---
 
