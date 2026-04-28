@@ -5,7 +5,6 @@ extends Node2D
 
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 
-## Each entry: [button label, section id]
 const SECTIONS: Array = [
 	["Party Management",                     "party_management"],
 	["The Broken Compass  [Tavern]",         "tavern"],
@@ -16,12 +15,33 @@ const SECTIONS: Array = [
 	["Herbalist's Cart  [Consumables]",      "vendor_consumable"],
 ]
 
+const SLOT_CONSUMABLE: int = 99
+
+const ICON_WEAPON:     String = "res://assets/icons/sWeaponIcon.png"
+const ICON_ARMOR:      String = "res://assets/icons/sArmorIcon.png"
+const ICON_ACCESSORY:  String = "res://assets/icons/sAccessoryIcon.png"
+const ICON_CONSUMABLE: String = "res://assets/icons/sConsumableIcon.png"
+
 ## --- Overlay State ---
 
 var _overlay_layer: CanvasLayer = null
-## Lives on _overlay_layer; cleared by _process when drag ends or on rebuild.
+
+## Drag compare panel — added to _overlay_layer; cleared in _process when drag ends.
 var _drag_compare_panel: Control = null
 var _cmp_key: String = ""
+
+## When true, dims inventory + bench columns (bench character is in flight).
+var _is_bench_drag: bool = false
+var _inv_col_ref:   Control = null
+var _bench_col_ref: Control = null
+
+## Bag sort / search / view state — preserved across overlay rebuilds.
+var _bag_sort_field: String  = "name"
+var _bag_sort_asc:   bool    = true
+var _bag_search:     String  = ""
+var _bag_view_wide:  bool    = false
+var _focus_bag_search: bool  = false
+var _active_bag_search: LineEdit = null
 
 ## --- Lifecycle ---
 
@@ -32,14 +52,24 @@ func _ready() -> void:
 	_add_return_button()
 
 func _process(_delta: float) -> void:
-	if _drag_compare_panel != null and is_instance_valid(_drag_compare_panel) \
-			and not get_viewport().gui_is_dragging():
+	var dragging: bool = get_viewport().gui_is_dragging()
+
+	# Clear compare panel when drag ends
+	if _drag_compare_panel != null and is_instance_valid(_drag_compare_panel) and not dragging:
 		_clear_drag_compare()
+
+	# Lift bench-drag flag and restore column brightness when drag ends
+	if not dragging:
+		_is_bench_drag = false
+	var dim: float = 0.5 if _is_bench_drag else 1.0
+	if _inv_col_ref != null and is_instance_valid(_inv_col_ref):
+		_inv_col_ref.modulate.a = dim
+	if _bench_col_ref != null and is_instance_valid(_bench_col_ref):
+		_bench_col_ref.modulate.a = dim
 
 ## --- Scene Construction ---
 
 func _add_background() -> void:
-	# Dark stone tone — deliberately distinct from the map's sand parchment
 	var bg := ColorRect.new()
 	bg.size = VIEWPORT_SIZE
 	bg.color = Color(0.12, 0.10, 0.14)
@@ -70,7 +100,6 @@ func _add_title() -> void:
 	add_child(subtitle)
 
 func _add_section_buttons() -> void:
-	# Tighten spacing slightly to accommodate 7 buttons without crowding the return button
 	var btn_size := Vector2(480.0, 54.0)
 	var spacing := 8.0
 	var start_y := 180.0
@@ -124,18 +153,25 @@ func _close_party_management() -> void:
 	if _overlay_layer != null and is_instance_valid(_overlay_layer):
 		_overlay_layer.queue_free()
 	_overlay_layer = null
+	_inv_col_ref    = null
+	_bench_col_ref  = null
+	_is_bench_drag  = false
+	_focus_bag_search = false
+	_active_bag_search = null
 
 func _build_overlay() -> void:
 	_clear_drag_compare()
 	if _overlay_layer != null and is_instance_valid(_overlay_layer):
 		_overlay_layer.queue_free()
 	_drag_compare_panel = null
+	_inv_col_ref   = null
+	_bench_col_ref = null
+	_active_bag_search = null
 
 	_overlay_layer = CanvasLayer.new()
 	_overlay_layer.layer = 5
 	add_child(_overlay_layer)
 
-	# Opaque backdrop — fully hides the city menu behind the overlay
 	var backdrop := ColorRect.new()
 	backdrop.color = Color(0.06, 0.05, 0.07, 0.97)
 	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -152,11 +188,11 @@ func _build_overlay() -> void:
 
 	var root_vbox := VBoxContainer.new()
 	root_vbox.add_theme_constant_override("separation", 6)
-	root_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_vbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	margin.add_child(root_vbox)
 
-	# Title row with close button
+	# Title row
 	var title_row := HBoxContainer.new()
 	root_vbox.add_child(title_row)
 
@@ -176,106 +212,204 @@ func _build_overlay() -> void:
 
 	root_vbox.add_child(_make_hsep())
 
-	# Main 3-column area: Inventory | Party | Bench
+	# 3-column layout: Inventory | Party | Bench
 	var col_hbox := HBoxContainer.new()
 	col_hbox.add_theme_constant_override("separation", 10)
-	col_hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	col_hbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	col_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root_vbox.add_child(col_hbox)
 
 	var inv_col := _build_inventory_col()
-	inv_col.custom_minimum_size = Vector2(185.0, 0.0)
+	inv_col.custom_minimum_size = Vector2(190.0, 0.0)
+	_inv_col_ref = inv_col
 	col_hbox.add_child(inv_col)
 
 	col_hbox.add_child(_make_vsep())
 
 	var party_col := _build_party_col()
-	party_col.custom_minimum_size = Vector2(255.0, 0.0)
+	party_col.custom_minimum_size = Vector2(260.0, 0.0)
 	col_hbox.add_child(party_col)
 
 	col_hbox.add_child(_make_vsep())
 
 	var bench_col := _build_bench_col()
 	bench_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_bench_col_ref = bench_col
 	col_hbox.add_child(bench_col)
+
+	# Restore search focus after rebuild
+	if _active_bag_search != null and is_instance_valid(_active_bag_search):
+		var si: LineEdit = _active_bag_search
+		si.grab_focus.call_deferred()
+		(func() -> void: si.set_caret_column(si.text.length())).call_deferred()
 
 ## --- Inventory Column ---
 
 func _build_inventory_col() -> VBoxContainer:
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 5)
+	col.add_theme_constant_override("separation", 4)
 
-	var hdr := Label.new()
-	hdr.text = "Bag"
-	hdr.add_theme_font_size_override("font_size", 14)
-	hdr.add_theme_color_override("font_color", Color(0.78, 0.72, 0.58))
-	col.add_child(hdr)
+	# Header: BAG label + view toggle
+	var hdr_row := HBoxContainer.new()
+	col.add_child(hdr_row)
 
-	var hint := Label.new()
-	hint.text = "Drag to equip →"
-	hint.add_theme_font_size_override("font_size", 10)
-	hint.add_theme_color_override("font_color", Color(0.50, 0.48, 0.44))
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(hint)
+	var bag_lbl := Label.new()
+	bag_lbl.text = "BAG"
+	bag_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bag_lbl.add_theme_font_size_override("font_size", 13)
+	bag_lbl.add_theme_color_override("font_color", Color(0.90, 0.82, 0.60))
+	hdr_row.add_child(bag_lbl)
 
-	col.add_child(_make_hsep())
+	var view_btn := Button.new()
+	view_btn.text = "2×" if not _bag_view_wide else "1×"
+	view_btn.flat = true
+	view_btn.add_theme_font_size_override("font_size", 9)
+	view_btn.add_theme_color_override("font_color", Color(0.65, 0.60, 0.45))
+	view_btn.tooltip_text = "Toggle 1 or 2 items per row"
+	view_btn.pressed.connect(func() -> void:
+		_bag_view_wide = not _bag_view_wide
+		_build_overlay()
+	)
+	hdr_row.add_child(view_btn)
 
+	# Sort row
+	var sort_row := HBoxContainer.new()
+	sort_row.add_theme_constant_override("separation", 3)
+	col.add_child(sort_row)
+
+	var sort_lbl := Label.new()
+	sort_lbl.text = "Sort:"
+	sort_lbl.add_theme_font_size_override("font_size", 9)
+	sort_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.42))
+	sort_row.add_child(sort_lbl)
+
+	for sf: Array in [["name", "Name"], ["type", "Type"]]:
+		var field: String   = sf[0]
+		var caption: String = sf[1]
+		var is_active: bool = (_bag_sort_field == field)
+		var arrow: String   = (" ▲" if _bag_sort_asc else " ▼") if is_active else ""
+		var sbtn := Button.new()
+		sbtn.text = caption + arrow
+		sbtn.flat = not is_active
+		sbtn.add_theme_font_size_override("font_size", 9)
+		if is_active:
+			sbtn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.45))
+		var f: String = field
+		sbtn.pressed.connect(func() -> void:
+			if _bag_sort_field == f:
+				_bag_sort_asc = not _bag_sort_asc
+			else:
+				_bag_sort_field = f
+				_bag_sort_asc   = true
+			_build_overlay()
+		)
+		sort_row.add_child(sbtn)
+
+	# Search
+	var search_edit := LineEdit.new()
+	search_edit.placeholder_text = "search bag…"
+	search_edit.text = _bag_search
+	search_edit.add_theme_font_size_override("font_size", 11)
+	col.add_child(search_edit)
+	search_edit.text_changed.connect(func(new_text: String) -> void:
+		_bag_search      = new_text
+		_focus_bag_search = true
+		_build_overlay()
+	)
+	if _focus_bag_search:
+		_active_bag_search = search_edit
+
+	# Item list
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	col.add_child(scroll)
 
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 4)
-	scroll.add_child(list)
+	var grid := GridContainer.new()
+	grid.columns = 2 if _bag_view_wide else 1
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("v_separation", 2)
+	scroll.add_child(grid)
 
-	# Show only equipment — consumables don't have equipment slots to drag onto
-	var items: Array = GameState.inventory.filter(
-		func(i: Dictionary) -> bool: return i.get("item_type", "") == "equipment"
-	)
-	items.sort_custom(
-		func(a: Dictionary, b: Dictionary) -> bool: return a.get("name", "") < b.get("name", "")
-	)
-
-	if items.is_empty():
+	if GameState.inventory.is_empty():
 		var empty_lbl := Label.new()
-		empty_lbl.text = "No equipment\nin bag."
+		empty_lbl.text = "— empty —"
 		empty_lbl.add_theme_font_size_override("font_size", 11)
 		empty_lbl.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
-		empty_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		list.add_child(empty_lbl)
-	else:
-		for item: Dictionary in items:
-			list.add_child(_build_inventory_item(item))
+		grid.add_child(empty_lbl)
+		return col
+
+	var inv_sorted: Array = GameState.inventory.duplicate()
+	inv_sorted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var cmp: int
+		match _bag_sort_field:
+			"type":
+				var ta: int = 0 if a.get("item_type", "") == "equipment" else 1
+				var tb: int = 0 if b.get("item_type", "") == "equipment" else 1
+				cmp = ta - tb
+				if cmp == 0:
+					cmp = _bag_strcmp(a.get("name", ""), b.get("name", ""))
+			_:
+				cmp = _bag_strcmp(a.get("name", ""), b.get("name", ""))
+		return cmp < 0 if _bag_sort_asc else cmp > 0
+	)
+
+	var query: String = _bag_search.strip_edges().to_lower()
+	if query != "":
+		inv_sorted = inv_sorted.filter(
+			func(item: Dictionary) -> bool: return item.get("name", "").to_lower().contains(query)
+		)
+
+	if inv_sorted.is_empty():
+		var no_match := Label.new()
+		no_match.text = "No matches."
+		no_match.add_theme_font_size_override("font_size", 11)
+		no_match.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		grid.add_child(no_match)
+		return col
+
+	for item: Dictionary in inv_sorted:
+		grid.add_child(_build_inventory_item(item, _bag_view_wide))
 
 	return col
 
-func _build_inventory_item(item: Dictionary) -> Control:
+func _build_inventory_item(item: Dictionary, compact: bool) -> Control:
 	var row := PanelContainer.new()
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if not compact:
+		row.custom_minimum_size = Vector2(176.0, 0.0)
 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.11, 0.14)
 	style.border_color = Color(0.30, 0.28, 0.38)
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(3)
-	style.content_margin_left = 6.0; style.content_margin_right = 6.0
-	style.content_margin_top = 4.0;  style.content_margin_bottom = 4.0
+	style.content_margin_left = 5.0; style.content_margin_right = 5.0
+	style.content_margin_top = 3.0; style.content_margin_bottom = 3.0
 	row.add_theme_stylebox_override("panel", style)
 
-	var eq: EquipmentData = EquipmentLibrary.get_equipment(item.get("id", ""))
-	var slot_tag: String = "W"
-	match eq.slot:
-		EquipmentData.Slot.ARMOR:     slot_tag = "A"
-		EquipmentData.Slot.ACCESSORY: slot_tag = "X"
+	var is_equip: bool = item.get("item_type", "") == "equipment"
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 1)
+	row.add_child(vbox)
 
-	var lbl := Label.new()
-	lbl.text = "[%s] %s" % [slot_tag, item.get("name", "?")]
-	lbl.add_theme_font_size_override("font_size", 11)
-	lbl.add_theme_color_override("font_color", Color(0.88, 0.84, 0.72))
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	row.add_child(lbl)
+	var name_lbl := Label.new()
+	name_lbl.text = item.get("name", "?")
+	name_lbl.add_theme_font_size_override("font_size", 11 if not compact else 10)
+	name_lbl.add_theme_color_override("font_color", Color(0.88, 0.84, 0.72))
+	name_lbl.clip_text = true
+	vbox.add_child(name_lbl)
+
+	if not compact and is_equip:
+		var eq: EquipmentData = EquipmentLibrary.get_equipment(item.get("id", ""))
+		var bonus_str: String = _equip_bonus_str(eq)
+		if bonus_str != "":
+			var bonus_lbl := Label.new()
+			bonus_lbl.text = bonus_str
+			bonus_lbl.add_theme_font_size_override("font_size", 9)
+			bonus_lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.65))
+			vbox.add_child(bonus_lbl)
 
 	var cap_row: PanelContainer = row
 	var cap_item: Dictionary    = item
@@ -283,7 +417,7 @@ func _build_inventory_item(item: Dictionary) -> Control:
 		func(_at: Vector2) -> Variant:
 			var preview := Label.new()
 			preview.text = "  %s" % cap_item.get("name", "?")
-			preview.add_theme_font_size_override("font_size", 12)
+			preview.add_theme_font_size_override("font_size", 13)
 			preview.add_theme_color_override("font_color", Color(0.95, 0.90, 0.70))
 			cap_row.set_drag_preview(preview)
 			return {"item": cap_item},
@@ -297,7 +431,7 @@ func _build_inventory_item(item: Dictionary) -> Control:
 
 func _build_party_col() -> VBoxContainer:
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 8)
+	col.add_theme_constant_override("separation", 6)
 	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var hdr := Label.new()
@@ -306,19 +440,27 @@ func _build_party_col() -> VBoxContainer:
 	hdr.add_theme_color_override("font_color", Color(0.78, 0.72, 0.58))
 	col.add_child(hdr)
 
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.add_child(scroll)
+
+	var cards_vbox := VBoxContainer.new()
+	cards_vbox.add_theme_constant_override("separation", 6)
+	cards_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(cards_vbox)
+
 	for i in range(3):
 		if i < GameState.party.size():
-			col.add_child(_build_party_card(i, GameState.party[i]))
+			cards_vbox.add_child(_build_party_card(i, GameState.party[i]))
 		else:
-			col.add_child(_build_empty_party_slot())
+			cards_vbox.add_child(_build_empty_party_slot())
 
 	return col
 
 func _build_party_card(party_idx: int, member: CombatantData) -> Control:
 	var card := PanelContainer.new()
-	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.custom_minimum_size = Vector2(0.0, 165.0)
 
 	var style := StyleBoxFlat.new()
 	style.set_corner_radius_all(4)
@@ -347,23 +489,20 @@ func _build_party_card(party_idx: int, member: CombatantData) -> Control:
 	vbox.add_child(_make_hsep())
 	_add_equipment_slots(vbox, party_idx, member)
 
-	# Capture loop-stable values for closures
-	var cap_card: PanelContainer   = card
-	var cap_member: CombatantData  = member
-	var pi: int                    = party_idx
+	var cap_card: PanelContainer  = card
+	var cap_member: CombatantData = member
+	var pi: int                   = party_idx
 
 	card.set_drag_forwarding(
-		# Drag source: lift this party member
 		func(_at: Vector2) -> Variant:
 			if cap_member.is_dead:
 				return null
 			var preview := Label.new()
 			preview.text = "  %s" % cap_member.character_name
-			preview.add_theme_font_size_override("font_size", 12)
-			preview.add_theme_color_override("font_color", Color(0.95, 0.90, 0.70))
+			preview.add_theme_font_size_override("font_size", 15)
+			preview.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55))
 			cap_card.set_drag_preview(preview)
 			return {"character": cap_member, "source": "party", "index": pi},
-		# Accept bench characters; show stat comparison while hovering
 		func(at: Vector2, data: Variant) -> bool:
 			if cap_member.is_dead:
 				_clear_drag_compare()
@@ -376,7 +515,6 @@ func _build_party_card(party_idx: int, member: CombatantData) -> Control:
 				return false
 			_show_char_compare(cap_card.global_position + at, cap_member, data["character"])
 			return true,
-		# Drop: deequip outgoing party member then swap
 		func(_at: Vector2, data: Variant) -> void:
 			_clear_drag_compare()
 			if not (data is Dictionary) or data.get("source", "") != "bench":
@@ -394,9 +532,8 @@ func _build_party_card(party_idx: int, member: CombatantData) -> Control:
 
 func _build_empty_party_slot() -> Control:
 	var card := PanelContainer.new()
-	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.custom_minimum_size = Vector2(0.0, 165.0)
+	card.custom_minimum_size = Vector2(0.0, 60.0)
 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.08, 0.09)
@@ -410,8 +547,8 @@ func _build_empty_party_slot() -> Control:
 	var lbl := Label.new()
 	lbl.text = "— Empty —"
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	lbl.size_flags_vertical  = Control.SIZE_EXPAND_FILL
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.add_theme_color_override("font_color", Color(0.38, 0.38, 0.40))
 	card.add_child(lbl)
@@ -422,10 +559,9 @@ func _build_empty_party_slot() -> Control:
 
 func _build_bench_col() -> VBoxContainer:
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 6)
+	col.add_theme_constant_override("separation", 5)
 	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	# Header row: label + release zone
 	var hdr_row := HBoxContainer.new()
 	col.add_child(hdr_row)
 
@@ -440,40 +576,37 @@ func _build_bench_col() -> VBoxContainer:
 
 	if GameState.bench.is_empty():
 		var empty_lbl := Label.new()
-		empty_lbl.text = "Your bench is empty.\nDrag a bench member into a party slot to swap."
+		empty_lbl.text = "Your bench is empty.\nDrag a bench card onto a party slot to swap."
 		empty_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty_lbl.add_theme_font_size_override("font_size", 13)
 		empty_lbl.add_theme_color_override("font_color", Color(0.48, 0.48, 0.50))
 		empty_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		col.add_child(empty_lbl)
-	else:
-		var hint := Label.new()
-		hint.text = "Drag a bench card onto a party slot to swap. Drag to Release to discard."
-		hint.add_theme_font_size_override("font_size", 10)
-		hint.add_theme_color_override("font_color", Color(0.50, 0.48, 0.44))
-		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		col.add_child(hint)
+		return col
 
-		var scroll := ScrollContainer.new()
-		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		col.add_child(scroll)
+	var hint := Label.new()
+	hint.text = "Drag to party slot to swap. Drag to Release to discard."
+	hint.add_theme_font_size_override("font_size", 10)
+	hint.add_theme_color_override("font_color", Color(0.50, 0.48, 0.44))
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(hint)
 
-		var grid := GridContainer.new()
-		grid.columns = 2
-		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		grid.add_theme_constant_override("h_separation", 10)
-		grid.add_theme_constant_override("v_separation", 10)
-		scroll.add_child(grid)
+	# Fixed 3×3 grid — no scroll, 9 cap means it always fits
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	col.add_child(grid)
 
-		for i in range(GameState.bench.size()):
-			grid.add_child(_build_bench_card(i, GameState.bench[i]))
+	for i in range(GameState.bench.size()):
+		grid.add_child(_build_bench_card(i, GameState.bench[i]))
 
 	return col
 
 func _build_release_zone() -> Control:
 	var zone := PanelContainer.new()
-	zone.custom_minimum_size = Vector2(110.0, 30.0)
+	zone.custom_minimum_size = Vector2(100.0, 28.0)
 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.16, 0.06, 0.06)
@@ -487,7 +620,7 @@ func _build_release_zone() -> Control:
 	var lbl := Label.new()
 	lbl.text = "✗ Release"
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
 	lbl.add_theme_font_size_override("font_size", 11)
 	lbl.add_theme_color_override("font_color", Color(0.80, 0.38, 0.35))
 	zone.add_child(lbl)
@@ -508,35 +641,35 @@ func _build_release_zone() -> Control:
 func _build_bench_card(bench_idx: int, follower: CombatantData) -> Control:
 	var card := PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.custom_minimum_size = Vector2(0.0, 160.0)
 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.10, 0.10, 0.12)
 	style.border_color = Color(0.28, 0.28, 0.38)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(4)
-	style.content_margin_left = 8.0; style.content_margin_right = 8.0
-	style.content_margin_top = 7.0; style.content_margin_bottom = 7.0
+	style.content_margin_left = 7.0; style.content_margin_right = 7.0
+	style.content_margin_top = 6.0; style.content_margin_bottom = 6.0
 	card.add_theme_stylebox_override("panel", style)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 3)
+	vbox.add_theme_constant_override("separation", 2)
 	card.add_child(vbox)
 
 	_add_member_identity(vbox, follower)
 	vbox.add_child(_make_hsep())
 	_add_member_base_stats(vbox, follower)
 
-	var cap_card: PanelContainer  = card
+	var cap_card: PanelContainer   = card
 	var cap_follower: CombatantData = follower
-	var bi: int                   = bench_idx
+	var bi: int                    = bench_idx
 
 	card.set_drag_forwarding(
 		func(_at: Vector2) -> Variant:
+			_is_bench_drag = true  # triggers _process dimming
 			var preview := Label.new()
 			preview.text = "  %s" % cap_follower.character_name
-			preview.add_theme_font_size_override("font_size", 12)
-			preview.add_theme_color_override("font_color", Color(0.95, 0.90, 0.70))
+			preview.add_theme_font_size_override("font_size", 15)
+			preview.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55))
 			cap_card.set_drag_preview(preview)
 			return {"character": cap_follower, "source": "bench", "index": bi},
 		Callable(),
@@ -569,10 +702,9 @@ func _add_member_identity(vbox: VBoxContainer, member: CombatantData) -> void:
 
 	if member.temperament_id != "" and member.temperament_id != "even":
 		var t: TemperamentData = TemperamentLibrary.get_temperament(member.temperament_id)
-		var boost: String = _stat_abbrev(t.boosted_stat)
-		var hinder: String = _stat_abbrev(t.hindered_stat)
 		var temp_lbl := Label.new()
-		temp_lbl.text = "%s (+%s/-%s)" % [t.temperament_name, boost, hinder]
+		temp_lbl.text = "%s (+%s/-%s)" % [
+			t.temperament_name, _stat_abbrev(t.boosted_stat), _stat_abbrev(t.hindered_stat)]
 		temp_lbl.add_theme_font_size_override("font_size", 10)
 		temp_lbl.add_theme_color_override("font_color", Color(0.65, 0.58, 0.78))
 		vbox.add_child(temp_lbl)
@@ -584,19 +716,15 @@ func _add_member_identity(vbox: VBoxContainer, member: CombatantData) -> void:
 	vbox.add_child(lv_lbl)
 
 func _add_member_base_stats(vbox: VBoxContainer, member: CombatantData) -> void:
-	# Base raw attributes — no bonus sources, for accurate comparison
-	var row1 := HBoxContainer.new()
-	row1.add_theme_constant_override("separation", 10)
-	vbox.add_child(row1)
-	_add_stat_chip(row1, "STR", member.strength)
-	_add_stat_chip(row1, "DEX", member.dexterity)
-	_add_stat_chip(row1, "COG", member.cognition)
-
-	var row2 := HBoxContainer.new()
-	row2.add_theme_constant_override("separation", 10)
-	vbox.add_child(row2)
-	_add_stat_chip(row2, "WIL", member.willpower)
-	_add_stat_chip(row2, "VIT", member.vitality)
+	# All 5 base attributes on one line — raw stored values, no bonus sources
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	vbox.add_child(row)
+	_add_stat_chip(row, "STR", member.strength)
+	_add_stat_chip(row, "DEX", member.dexterity)
+	_add_stat_chip(row, "COG", member.cognition)
+	_add_stat_chip(row, "WIL", member.willpower)
+	_add_stat_chip(row, "VIT", member.vitality)
 
 func _add_stat_chip(parent: Control, stat_name: String, value: int) -> void:
 	var lbl := Label.new()
@@ -607,28 +735,43 @@ func _add_stat_chip(parent: Control, stat_name: String, value: int) -> void:
 
 func _add_equipment_slots(vbox: VBoxContainer, party_idx: int, member: CombatantData) -> void:
 	var slots: Array = [
-		["weapon",    "W", member.weapon,    EquipmentData.Slot.WEAPON],
-		["armor",     "A", member.armor,     EquipmentData.Slot.ARMOR],
-		["accessory", "X", member.accessory, EquipmentData.Slot.ACCESSORY],
+		["weapon",     ICON_WEAPON,     member.weapon,    EquipmentData.Slot.WEAPON],
+		["armor",      ICON_ARMOR,      member.armor,     EquipmentData.Slot.ARMOR],
+		["accessory",  ICON_ACCESSORY,  member.accessory, EquipmentData.Slot.ACCESSORY],
+		["consumable", ICON_CONSUMABLE, null,             SLOT_CONSUMABLE],
 	]
 
 	for slot_entry: Array in slots:
-		var slot_field: String     = slot_entry[0]
-		var slot_key: String       = slot_entry[1]
-		var cur_eq: EquipmentData  = slot_entry[2]
-		var slot_int: int          = slot_entry[3]
+		var slot_field: String    = slot_entry[0]
+		var icon_path: String     = slot_entry[1]
+		var cur_eq: EquipmentData = slot_entry[2]  # null for consumable
+		var slot_int: int         = slot_entry[3]
 
 		var btn := Button.new()
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0.0, 20.0)
+		btn.custom_minimum_size = Vector2(0.0, 24.0)
 		btn.add_theme_font_size_override("font_size", 10)
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.expand_icon = false
 
-		if cur_eq != null:
-			btn.text = "[%s] %s" % [slot_key, cur_eq.equipment_name]
+		var icon_tex: Texture2D = load(icon_path) as Texture2D
+		if icon_tex != null:
+			btn.icon = icon_tex
+			btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+
+		if slot_field == "consumable":
+			if member.consumable != "":
+				var cd: ConsumableData = ConsumableLibrary.get_consumable(member.consumable)
+				btn.text = cd.consumable_name
+				btn.add_theme_color_override("font_color", Color(0.88, 0.84, 0.72))
+			else:
+				btn.text = "— none —"
+				btn.add_theme_color_override("font_color", Color(0.42, 0.40, 0.38))
+		elif cur_eq != null:
+			btn.text = cur_eq.equipment_name
 			btn.add_theme_color_override("font_color", Color(0.88, 0.84, 0.72))
 		else:
-			btn.text = "[%s] — empty —" % slot_key
+			btn.text = "— empty —"
 			btn.add_theme_color_override("font_color", Color(0.42, 0.40, 0.38))
 
 		if not member.is_dead:
@@ -637,7 +780,15 @@ func _add_equipment_slots(vbox: VBoxContainer, party_idx: int, member: Combatant
 			var cap_eq: EquipmentData = cur_eq
 			var si: int               = slot_int
 
-			if cap_eq != null:
+			# Right-click to unequip
+			if slot_field == "consumable" and member.consumable != "":
+				btn.gui_input.connect(func(ev: InputEvent) -> void:
+					if ev is InputEventMouseButton \
+							and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT \
+							and (ev as InputEventMouseButton).pressed:
+						_pm_unequip_consumable(pi)
+				)
+			elif slot_field != "consumable" and cap_eq != null:
 				btn.gui_input.connect(func(ev: InputEvent) -> void:
 					if ev is InputEventMouseButton \
 							and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT \
@@ -685,6 +836,8 @@ func _pm_can_drop_here(data: Variant, slot_int: int, is_dead: bool) -> bool:
 	if not (data is Dictionary) or not data.has("item"):
 		return false
 	var item: Dictionary = (data as Dictionary)["item"]
+	if slot_int == SLOT_CONSUMABLE:
+		return item.get("item_type", "") == "consumable"
 	if item.get("item_type", "") != "equipment":
 		return false
 	var eq: EquipmentData = EquipmentLibrary.get_equipment(item.get("id", ""))
@@ -692,20 +845,22 @@ func _pm_can_drop_here(data: Variant, slot_int: int, is_dead: bool) -> bool:
 
 func _pm_drop_to_slot(item: Dictionary, party_idx: int, slot_field: String) -> void:
 	var member: CombatantData = GameState.party[party_idx]
-	var eq: EquipmentData = EquipmentLibrary.get_equipment(item.get("id", ""))
-	match slot_field:
-		"weapon":
-			if member.weapon != null:
-				_pm_push_equip_to_bag(member.weapon)
-			member.weapon = eq
-		"armor":
-			if member.armor != null:
-				_pm_push_equip_to_bag(member.armor)
-			member.armor = eq
-		"accessory":
-			if member.accessory != null:
-				_pm_push_equip_to_bag(member.accessory)
-			member.accessory = eq
+	if slot_field == "consumable":
+		if member.consumable != "":
+			_pm_push_consumable_to_bag(member.consumable)
+		member.consumable = item.get("id", "")
+	else:
+		var eq: EquipmentData = EquipmentLibrary.get_equipment(item.get("id", ""))
+		match slot_field:
+			"weapon":
+				if member.weapon != null: _pm_push_equip_to_bag(member.weapon)
+				member.weapon = eq
+			"armor":
+				if member.armor != null: _pm_push_equip_to_bag(member.armor)
+				member.armor = eq
+			"accessory":
+				if member.accessory != null: _pm_push_equip_to_bag(member.accessory)
+				member.accessory = eq
 	GameState.remove_from_inventory(item.get("id", ""))
 	GameState.save()
 	_build_overlay()
@@ -721,6 +876,24 @@ func _pm_unequip_item(party_idx: int, slot_field: String) -> void:
 		_pm_push_equip_to_bag(eq)
 	GameState.save()
 	_build_overlay()
+
+func _pm_unequip_consumable(party_idx: int) -> void:
+	var member: CombatantData = GameState.party[party_idx]
+	if member.consumable != "":
+		_pm_push_consumable_to_bag(member.consumable)
+		member.consumable = ""
+	GameState.save()
+	_build_overlay()
+
+func _pm_push_consumable_to_bag(con_id: String) -> void:
+	var cd: ConsumableData = ConsumableLibrary.get_consumable(con_id)
+	GameState.add_to_inventory({
+		"id":          con_id,
+		"name":        cd.consumable_name,
+		"description": cd.description,
+		"item_type":   "consumable",
+		"seen":        true,
+	})
 
 ## --- Stat Comparison Panel ---
 
@@ -777,7 +950,7 @@ func _show_char_compare(near_pos: Vector2, existing: CombatantData, incoming: Co
 
 		var lbl := Label.new()
 		lbl.text = "%-3s  %d → %d" % [sn, cur, inc]
-		lbl.custom_minimum_size = Vector2(120.0, 0.0)
+		lbl.custom_minimum_size = Vector2(118.0, 0.0)
 		lbl.add_theme_font_size_override("font_size", 11)
 		if delta > 0:
 			lbl.add_theme_color_override("font_color", Color(0.45, 0.90, 0.45))
@@ -795,7 +968,7 @@ func _show_char_compare(near_pos: Vector2, existing: CombatantData, incoming: Co
 				Color(0.45, 0.90, 0.45) if delta > 0 else Color(0.90, 0.38, 0.38))
 			row.add_child(dlbl)
 
-	var panel_w: float = 210.0
+	var panel_w: float = 215.0
 	var panel_h: float = 155.0
 	panel.position = Vector2(
 		clampf(near_pos.x + 18.0, 0.0, VIEWPORT_SIZE.x - panel_w - 4.0),
@@ -829,3 +1002,17 @@ func _stat_abbrev(stat: String) -> String:
 		"willpower": return "WIL"
 		"vitality":  return "VIT"
 		_: return stat.substr(0, 3).to_upper() if stat.length() >= 3 else stat.to_upper()
+
+func _equip_bonus_str(eq: EquipmentData) -> String:
+	var parts: Array[String] = []
+	for stat: String in eq.stat_bonuses:
+		var val: int = eq.stat_bonuses[stat]
+		if val == 0:
+			continue
+		parts.append("%s %+d" % [_stat_abbrev(stat), val])
+	return ", ".join(parts)
+
+func _bag_strcmp(a: String, b: String) -> int:
+	if a < b: return -1
+	if a > b: return 1
+	return 0
