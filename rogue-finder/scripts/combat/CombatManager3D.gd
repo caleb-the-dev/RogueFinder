@@ -10,7 +10,8 @@ extends Node3D
 ##
 ## "Redo" button at bottom-left reloads the scene with freshly randomized units.
 
-const ENEMY_TURN_DELAY: float = 0.65
+const ENEMY_TURN_DELAY:     float = 0.65
+const RECRUIT_ENERGY_COST: int   = 3
 
 ## Abbreviations used in floating combat text for stat buff/debuff effects.
 const STAT_ABBREV: Dictionary = {
@@ -35,7 +36,10 @@ const STAT_STATUS_NAMES: Dictionary = {
 }
 
 enum CombatState { PLAYER_TURN, QTE_RUNNING, ENEMY_TURN, WIN, LOSE }
-enum PlayerMode  { IDLE, STRIDE_MODE, ABILITY_TARGET_MODE, TRAVEL_DESTINATION }
+enum PlayerMode  { IDLE, STRIDE_MODE, ABILITY_TARGET_MODE, TRAVEL_DESTINATION, RECRUIT_TARGET_MODE }
+
+## Emitted when a Recruit QTE succeeds. Slice 4 connects this to bench insertion + enemy removal.
+signal recruit_attempt_succeeded(target: Unit3D)
 
 var state: CombatState = CombatState.PLAYER_TURN
 var mode:  PlayerMode  = PlayerMode.IDLE
@@ -51,6 +55,11 @@ var _hovered_cell:   Vector2i           = Vector2i(-1, -1)  ## last cell under m
 
 var _attr_snapshots: Dictionary         = {}  ## per-unit attribute baseline; restored at combat end
 var _debug_menu:     CanvasLayer        = null
+
+var _recruit_caster:         Unit3D      = null
+var _recruit_bar:            RecruitBar  = null
+var _recruit_odds_layer:     CanvasLayer = null
+var _recruit_odds_label_node: Label      = null
 
 var _grid:           Grid3D             = null
 var _camera_rig:     CameraController   = null
@@ -367,6 +376,15 @@ func _setup_ui() -> void:
 	add_child(_action_menu)
 	_action_menu.ability_selected.connect(_on_ability_selected)
 	_action_menu.consumable_selected.connect(_on_consumable_selected)
+	_action_menu.recruit_selected.connect(_on_recruit_selected)
+
+	_recruit_bar = preload("res://scenes/combat/RecruitBar.tscn").instantiate()
+	add_child(_recruit_bar)
+
+	# Layer for the hover odds label shown over teal-highlighted enemies
+	_recruit_odds_layer       = CanvasLayer.new()
+	_recruit_odds_layer.layer = 6
+	add_child(_recruit_odds_layer)
 
 	# Floating status label at top-left
 	var status_layer := CanvasLayer.new()
@@ -440,7 +458,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_ESCAPE:
-				_deselect()
+				if mode == PlayerMode.RECRUIT_TARGET_MODE:
+					_cancel_recruit_targeting()
+				else:
+					_deselect()
 				get_viewport().set_input_as_handled()
 			KEY_SPACE:
 				_request_end_player_turn()
@@ -490,6 +511,16 @@ func _handle_unit_hover() -> void:
 		_info_bar_unit = null
 		_info_bar.hide_bar()
 
+	# In RECRUIT_TARGET_MODE show qualitative odds above teal-highlighted enemies
+	if mode == PlayerMode.RECRUIT_TARGET_MODE and _recruit_caster != null:
+		if obj is Unit3D:
+			var hovered := obj as Unit3D
+			if hovered.is_alive and not hovered.data.is_player_unit \
+					and _grid.highlighted_cells.get(hovered.grid_pos, "") == "recruit_target":
+				_show_recruit_odds(hovered)
+				return
+		_clear_recruit_odds_label()
+
 func _handle_left_click() -> void:
 	var camera: Camera3D = _camera_rig.get_camera()
 	if not camera:
@@ -507,6 +538,8 @@ func _handle_left_click() -> void:
 			_try_ability_target(cell)
 		PlayerMode.TRAVEL_DESTINATION:
 			_try_travel_destination(cell)
+		PlayerMode.RECRUIT_TARGET_MODE:
+			_try_recruit_target(cell)
 
 ## Double-click on any unit opens the full StatPanel examine window.
 func _handle_double_click() -> void:
@@ -562,6 +595,8 @@ func _select_unit(unit: Unit3D) -> void:
 	_update_status()
 
 func _deselect() -> void:
+	_recruit_caster = null
+	_clear_recruit_odds_label()
 	if _selected_unit:
 		_selected_unit.set_selected(false)
 		_selected_unit = null
@@ -1727,6 +1762,7 @@ func _qte_resolution_to_multiplier(qte_res: float) -> float:
 	return 0.25
 
 ## Returns true if the unit has not yet acted AND can afford at least one slotted ability.
+## Also returns true for the Pathfinder (party[0]) if Recruit is available.
 func _unit_can_still_act(unit: Unit3D) -> bool:
 	if unit.has_acted:
 		return false
@@ -1736,7 +1772,167 @@ func _unit_can_still_act(unit: Unit3D) -> bool:
 		var ability: AbilityData = AbilityLibrary.get_ability(ability_id)
 		if unit.current_energy >= ability.energy_cost:
 			return true
+	# Pathfinder can also act via Recruit when energy and bench allow
+	if not GameState.party.is_empty() and unit.data == GameState.party[0]:
+		if unit.current_energy >= RECRUIT_ENERGY_COST \
+				and GameState.bench.size() < GameState.BENCH_CAP:
+			return true
 	return false
+
+## --- Recruit Action ---
+
+## Triggered when the Pathfinder clicks "⊕ Recruit" in CombatActionPanel.
+## Enters RECRUIT_TARGET_MODE: highlights living enemies within 3 Manhattan tiles in teal.
+func _on_recruit_selected() -> void:
+	if not _selected_unit or state != CombatState.PLAYER_TURN:
+		return
+	_recruit_caster = _selected_unit
+	mode = PlayerMode.RECRUIT_TARGET_MODE
+	_grid.clear_highlights()
+	_grid.set_highlight(_recruit_caster.grid_pos, "selected")
+	var caster_pos: Vector2i = _recruit_caster.grid_pos
+	for enemy in _enemy_units:
+		if not enemy.is_alive:
+			continue
+		var dist: int = abs(enemy.grid_pos.x - caster_pos.x) \
+			+ abs(enemy.grid_pos.y - caster_pos.y)
+		if dist <= 3:
+			_grid.set_highlight(enemy.grid_pos, "recruit_target")
+	_update_status()
+
+## Click handler in RECRUIT_TARGET_MODE. Teal-highlighted enemy → initiate QTE.
+## Any other cell → cancel (no energy spent).
+func _try_recruit_target(cell: Vector2i) -> void:
+	if _grid.highlighted_cells.get(cell, "") != "recruit_target":
+		_cancel_recruit_targeting()
+		return
+	var obj: Object = _grid.get_unit_at(cell)
+	if not obj is Unit3D:
+		return
+	var target := obj as Unit3D
+	if not target.is_alive:
+		return
+	_initiate_recruit(_recruit_caster, target)
+
+## Cancels RECRUIT_TARGET_MODE and returns to the caster's normal STRIDE/IDLE state.
+func _cancel_recruit_targeting() -> void:
+	_recruit_caster = null
+	_clear_recruit_odds_label()
+	if _selected_unit and _selected_unit.is_alive:
+		_select_unit(_selected_unit)   # re-opens panel and restores mode
+	else:
+		_deselect()
+
+## Commits the Recruit action: spends energy, locks has_acted, runs the QTE, evaluates result.
+func _initiate_recruit(caster: Unit3D, target: Unit3D) -> void:
+	_clear_recruit_odds_label()
+	_grid.clear_highlights()
+	caster.spend_energy(RECRUIT_ENERGY_COST)
+	caster.has_acted = true
+	_action_menu.open_for(caster, _camera_rig.get_camera())
+
+	var base_chance: float = _compute_recruit_base_chance(caster, target)
+	mode  = PlayerMode.IDLE
+	state = CombatState.QTE_RUNNING
+	_update_status()
+
+	await _camera_rig.focus_on(target.global_position).finished
+	await get_tree().create_timer(0.25).timeout
+
+	_recruit_bar.start_recruit_qte(base_chance, target)
+	var qte_mult: float = await _recruit_bar.recruit_resolved
+
+	_camera_rig.restore()
+
+	var final_chance: float = clampf(base_chance * _qte_mult_to_recruit_mult(qte_mult), 0.0, 1.0)
+	var success: bool = randf() < final_chance
+
+	if not success:
+		_show_recruit_fail_feedback(target)
+		state = CombatState.PLAYER_TURN
+		if _selected_unit and _selected_unit.is_alive:
+			_select_unit(_selected_unit)
+			_info_bar.refresh(_selected_unit)
+		else:
+			_deselect()
+		_update_status()
+		_check_auto_end_turn()
+		return
+
+	# Slice 4: handle success here
+	recruit_attempt_succeeded.emit(target)
+	state = CombatState.PLAYER_TURN
+	if _selected_unit and _selected_unit.is_alive:
+		_select_unit(_selected_unit)
+		_info_bar.refresh(_selected_unit)
+	else:
+		_deselect()
+	_update_status()
+	_check_auto_end_turn()
+
+## Computes recruit success probability [0.05, 0.95].
+## Primary driver: target HP% (lower = easier). Light WIL delta modifier.
+func _compute_recruit_base_chance(caster: Unit3D, target: Unit3D) -> float:
+	var hp_pct: float      = float(target.current_hp) / float(target.data.hp_max) \
+		if target.data.hp_max > 0 else 0.0
+	var hp_component: float = 1.0 - hp_pct
+
+	var party_wil: int = 0
+	for pc: CombatantData in GameState.party:
+		if not pc.is_dead:
+			party_wil += pc.willpower
+	var enemy_wil: int = 0
+	for unit: Unit3D in _enemy_units:
+		if unit.is_alive:
+			enemy_wil += unit.data.willpower
+	var wil_delta: float = float(party_wil - enemy_wil) / 20.0
+
+	return clampf(hp_component * 0.80 + wil_delta * 0.20, 0.05, 0.95)
+
+## Maps a qualitative label to a base_chance value for display during target hover.
+func _recruit_odds_label(base_chance: float) -> String:
+	if base_chance < 0.20: return "Very Low"
+	if base_chance < 0.40: return "Low"
+	if base_chance < 0.60: return "Moderate"
+	if base_chance < 0.80: return "High"
+	return "Very High"
+
+## Maps a QTE tier multiplier to a recruit chance multiplier (1-to-1 passthrough).
+func _qte_mult_to_recruit_mult(qte_mult: float) -> float:
+	if qte_mult >= 1.25: return 1.25
+	if qte_mult >= 1.0:  return 1.0
+	if qte_mult >= 0.75: return 0.75
+	return 0.25
+
+## Shows a floating "Failed!" label above the target on a failed recruit attempt.
+func _show_recruit_fail_feedback(target: Unit3D) -> void:
+	if is_instance_valid(target) and target.is_alive:
+		target.show_floating_text("Failed!", Color(0.95, 0.30, 0.20))
+
+## Positions and shows the qualitative odds label over a hovered recruit target.
+func _show_recruit_odds(target: Unit3D) -> void:
+	var base_chance: float = _compute_recruit_base_chance(_recruit_caster, target)
+	var odds_str: String   = _recruit_odds_label(base_chance)
+
+	if _recruit_odds_label_node == null:
+		_recruit_odds_label_node = Label.new()
+		_recruit_odds_label_node.add_theme_font_size_override("font_size", 13)
+		_recruit_odds_label_node.add_theme_color_override("font_color", Color(0.20, 0.80, 0.68))
+		_recruit_odds_layer.add_child(_recruit_odds_label_node)
+
+	_recruit_odds_label_node.text    = "Recruit: %s" % odds_str
+	_recruit_odds_label_node.visible = true
+
+	var camera: Camera3D = _camera_rig.get_camera()
+	if camera:
+		var screen_pos: Vector2 = camera.unproject_position(
+			target.global_position + Vector3(0, 2.5, 0))
+		_recruit_odds_label_node.position = screen_pos + Vector2(-45.0, -28.0)
+
+## Hides the recruit odds label (called on hover-exit or mode exit).
+func _clear_recruit_odds_label() -> void:
+	if _recruit_odds_label_node != null:
+		_recruit_odds_label_node.visible = false
 
 ## --- Status ---
 
@@ -1755,6 +1951,8 @@ func _update_status() -> void:
 					_status_label.text = "%s — click a purple target  |  ESC cancel" % aname
 				PlayerMode.TRAVEL_DESTINATION:
 					_status_label.text = "REPOSITION — click a blue tile  |  ESC cancel"
+				PlayerMode.RECRUIT_TARGET_MODE:
+					_status_label.text = "RECRUIT — click a teal enemy within 3 tiles  |  ESC cancel"
 		CombatState.QTE_RUNNING:
 			_status_label.text = "DODGE! — press SPACE or click!"
 		CombatState.ENEMY_TURN:
