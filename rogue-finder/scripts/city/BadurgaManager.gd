@@ -374,64 +374,68 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	style.border_color = Color(0.38, 0.38, 0.55) if can_afford else Color(0.25, 0.25, 0.28)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(4)
-	style.content_margin_left   = 10.0; style.content_margin_right  = 10.0
-	style.content_margin_top    = 8.0;  style.content_margin_bottom  = 8.0
+	style.content_margin_left   = 12.0; style.content_margin_right  = 12.0
+	style.content_margin_top    = 10.0; style.content_margin_bottom = 10.0
 	card.add_theme_stylebox_override("panel", style)
 	if not can_afford:
 		card.modulate = Color(1.0, 1.0, 1.0, 0.65)
 
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 12)
-	card.add_child(hbox)
+	var outer_vbox := VBoxContainer.new()
+	outer_vbox.add_theme_constant_override("separation", 8)
+	card.add_child(outer_vbox)
 
-	# Portrait
+	# Header row: portrait | identity (expand) | cost+hire button
+	var top_hbox := HBoxContainer.new()
+	top_hbox.add_theme_constant_override("separation", 12)
+	outer_vbox.add_child(top_hbox)
+
 	var portrait := TextureRect.new()
-	portrait.custom_minimum_size = Vector2(64.0, 64.0)
+	portrait.custom_minimum_size = Vector2(80.0, 80.0)
 	portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	portrait.texture = load(arch.artwork_idle) as Texture2D if arch.artwork_idle != "" \
 		else load("res://icon.svg") as Texture2D
-	hbox.add_child(portrait)
+	top_hbox.add_child(portrait)
 
-	# Info vbox
-	var info_vbox := VBoxContainer.new()
-	info_vbox.add_theme_constant_override("separation", 3)
-	info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	info_vbox.size_flags_vertical   = Control.SIZE_SHRINK_CENTER
-	hbox.add_child(info_vbox)
+	var id_vbox := VBoxContainer.new()
+	id_vbox.add_theme_constant_override("separation", 3)
+	id_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	id_vbox.size_flags_vertical   = Control.SIZE_SHRINK_CENTER
+	top_hbox.add_child(id_vbox)
 
 	var name_lbl := Label.new()
 	name_lbl.text = hire_name
-	name_lbl.add_theme_font_size_override("font_size", 16)
+	name_lbl.add_theme_font_size_override("font_size", 18)
 	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.72))
-	info_vbox.add_child(name_lbl)
+	id_vbox.add_child(name_lbl)
 
-	var arch_lbl := Label.new()
-	arch_lbl.text = arch.archetype_id.replace("_", " ")
-	arch_lbl.add_theme_font_size_override("font_size", 12)
-	arch_lbl.add_theme_color_override("font_color", Color(0.68, 0.65, 0.80))
-	info_vbox.add_child(arch_lbl)
+	var arch_type_lbl := Label.new()
+	arch_type_lbl.text = "%s  ·  %s  ·  %s" % [
+		arch.archetype_id.replace("_", " "), arch.unit_class, arch.kindred]
+	arch_type_lbl.add_theme_font_size_override("font_size", 13)
+	arch_type_lbl.add_theme_color_override("font_color", Color(0.68, 0.65, 0.80))
+	id_vbox.add_child(arch_type_lbl)
 
-	# 4 key stats: HP (estimated from vit mid + kindred bonus) / STR / DEX / VIT
-	var mid_vit: int = (arch.vit_range[0] + arch.vit_range[1]) / 2
-	var mid_str: int = (arch.str_range[0] + arch.str_range[1]) / 2
-	var mid_dex: int = (arch.dex_range[0] + arch.dex_range[1]) / 2
-	var est_hp: int  = 10 + KindredLibrary.get_hp_bonus(arch.kindred) + mid_vit * 4
+	if not arch.backgrounds.is_empty():
+		var bg_lbl := Label.new()
+		bg_lbl.text = "Backgrounds: %s" % ", ".join(arch.backgrounds)
+		bg_lbl.add_theme_font_size_override("font_size", 11)
+		bg_lbl.add_theme_color_override("font_color", Color(0.62, 0.60, 0.55))
+		id_vbox.add_child(bg_lbl)
 
-	var stat_row := HBoxContainer.new()
-	stat_row.add_theme_constant_override("separation", 16)
-	info_vbox.add_child(stat_row)
-	for pair in [["HP", est_hp], ["STR", mid_str], ["DEX", mid_dex], ["VIT", mid_vit]]:
-		_add_stat_chip(stat_row, pair[0], pair[1])
+	var hire_col := VBoxContainer.new()
+	hire_col.add_theme_constant_override("separation", 4)
+	hire_col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top_hbox.add_child(hire_col)
 
-	# Cost + hire button
 	var cost_lbl := Label.new()
 	cost_lbl.text = "%d Gold" % arch.hire_cost
-	cost_lbl.add_theme_font_size_override("font_size", 13)
+	cost_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cost_lbl.add_theme_font_size_override("font_size", 16)
 	cost_lbl.add_theme_color_override("font_color",
 		Color(0.90, 0.80, 0.30) if can_afford else Color(0.55, 0.50, 0.35))
-	hbox.add_child(cost_lbl)
+	hire_col.add_child(cost_lbl)
 
 	var cap_arch := arch
 	var cap_card := card
@@ -439,12 +443,142 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 
 	var hire_btn := Button.new()
 	hire_btn.text = "Hire"
-	hire_btn.custom_minimum_size = Vector2(72.0, 36.0)
-	hire_btn.add_theme_font_size_override("font_size", 14)
+	hire_btn.custom_minimum_size = Vector2(100.0, 36.0)
+	hire_btn.add_theme_font_size_override("font_size", 15)
 	hire_btn.disabled = not can_afford
-	hire_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hire_btn.pressed.connect(func() -> void: _on_hire_pressed(cap_arch, cap_card, cap_index))
-	hbox.add_child(hire_btn)
+	hire_col.add_child(hire_btn)
+
+	outer_vbox.add_child(_make_hsep())
+
+	# Body: left column (stats) | separator | right column (abilities + feats)
+	var body_hbox := HBoxContainer.new()
+	body_hbox.add_theme_constant_override("separation", 16)
+	outer_vbox.add_child(body_hbox)
+
+	# --- Left column: Stats ---
+	var stats_col := VBoxContainer.new()
+	stats_col.custom_minimum_size = Vector2(340.0, 0.0)
+	stats_col.add_theme_constant_override("separation", 5)
+	body_hbox.add_child(stats_col)
+
+	var stats_hdr := Label.new()
+	stats_hdr.text = "STATS  (averages)"
+	stats_hdr.add_theme_font_size_override("font_size", 11)
+	stats_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	stats_col.add_child(stats_hdr)
+
+	# Estimated derived stats from mid-range attribute values
+	var mid_str: int  = (arch.str_range[0]           + arch.str_range[1])           / 2
+	var mid_dex: int  = (arch.dex_range[0]           + arch.dex_range[1])           / 2
+	var mid_cog: int  = (arch.cog_range[0]           + arch.cog_range[1])           / 2
+	var mid_wil: int  = (arch.wil_range[0]           + arch.wil_range[1])           / 2
+	var mid_vit: int  = (arch.vit_range[0]           + arch.vit_range[1])           / 2
+	var mid_phys: int = (arch.physical_armor_range[0] + arch.physical_armor_range[1]) / 2
+	var mid_mag: int  = (arch.magic_armor_range[0]   + arch.magic_armor_range[1])   / 2
+	var est_hp: int     = 10 + KindredLibrary.get_hp_bonus(arch.kindred) + mid_vit * 4
+	var est_energy: int = 5  + mid_vit
+	var est_speed: int  = 1  + KindredLibrary.get_speed_bonus(arch.kindred)
+
+	var stat_grid := GridContainer.new()
+	stat_grid.columns = 5
+	stat_grid.add_theme_constant_override("h_separation", 16)
+	stat_grid.add_theme_constant_override("v_separation", 4)
+	stats_col.add_child(stat_grid)
+
+	for pair: Array in [
+		["HP",    est_hp],   ["Nrg",   est_energy], ["Spd",   est_speed],
+		["P.Arm", mid_phys], ["M.Arm", mid_mag],
+		["STR",   mid_str],  ["DEX",   mid_dex],    ["COG",   mid_cog],
+		["WIL",   mid_wil],  ["VIT",   mid_vit],
+	]:
+		_add_stat_chip(stat_grid, pair[0], pair[1])
+
+	body_hbox.add_child(_make_vsep())
+
+	# --- Right column: Abilities + Feats ---
+	var right_col := VBoxContainer.new()
+	right_col.add_theme_constant_override("separation", 6)
+	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_hbox.add_child(right_col)
+
+	# Abilities header
+	var ab_hdr := Label.new()
+	ab_hdr.text = "ABILITIES"
+	ab_hdr.add_theme_font_size_override("font_size", 11)
+	ab_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+	right_col.add_child(ab_hdr)
+
+	var start_ids: Array[String] = arch.abilities.filter(
+		func(id: String) -> bool: return id != "")
+	if not start_ids.is_empty():
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		right_col.add_child(row)
+		var lbl := Label.new()
+		lbl.text = "Starting:"
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_color_override("font_color", Color(0.52, 0.50, 0.40))
+		row.add_child(lbl)
+		var names: Array[String] = []
+		for ab_id: String in start_ids:
+			names.append(AbilityLibrary.get_ability(ab_id).ability_name)
+		var val := Label.new()
+		val.text = "  ·  ".join(names)
+		val.add_theme_font_size_override("font_size", 12)
+		val.add_theme_color_override("font_color", Color(0.88, 0.84, 0.70))
+		val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(val)
+
+	if not arch.pool_extras.is_empty():
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		right_col.add_child(row)
+		var lbl := Label.new()
+		lbl.text = "Pool:"
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_color_override("font_color", Color(0.52, 0.50, 0.40))
+		row.add_child(lbl)
+		var names: Array[String] = []
+		for ab_id: String in arch.pool_extras:
+			names.append(AbilityLibrary.get_ability(ab_id).ability_name)
+		var val := Label.new()
+		val.text = "  ·  ".join(names)
+		val.add_theme_font_size_override("font_size", 12)
+		val.add_theme_color_override("font_color", Color(0.75, 0.78, 0.72))
+		val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(val)
+
+	# Feats (only if the archetype has any possible backgrounds)
+	if not arch.backgrounds.is_empty():
+		right_col.add_child(_make_hsep())
+		var feat_hdr := Label.new()
+		feat_hdr.text = "FEATS  (pool across all possible backgrounds)"
+		feat_hdr.add_theme_font_size_override("font_size", 11)
+		feat_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+		right_col.add_child(feat_hdr)
+
+		var feat_ids: Array[String] = []
+		for bg_id: String in arch.backgrounds:
+			var bg: BackgroundData = BackgroundLibrary.get_background(bg_id)
+			if bg.starting_feat_id != "" and bg.starting_feat_id not in feat_ids:
+				feat_ids.append(bg.starting_feat_id)
+			for fid: String in bg.feat_pool:
+				if fid not in feat_ids:
+					feat_ids.append(fid)
+
+		if not feat_ids.is_empty():
+			var feat_names: Array[String] = []
+			for fid: String in feat_ids:
+				feat_names.append(FeatLibrary.get_feat(fid).name)
+			var feat_lbl := Label.new()
+			feat_lbl.text = "  ·  ".join(feat_names)
+			feat_lbl.add_theme_font_size_override("font_size", 12)
+			feat_lbl.add_theme_color_override("font_color", Color(0.80, 0.72, 0.90))
+			feat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			right_col.add_child(feat_lbl)
 
 	return card
 
