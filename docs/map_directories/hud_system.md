@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-25 (map audit — MainMenuScene + CharacterCreationScene split to character_creation.md)
+> Last updated: 2026-04-28 (Follower Slice 3 — CombatActionPanel: recruit_selected signal + ⊕ Recruit button)
 
 ---
 
@@ -68,6 +68,7 @@ Layout (top to bottom):
 - HP bar + EN bar with color-coded fill and numeric label
 - Status effects (BBCode colored chips)
 - "Abilities" section: 2×2 grid of buttons; each shows `Name / Cost · Shape`
+- **⊕ Recruit button** — below the 2×2 grid; visible **only for the Pathfinder (party[0])**; hidden for all other units including enemies; greyed (disabled) when: energy < 3, `has_acted`, or `GameState.bench.size() >= GameState.BENCH_CAP`; tooltip shows cost/range/mechanic; emits `recruit_selected` when clicked
 - Consumable button — hidden for enemies; hidden when slot empty; greyed when `has_acted`
 - Stride hint — hidden for enemies; shows `"Click to stride · N tiles left"` or `"No movement remaining"`
 - Dialogue stub box (reserved for future combat banter — shows `"..."`)
@@ -93,14 +94,24 @@ Lives in `scripts/ui/CombatActionPanel.gd` + `scenes/ui/CombatActionPanel.tscn`.
 |--------|------|-----------|
 | `ability_selected` | `ability_id: String` | Player clicks an ability button |
 | `consumable_selected` | — | Player clicks the consumable button |
+| `recruit_selected` | — | Pathfinder clicks the ⊕ Recruit button; panel closes before emitting |
 
 ### Gotchas
 
 - **Tween guard:** `open_for()` kills any in-flight tween before starting a new one. Calling `open_for()` while sliding out cancels the close and slides back in cleanly.
 - **Ability buttons are rebuilt** (`queue_free` + recreate) on every `open_for()` call. Do not hold external references to individual buttons.
+- **Recruit button persists** — unlike ability buttons, `_recruit_btn` is created once in `_build_ui()` and shown/hidden via `_refresh_recruit()`. Do not `queue_free` it.
+- **Recruit button const mirrors CombatManager3D** — `_RECRUIT_ENERGY_COST: int = 3` is duplicated in CombatActionPanel. If the recruit energy cost changes, update both constants.
 - **Consumable signal connected once** in `_build_ui()` using `_current_unit` in the handler — no repeated connections on refresh.
 - **HP fill uses `anchor_right`** (not pixel size). The bar fill is 0–1 anchored inside a `Control` wrapper, so it scales automatically with the panel width.
 - **No save state:** this system is pure presentation. No state survives scene transitions.
+
+### Recent Changes (CombatActionPanel)
+
+| Date | Change |
+|------|--------|
+| 2026-04-28 | **Follower Slice 3.** `recruit_selected` signal added. `_recruit_btn: Button` built once in `_build_ui()`, placed below the 2×2 ability grid. `_refresh_recruit(unit)` method handles show/hide and enable/disable; called from `_rebuild_ability_grid()` and `refresh()`. Button is Pathfinder-only (compares `unit.data == GameState.party[0]`). Greys out if energy < 3, `has_acted`, or bench full. Tooltip: "Attempt to recruit a nearby enemy. 3 Energy · Range 3 · Chance depends on target HP and your party's Willpower." Panel closes before emitting `recruit_selected` (same pattern as `ability_selected`). |
+| 2026-04-23 | **Kindred label.** Small muted blue-grey label added between name and portrait for both player and enemy views. |
 
 ---
 

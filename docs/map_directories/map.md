@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-27 (kindred expansion — 4 new kindreds, 2 backgrounds, equipment/consumable expansion) |
+| last_updated | 2026-04-28 (Follower Slice 3 — Recruit action + RecruitBar QTE) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 12 |
+| sessions_since_groom | 13 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -26,7 +26,7 @@
 | [Combat Manager](combat_manager.md) | `combat_manager.md` | ✅ Active (3D) + Legacy (2D) | Core |
 | [Grid System](grid_system.md) | `grid_system.md` | ✅ Active (3D) + Legacy (2D) | Core |
 | [Unit System](unit_system.md) | `unit_system.md` | ✅ Active (3D) + Legacy (2D) | Core |
-| [QTE System](qte_system.md) | `qte_system.md` | ✅ Active | Core |
+| [QTE System — QTEBar + RecruitBar](qte_system.md) | `qte_system.md` | ✅ Active (QTEBar: Slide dodge; RecruitBar: hold-and-release capture) | Core |
 | [Camera System](camera_system.md) | `camera_system.md` | ✅ Active (3D only) | Presentation |
 | [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
 | [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34) | Data |
@@ -54,6 +54,7 @@ CombatManager3D
   ├── Grid3D                (cell queries, highlights, world↔grid math)
   ├── Unit3D ×≤6            (HP/energy, movement, animations; player units from GameState.party)
   ├── QTEBar                (defender-driven Slide; HARM-only; enemy instant-sims via qte_resolution; awaited inline)
+  ├── RecruitBar            (Pathfinder hold-and-release capture; layer 11; awaited inline in _initiate_recruit)
   ├── CameraController      (built by CM3D; shake on hit; focus_on/restore for QTE camera)
   ├── UnitInfoBar           (hover-based strip)
   ├── StatPanel             (double-click examine window)
@@ -65,7 +66,8 @@ CombatManager3D
 
 CombatActionPanel
   ├── AbilityLibrary        (button build + tooltips)
-  └── ConsumableLibrary     (button + tooltip)
+  ├── ConsumableLibrary     (button + tooltip)
+  └── GameState             (bench.size() + BENCH_CAP for Recruit button enable check)
 
 EndCombatScreen
   └── RewardGenerator → EquipmentLibrary + ConsumableLibrary
@@ -163,6 +165,7 @@ rogue-finder/
 │   │   ├── Unit3D.gd                   ← active
 │   │   ├── Grid3D.gd                   ← active
 │   │   ├── QTEBar.gd
+│   │   ├── RecruitBar.gd               ← hold-and-release capture QTE (layer 11)
 │   │   ├── CombatManager.gd            ← legacy 2D
 │   │   ├── Unit.gd                     ← legacy 2D
 │   │   └── Grid.gd                     ← legacy 2D
@@ -231,7 +234,8 @@ rogue-finder/
 │   │   ├── CombatScene.tscn            ← legacy 2D
 │   │   ├── Grid3D.tscn · Grid.tscn
 │   │   ├── Unit3D.tscn · Unit.tscn
-│   │   └── QTEBar.tscn
+│   │   ├── QTEBar.tscn
+│   │   └── RecruitBar.tscn             ← minimal (root CanvasLayer + script only)
 │   ├── map/MapScene.tscn
 │   ├── events/EventScene.tscn          ← minimal (root CanvasLayer + EventManager script)
 │   ├── misc/NodeStub.tscn
@@ -242,7 +246,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 35 test scripts + 21 scene runners (test_temperament.gd/.tscn added 2026-04-27; 14 assertions); includes test_armor_mod.gd/.tscn (11 assertions covering the runtime armor mod lane); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). Some `.gd` tests extend SceneTree and are run via `--script` instead of a `.tscn` runner (e.g. test_ability_library, test_consumables, test_effect_data, test_enemy_ai)
+└── tests/                              ← 36 test scripts + 22 scene runners (test_recruit_math.gd/.tscn added 2026-04-28; 13 assertions covering base-chance formula + odds-label buckets); includes test_armor_mod.gd/.tscn (11 assertions); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; SceneTree tests use `--script`.
 ```
 
 ---
@@ -253,6 +257,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-28 | CombatManager3D, CombatActionPanel, Grid3D, GameState, RecruitBar (new), tests | **Follower Slice 3 — Recruit action + hold-and-release QTE.** Pathfinder gets a dedicated "⊕ Recruit 3E" button in CombatActionPanel (below the 2×2 ability grid; Pathfinder-only; greyed when energy <3, already acted, or bench full). Clicking enters RECRUIT_TARGET_MODE: teal highlights appear on living enemies ≤3 Manhattan tiles; hovering shows qualitative odds label ("Very Low"–"Very High") anchored in world space above target. Clicking a teal enemy commits the action (spend 3 energy, has_acted=true), camera focuses on target, and the new RecruitBar QTE fires (layer 11, vertical 40×220 px bar floating above target). Player holds SPACE to push fill faster; releases inside gold window for higher-tier result. Result multiplies base_chance (driven by target HP% 80% + WIL delta 20%, clamped 0.05–0.95) to determine final success roll. On failure: "Failed!" floating text, turn continues. On success: `recruit_attempt_succeeded(target)` emitted — **Slice 4 wires bench insertion + enemy removal**. ESC or off-target click cancels free (no energy spent). `_unit_can_still_act()` updated: Pathfinder is "can still act" if recruit is available, preventing premature auto-end-turn. Grid3D gained `COLOR_RECRUIT_TARGET` teal constant + `"recruit_target"` highlight case. GameState gained `BENCH_CAP=9`, `bench: Array[CombatantData]`, `add_to_bench()` stub (not yet saved to disk). 13 new headless tests (`test_recruit_math.gd/.tscn`). |
 | 2026-04-27 | kindreds.csv, abilities.csv, backgrounds.csv, feats.csv, equipment.csv, consumables.csv, archetypes.csv | **Kindred expansion — data only, no code changes.** 4 new kindreds added to `kindreds.csv`: Skeleton (physical tank, P.Armor+2, speed 2, HP 4), Giant Rat (dex swarmer, DEX+2, speed 5, HP 3), Spider (dex debuffer, DEX+1, speed 3, HP 4), Dragon (apex brute, STR+2, speed 1, HP 15). Each kindred got a natural attack + 2 ancestry pool abilities — 12 new ability rows total (`bone_strike`, `grim_endurance`, `death_rattle`, `gnaw`, `scatter`, `pack_instinct`, `venom_bite`, `web_shot`, `skitter`, `claw_swipe`, `draconic_breath`, `scales_up`). 2 new backgrounds: `scavenger` (DEX+1, criminal/feral) + `pit_fighter` (STR+1, combat/criminal) + 6 new background feats. 4 new archetypes: `skeleton_warrior`, `rat_scrapper`, `cave_spider`, `young_dragon`. Equipment 9→20 (war_hammer/twin_daggers/mages_staff/bone_club + hide_armor/silk_shroud/dragonscale_vest + swift_boots/scholars_ring/amulet_of_will/fang_necklace). Consumables 2→6 (rage_draught/focus_brew/swiftness_tonic/antidote). All new kindreds auto-appear in CharacterCreationManager — `all_kindreds()` drives the dial. |
 | 2026-04-27 | temperaments.csv, TemperamentData, TemperamentLibrary, CombatantData, ArchetypeLibrary, CharacterCreationManager, GameState, StatPanel, PartySheet, backgrounds.csv, classes.csv, tests | **Temperament system + stat balance.** New Pokémon-style temperament system: `temperaments.csv` (21 rows — 20 non-neutral + "Even"), `TemperamentData.gd` resource, `TemperamentLibrary.gd` (lazy CSV load, `get_temperament()`, `all_temperaments()`, `random_id(rng)`, `reload()`). `CombatantData.temperament_id: String` (@export, serialized); `get_temperament_stat_bonus(stat)` method (+1/−1/0); wired into attack, hp_max, energy_max, energy_regen, speed as sixth flat bonus source. `ArchetypeLibrary.create()` and `CharacterCreationManager._build_pc()` both call `TemperamentLibrary.random_id(rng)` — temperament is hidden from the player before creation. `GameState` serializes `temperament_id`; old saves default to `"even"`. StatPanel: "Temperament: Fierce +STR / -DEX" line with BBCode color-coding (green+/red−) added after Background. PartySheet: "Temp: Fierce (+STR/-DEX)" line in TOP-LEFT (11 px purple-grey) after Kindred; attribute values remain plain yellow (green/red reserved for future equipment indicators). Background balance: all 4 backgrounds now give exactly +1 to one stat (soldier vit dropped, scholar cog reduced to 1, baker wil dropped). Class balance: all 4 classes now give exactly 4 total stat points, max +2 per stat (vanguard +1 str, arcanist +1 wil, prowler cog:1 added, warden +1 wil). 14 new headless tests (`test_temperament.gd`) covering library load, neutral, +1/−1/0 bonus, derived-stat wiring ×4, archetype creation, and CSV rule enforcement for both backgrounds and classes. Test suites updated: test_class_stat_bonus, test_class_library, test_character_creation, test_combatant_data. |
 | 2026-04-27 | equipment.csv, GameState, CombatManager3D, MapManager, tests, docs | **Armor Mod test room + new armor pieces + Add Item dev tool.** `equipment.csv` gained `plate_cuirass` (ARMOR — physical_armor +3, dexterity -2) and `warded_robe` (ARMOR — magic_armor +2 — first equipment piece exercising the `_equip_bonus("magic_armor")` codepath). `GameState.test_room_kind: String = "armor_showcase"` added (transient, not serialized) so multiple test scenarios can share `test_room_mode`. `CombatManager3D._setup_test_room_units()` is now a dispatcher; common spawning factored to `_spawn_test_room(player_defs, enemy_defs)`; per-scenario data in `_armor_showcase_*` and `_armor_mod_*` getters. New `armor_mod` scenario: Boran (Dwarf vanguard, `stone_guard`) / Velis (Human warden, `divine_ward`) / Rune (Gnome arcanist) vs Stone Bruiser / Pyromancer / Twin Threat (all 4/4 armor). `MapManager` dev menu: existing "⚔ Test Room" renamed "Armor Showcase"; new sibling "Armor Mod" button. New "INVENTORY" section with "+ Add Item to Inventory" button → modal A-Z list of every equipment + consumable; click drops a copy into `GameState.inventory`. 4 new tests in `test_equipment.gd` (plate_cuirass, warded_robe, magic-armor independence, library size 9); all prior suites still green. |

@@ -1,6 +1,6 @@
 # System: Combat Manager
 
-> Last updated: 2026-04-27 (armor mod — _apply_stat_delta gains PHYSICAL_ARMOR_MOD/MAGIC_ARMOR_MOD cases; _attr_snapshots snapshot/restore the new fields; STAT_STATUS_NAMES + STAT_ABBREV extended)
+> Last updated: 2026-04-28 (Follower Slice 3 — Recruit action: RECRUIT_TARGET_MODE, RecruitBar, recruit_attempt_succeeded signal, odds label)
 
 ---
 
@@ -42,7 +42,8 @@ Does **NOT** own: grid math (see `grid_system.md`), unit visuals/HP state (see `
 | **CameraController** | Built by CM3D; `trigger_shake()` called on successful hit |
 | **UnitInfoBar** | `show_for(unit)` on single-click; `refresh(unit)` after damage; `hide_bar()` on deselect |
 | **StatPanel** | `show_for(unit)` on double-click; `hide_panel()` on deselect / combat end |
-| **CombatActionPanel** | `open_for(unit, camera)` on any unit click (player=interactive, enemy=read-only); listens for `ability_selected(id)` and `consumable_selected()`; internal var is `_action_menu` (legacy naming — not a separate class) |
+| **CombatActionPanel** | `open_for(unit, camera)` on any unit click (player=interactive, enemy=read-only); listens for `ability_selected(id)`, `consumable_selected()`, and `recruit_selected()`; internal var is `_action_menu` (legacy naming — not a separate class) |
+| **RecruitBar** | `start_recruit_qte(base_chance, target)` called from `_initiate_recruit()`; awaits `recruit_resolved(result)` inline |
 | **ArchetypeLibrary** | `create(archetype_id, name, is_player)` for enemy units only (player units come from `GameState.party`) |
 | **GameState** | `GameState.party` read in `_setup_units()`; `GameState.save()` called on permadeath and combat end |
 | **AbilityLibrary** | `get_ability(id)` to resolve `_pending_ability` before targeting |
@@ -78,6 +79,7 @@ STRIDE_MODE
   └─[click move tile]─────────────→ IDLE (unit moved; re-select to act)
   └─[CombatActionPanel: ability]──→ ABILITY_TARGET_MODE
   └─[CombatActionPanel: consumable]→ IDLE (consumable used; panel refreshes in-place)
+  └─[CombatActionPanel: recruit]──→ RECRUIT_TARGET_MODE (Pathfinder only)
   └─[click elsewhere]─────────────→ IDLE
 
 ABILITY_TARGET_MODE  (purple highlights; _selected_unit + _pending_ability set)
@@ -87,11 +89,19 @@ ABILITY_TARGET_MODE  (purple highlights; _selected_unit + _pending_ability set)
   └─[ESC / invalid click]─────────→ STRIDE_MODE (cancel)
   └─[mouse motion, CONE/ARC/RADIAL]→ _handle_shape_hover() updates preview
 
-QTE_RUNNING  (blocks all input until qte_resolved fires)
+RECRUIT_TARGET_MODE  (teal highlights on enemies ≤3 tiles; _recruit_caster set)
+  └─[click teal enemy]────────────→ QTE_RUNNING → _initiate_recruit()
+  └─[ESC / click non-teal]────────→ STRIDE_MODE (cancel; no energy spent)
+  └─[mouse motion over teal enemy]→ odds label shown above target ("Very Low"–"Very High")
+
+QTE_RUNNING  (blocks all input until qte_resolved or recruit_resolved fires)
   └─[qte_resolved(multiplier)]────→ _on_qte_resolved:
         TRAVEL effect?  → TRAVEL_DESTINATION
         AoE?            → STRIDE_MODE / IDLE (after shape effects applied)
         Single?         → STRIDE_MODE / IDLE (after effects applied)
+  └─[recruit_resolved(result)]────→ _initiate_recruit (resumed):
+        success?        → recruit_attempt_succeeded.emit(target); STRIDE_MODE / IDLE
+        failure?        → "Failed!" floating text; STRIDE_MODE / IDLE
 
 TRAVEL_DESTINATION  (blue tiles; player picks where to land)
   └─[click valid tile]────────────→ IDLE (unit repositioned)
@@ -105,10 +115,16 @@ TRAVEL_DESTINATION  (blue tiles; player picks where to land)
 | Signal | Source | Usage |
 |--------|--------|-------|
 | `qte_resolved(multiplier: float)` | QTEBar | Awaited inline via `await _qte_bar.qte_resolved` inside `_run_harm_defenders()` — no signal handler |
+| `recruit_resolved(result: float)` | RecruitBar | Awaited inline via `await _recruit_bar.recruit_resolved` inside `_initiate_recruit()` — no signal handler |
 | `ability_selected(ability_id)` | CombatActionPanel | `_on_ability_selected(ability_id)` |
 | `consumable_selected()` | CombatActionPanel | `_on_consumable_selected()` |
+| `recruit_selected()` | CombatActionPanel | `_on_recruit_selected()` |
 
-*(CM3D emits no external signals — it is the scene root.)*
+## Signals Emitted
+
+| Signal | Args | When |
+|--------|------|------|
+| `recruit_attempt_succeeded` | `target: Unit3D` | Recruit QTE succeeds and randf() < final_chance. **Slice 4 connects this** to bench insertion + enemy removal. Currently emitted but unhandled. |
 
 ---
 
@@ -151,6 +167,16 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_check_auto_end_turn()` | After each action: auto-ends turn when no player can still act |
 | `_run_enemy_turn()` | Iterates enemy units via `_process_enemy_actions()`; regens energy + resets turns + **hazard damage for player units**; returns to PLAYER_TURN |
 | `_process_enemy_actions()` | Full enemy AI loop: **hazard damage check** → target selection → consumable use → stride → ability selection → execute. 0.65s delay between enemies. |
+| `_on_recruit_selected()` | Connected to `CombatActionPanel.recruit_selected`. Stores `_selected_unit` as `_recruit_caster`, enters `RECRUIT_TARGET_MODE`, clears highlights, teal-highlights living enemies ≤3 Manhattan tiles. |
+| `_try_recruit_target(cell)` | Click handler in `RECRUIT_TARGET_MODE`. Teal cell → `_initiate_recruit(caster, target)`. Non-teal → `_cancel_recruit_targeting()`. |
+| `_cancel_recruit_targeting()` | Clears `_recruit_caster`, hides odds label, calls `_select_unit(_selected_unit)` to re-open panel and restore STRIDE/IDLE. Free cancel — no energy spent. |
+| `_initiate_recruit(caster, target)` | Commits the recruit: `spend_energy(RECRUIT_ENERGY_COST)`, `has_acted = true`, `open_for()` refresh; camera focus on target; awaits `_recruit_bar.recruit_resolved`; computes `final_chance = clamp(base × qte_mult, 0, 1)`; rolls `randf()`; on failure shows "Failed!" text + continues turn; on success emits `recruit_attempt_succeeded(target)` (Slice 4 handles the rest). |
+| `_compute_recruit_base_chance(caster, target)` | Returns `clamp(hp_component × 0.80 + wil_delta × 0.20, 0.05, 0.95)`. `hp_component = 1 − target.current_hp/hp_max`; `wil_delta = (party_wil_sum − enemy_wil_sum) / 20.0`. |
+| `_recruit_odds_label(base_chance)` | Maps float → qualitative string: <0.20 "Very Low", <0.40 "Low", <0.60 "Moderate", <0.80 "High", else "Very High". |
+| `_qte_mult_to_recruit_mult(qte_mult)` | Passthrough mapping: 1.25→1.25, 1.0→1.0, 0.75→0.75, else→0.25. Makes intent explicit at call site. |
+| `_show_recruit_fail_feedback(target)` | Shows "Failed!" floating text in red over the target unit via `target.show_floating_text()`. |
+| `_show_recruit_odds(target)` | Creates or updates `_recruit_odds_label_node` (Label on `_recruit_odds_layer`); positions it via `Camera3D.unproject_position(target.global_position + Vector3(0, 2.5, 0))`; shows qualitative odds. Called from `_handle_unit_hover()` when hovering a teal enemy. |
+| `_clear_recruit_odds_label()` | Hides `_recruit_odds_label_node`. Called on mode exit, cancel, deselect. |
 | `_check_hazard_damage(unit)` | If unit is on a HAZARD cell and alive: `unit.take_damage(2)` + camera shake + `_check_win_lose()`. Called at: start of player turn (all player units), start of each enemy's action, and on entry after any voluntary move (stride, TRAVEL). FORCE traversal damage is handled separately inside `_apply_force()` via path iteration. |
 | `_setup_environment_tiles()` | Calls `_grid.build_walls()` and `_grid.set_cell_type()` for the hardcoded placeholder layout. Called from `_ready()` after `_setup_grid()`. |
 | `_pick_best_aoe_origin(enemy, ability)` | For AoE abilities: finds the origin cell that maximizes living player units hit (random tiebreak). RADIAL scans all cells in range; CONE/ARC/LINE try 4 cardinal roots. |
@@ -159,7 +185,7 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_capture_run_summary()` | Snapshots run stats into `GameState.run_summary` (pc_name, nodes_visited, nodes_cleared, threat_level, fallen_allies list) immediately before defeat transition |
 | `_show_run_end_overlay()` | Builds a full-screen "The RogueFinder has perished." CanvasLayer (layer 20); awaits 3 seconds then `change_scene_to_file("res://scenes/ui/RunSummaryScene.tscn")` |
 | `_toggle_debug_menu()` | T key: creates `_debug_menu` on first call (returns immediately, so menu appears); toggles visible on subsequent presses |
-| `_unit_can_still_act(unit)` | True if alive, has_acted=false, energy ≥ lowest affordable ability cost |
+| `_unit_can_still_act(unit)` | True if alive, has_acted=false, and (energy ≥ lowest affordable ability cost OR unit is Pathfinder with energy ≥ 3 and bench not full) |
 
 ---
 
@@ -259,6 +285,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-28 | **Follower Slice 3 — Recruit action.** `RECRUIT_ENERGY_COST: int = 3` constant added. `recruit_attempt_succeeded(target: Unit3D)` signal added (stub — Slice 4 connects it). `RECRUIT_TARGET_MODE` added to `PlayerMode` enum. New vars: `_recruit_caster: Unit3D`, `_recruit_bar: RecruitBar`, `_recruit_odds_layer: CanvasLayer`, `_recruit_odds_label_node: Label`. `_setup_ui()` instantiates `RecruitBar.tscn` + odds CanvasLayer (layer 6) + connects `_action_menu.recruit_selected`. `_handle_left_click()` dispatches to `_try_recruit_target()` in new mode. `_handle_unit_hover()` shows qualitative odds label over teal enemies. ESC in `RECRUIT_TARGET_MODE` calls `_cancel_recruit_targeting()` instead of full deselect. `_deselect()` clears `_recruit_caster` + hides odds label. `_unit_can_still_act()` returns true for Pathfinder when energy ≥ 3 and bench not full (prevents premature auto-end-turn). `_update_status()` extended for new mode. 8 new methods: `_on_recruit_selected`, `_try_recruit_target`, `_cancel_recruit_targeting`, `_initiate_recruit`, `_compute_recruit_base_chance`, `_recruit_odds_label`, `_qte_mult_to_recruit_mult`, `_show_recruit_fail_feedback`, `_show_recruit_odds`, `_clear_recruit_odds_label`. |
 | 2026-04-27 | **Test room dispatcher — second scenario.** `_setup_test_room_units()` is now a dispatcher that reads `GameState.test_room_kind`. Original 3v3 dual-armor demo lives behind `"armor_showcase"` (default). New `"armor_mod"` scenario spawns Boran (Dwarf vanguard, `stone_guard`) / Velis (Human warden, `divine_ward`) / Rune (Gnome arcanist) vs Stone Bruiser / Pyromancer / Twin Threat — all enemies sit at 4/4 armor so the player's defensive buffs are consequential. Common spawning logic factored into `_spawn_test_room(player_defs, enemy_defs)`; per-scenario defs in `_armor_showcase_*` and `_armor_mod_*` getters. `_end_combat()` now resets `test_room_kind` to default alongside clearing `test_room_mode`. |
 | 2026-04-27 | **Armor mod — runtime BUFF/DEBUFF lane.** `_apply_stat_delta` gained two cases: `PHYSICAL_ARMOR_MOD` and `MAGIC_ARMOR_MOD` write to `unit.data.physical_armor_mod` / `magic_armor_mod` (transient on `CombatantData`) and clamp to `[-10, 10]`. `STAT_STATUS_NAMES` + `STAT_ABBREV` extended with the new attributes (`P.Hardened`/`P.Cracked`/`P.ARM` and `M.Warded`/`M.Exposed`/`M.ARM`). `_attr_snapshots` build sites in both `_setup_units()` and `_setup_test_room_units()` now record `physical_armor_mod` + `magic_armor_mod`; `_end_combat()` restores them via `snap.get(..., 0)`. Powers `stone_guard` (Dwarf kindred ancestry) and `divine_ward` (Warden pool) — both previously no-ops because the JSON `"ARMOR_DEFENSE"` key didn't resolve to a real `Attribute` enum value. |
 | 2026-04-27 | **Dual armor + test room.** `_run_harm_defenders` signature extended with `ability: AbilityData` (5th param); HARM formula now subtracts `physical_defense` or `magic_defense` based on `ability.damage_type` (NONE = 0 armor). All 5 call sites updated. `_setup_units()` now branches on `GameState.test_room_mode`: if true, calls `_setup_test_room_units()` (hardcoded 3v3 armor showcase). `_make_test_combatant(def)` helper builds `CombatantData` from flat dict. `_end_combat()` test room branch: clears flag, shows result text, waits 2.5 s, returns to map — no XP/save/rewards. `_on_unit_died()` ally permadeath save guarded by `not GameState.test_room_mode`. |

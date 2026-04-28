@@ -1,13 +1,23 @@
 # System: QTE System
 
-> Last updated: 2026-04-26 (Session B — world-space bar, attacker tracking)
+> Last updated: 2026-04-28 (Slice 3 — RecruitBar added as a second QTE type)
 
 ---
 
 ## Purpose
 
-The QTE (Quick Time Event) system is a **standalone dodge check overlay**. It renders a
-sliding-bar skill check over the game as a CanvasLayer and emits a `multiplier` float
+The QTE system covers two distinct skill checks used in combat:
+
+1. **QTEBar** — the original horizontal Slide dodge check, played by the DEFENDER when a HARM effect targets them.
+2. **RecruitBar** — a new vertical hold-and-release capture check, played by the PATHFINDER when attempting to recruit an enemy.
+
+Both bars live at CanvasLayer 10–11, float above their target in world space, and emit a `float` result (0.25 / 0.75 / 1.0 / 1.25).
+
+---
+
+## QTEBar — Dodge Check
+
+The QTEBar renders a **horizontal Slide** check overlay and emits a `multiplier` float
 (0.25 / 0.75 / 1.0 / 1.25) that represents the **defender's dodge quality**.
 
 This multiplier is mapped to a **damage multiplier** in CombatManager3D:
@@ -30,7 +40,7 @@ Enemy simulation is handled entirely in CombatManager3D; the QTEBar is never sho
 
 ---
 
-## Core Nodes / Scripts
+## QTEBar — Core Nodes / Scripts
 
 | File | Scene | Role |
 |------|-------|------|
@@ -186,7 +196,7 @@ For AoE HARM abilities hitting multiple defenders:
 
 ---
 
-## Notes
+## QTEBar Notes
 
 - The bar is always present in the scene tree (built by CombatManager3D in `_setup_ui()`), hidden until `start_qte()` is called.
 - CombatManager uses `await _qte_bar.qte_resolved` (inline await) — no signal handler connection.
@@ -194,3 +204,83 @@ For AoE HARM abilities hitting multiple defenders:
 - **Friendly fire** (caster hits own-team unit in AoE): no QTE, dmg_mult fixed at 1.0. Detection: `caster.is_player_unit == defender.is_player_unit`. The 1.0 constant is a hookpoint for feats/items.
 - **World-space anchor (Session B):** The bar is a CanvasLayer but floats above the attacker via `Camera3D.unproject_position(attacker.global_position + Vector3(0, 2.0, 0))` each frame. The screen-space dark overlay has been removed — the world remains visible during QTE. `_attacker` is set to `null` after `qte_resolved` fires so `_process` stops repositioning.
 - **Attacker-death guard:** If `_attacker` becomes invalid or `is_alive == false` mid-QTE, the tween is killed, the bar hides immediately, and `qte_resolved.emit(0.25)` fires (miss tier — the hit lands).
+
+---
+
+## RecruitBar — Capture Check
+
+**Layer 11** (between QTEBar at 10 and CombatActionPanel at 12).
+
+A **hold-and-release** vertical bar used when the Pathfinder attempts to recruit an enemy via the Recruit combat action. The player holds SPACE to push the fill faster and releases inside the gold window for a higher-tier result. The result multiplies the base recruit chance computed from target HP% and WIL delta.
+
+### Files
+
+| File | Scene | Role |
+|------|-------|------|
+| `scripts/combat/RecruitBar.gd` | `scenes/combat/RecruitBar.tscn` | Hold-and-release capture QTE, CanvasLayer layer 11 |
+
+### Signals
+
+| Signal | Args | When |
+|--------|------|------|
+| `recruit_resolved` | `result: float` | Release or timeout completes; 0.85 s feedback shown first |
+
+### Public API
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `start_recruit_qte` | `(base_chance: float, target: Node3D) -> void` | Sizes the gold window from `base_chance`, stores target for world-space tracking, resets fill, shows bar |
+
+### Mechanic
+
+- Bar is 40 × 220 px, floats above `target` via `Camera3D.unproject_position(pos + Vector3(0, 2.5, 0))` each frame.
+- Fill rises from bottom at `BASE_FILL_SPEED = 0.15/s`; holding SPACE raises it at `HOLD_FILL_SPEED = 0.45/s`.
+- **Gold window** (success zone): centered at 0.65 of bar height from bottom (top-biased — releasing too late is punished). Window height = `lerp(0.08, 0.32, base_chance) × BAR_HEIGHT` — wider targets are easier to hit on high-chance recruits.
+- Input: release SPACE (or LMB) to evaluate. Reaching the top without releasing = timeout miss (0.25).
+
+### Result Buckets
+
+| Condition | Result | Feedback |
+|-----------|--------|---------|
+| `dist ≤ window_half × 0.30` (centre 30% of window) | **1.25** | "PERFECT!" (gold) |
+| `dist ≤ window_half` (inside window) | **1.0** | "GREAT!" (green) |
+| `dist ≤ window_half × 1.10` (within 10% of edge) | **0.75** | "CLOSE..." (orange) |
+| `dist > window_half × 1.10` or timeout | **0.25** | "MISSED." (red) |
+
+where `dist = abs(fill_pos − 0.65)`.
+
+### Flow
+
+```
+CombatManager3D._initiate_recruit(caster, target):
+    await _camera_rig.focus_on(target.global_position).finished   # 0.5 s
+    await create_timer(0.25).timeout                               # settle
+    _recruit_bar.start_recruit_qte(base_chance, target)
+        → window sized, bar visible, fill starts rising
+        → player holds/releases SPACE
+        → _get_release_result(fill_pos) → result tier
+        → _process_result(result) → feedback 0.85 s → recruit_resolved.emit(result)
+    qte_mult = await _recruit_bar.recruit_resolved
+    _camera_rig.restore()
+    final_chance = clamp(base_chance × _qte_mult_to_recruit_mult(qte_mult), 0, 1)
+    success = randf() < final_chance
+    → if not success: "Failed!" floating text, STRIDE_MODE, check auto-end
+    → if success: recruit_attempt_succeeded.emit(target)  [Slice 4 handles bench insertion]
+```
+
+### RecruitBar Notes
+
+- `target` ref stored in `_target`; `_process` repositions bar each frame. Target-death guard: if `_target` is invalid or `is_alive == false`, emits `recruit_resolved(0.25)` and hides.
+- `_input` uses `_input()` (not `_unhandled_input`) — same pattern as QTEBar.
+- Fill colour changes on release: green (≥1.0), orange (0.75), red (0.25).
+- **Not saved.** Pure in-combat presentation; no state survives scene transitions.
+
+---
+
+## Recent Changes
+
+| Date | Change |
+|------|--------|
+| 2026-04-28 | **RecruitBar added (Follower Slice 3).** New `RecruitBar.gd` + `RecruitBar.tscn` — vertical hold-and-release capture QTE (layer 11). `start_recruit_qte(base_chance, target)` + `recruit_resolved(result)` signal. Window height scales with `base_chance` so easier recruits have a wider target. 4-tier result same as QTEBar. World-space anchor above target. Death guard. Instantiated by `CombatManager3D._setup_ui()`; awaited inline via `_recruit_bar.recruit_resolved`. |
+| 2026-04-26 | **Session B — world-space bar + camera focus.** `start_qte(energy_cost, attacker: Node3D)` — bar now floats above the attacker each frame via `Camera3D.unproject_position`. Camera focuses on attacker before each player-facing QTE. `_attacker` cleared on `qte_resolved`. |
+| 2026-04-26 | **Reactive overhaul (Session A).** QTE is now defender-driven and HARM-only. Non-HARM auto-resolves at 1.0. `start_qte()` simplified. Friendly fire fixed at 1.0. |

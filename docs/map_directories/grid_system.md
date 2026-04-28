@@ -106,7 +106,7 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `set_highlight` | `(pos: Vector2i, mode: String) -> void` | Modes: `"move"` (cyan), `"attack"` (red), `"select"` (yellow), `""` (clear one) |
+| `set_highlight` | `(pos: Vector2i, mode: String) -> void` | Modes: `"move"` (cyan), `"attack"` (red), `"selected"` (yellow), `"ability_target"` (purple), `"recruit_target"` (teal) |
 | `clear_highlights` | `() -> void` | Resets all highlighted cells to base color |
 
 ---
@@ -135,6 +135,7 @@ Grid has **no dependency** on Camera, HUD, QTE, or UnitData.
 | `"attack"` | `COLOR_ATTACK` | Red `Color(0.85, 0.22, 0.22, 0.85)` |
 | `"selected"` | `COLOR_SELECTED` | Yellow `Color(0.90, 0.78, 0.10, 0.90)` |
 | `"ability_target"` | `COLOR_ABILITY_TARGET` | Purple `Color(0.65, 0.20, 0.90, 0.85)` |
+| `"recruit_target"` | `COLOR_RECRUIT_TARGET` | Teal `Color(0.20, 0.75, 0.65, 0.85)` — enemies within 3 tiles of the Pathfinder in RECRUIT_TARGET_MODE |
 
 **Hazard color persistence:** `_refresh_cell_color()` uses `COLOR_HAZARD if is_hazard(pos) else COLOR_DEFAULT` in the default branch, so orange survives `clear_highlights()` calls. During move selection, hazard cells show amber (`COLOR_MOVE_HAZARD`) instead of cyan so the danger is visible while choosing a destination.
 

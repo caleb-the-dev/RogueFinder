@@ -26,6 +26,19 @@ var used_event_ids: Array[String] = [] # event ids drawn this run; used by Event
 var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
 var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
 
+## --- Followers / Bench ---
+## Follower data captured in combat. Not yet persisted (Slice 4 wires save/load).
+
+const BENCH_CAP: int = 9
+
+var bench: Array[CombatantData] = []
+
+func add_to_bench(follower: CombatantData) -> bool:
+	if bench.size() >= BENCH_CAP:
+		return false
+	bench.append(follower)
+	return true
+
 ## Transient — never saved. Set true before entering the test combat room from the dev menu.
 ## CombatManager3D reads it to spawn hardcoded test units instead of GameState.party.
 var test_room_mode: bool = false

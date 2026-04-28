@@ -9,6 +9,10 @@ extends CanvasLayer
 
 signal ability_selected(ability_id: String)
 signal consumable_selected()
+signal recruit_selected()
+
+## Must match CombatManager3D.RECRUIT_ENERGY_COST
+const _RECRUIT_ENERGY_COST: int = 3
 
 const PANEL_WIDTH:   float = 240.0
 const SLIDE_TIME:    float = 0.15
@@ -29,6 +33,7 @@ var _en_text:        Label           = null
 var _status_rtl:     RichTextLabel   = null
 var _ability_grid:   GridContainer   = null
 var _ability_btns:   Array[Button]   = []
+var _recruit_btn:    Button          = null
 var _consumable_wrap: Control        = null
 var _consumable_btn: Button          = null
 var _stride_label:   Label           = null
@@ -188,6 +193,18 @@ func _build_ui() -> void:
 	_ability_grid.add_theme_constant_override("v_separation", 4)
 	_vbox.add_child(_ability_grid)
 
+	# Recruit button — Pathfinder (party[0]) only; shown/hidden in _rebuild_ability_grid
+	_recruit_btn = Button.new()
+	_recruit_btn.text = "⊕ Recruit  3E"
+	_recruit_btn.add_theme_font_size_override("font_size", 11)
+	_recruit_btn.custom_minimum_size   = Vector2(0, 36)
+	_recruit_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_recruit_btn.visible = false
+	_recruit_btn.pressed.connect(_on_recruit_pressed)
+	_recruit_btn.mouse_entered.connect(_on_recruit_hover)
+	_recruit_btn.mouse_exited.connect(_hide_tooltip)
+	_vbox.add_child(_recruit_btn)
+
 	# Consumable — hidden for enemies
 	_vbox.add_child(HSeparator.new())
 
@@ -273,6 +290,7 @@ func refresh(unit: Unit3D) -> void:
 	if visible and is_instance_valid(unit) and _current_unit == unit:
 		_refresh_bars(unit)
 		_refresh_status(unit)
+		_refresh_recruit(unit)
 		_refresh_consumable(unit)
 		_refresh_stride(unit)
 
@@ -354,6 +372,20 @@ func _rebuild_ability_grid(unit: Unit3D) -> void:
 
 		_ability_grid.add_child(btn)
 		_ability_btns.append(btn)
+
+	_refresh_recruit(unit)
+
+func _refresh_recruit(unit: Unit3D) -> void:
+	var is_pathfinder: bool = unit.data.is_player_unit \
+		and not GameState.party.is_empty() \
+		and unit.data == GameState.party[0]
+	_recruit_btn.visible = is_pathfinder
+	if is_pathfinder:
+		var can_recruit: bool = (not unit.has_acted) \
+			and (unit.current_energy >= _RECRUIT_ENERGY_COST) \
+			and (GameState.bench.size() < GameState.BENCH_CAP)
+		_recruit_btn.disabled = not can_recruit
+		_recruit_btn.modulate = Color.WHITE if can_recruit else Color(0.5, 0.5, 0.5, 0.8)
 
 func _refresh_consumable(unit: Unit3D) -> void:
 	if not unit.data.is_player_unit:
@@ -450,6 +482,15 @@ func _on_ability_pressed(index: int) -> void:
 func _on_consumable_pressed() -> void:
 	# Don't close — CombatManager3D calls open_for() after applying the effect to refresh
 	consumable_selected.emit()
+
+func _on_recruit_pressed() -> void:
+	close()
+	recruit_selected.emit()
+
+func _on_recruit_hover() -> void:
+	_show_tooltip(
+		"Attempt to recruit a nearby enemy. 3 Energy · Range 3 · Chance depends on target HP and your party's Willpower.",
+		_recruit_btn)
 
 ## --- Helpers ---
 
