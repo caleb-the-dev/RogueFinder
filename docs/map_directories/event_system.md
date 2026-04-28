@@ -9,6 +9,7 @@
 | Layer | Status |
 |---|---|
 | Data library (EventLibrary + CSVs) | ✅ Active (17 events, 53 choice rows, 12 tests) |
+| BenchSwapPanel (compare UI for bench-full recruit) | ✅ Active — Slice 7 |
 | EventSelector (ring filter + no-repeat) | ✅ Active — Slice 3 (5 tests) |
 | EventScene overlay + EventManager | ✅ Active — Slice 4 (19 tests) |
 | Effect dispatch + condition evaluator | ✅ Active — Slice 4 |
@@ -35,8 +36,9 @@
 | `rogue-finder/tests/test_event_manager.tscn` | Test runner scene |
 | `rogue-finder/tests/test_event_manager_slice5.gd` | 7 headless tests (player_pick picker flow, forced_target dispatch, new-item glow stamps) |
 | `rogue-finder/tests/test_event_manager_slice5.tscn` | Test runner scene |
-| `rogue-finder/tests/test_event_follower.gd` | 5 headless tests (recruit_follower effect, bench_not_full condition) |
+| `rogue-finder/tests/test_event_follower.gd` | 6 headless tests (recruit_follower effect, bench_not_full condition, bench release path) |
 | `rogue-finder/tests/test_event_follower.tscn` | Test runner scene |
+| `rogue-finder/scripts/ui/BenchSwapPanel.gd` | Static builder — bench-swap comparison panel (portrait, archetype, 10-stat grid with Δ, Swap + cancel buttons). Used by EventManager and CombatManager3D. |
 
 ---
 
@@ -89,14 +91,6 @@ All methods are `static`. No instantiation required.
 | `show_event(event_data: EventData) -> void` | Populates title/body, builds choice buttons (disabled+dimmed if conditions fail), shows overlay. |
 | `hide_event() -> void` | Hides overlay, frees choice button children, resets result panel visibility. |
 
-### Signals
-
-| Signal | Args | When emitted |
-|---|---|---|
-| `event_finished` | — | Player clicked "Continue" on the result panel (non-nav choice). `GameState.save()` is called before emit. |
-| `event_nav` | `dest: String` | A nav effect (`open_vendor` → `"VENDOR"`, `open_bench` → `"BENCH"`) was chosen. No result panel; `hide_event()` called first. |
-| `target_picked` | `target: CombatantData` | Internal only — emitted by the picker overlay when the player clicks a party member button. Awaited in `_on_choice_pressed` to unblock the async dispatch flow. Not connected by external callers. |
-
 ### Static: `evaluate_condition(condition, party) -> bool`
 
 Returns `true` if ANY party member satisfies the condition. Supported forms:
@@ -126,9 +120,11 @@ A choice whose `conditions` array is empty is always enabled (loop never runs).
 
 "Alive" = `not is_dead`. Always falls back to `party[0]` if resolved pool is empty.
 
-### Static: `dispatch_effect(effect, party, forced_target) -> void`
+### Static: `dispatch_effect(effect, party, forced_target, bench_release_idx, prebuilt_follower) -> void`
 
-`forced_target: CombatantData = null` — optional override for `player_pick` effects. When non-null and the effect's `target` field is `"player_pick"`, `forced_target` is used directly instead of calling `resolve_target`. All other target strings ignore this parameter. Keeps `dispatch_effect` static + headless-testable.
+`forced_target: CombatantData = null` — optional override for `player_pick` effects.
+`bench_release_idx: int = -1` — bench slot to release before adding a `recruit_follower`. -1 = bench not full or player cancelled.
+`prebuilt_follower: CombatantData = null` — if provided for a `recruit_follower` effect, this instance is used directly (skips `ArchetypeLibrary.create()`). Set by `_on_choice_pressed` when the comparison panel was shown, so the displayed stats are identical to what lands on the bench.
 
 | `type` | Behavior |
 |---|---|
@@ -139,6 +135,7 @@ A choice whose `conditions` array is empty is always enabled (loop never runs).
 | `xp_grant` | `print("[EventEffect] xp_grant %d — stub")` — no-op until XP system exists |
 | `threat_delta` | `GameState.threat_level = clampf(threat_level + float(value) / 100.0, 0.0, 1.0)` — value is signed int treated as percentage points |
 | `feat_grant` | `_resolve_with_override` → calls `GameState.grant_feat(party.find(target), feat_id)`. Deduplication and save are handled inside `grant_feat()`. |
+| `recruit_follower` | Builds a CombatantData (or uses `prebuilt_follower`), level-matches to `party[0]`, resets xp/pending. If bench full and `bench_release_idx >= 0`: calls `GameState.release_from_bench(idx)` first. Then calls `GameState.add_to_bench(follower)`. push_warning + no-op if bench still full. |
 | `open_vendor` / `open_bench` | **Not dispatched here** — handled in `_on_choice_pressed` as nav effects before dispatch loop runs |
 
 Unknown type → `push_warning` + skip.
@@ -153,15 +150,31 @@ Private helper called by `dispatch_effect` for harm/heal/feat_grant. Routes to `
 
 `_hide_picker()` — frees the `CenterContainer` and nulls `_picker_centering`.
 
-### UI Flow (Slice 5 — updated)
+### Instance: `_show_bench_picker(new_recruit) / _hide_bench_picker()`
+
+`_show_bench_picker(new_recruit: CombatantData)` — builds and adds a `BenchSwapPanel` Control to the CanvasLayer. Shows a full comparison panel: left = new recruit card (portrait, archetype, level, 10 stats), right = scrollable list of all 9 bench members (small portrait, archetype, level, stat grid with Δ = new recruit − bench member, Swap button), bottom = "Never Mind" cancel. `Swap →` button emits `bench_target_picked(idx)`; "Never Mind" emits `bench_target_picked(-1)` (cancel sentinel). Stores the panel root in `_bench_picker_centering: Control`.
+
+`_hide_bench_picker()` — frees `_bench_picker_centering` and nulls it.
+
+### Signals
+
+| Signal | Args | When emitted |
+|---|---|---|
+| `event_finished` | — | Player clicked "Continue" on the result panel. `GameState.save()` called before emit. |
+| `event_nav` | `dest: String` | Nav effect taken. No result panel; `hide_event()` called first. |
+| `target_picked` | `target: CombatantData` | Picker overlay: player selected a party member. |
+| `bench_target_picked` | `index: int` | Bench picker overlay: player chose bench slot `index` to release (≥ 0), or -1 to cancel. |
+
+### UI Flow (Slice 7 — current)
 
 1. `show_event(event_data)` — populate title/body, build choice buttons (disabled+dimmed for failed conditions), show overlay.
 2. Player clicks a choice → `_on_choice_pressed(choice)` (coroutine — uses `await`).
 3. Nav effect check first: if any effect is `open_vendor` or `open_bench` → `hide_event()` → `event_nav.emit(dest)`. MapManager handles routing. No result panel. Returns immediately.
 4. **player_pick scan**: pre-scan `choice.effects` for any effect whose `target == "player_pick"`. If found: hide choice buttons → `_show_picker()` → `await target_picked` → `_hide_picker()`. The resolved `CombatantData` is stored as `picked_target`.
-5. Dispatch all effects via `dispatch_effect(effect, party, picked_target)`. For non-player_pick effects, `picked_target` is ignored.
-6. Show result panel with `choice.result_text`, hide choice buttons.
-7. Player clicks "Continue" → `GameState.save()` → `event_finished.emit()` → `hide_event()`.
+5. **bench-full scan**: pre-scan `choice.effects` for `recruit_follower` when `bench.size() >= BENCH_CAP`. If found: build the follower now (same stats as what will be added), store as `pending_recruit`; hide choice buttons → `_show_bench_picker(pending_recruit)` → `await bench_target_picked` → `_hide_bench_picker()`. If result is -1 (cancel): restore choice buttons, return — choice is undone, player can pick again. If result ≥ 0: store as `bench_release_idx`.
+6. Dispatch all effects via `dispatch_effect(effect, party, picked_target, bench_release_idx, pending_recruit)`.
+7. Show result panel with `choice.result_text`, hide choice buttons.
+8. Player clicks "Continue" → `GameState.save()` → `event_finished.emit()` → `hide_event()`.
 
 ---
 
@@ -276,6 +289,7 @@ All methods are `static`. No instantiation required.
 
 | Date | Change |
 |---|---|
+| 2026-04-28 | **Follower Slice 7 — Bench-swap comparison panel.** `BenchSwapPanel.gd` added (`scripts/ui/`): static builder returning a `Control` tree with left recruit card (64px portrait, archetype, 10-stat grid) and right scrollable bench list (36px portraits, archetype, stat grid with Δ = new recruit − bench member, green/red coloring, Swap → button). Cancel label configurable ("Never Mind" for events, "Lose Recruit" for combat). `dispatch_effect` gains `bench_release_idx: int = -1` and `prebuilt_follower: CombatantData = null` params. `_on_choice_pressed` builds the follower before showing the panel so displayed stats = added stats; cancel restores choice buttons. `CombatManager3D._show_bench_full_modal` replaced with `BenchSwapPanel`. `bench_target_picked(index: int)` signal added. Recruit choices no longer carry `bench_not_full` condition — always available; bench-full triggers the comparison panel instead. 6th headless test added for release+recruit path. |
 | 2026-04-28 | **Follower Slice 5 — Event follower channel.** `recruit_follower` effect added to `dispatch_effect()`: builds a CombatantData from archetype, level-matches to party[0], inserts into bench (no-op + warning when full). `bench_not_full` zero-argument condition added to `evaluate_condition()` (checked before the `:` split). 3 follower-offer events authored: `wandering_sellsword` (outer/middle), `skeletal_wanderer` (middle/inner), `stray_dog` choice 0 upgraded from no-op to live recruit. `ArchetypeLibrary.create()` defensively guards empty `backgrounds` array (empty string instead of crash). events.csv: 17 rows. event_choices.csv: 53 rows. 5 new headless tests (`test_event_follower.gd`). |
 | 2026-04-25 | **Slice 6b — Event revisions.** Post-testing pass: 13 changes to authored events. `wounded_traveler` rewritten as Wandering Medic (healer NPC, not victim). `fallen_signpost` body reworded. `stray_dog` choice 0 changed to recruit placeholder (no-op). `abandoned_campfire` choice 1 label/result clarified. `road_patrol`: "Cite your service" → no-op (was −5% threat); "Take the long way" → +10% threat (was no-op). `mercenary_camp`: dropped COG-gated "Trade information"; "Hire escort" → recruit placeholder no-op. `burned_farmhouse`: tend-to-child → `item_gain lucky_charm` (was heal PC). `river_crossing`: "Turn back" → +10% threat (was no-op). `survivor_in_the_dark` removed entirely. `mass_grave`: dropped COG-gated "Examine carefully"; "Disturb soil" → harm 5 + `item_gain rusted_dagger` (was harm-only). `ember_idol`: dropped `item:lucky_charm`-gated "Leave the charm" choice. Final counts: events.csv 15 rows, event_choices.csv 46 rows. |
 | 2026-04-25 | **Slice 6** — Authoring pass. 12 new events authored across all three rings. events.csv: 15 rows. event_choices.csv: 46 rows. No GDScript changes. Ring coverage: outer (fallen_signpost, roadside_shrine, dry_well, abandoned_campfire, stray_dog, road_patrol), middle (road_patrol, mercenary_camp, burned_farmhouse, standing_stone, river_crossing), inner (standing_stone, mass_grave, ember_idol). Effects used: item_gain, item_remove, harm, heal, threat_delta, feat_grant. `wounded_traveler` preserved as canonical player_pick test event. |
