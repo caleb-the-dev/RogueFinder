@@ -27,7 +27,7 @@ var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialize
 var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
 
 ## --- Followers / Bench ---
-## Follower data captured in combat. Not yet persisted (Slice 4 wires save/load).
+## Followers captured in combat. Saved to disk via save()/load_save().
 
 const BENCH_CAP: int = 9
 
@@ -38,6 +38,43 @@ func add_to_bench(follower: CombatantData) -> bool:
 		return false
 	bench.append(follower)
 	return true
+
+## Swaps party[party_idx] with bench[bench_idx] in-place. Gear deequip is the
+## caller's responsibility (BadurgaManager calls _deequip_to_bag first).
+func swap_active_bench(party_idx: int, bench_idx: int) -> void:
+	if party_idx < 0 or party_idx >= party.size():
+		return
+	if bench_idx < 0 or bench_idx >= bench.size():
+		return
+	var tmp: CombatantData = party[party_idx]
+	party[party_idx]  = bench[bench_idx]
+	bench[bench_idx]  = tmp
+
+## Removes the bench entry at index. Auto-deequips gear back to inventory. Saves.
+func release_from_bench(index: int) -> void:
+	if index < 0 or index >= bench.size():
+		return
+	var follower: CombatantData = bench[index]
+	if follower.weapon:
+		add_to_inventory({"id": follower.weapon.equipment_id,
+			"name": follower.weapon.equipment_name,
+			"description": follower.weapon.description,
+			"item_type": "equipment"})
+		follower.weapon = null
+	if follower.armor:
+		add_to_inventory({"id": follower.armor.equipment_id,
+			"name": follower.armor.equipment_name,
+			"description": follower.armor.description,
+			"item_type": "equipment"})
+		follower.armor = null
+	if follower.accessory:
+		add_to_inventory({"id": follower.accessory.equipment_id,
+			"name": follower.accessory.equipment_name,
+			"description": follower.accessory.description,
+			"item_type": "equipment"})
+		follower.accessory = null
+	bench.remove_at(index)
+	save()
 
 ## Transient — never saved. Set true before entering the test combat room from the dev menu.
 ## CombatManager3D reads it to spawn hardcoded test units instead of GameState.party.
@@ -109,6 +146,7 @@ func save() -> void:
 		"threat_level": threat_level,
 		"used_event_ids": used_event_ids,
 		"party": party_data,
+		"bench": bench.map(func(f: CombatantData) -> Dictionary: return _serialize_combatant(f)),
 		"inventory": inventory,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -170,6 +208,11 @@ func load_save() -> bool:
 	for dict in raw_party:
 		if dict is Dictionary:
 			party.append(_deserialize_combatant(dict))
+	bench.clear()
+	var raw_bench: Array = parsed.get("bench", [])
+	for dict in raw_bench:
+		if dict is Dictionary:
+			bench.append(_deserialize_combatant(dict))
 	inventory.clear()
 	var raw_inv: Array = parsed.get("inventory", [])
 	for entry in raw_inv:
@@ -309,5 +352,6 @@ func reset() -> void:
 	threat_level = 0.0
 	used_event_ids = []
 	party = []
+	bench = []
 	run_summary = {}
 	inventory = []
