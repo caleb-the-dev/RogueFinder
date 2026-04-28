@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-27 (temperament system + background/class stat balance) |
+| last_updated | 2026-04-27 (kindred expansion — 4 new kindreds, 2 backgrounds, equipment/consumable expansion) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 11 |
+| sessions_since_groom | 12 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -30,20 +30,20 @@
 | [Camera System](camera_system.md) | `camera_system.md` | ✅ Active (3D only) | Presentation |
 | [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
 | [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34) | Data |
-| [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (42 abilities — 22 base + 4 kindred natural attacks + 6 ancestry + 4 class definings + 6 class pool additions, CSV-sourced) | Data |
-| [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (6 equipment CSV-sourced S32; 2 consumables CSV-sourced S31) | Data |
-| [Background System](background_system.md) | `background_system.md` | ✅ Active (owns feat lane; +1 single stat per background) | Data |
+| [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (54 abilities — 22 base + 8 kindred natural attacks + 12 ancestry + 4 class definings + 8 class pool additions, CSV-sourced) | Data |
+| [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (20 equipment CSV-sourced; 6 consumables CSV-sourced) | Data |
+| [Background System](background_system.md) | `background_system.md` | ✅ Active (6 backgrounds; owns feat lane; +1 single stat per background) | Data |
 | [Class Library](class_system.md) | `class_system.md` | ✅ Active (4 classes; 4 total stat points, max +2 per stat; 13-ability pool, 10-feat pool; wired into CombatantData) | Data |
 | [Temperament System](combatant_data.md) | `combatant_data.md` | ✅ Active (21 temperaments; +1 boosted / -1 hindered / Even neutral; randomly assigned at creation; hidden until post-creation) | Data |
 | [Portrait Library](portrait_system.md) | `portrait_system.md` | ✅ Active (dormant — 6 placeholder portraits, CSV-sourced, S30) | Data |
-| [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (owns ability lane — starting_ability_id + ability_pool + stat_bonuses; no longer grants feats) | Data |
+| [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (8 kindreds — Human/Half-Orc/Gnome/Dwarf/Skeleton/Giant Rat/Spider/Dragon; owns ability lane; no longer grants feats) | Data |
 | [Main Menu + Character Creation](character_creation.md) | `character_creation.md` | ✅ Active (deterministic stats; slot 0 = class ability, slot 1 = kindred ability; bg feat seeds feat_ids; 12 tests) | Presentation |
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + inventory + XP/level-up) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay layer 20; level-up pick overlay layer 25) | Presentation |
 | [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker + 15 events (3 smoke + 12 authored) (Slices 1/3/4/5/6) | Data / World Map |
-| [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ✅ Active — 32 feats (20 class, 12 background), stat bonuses applied, grant_feat() API live | Data |
+| [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ✅ Active — 38 feats (20 class, 18 background), stat bonuses applied, grant_feat() API live | Data |
 
 ---
 
@@ -169,16 +169,16 @@ rogue-finder/
 │   ├── events/
 │   │   └── EventManager.gd             ← CanvasLayer (layer 10) overlay; show/hide event UI; static condition evaluator + effect dispatcher
 │   ├── globals/
-│   │   ├── AbilityLibrary.gd           ← CSV-sourced (res://data/abilities.csv); 42 abilities (22 base + 4 kindred natural attacks + 6 ancestry + 4 class definings + 6 class pool)
-│   │   ├── ArchetypeLibrary.gd         ← CSV-sourced (res://data/archetypes.csv); 5 archetypes
+│   │   ├── AbilityLibrary.gd           ← CSV-sourced (res://data/abilities.csv); 54 abilities (22 base + 8 kindred natural attacks + 12 ancestry + 4 class definings + 8 class pool)
+│   │   ├── ArchetypeLibrary.gd         ← CSV-sourced (res://data/archetypes.csv); 9 archetypes (RogueFinder + 4 original + 4 new kindred templates)
 │   │   ├── BackgroundLibrary.gd        ← CSV-sourced (res://data/backgrounds.csv)
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
-│   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); healing_potion, power_tonic
-│   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 9 items
+│   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); 6 consumables
+│   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 20 items (7 armor + 7 weapon + 6 accessory)
 │   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 15 events (3 smoke + 12 authored)
 │   │   ├── EventSelector.gd            ← static picker; ring filter + exhaustion fallback; appends to GameState.used_event_ids
-│   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 32 feats (20 class, 12 background); parses stat_bonuses
-│   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 4 kindreds
+│   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 38 feats (20 class, 18 background); parses stat_bonuses
+│   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 8 kindreds (4 humanoid + 4 non-humanoid)
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   └── TemperamentLibrary.gd       ← CSV-sourced (res://data/temperaments.csv); 21 temperaments (20 + Even neutral); random_id(rng) helper
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
@@ -212,16 +212,16 @@ rogue-finder/
 │   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
 ├── data/
-│   ├── abilities.csv                   ← 42 abilities; effects as JSON arrays; read via res://data/
-│   ├── archetypes.csv                  ← 5 archetypes; read via res://data/
-│   ├── backgrounds.csv                 ← 4 backgrounds; read via res://data/
+│   ├── abilities.csv                   ← 54 abilities; effects as JSON arrays; read via res://data/
+│   ├── archetypes.csv                  ← 9 archetypes; read via res://data/
+│   ├── backgrounds.csv                 ← 6 backgrounds; read via res://data/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
-│   ├── consumables.csv                 ← 2 consumables; read via res://data/
-│   ├── equipment.csv                   ← 9 items (plate_cuirass + warded_robe added 2026-04-27); stat_bonuses as stat:value|stat:value pairs
+│   ├── consumables.csv                 ← 6 consumables; read via res://data/
+│   ├── equipment.csv                   ← 20 items (7 armor + 7 weapon + 6 accessory); stat_bonuses as stat:value|stat:value pairs
 │   ├── event_choices.csv               ← 46 choice rows; joined to events by event_id; effects as JSON arrays
 │   ├── events.csv                      ← 15 events (3 smoke + 12 authored); ring_eligibility as pipe list
-│   ├── feats.csv                       ← 32 feats (20 class, 12 background); kindred rows removed
-│   ├── kindreds.csv                    ← 4 kindreds; feat_id removed; stat_bonuses + starting_ability_id + ability_pool added; read via res://data/
+│   ├── feats.csv                       ← 38 feats (20 class, 18 background); kindred rows removed
+│   ├── kindreds.csv                    ← 8 kindreds (Human/Half-Orc/Gnome/Dwarf/Skeleton/Giant Rat/Spider/Dragon); read via res://data/
 │   ├── temperaments.csv                ← 21 rows; columns: id, name, boosted_stat, hindered_stat; "even" row has empty stats (neutral)
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
@@ -253,6 +253,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-27 | kindreds.csv, abilities.csv, backgrounds.csv, feats.csv, equipment.csv, consumables.csv, archetypes.csv | **Kindred expansion — data only, no code changes.** 4 new kindreds added to `kindreds.csv`: Skeleton (physical tank, P.Armor+2, speed 2, HP 4), Giant Rat (dex swarmer, DEX+2, speed 5, HP 3), Spider (dex debuffer, DEX+1, speed 3, HP 4), Dragon (apex brute, STR+2, speed 1, HP 15). Each kindred got a natural attack + 2 ancestry pool abilities — 12 new ability rows total (`bone_strike`, `grim_endurance`, `death_rattle`, `gnaw`, `scatter`, `pack_instinct`, `venom_bite`, `web_shot`, `skitter`, `claw_swipe`, `draconic_breath`, `scales_up`). 2 new backgrounds: `scavenger` (DEX+1, criminal/feral) + `pit_fighter` (STR+1, combat/criminal) + 6 new background feats. 4 new archetypes: `skeleton_warrior`, `rat_scrapper`, `cave_spider`, `young_dragon`. Equipment 9→20 (war_hammer/twin_daggers/mages_staff/bone_club + hide_armor/silk_shroud/dragonscale_vest + swift_boots/scholars_ring/amulet_of_will/fang_necklace). Consumables 2→6 (rage_draught/focus_brew/swiftness_tonic/antidote). All new kindreds auto-appear in CharacterCreationManager — `all_kindreds()` drives the dial. |
 | 2026-04-27 | temperaments.csv, TemperamentData, TemperamentLibrary, CombatantData, ArchetypeLibrary, CharacterCreationManager, GameState, StatPanel, PartySheet, backgrounds.csv, classes.csv, tests | **Temperament system + stat balance.** New Pokémon-style temperament system: `temperaments.csv` (21 rows — 20 non-neutral + "Even"), `TemperamentData.gd` resource, `TemperamentLibrary.gd` (lazy CSV load, `get_temperament()`, `all_temperaments()`, `random_id(rng)`, `reload()`). `CombatantData.temperament_id: String` (@export, serialized); `get_temperament_stat_bonus(stat)` method (+1/−1/0); wired into attack, hp_max, energy_max, energy_regen, speed as sixth flat bonus source. `ArchetypeLibrary.create()` and `CharacterCreationManager._build_pc()` both call `TemperamentLibrary.random_id(rng)` — temperament is hidden from the player before creation. `GameState` serializes `temperament_id`; old saves default to `"even"`. StatPanel: "Temperament: Fierce +STR / -DEX" line with BBCode color-coding (green+/red−) added after Background. PartySheet: "Temp: Fierce (+STR/-DEX)" line in TOP-LEFT (11 px purple-grey) after Kindred; attribute values remain plain yellow (green/red reserved for future equipment indicators). Background balance: all 4 backgrounds now give exactly +1 to one stat (soldier vit dropped, scholar cog reduced to 1, baker wil dropped). Class balance: all 4 classes now give exactly 4 total stat points, max +2 per stat (vanguard +1 str, arcanist +1 wil, prowler cog:1 added, warden +1 wil). 14 new headless tests (`test_temperament.gd`) covering library load, neutral, +1/−1/0 bonus, derived-stat wiring ×4, archetype creation, and CSV rule enforcement for both backgrounds and classes. Test suites updated: test_class_stat_bonus, test_class_library, test_character_creation, test_combatant_data. |
 | 2026-04-27 | equipment.csv, GameState, CombatManager3D, MapManager, tests, docs | **Armor Mod test room + new armor pieces + Add Item dev tool.** `equipment.csv` gained `plate_cuirass` (ARMOR — physical_armor +3, dexterity -2) and `warded_robe` (ARMOR — magic_armor +2 — first equipment piece exercising the `_equip_bonus("magic_armor")` codepath). `GameState.test_room_kind: String = "armor_showcase"` added (transient, not serialized) so multiple test scenarios can share `test_room_mode`. `CombatManager3D._setup_test_room_units()` is now a dispatcher; common spawning factored to `_spawn_test_room(player_defs, enemy_defs)`; per-scenario data in `_armor_showcase_*` and `_armor_mod_*` getters. New `armor_mod` scenario: Boran (Dwarf vanguard, `stone_guard`) / Velis (Human warden, `divine_ward`) / Rune (Gnome arcanist) vs Stone Bruiser / Pyromancer / Twin Threat (all 4/4 armor). `MapManager` dev menu: existing "⚔ Test Room" renamed "Armor Showcase"; new sibling "Armor Mod" button. New "INVENTORY" section with "+ Add Item to Inventory" button → modal A-Z list of every equipment + consumable; click drops a copy into `GameState.inventory`. 4 new tests in `test_equipment.gd` (plate_cuirass, warded_robe, magic-armor independence, library size 9); all prior suites still green. |
 | 2026-04-27 | AbilityData, CombatantData, AbilityLibrary, CombatManager3D, abilities.csv, tests | **Armor Mod — runtime BUFF/DEBUFF lane.** `AbilityData.Attribute` enum extended with `PHYSICAL_ARMOR_MOD = 6` and `MAGIC_ARMOR_MOD = 7`. `AbilityLibrary._ATTRIBUTE` lookup gained matching string keys. `CombatantData` gained two transient (NOT serialized) `int` fields — `physical_armor_mod` + `magic_armor_mod` — both default 0. `physical_defense` / `magic_defense` formulas extended with the mod field as the sixth source. `CombatManager3D._apply_stat_delta` gained the two new cases (clamp `[-10, 10]`); `STAT_STATUS_NAMES` + `STAT_ABBREV` extended (`P.Hardened`/`P.Cracked`/`P.ARM`, `M.Warded`/`M.Exposed`/`M.ARM`); `_attr_snapshots` build sites in both `_setup_units()` and `_setup_test_room_units()` record the mod fields; `_end_combat()` restores them via `snap.get(..., 0)`. `stone_guard` and `divine_ward` CSV rows updated from the dead `"ARMOR_DEFENSE"` `target_stat` to `"PHYSICAL_ARMOR_MOD"` / `"MAGIC_ARMOR_MOD"` — both abilities now mechanically active. 11 new tests (`test_armor_mod.gd`); all prior 92 tests still pass. |
