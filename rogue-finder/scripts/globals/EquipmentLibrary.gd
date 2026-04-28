@@ -6,9 +6,11 @@ extends RefCounted
 ## (lazy-load, single-parse, stub fallback on unknown ID).
 ##
 ## Data source: res://data/equipment.csv
-## Public API (get_equipment / all_equipment) is unchanged from the old const-array version.
 ##
-## stat_bonuses column format: pipe-separated "stat:value" pairs, e.g. "armor_defense:2|dexterity:-1"
+## stat_bonuses format: pipe-separated "stat:value" pairs, e.g. "strength:1|dexterity:-1"
+## rarity format: COMMON | RARE | EPIC | LEGENDARY
+## granted_ability_ids format: pipe-separated ability id strings, or empty
+## feat_id format: single feat id string, or empty
 
 const CSV_PATH := "res://data/equipment.csv"
 
@@ -19,11 +21,14 @@ static func get_equipment(id: String) -> EquipmentData:
 	if _cache.has(id):
 		return _cache[id]
 	var stub := EquipmentData.new()
-	stub.equipment_id   = id
-	stub.equipment_name = "Unknown"
-	stub.slot           = EquipmentData.Slot.WEAPON
-	stub.stat_bonuses   = {}
-	stub.description    = "Unknown item."
+	stub.equipment_id          = id
+	stub.equipment_name        = "Unknown"
+	stub.slot                  = EquipmentData.Slot.WEAPON
+	stub.rarity                = EquipmentData.Rarity.COMMON
+	stub.stat_bonuses          = {}
+	stub.granted_ability_ids   = []
+	stub.feat_id               = ""
+	stub.description           = "Unknown item."
 	return stub
 
 static func all_equipment() -> Array[EquipmentData]:
@@ -65,6 +70,9 @@ static func _ensure_loaded() -> void:
 
 static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_num: int) -> EquipmentData:
 	var eq := EquipmentData.new()
+	eq.rarity               = EquipmentData.Rarity.COMMON
+	eq.granted_ability_ids  = []
+	eq.feat_id              = ""
 	for i in header.size():
 		var col := header[i]
 		var val := row[i]
@@ -79,8 +87,21 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 					"ARMOR":     eq.slot = EquipmentData.Slot.ARMOR
 					"ACCESSORY": eq.slot = EquipmentData.Slot.ACCESSORY
 					_: push_warning("EquipmentLibrary: unknown slot '%s' at row %d" % [val, row_num])
+			"rarity":
+				match val:
+					"COMMON":    eq.rarity = EquipmentData.Rarity.COMMON
+					"RARE":      eq.rarity = EquipmentData.Rarity.RARE
+					"EPIC":      eq.rarity = EquipmentData.Rarity.EPIC
+					"LEGENDARY": eq.rarity = EquipmentData.Rarity.LEGENDARY
+					"": pass
+					_: push_warning("EquipmentLibrary: unknown rarity '%s' at row %d" % [val, row_num])
 			"stat_bonuses":
 				eq.stat_bonuses = _parse_stat_bonuses(val, row_num)
+			"granted_ability_ids":
+				if val != "":
+					eq.granted_ability_ids = Array(val.split("|", false), TYPE_STRING, "", null)
+			"feat_id":
+				eq.feat_id = val
 			"description":
 				eq.description = val
 			"notes":

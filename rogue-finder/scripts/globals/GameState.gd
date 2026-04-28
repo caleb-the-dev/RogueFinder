@@ -66,19 +66,19 @@ func release_from_bench(index: int) -> void:
 		add_to_inventory({"id": follower.weapon.equipment_id,
 			"name": follower.weapon.equipment_name,
 			"description": follower.weapon.description,
-			"item_type": "equipment"})
+			"item_type": "equipment", "rarity": follower.weapon.rarity})
 		follower.weapon = null
 	if follower.armor:
 		add_to_inventory({"id": follower.armor.equipment_id,
 			"name": follower.armor.equipment_name,
 			"description": follower.armor.description,
-			"item_type": "equipment"})
+			"item_type": "equipment", "rarity": follower.armor.rarity})
 		follower.armor = null
 	if follower.accessory:
 		add_to_inventory({"id": follower.accessory.equipment_id,
 			"name": follower.accessory.equipment_name,
 			"description": follower.accessory.description,
-			"item_type": "equipment"})
+			"item_type": "equipment", "rarity": follower.accessory.rarity})
 		follower.accessory = null
 	bench.remove_at(index)
 	save()

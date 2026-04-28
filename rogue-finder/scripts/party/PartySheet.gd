@@ -321,12 +321,15 @@ func _build_draggable_item(parent: Control, item: Dictionary, compact: bool = fa
 		row.custom_minimum_size = Vector2(LEFT_W - 14.0, 0.0)
 
 	var is_unseen: bool = not item.get("seen", true)
+	var item_rarity: int = item.get("rarity", EquipmentData.Rarity.COMMON)
+	var rarity_col: Color = EquipmentData.RARITY_COLORS.get(item_rarity, EquipmentData.RARITY_COLORS[0])
 
 	var sbox := StyleBoxFlat.new()
 	sbox.bg_color = Color(0.14, 0.12, 0.09, 0.90)
 	sbox.border_width_left = 2; sbox.border_width_top = 2
 	sbox.border_width_right = 2; sbox.border_width_bottom = 2
-	sbox.border_color = Color(0.95, 0.80, 0.20) if is_unseen else Color(0.36, 0.30, 0.20, 0.80)
+	# Unseen glow takes priority; otherwise border reflects rarity tier.
+	sbox.border_color = Color(0.95, 0.80, 0.20) if is_unseen else rarity_col
 	sbox.set_corner_radius_all(3)
 	row.add_theme_stylebox_override("panel", sbox)
 
@@ -361,7 +364,9 @@ func _build_draggable_item(parent: Control, item: Dictionary, compact: bool = fa
 	var name_lbl := Label.new()
 	name_lbl.text = item.get("name", "?")
 	name_lbl.add_theme_font_size_override("font_size", 10 if compact else 11)
-	name_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.78))
+	# Equipment name text colored by rarity; consumables use neutral color.
+	var name_color: Color = rarity_col if is_equipment else Color(0.92, 0.88, 0.78)
+	name_lbl.add_theme_color_override("font_color", name_color)
 	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if compact:
 		name_lbl.clip_contents = true
@@ -722,7 +727,8 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 			var bonus: String = _bonuses_str(eq.stat_bonuses)
 			slot_btn.tooltip_text = _wrap_tooltip("%s  [%s]\n%s\n%s\n\nRight-click to unequip." % [
 				eq.equipment_name, slot_label, bonus, eq.description])
-			slot_btn.add_theme_color_override("font_color", Color(0.85, 0.82, 0.72))
+			slot_btn.add_theme_color_override("font_color",
+				EquipmentData.RARITY_COLORS.get(eq.rarity, Color(0.85, 0.82, 0.72)))
 		else:
 			slot_btn.text = "— empty —"
 			slot_btn.tooltip_text = "No %s equipped.\nDrag a %s from your bag to equip." % [
@@ -1414,6 +1420,7 @@ func _push_equipment_to_bag(eq: EquipmentData) -> void:
 	GameState.add_to_inventory({
 		"id": eq.equipment_id, "name": eq.equipment_name,
 		"description": eq.description, "item_type": "equipment",
+		"rarity": eq.rarity,
 	})
 
 func _push_consumable_to_bag(consumable_id: String) -> void:

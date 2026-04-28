@@ -38,19 +38,19 @@ func test_magic_defense_base() -> void:
 func test_physical_defense_with_equipment() -> void:
 	var d := CombatantData.new()
 	d.physical_armor = 4
-	d.armor = EquipmentLibrary.get_equipment("leather_armor")  # physical_armor:1
+	d.armor = EquipmentLibrary.get_equipment("padded_armor")  # physical_armor:+1
 	assert(d.physical_defense == 5,
-		"physical_defense with leather_armor should be 5, got %d" % d.physical_defense)
+		"physical_defense with padded_armor should be 5, got %d" % d.physical_defense)
 	# magic_defense unaffected by physical equipment
 	assert(d.magic_defense == d.magic_armor,
-		"magic_defense should be unaffected by leather_armor")
+		"magic_defense should be unaffected by padded_armor")
 	print("  PASS test_physical_defense_with_equipment")
 
 func test_magic_defense_with_equipment() -> void:
-	# No magic armor equipment exists yet — verify no cross-contamination
+	# cloth_robe is magic-only — verify no cross-contamination on physical
 	var d := CombatantData.new()
 	d.magic_armor = 3
-	d.armor = EquipmentLibrary.get_equipment("leather_armor")  # physical only
+	d.armor = EquipmentLibrary.get_equipment("padded_armor")  # physical only
 	assert(d.magic_defense == 3,
 		"magic_defense should not be affected by physical-only equipment, got %d" % d.magic_defense)
 	print("  PASS test_magic_defense_with_equipment")

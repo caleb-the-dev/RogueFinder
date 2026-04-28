@@ -1421,19 +1421,21 @@ func _refresh_add_item_list() -> void:
 	var rows: Array = []
 	for eq: EquipmentData in EquipmentLibrary.all_equipment():
 		rows.append({
-			"name": eq.equipment_name,
-			"id":   eq.equipment_id,
-			"slot": EquipmentData.Slot.keys()[eq.slot].capitalize(),
-			"item_type": "equipment",
+			"name":        eq.equipment_name,
+			"id":          eq.equipment_id,
+			"slot":        EquipmentData.Slot.keys()[eq.slot].capitalize(),
+			"item_type":   "equipment",
 			"description": eq.description,
+			"rarity":      eq.rarity,
 		})
 	for con: ConsumableData in ConsumableLibrary.all_consumables():
 		rows.append({
-			"name": con.consumable_name,
-			"id":   con.consumable_id,
-			"slot": "Consumable",
-			"item_type": "consumable",
+			"name":        con.consumable_name,
+			"id":          con.consumable_id,
+			"slot":        "Consumable",
+			"item_type":   "consumable",
 			"description": con.description,
+			"rarity":      EquipmentData.Rarity.COMMON,
 		})
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return a["name"].to_lower() < b["name"].to_lower()
@@ -1446,6 +1448,10 @@ func _refresh_add_item_list() -> void:
 		btn.add_theme_font_size_override("font_size", 13)
 		btn.custom_minimum_size = Vector2(0.0, 32.0)
 		btn.tooltip_text = row["description"]
+		# Color equipment names by rarity; consumables stay neutral.
+		if row["item_type"] == "equipment":
+			var rcol: Color = EquipmentData.RARITY_COLORS.get(row["rarity"], EquipmentData.RARITY_COLORS[0])
+			btn.add_theme_color_override("font_color", rcol)
 		btn.pressed.connect(_on_add_item_selected.bind(row))
 		_add_item_list.add_child(btn)
 
@@ -1455,6 +1461,7 @@ func _on_add_item_selected(row: Dictionary) -> void:
 		"name":        row["name"],
 		"description": row["description"],
 		"item_type":   row["item_type"],
+		"rarity":      row.get("rarity", EquipmentData.Rarity.COMMON),
 	})
 	GameState.save()
 	_add_item_panel.visible = false

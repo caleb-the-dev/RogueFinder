@@ -8,7 +8,8 @@ extends CanvasLayer
 
 const MAP_SCENE_PATH := "res://scenes/map/MapScene.tscn"
 
-var _reward_buttons: Array[Button] = []
+var _reward_cards:   Array[PanelContainer] = []
+var _reward_buttons: Array[Button]         = []
 
 func _init() -> void:
 	layer = 15
@@ -46,33 +47,85 @@ func _build_victory_layout(items: Array) -> void:
 	subtitle.position = Vector2(0.0, 210.0)
 	bg.add_child(subtitle)
 
-	# 3 reward buttons centered horizontally
-	var button_w := 260.0
-	var button_h := 130.0
-	var gap      := 30.0
-	var total_w  := button_w * 3.0 + gap * 2.0
-	var start_x  := (1152.0 - total_w) / 2.0  # approximate 1152 reference width
-	var btn_y    := 280.0
+	var card_w := 260.0
+	var card_h := 130.0
+	var gap    := 30.0
+	var total_w := card_w * 3.0 + gap * 2.0
+	var start_x := (1152.0 - total_w) / 2.0
+	var card_y  := 280.0
 
+	_reward_cards.clear()
 	_reward_buttons.clear()
 	for i in range(items.size()):
 		var item: Dictionary = items[i]
-		var btn := Button.new()
-		btn.text        = item["name"] + "\n" + item["description"]
-		btn.custom_minimum_size = Vector2(button_w, button_h)
-		btn.position    = Vector2(start_x + i * (button_w + gap), btn_y)
-		btn.add_theme_font_size_override("font_size", 16)
-		btn.pressed.connect(_on_reward_chosen.bind(item, btn))
-		bg.add_child(btn)
-		_reward_buttons.append(btn)
+		var rarity: int = item.get("rarity", EquipmentData.Rarity.COMMON)
+		var rarity_col: Color = EquipmentData.RARITY_COLORS.get(rarity, EquipmentData.RARITY_COLORS[0])
+
+		var card := _build_reward_card(item, rarity_col, card_w, card_h)
+		card.position = Vector2(start_x + i * (card_w + gap), card_y)
+		bg.add_child(card)
+		_reward_cards.append(card)
 
 
-func _on_reward_chosen(item: Dictionary, chosen_btn: Button) -> void:
+func _build_reward_card(item: Dictionary, rarity_col: Color, w: float, h: float) -> PanelContainer:
+	var rarity: int = item.get("rarity", EquipmentData.Rarity.COMMON)
+	var rarity_col2: Color = EquipmentData.RARITY_COLORS.get(rarity, EquipmentData.RARITY_COLORS[0])
+
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(w, h)
+
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color = Color(0.10, 0.09, 0.08, 0.92)
+	sbox.border_width_left   = 2; sbox.border_width_top    = 2
+	sbox.border_width_right  = 2; sbox.border_width_bottom = 2
+	sbox.border_color = rarity_col2
+	sbox.set_corner_radius_all(4)
+	card.add_theme_stylebox_override("panel", sbox)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	card.add_child(vbox)
+
+	var name_lbl := Label.new()
+	name_lbl.text = item.get("name", "?")
+	name_lbl.add_theme_font_size_override("font_size", 18)
+	name_lbl.add_theme_color_override("font_color", rarity_col2)
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(name_lbl)
+
+	var desc_lbl := Label.new()
+	desc_lbl.text = item.get("description", "")
+	desc_lbl.add_theme_font_size_override("font_size", 13)
+	desc_lbl.add_theme_color_override("font_color", Color(0.82, 0.80, 0.74))
+	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(desc_lbl)
+
+	# Invisible button covers the card for click detection
+	var btn := Button.new()
+	btn.flat = true
+	btn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	btn.pressed.connect(_on_reward_chosen.bind(item, card, name_lbl, desc_lbl))
+	card.add_child(btn)
+	_reward_buttons.append(btn)
+
+	return card
+
+
+func _on_reward_chosen(item: Dictionary, card: PanelContainer, name_lbl: Label, desc_lbl: Label) -> void:
 	if GameState.has_method("add_to_inventory"):
 		GameState.add_to_inventory(item)
 	for btn in _reward_buttons:
 		btn.disabled = true
-	chosen_btn.text = "✓ " + item["name"] + "\n" + item["description"]
+	name_lbl.text = "✓ " + item.get("name", "?")
+	desc_lbl.text = item.get("description", "")
+	# Highlight chosen card with a brighter border
+	var sbox := card.get_theme_stylebox("panel") as StyleBoxFlat
+	if sbox != null:
+		sbox.border_width_left   = 3; sbox.border_width_top    = 3
+		sbox.border_width_right  = 3; sbox.border_width_bottom = 3
 	if not GameState.current_combat_node_id.is_empty():
 		if not GameState.cleared_nodes.has(GameState.current_combat_node_id):
 			GameState.cleared_nodes.append(GameState.current_combat_node_id)
