@@ -158,6 +158,7 @@ func _setup_units() -> void:
 	for pos in enemy_positions:
 		var arch: String = enemy_archetypes[randi() % enemy_archetypes.size()]
 		var cd: CombatantData = ArchetypeLibrary.create(arch, "", false)
+		GameState.record_archetype(cd.archetype_id)
 		var unit: Unit3D = unit_scene.instantiate()
 		add_child(unit)
 		unit.setup(cd, pos)
@@ -525,11 +526,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_ESCAPE:
+				# Only consume ESC if there was something to cancel/deselect —
+				# otherwise let it fall through to PauseMenu.
 				if mode == PlayerMode.RECRUIT_TARGET_MODE:
 					_cancel_recruit_targeting()
-				else:
+					get_viewport().set_input_as_handled()
+				elif _selected_unit != null or mode != PlayerMode.IDLE:
 					_deselect()
-				get_viewport().set_input_as_handled()
+					get_viewport().set_input_as_handled()
 			KEY_SPACE:
 				_request_end_player_turn()
 				get_viewport().set_input_as_handled()

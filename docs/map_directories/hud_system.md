@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-28 (Follower Slice 3 — CombatActionPanel: recruit_selected signal + ⊕ Recruit button)
+> Last updated: 2026-04-28 (Pause Menu — Pokédex log with UNKNOWN/ENCOUNTERED/FOLLOWER/PLAYER statuses; fullscreen toggle removed)
 
 ---
 
@@ -159,6 +159,81 @@ Static utility class (`scripts/globals/RewardGenerator.gd`). Builds a shuffled p
 ## MainMenuScene + CharacterCreationScene
 
 > Moved to [`character_creation.md`](character_creation.md).
+
+---
+
+## PauseMenu
+
+**Layer 26.** Global pause overlay registered as an autoload (`PauseMenu`). Active in all gameplay scenes (MapScene, CombatScene3D, BadurgaScene, CharacterCreationScene). Blocked in MainMenuScene and RunSummaryScene via a scene-file path gate.
+
+**Architecture decision:** Implemented as a CanvasLayer autoload rather than a per-scene instance so it works across all 4+ gameplay scenes without boilerplate. The tradeoff vs per-scene: less control over scene-specific behavior, but the gate function handles the two excluded scenes cleanly.
+
+**SettingsStore:** User preferences live in a separate `SettingsStore` autoload (`scripts/globals/SettingsStore.gd`) persisted to `user://settings.json`. This is distinct from `user://save.json` (run state) so volume prefs survive run deletion. Tradeoff vs folding settings into PauseMenuManager: adds one autoload but keeps settings accessible anywhere without coupling them to the menu lifecycle.
+
+**ESC conflict resolution:** CM3D only marks ESC as handled when it actually does something (cancel recruit mode, deselect a unit). When nothing is selected and mode is IDLE, ESC falls through to PauseMenu. StatPanel ESC is handled inside CM3D's guard block (all input consumed while panel is visible) — PauseMenu never sees those events.
+
+### Scene / Script
+
+| File | Role |
+|------|------|
+| `scenes/ui/PauseMenuScene.tscn` | Minimal (root CanvasLayer + PauseMenuManager script) |
+| `scripts/ui/PauseMenuManager.gd` | Full UI built in `_ready()`; sub-panel switching; ESC handler |
+| `scripts/globals/SettingsStore.gd` | Autoload; reads/writes `user://settings.json` |
+
+### Signals
+
+| Signal | When emitted |
+|--------|-------------|
+| `menu_opened` | On `open_menu()` |
+| `menu_closed` | On `close_menu()` |
+| `settings_changed` | Any settings slider or toggle changed |
+| `archetype_log_opened` | On navigating to the Archetypes Log sub-panel |
+
+### Public API
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `open_menu` | `() -> void` | Show overlay, pause tree, switch to main buttons |
+| `close_menu` | `() -> void` | Hide overlay, unpause tree |
+| `_scene_name_is_pauseable` | `static (path: String) -> bool` | Returns false for MainMenuScene and RunSummaryScene |
+
+### Sub-Panels
+
+| Panel | Contents |
+|-------|---------|
+| **Main** | Resume · Settings · Guide · Archetypes Log · Main Menu · Exit Game |
+| **Settings** | ← Back · Master/Music/SFX volume sliders (visible + draggable; values persist; audio bus wiring deferred) |
+| **Guide** | ← Back · "Guide coming soon." stub |
+| **Archetypes Log** | ← Back · Scrollable Pokédex-style list of all archetypes sorted by status descending |
+
+### Archetypes Log
+
+Pokédex-style. Shows **all** archetypes (from `ArchetypeLibrary.all_archetypes()`), sorted descending by status. Rebuilt by `_rebuild_log_list()` on every panel open.
+
+**Status enum (`_ArchStatus`):**
+
+| Value | Meaning | Card appearance |
+|-------|---------|----------------|
+| `UNKNOWN (0)` | Never seen in combat, never recruited | Dark silhouette · "???" name · "Not yet encountered in the field." |
+| `ENCOUNTERED (1)` | Seen in combat (or recruited) | Full card · `[ Encountered ]` badge (blue) |
+| `FOLLOWER (2)` | Ever added to bench — persists after release | Full card · `[ Follower ]` badge (green) |
+| `PLAYER (3)` | RogueFinder archetype_id — always this | Full card · `[ You ]` badge (gold) · displayed as "The Pathfinder" |
+
+Status is determined by `_get_arch_status(id)`: checks `recruited_archetypes` first (persistent across releases), then falls back to bench + party scan (handles saves pre-dating `recruited_archetypes`), then `encountered_archetypes`, then UNKNOWN.
+
+Full cards show: archetype name (title-cased), kindred · class (muted), and `ArchetypeData.notes` text if non-empty.
+
+**Recording:**
+- Encounters: `GameState.record_archetype(id)` called in `CombatManager3D._setup_units()` for each enemy at combat start (even if player flees).
+- Recruits: `GameState.add_to_bench()` calls `record_recruited_archetype(id)` — this is the single hookpoint for all bench-insert paths (combat, event, city hire).
+
+### Recent Changes (PauseMenu)
+
+| Date | Change |
+|------|--------|
+| 2026-04-28 | **Fullscreen toggle removed.** CheckBox was rendering as plain non-interactive text (no hover/focus state). Removed `SettingsStore.fullscreen` field, `set_fullscreen()`, the checkbox row from the settings panel, and `_on_fullscreen_toggled()` from PauseMenuManager. 12 tests still pass. |
+| 2026-04-28 | **Pokédex Archetypes Log + recruited_archetypes tracking.** Log rebuilt to show all archetypes with 4 status levels (UNKNOWN/ENCOUNTERED/FOLLOWER/PLAYER). UNKNOWN entries show as dark silhouettes with "???". `GameState.recruited_archetypes` + `record_recruited_archetype()` added — persists Follower status even after bench release. `add_to_bench()` is the single hookpoint. Confirm dialogs added to Main Menu and Exit Game buttons. Party button shifted left (–236 px) to clear ☰ button overlap. ESC handling fixed — `PROCESS_MODE_WHEN_PAUSED` changed to `PROCESS_MODE_ALWAYS` (was never receiving initial ESC to open). CM3D ESC: now only consumed when an action is taken; IDLE+nothing selected falls through to PauseMenu. |
+| 2026-04-28 | **Pause Menu + Archetypes Log initial implementation.** Layer 26 CanvasLayer autoload. ESC gate + ☰ button. Settings panel (volume sliders). Guide stub. Archetypes Log panel (initial version). SettingsStore autoload (`user://settings.json`). `GameState.encountered_archetypes` + `record_archetype()`. `ArchetypeData.notes` parsed. 8 headless tests (now 12 after recruited_archetypes tests added). |
 
 ---
 

@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-28 (Follower Slice 6 — City Hire Channel: gold, Hire Roster overlay, seeded candidate generation) |
+| last_updated | 2026-04-28 (Pause Menu — Pokédex log, recruited_archetypes, fullscreen dropped, ESC fix) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 16 |
+| sessions_since_groom | 18 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -46,6 +46,8 @@
 | BenchSwapPanel | `event_system.md` | ✅ Active — shared bench-swap comparison UI; used by EventManager (event recruit), CombatManager3D (combat recruit), and BadurgaManager (city hire bench-full path); static builder, no scene | Presentation |
 | Hire Roster (BadurgaManager) | `map_scene.md` | ✅ Active — full hire overlay in Badurga; seeded roster generation; one-at-a-time card with nav; ability/feat tabs with tooltips; gold economy | City |
 | [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ✅ Active — 38 feats (20 class, 18 background), stat bonuses applied, grant_feat() API live | Data |
+| [Pause Menu + Settings + Archetypes Log](hud_system.md) | `hud_system.md` | ✅ Active — CanvasLayer layer 26 autoload; ESC toggle; Settings (vol sliders placeholder); Guide stub; Archetypes Log (Pokédex — UNKNOWN/ENCOUNTERED/FOLLOWER/PLAYER statuses) | Presentation |
+| [SettingsStore](hud_system.md) | `hud_system.md` | ✅ Active — autoload; user://settings.json; volume prefs (master/music/sfx) | Global |
 
 ---
 
@@ -134,6 +136,13 @@ GameState (autoload)
   ├── ClassLibrary          (sample_ability_candidates + sample_feat_candidates)
   ├── KindredLibrary        (sample_ability_candidates)
   └── BackgroundLibrary     (sample_feat_candidates)
+
+PauseMenu (autoload, CanvasLayer layer 26)
+  ├── GameState             (encountered_archetypes + recruited_archetypes for Archetypes Log)
+  ├── ArchetypeLibrary      (all_archetypes() for log card display)
+  └── SettingsStore         (read/write volume on settings panel)
+
+SettingsStore (autoload)   ← persists to user://settings.json; no deps
 ```
 
 ---
@@ -196,6 +205,7 @@ rogue-finder/
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   └── TemperamentLibrary.gd       ← CSV-sourced (res://data/temperaments.csv); 21 temperaments (20 + Even neutral); random_id(rng) helper
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool
+│   │   ├── SettingsStore.gd            ← autoload; user://settings.json; volume prefs (master/music/sfx)
 │   │   └── GameState.gd                ← autoload
 │   ├── map/MapManager.gd
 │   ├── misc/NodeStub.gd                ← placeholder stub screen
@@ -206,6 +216,7 @@ rogue-finder/
 │       ├── EndCombatScreen.gd          ← victory overlay (layer 15)
 │       ├── MainMenuManager.gd          ← title screen (entry point)
 │       ├── RunSummaryManager.gd        ← run-end stats
+│       ├── PauseMenuManager.gd         ← global pause overlay autoload (layer 26)
 │       ├── StatPanel.gd                ← double-click examine (layer 8)
 │       ├── UnitInfoBar.gd              ← hover strip (layer 4)
 │       └── HUD.gd                      ← legacy 2D only
@@ -256,8 +267,9 @@ rogue-finder/
 │       ├── CombatActionPanel.tscn
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
+│       ├── PauseMenuScene.tscn         ← minimal (root CanvasLayer + PauseMenuManager script); registered as PauseMenu autoload
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 39 test scripts + 25 scene runners (test_hire_roster.gd/.tscn added 2026-04-28; 6 assertions covering roster count, determinism, seed variance, hire_cost > 0 guard, gold deduction, insufficient gold guard); test_recruit_success.gd/.tscn (11 assertions); test_recruit_math.gd/.tscn (13 assertions); test_armor_mod.gd/.tscn (11 assertions); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; SceneTree tests use `--script`.
+└── tests/                              ← 39 test scripts + 26 scene runners (test_pause_menu.gd/.tscn added 2026-04-28; 12 assertions — scene gate, record_archetype, save round-trips, log filter, settings store, recruited_archetypes); test_hire_roster.gd/.tscn (6 assertions); test_recruit_success.gd/.tscn (11 assertions); test_recruit_math.gd/.tscn (13 assertions); test_armor_mod.gd/.tscn (11 assertions); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). All `extends Node` tests require a .tscn scene runner and are invoked with `--headless --path rogue-finder <test>.tscn`; `extends SceneTree` tests use `--script`.
 ```
 
 ---
@@ -268,6 +280,8 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-28 | PauseMenuManager, SettingsStore, GameState, tests | **Pause Menu — Pokédex log, recruited_archetypes, fullscreen dropped.** Full Pokédex-style Archetypes Log: shows all 9 archetypes with 4 status levels — UNKNOWN (dark silhouette "???"), ENCOUNTERED (seen in combat), FOLLOWER (ever recruited to bench), PLAYER (RogueFinder = "The Pathfinder"). `GameState.recruited_archetypes: Array[String]` + `record_recruited_archetype()` added with save/load/reset wiring; `add_to_bench()` is the canonical hookpoint for all follower paths. Confirm dialogs added to Main Menu + Exit Game. `☰` button + Party button overlap fixed (party shifted left). ESC fixed: was `PROCESS_MODE_WHEN_PAUSED` (couldn't receive initial ESC to open); changed to `PROCESS_MODE_ALWAYS`. CM3D ESC: only consumed when action taken — IDLE falls through to PauseMenu. Fullscreen toggle dropped entirely (CheckBox rendered as non-interactive text). `SettingsStore.fullscreen` field + `set_fullscreen()` removed. 12 headless tests (`test_pause_menu.gd/.tscn`). |
+| 2026-04-28 | PauseMenuManager (new), SettingsStore (new), GameState, CombatManager3D, ArchetypeData, ArchetypeLibrary, project.godot, tests | **Pause Menu + Archetypes Log initial.** `PauseMenuManager.gd` added as CanvasLayer autoload (layer 26). ESC toggles open/closed; blocked from MainMenuScene and RunSummaryScene via `_scene_name_is_pauseable()`. Sub-panels: Resume/Settings/Guide/Archetypes Log/Main Menu/Exit. Settings: Master/Music/SFX volume sliders (placeholder). Archetypes Log: initial version from `GameState.encountered_archetypes`. `SettingsStore.gd` autoload — `user://settings.json` separate from run save. `GameState.encountered_archetypes` + `record_archetype()` added with save/load/reset wiring. CM3D records encounter per enemy at combat start. `ArchetypeData.notes` parsed. |
 | 2026-04-28 | GameState, BadurgaManager, ArchetypeLibrary, ArchetypeData, MapManager, kindreds.csv, archetypes.csv, tests | **Follower Slice 6 — City Hire Channel.** `GameState.gold: int` added with full save/load/reset wiring; old saves default 0. `archetypes.csv` gained `hire_cost` column (RogueFinder=0, grunts=20, others 25–60); `ArchetypeData.hire_cost: int` added; `ArchetypeLibrary._row_to_data()` parses it. `kindreds.csv` name pools expanded from 6 → 22 names per kindred (reduces hire-card name overlap). `MapManager` dev menu INVENTORY section gained third button: "+ Give Gold +100". `BadurgaManager` Hire Roster overlay: "Hire Roster" added to SECTIONS (2nd position); `_open_hire_roster()` → full CanvasLayer overlay (layer 18) with ◀ / N of Total / ▶ navigation showing one recruit at a time. Roster generation: `_generate_hire_roster(seed, 4)` (deterministic Fisher-Yates, pool = archetypes with hire_cost > 0; stable seed = `map_seed + visited_nodes.size()`). Candidate pre-generation: `_generate_hire_candidates()` + `_create_hire_candidate(arch, rng)` — mirrors `ArchetypeLibrary.create()` with a seeded RNG so the card display and bench insert are identical (fixes identity mismatch bug). Hire card shows: portrait, name, archetype/class/kindred/background/temperament identity, all 10 stats as large 26px chips, Abilities tab (flat pool list with tooltips), Feats tab (scrollable, per rolled background, with tooltips). BenchSwapPanel used for bench-full path (layer 19 above hire overlay); gold restored on Cancel. 6 headless tests (`test_hire_roster.gd/.tscn`). |
 | 2026-04-28 | EventManager, CombatManager3D, MapManager, ArchetypeLibrary, BenchSwapPanel (new), tests | **Follower Slices 5–7 — event follower channel + bench-swap comparison panel.** EventManager: `recruit_follower` effect + `bench_not_full` condition; 3 follower-offer events (`wandering_sellsword`, `skeletal_wanderer`, `stray_dog` upgraded). `BenchSwapPanel.gd` added — static builder, shared by EventManager and CombatManager3D; shows left recruit card (portrait, archetype, 10 stats) + right scrollable bench list (portraits, stats + Δ coloring, Swap buttons) + cancel button; "Never Mind" restores event choice list, "Lose Recruit" abandons combat recruit. `dispatch_effect` gains `bench_release_idx` + `prebuilt_follower` params. `ArchetypeLibrary.create()` guards empty `backgrounds` (was crash on skeleton_warrior/rat_scrapper). Dev menu INVENTORY section: "⊕ Add Random to Bench" button added. 6 headless tests (`test_event_follower.gd`); `test_event_library.gd` ring counts updated. |
 | 2026-04-28 | CombatManager3D, CombatActionPanel, GameState, MapManager, BadurgaManager, tests | **Follower Slice 4 — recruit success path + bench persistence + Party Management restore.** `_initiate_recruit()` success branch replaced with `await _on_recruit_succeeded(target)`. Full async coroutine: enemy erased from `_enemy_units` + grid; "Recruited!" floating text (0.4 s then hide); `_build_follower()` copies enemy CombatantData to player-side (is_player_unit=true, qte_resolution=0.0, level matched to party[0].level); blocking rename prompt (CanvasLayer layer 16, pre-filled from kindred name pool, Enter or Confirm button); `GameState.add_to_bench()` — on full bench, blocking 9-slot release modal; `target.queue_free()`; camera shake; `_check_win_lose()` deferred until after full flow so recruiting the last enemy triggers victory after the rename. `_make_test_combatant()` gained optional `"hp"` dict key. New `"recruit_test"` test room scenario (RogueFinder vit10 + 2 allies vs 3 Whelps at 1 HP / qte 0.05). `CombatActionPanel._refresh_recruit()` falls back to `archetype_id == "RogueFinder"` check when `test_room_kind == "recruit_test"`. GameState: `bench` now serialized under `"bench"` key (same `_serialize_combatant` format as party); `load_save()` restores bench; `reset()` clears bench. `release_from_bench(index)` added (auto-deequip + save). `swap_active_bench(party_idx, bench_idx)` added (in-place swap; caller deequips first). Bug: `BadurgaManager` called `GameState.swap_active_bench()` which was missing — added. Bug: `BadurgaManager.gd` Party Management overlay (1085 lines) was silently dropped by the follower-bench-ui merge — restored from branch tip. 11 new headless tests (`test_recruit_success.gd/.tscn`) — bench save round-trip, release deequip, level matching. |
