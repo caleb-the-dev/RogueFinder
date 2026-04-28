@@ -21,7 +21,7 @@ var _choices_container: VBoxContainer
 var _result_panel: VBoxContainer
 var _result_label: Label
 var _picker_centering: CenterContainer = null
-var _bench_picker_centering: CenterContainer = null
+var _bench_picker_centering: Control = null
 
 ## --- Lifecycle ---
 
@@ -173,18 +173,39 @@ func _on_choice_pressed(choice: EventChoiceData) -> void:
 		picked_target = await target_picked
 		_hide_picker()
 
-	# Pre-scan for recruit_follower when bench is full; show bench release picker
+	# Pre-scan for recruit_follower when bench is full; show compare panel
 	var bench_release_idx := -1
+	var pending_recruit: CombatantData = null
 	for effect: Dictionary in choice.effects:
 		if effect.get("type", "") == "recruit_follower" and GameState.bench.size() >= GameState.BENCH_CAP:
+			# Build the follower now so the comparison shows the exact instance that will be added.
+			var arch_id: String = effect.get("archetype_id", "grunt")
+			var arch: ArchetypeData = ArchetypeLibrary.get_archetype(arch_id)
+			var name_val: String = effect.get("name", "")
+			if name_val.is_empty():
+				var pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
+				name_val = pool[randi() % pool.size()] if not pool.is_empty() else "Recruit"
+			pending_recruit = ArchetypeLibrary.create(arch_id, name_val, true)
+			if not GameState.party.is_empty():
+				pending_recruit.level = GameState.party[0].level
+			pending_recruit.xp = 0
+			pending_recruit.pending_level_ups = 0
+			pending_recruit.current_hp     = pending_recruit.hp_max
+			pending_recruit.current_energy = pending_recruit.energy_max
+
 			_choices_container.visible = false
-			_show_bench_picker()
+			_show_bench_picker(pending_recruit)
 			bench_release_idx = await bench_target_picked
 			_hide_bench_picker()
+			if bench_release_idx == -1:
+				# Player changed their mind — restore the choice list
+				pending_recruit = null
+				_choices_container.visible = true
+				return
 			break
 
 	for effect: Dictionary in choice.effects:
-		dispatch_effect(effect, GameState.party, picked_target, bench_release_idx)
+		dispatch_effect(effect, GameState.party, picked_target, bench_release_idx, pending_recruit)
 
 	_result_label.text = choice.result_text
 	_choices_container.visible = false
@@ -242,59 +263,16 @@ func _hide_picker() -> void:
 
 ## --- Bench Release Picker ---
 ## Shown when a recruit_follower effect fires with a full bench.
-## Emits bench_target_picked(index) when the player chooses who to release.
+## Emits bench_target_picked(index) on swap, bench_target_picked(-1) on cancel.
 
-func _show_bench_picker() -> void:
-	_bench_picker_centering = CenterContainer.new()
-	_bench_picker_centering.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_bench_picker_centering.mouse_filter = Control.MOUSE_FILTER_PASS
+func _show_bench_picker(new_recruit: CombatantData) -> void:
+	_bench_picker_centering = BenchSwapPanel.build_panel(
+		new_recruit,
+		"Never Mind",
+		func(idx: int) -> void: bench_target_picked.emit(idx),
+		func() -> void:         bench_target_picked.emit(-1)
+	)
 	add_child(_bench_picker_centering)
-
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(540.0, 0.0)
-	var psbox := StyleBoxFlat.new()
-	psbox.bg_color = Color(0.05, 0.04, 0.03, 0.97)
-	psbox.border_width_left = 2; psbox.border_width_right  = 2
-	psbox.border_width_top  = 2; psbox.border_width_bottom = 2
-	psbox.border_color = Color(0.60, 0.40, 0.22)
-	psbox.set_corner_radius_all(6)
-	psbox.content_margin_left = 20.0; psbox.content_margin_right  = 20.0
-	psbox.content_margin_top  = 16.0; psbox.content_margin_bottom = 16.0
-	panel.add_theme_stylebox_override("panel", psbox)
-	_bench_picker_centering.add_child(panel)
-
-	var outer_vbox := VBoxContainer.new()
-	outer_vbox.add_theme_constant_override("separation", 10)
-	panel.add_child(outer_vbox)
-
-	var prompt := Label.new()
-	prompt.text = "Your bench is full. Who makes room?"
-	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	prompt.add_theme_font_size_override("font_size", 15)
-	prompt.add_theme_color_override("font_color", Color(0.90, 0.75, 0.50))
-	outer_vbox.add_child(prompt)
-
-	# Scrollable list so 9 entries don't overflow the screen
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0.0, 300.0)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	outer_vbox.add_child(scroll)
-
-	var list := VBoxContainer.new()
-	list.add_theme_constant_override("separation", 6)
-	list.size_flags_horizontal = Control.SIZE_FILL
-	scroll.add_child(list)
-
-	for i in GameState.bench.size():
-		var member: CombatantData = GameState.bench[i]
-		var btn := Button.new()
-		btn.text = "Release %s  [%s, lv %d]" % [member.character_name, member.kindred, member.level]
-		btn.custom_minimum_size = Vector2(0.0, 36.0)
-		btn.add_theme_font_size_override("font_size", 13)
-		btn.size_flags_horizontal = Control.SIZE_FILL
-		var idx := i
-		btn.pressed.connect(func() -> void: bench_target_picked.emit(idx))
-		list.add_child(btn)
 
 func _hide_bench_picker() -> void:
 	if _bench_picker_centering != null and is_instance_valid(_bench_picker_centering):
@@ -408,7 +386,8 @@ static func resolve_target(target: String, party: Array[CombatantData]) -> Comba
 ##   instead of resolve_target. Keeps dispatch static + headless-testable.
 
 static func dispatch_effect(effect: Dictionary, party: Array[CombatantData],
-		forced_target: CombatantData = null, bench_release_idx: int = -1) -> void:
+		forced_target: CombatantData = null, bench_release_idx: int = -1,
+		prebuilt_follower: CombatantData = null) -> void:
 	var effect_type: String = effect.get("type", "")
 	match effect_type:
 		"item_gain":
@@ -444,20 +423,25 @@ static func dispatch_effect(effect: Dictionary, party: Array[CombatantData],
 			if not feat_id.is_empty():
 				GameState.grant_feat(party.find(t), feat_id)
 		"recruit_follower":
-			var arch_id: String = effect.get("archetype_id", "grunt")
-			var arch: ArchetypeData = ArchetypeLibrary.get_archetype(arch_id)
-			var name_val: String = effect.get("name", "")
-			if name_val.is_empty():
-				var pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
-				name_val = pool[randi() % pool.size()] if not pool.is_empty() else "Recruit"
-			var follower: CombatantData = ArchetypeLibrary.create(arch_id, name_val, true)
-			if not GameState.party.is_empty():
-				follower.level = GameState.party[0].level
-			follower.xp = 0
-			follower.pending_level_ups = 0
-			follower.current_hp     = follower.hp_max
-			follower.current_energy = follower.energy_max
-			# Release a bench slot first if the player chose one via the bench picker
+			var follower: CombatantData
+			if prebuilt_follower != null:
+				# Reuse the instance shown in the comparison UI (stats are identical).
+				follower = prebuilt_follower
+			else:
+				var arch_id: String = effect.get("archetype_id", "grunt")
+				var arch: ArchetypeData = ArchetypeLibrary.get_archetype(arch_id)
+				var name_val: String = effect.get("name", "")
+				if name_val.is_empty():
+					var pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
+					name_val = pool[randi() % pool.size()] if not pool.is_empty() else "Recruit"
+				follower = ArchetypeLibrary.create(arch_id, name_val, true)
+				if not GameState.party.is_empty():
+					follower.level = GameState.party[0].level
+				follower.xp = 0
+				follower.pending_level_ups = 0
+				follower.current_hp     = follower.hp_max
+				follower.current_energy = follower.energy_max
+			# Release a bench slot first if the player chose one via the compare panel
 			if GameState.bench.size() >= GameState.BENCH_CAP and bench_release_idx >= 0:
 				GameState.release_from_bench(bench_release_idx)
 			if not GameState.add_to_bench(follower):

@@ -2140,57 +2140,25 @@ func _show_bench_full_modal(follower: CombatantData) -> void:
 	overlay.layer = 16
 	add_child(overlay)
 
-	var slot_count: int   = GameState.bench.size()
-	var bg_height: float  = 66.0 + (slot_count + 1) * 44.0 + 12.0
-	var bg := ColorRect.new()
-	bg.color    = Color(0.06, 0.07, 0.16, 0.97)
-	bg.size     = Vector2(400.0, bg_height)
-	bg.position = Vector2(480.0, 60.0)
-	overlay.add_child(bg)
+	var resolved := false
 
-	var title := Label.new()
-	title.text          = "Bench is full. Release a follower to make room, or lose this recruit."
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title.position      = Vector2(12.0, 8.0)
-	title.size          = Vector2(376.0, 52.0)
-	title.add_theme_font_size_override("font_size", 13)
-	bg.add_child(title)
-
-	var _resolved := false
-
-	for i in range(slot_count):
-		var f: CombatantData = GameState.bench[i]
-		var slot_btn := Button.new()
-		slot_btn.text = "%s (%s · %s)" % [f.character_name, f.kindred, f.unit_class]
-		slot_btn.position = Vector2(12.0, 66.0 + i * 44.0)
-		slot_btn.size     = Vector2(376.0, 38.0)
-		slot_btn.add_theme_font_size_override("font_size", 13)
-		var idx := i
-		slot_btn.pressed.connect(func() -> void:
-			if _resolved:
-				return
-			_resolved = true
+	overlay.add_child(BenchSwapPanel.build_panel(
+		follower,
+		"Lose Recruit",
+		func(idx: int) -> void:
+			if resolved: return
+			resolved = true
 			GameState.release_from_bench(idx)
 			GameState.add_to_bench(follower)
 			GameState.save()
 			overlay.queue_free()
+			_bench_full_resolved.emit(),
+		func() -> void:
+			if resolved: return
+			resolved = true
+			overlay.queue_free()
 			_bench_full_resolved.emit()
-		)
-		bg.add_child(slot_btn)
-
-	var lose_btn := Button.new()
-	lose_btn.text     = "Lose Recruit"
-	lose_btn.position = Vector2(12.0, 66.0 + slot_count * 44.0)
-	lose_btn.size     = Vector2(376.0, 38.0)
-	lose_btn.add_theme_font_size_override("font_size", 13)
-	lose_btn.pressed.connect(func() -> void:
-		if _resolved:
-			return
-		_resolved = true
-		overlay.queue_free()
-		_bench_full_resolved.emit()
-	)
-	bg.add_child(lose_btn)
+	))
 
 	await _bench_full_resolved
 
