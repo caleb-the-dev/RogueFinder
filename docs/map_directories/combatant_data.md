@@ -198,6 +198,7 @@ Design intent: grunt = physical tank, alchemist = magic-hardened, elite_guard = 
 - Attribute ranges stored as `min|max` pipe pairs; `create()` samples via `randi_range()`.
 - `physical_armor_range` / `magic_armor_range` — pipe `min|max` pairs for each armor type. **Replaced the old single `armor_range` column** (2026-04-27).
 - `qte_range` stored as float `min|max`.
+- `hire_cost: int` — gold cost to hire this archetype from the Hire Roster in Badurga. `0` = not hireable (RogueFinder is 0 and excluded from the pool). Non-zero archetypes appear in `BadurgaManager._generate_hire_roster()`. Added 2026-04-28.
 
 ### Public API
 
@@ -208,6 +209,8 @@ static func get_archetype(id: String) -> ArchetypeData   # stub fallback on unkn
 static func all_archetypes() -> Array[ArchetypeData]     # replaces ARCHETYPES iteration
 static func reload() -> void                             # cache-clear for tests/dev
 ```
+
+**Note — `BadurgaManager._create_hire_candidate(arch, rng)`:** A seeded parallel to `create()` that lives in `BadurgaManager` rather than `ArchetypeLibrary`. It accepts an `ArchetypeData` and a pre-seeded `RandomNumberGenerator`, mirrors the exact creation logic of `create()`, and produces a deterministic `CombatantData`. Used so the hire card always shows — and the bench receives — the same character. Do not use `ArchetypeLibrary.create()` for hire-path follower creation; use the pre-generated `CombatantData` stored in `BadurgaManager._hire_roster`.
 
 ---
 
@@ -247,6 +250,7 @@ static func reload() -> void                             # cache-clear for tests
 
 | Date | Change |
 |---|---|
+| 2026-04-28 | **Follower Slice 6 — hire_cost + kindred name pool expansion.** `ArchetypeData.hire_cost: int = 0` added. `archetypes.csv` gained `hire_cost` column (RogueFinder=0, grunts=20, others 25–60). `ArchetypeLibrary._row_to_data()` parses it as `int(val)`. `kindreds.csv` name pools expanded from 6 to 22 names per kindred. `BadurgaManager._create_hire_candidate(arch, rng)` added — seeded parallel to `create()`, produces deterministic `CombatantData` so hire card and bench match exactly. |
 | 2026-04-28 | **ArchetypeLibrary.create() empty-backgrounds guard.** `randi_range(0, bgs.size()-1)` on an empty array caused a crash (manifested on `skeleton_warrior` and `rat_scrapper` archetypes, both of which have no backgrounds column value). Fixed: `data.background = bgs[...] if not bgs.is_empty() else ""`. These archetypes now work as followers; their `background` field will be `""` at runtime. |
 | 2026-04-27 | **Temperament system.** Added `temperament_id: String = ""` to Identity section (`@export`, serialized). Added `get_temperament_stat_bonus(stat)` method: `+1` for boosted_stat, `-1` for hindered_stat, `0` otherwise. Wired into `hp_max`, `energy_max`, `energy_regen`, `speed`, and `attack` as a sixth flat bonus source. Derived stat formulas for `physical_defense` / `magic_defense` are NOT affected (those use armor stat keys, not core attributes). Depends on `TemperamentLibrary`. |
 | 2026-04-27 | **Armor mod — runtime BUFF/DEBUFF lane.** Added two transient fields: `physical_armor_mod: int = 0` and `magic_armor_mod: int = 0`. Both are plain `var` (NOT `@export`) — never serialized; combat state is transient. `physical_defense` / `magic_defense` formulas extended to include the mod field as the sixth source (after base, equip, feat, class, kindred, bg). Snapshotted by `CombatManager3D._setup_units()` (and `_setup_test_room_units()`) in `_attr_snapshots` and restored in `_end_combat()` so mid-combat changes never bleed into the next combat. Powering `stone_guard` (Dwarf kindred — `+2 PHYSICAL_ARMOR_MOD`) and `divine_ward` (Warden pool — `+2 MAGIC_ARMOR_MOD`); both were no-ops before this session. |

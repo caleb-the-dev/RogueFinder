@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-04-28 (Follower Slice 4 — bench persistence, release_from_bench, swap_active_bench)
+> Last updated: 2026-04-28 (Follower Slice 6 — City Hire Channel: gold field + save/load wiring)
 
 ---
 
@@ -53,6 +53,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `run_summary` | `Dictionary` | `{}` | Snapshot of run stats written by `CombatManager3D._capture_run_summary()` immediately before a run-end transition. Keys: `pc_name`, `nodes_visited`, `nodes_cleared`, `threat_level`, `fallen_allies`. Read by `RunSummaryManager`. Cleared by `reset()`. **NOT saved to disk** — survives the scene transition only because GameState is an autoload. |
 | `inventory` | `Array` | `[]` | Shared party bag. Holds raw reward dicts `{id, name, description, item_type, seen}` for both equipment and consumables. `item_type` is used by the bag UI (Stage 2) to filter into tabs. `seen: bool` drives the new-item glow in PartySheet — `add_to_inventory()` always stamps `false`; PartySheet sets it `true` on hover. Old saves without the `seen` key default to `true` via `.get("seen", true)` (no spurious glow on upgrade). Nothing is auto-assigned on pickup. Cleared by `reset()`. **Saved to disk.** |
 | `bench` | `Array[CombatantData]` | `[]` | Follower bench — `CombatantData` instances recruited via the combat Recruit action. Capped at `BENCH_CAP = 9`. **Saved to disk** (serialized alongside `party`). Cleared by `reset()`. |
+| `gold` | `int` | `0` | Player's current gold. Spent in the Hire Roster overlay (`BadurgaManager`). **Saved to disk** under key `"gold"`. Read back with `int(parsed.get("gold", 0))` — old saves default to `0`. Reset to `0` by `reset()`. |
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -79,7 +80,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `save` | `() -> void` | Serializes all persistent fields (including `party`) to `user://save.json` as indented JSON. Party members are written as plain dicts with equipment slots serialized as their `equipment_id` string. Called by: **MapManager** after travel increments, node entry, and `_assign_node_types()`; **EndCombatScreen** on reward selection; **CombatManager3D** on ally permadeath (`_on_unit_died()`), on victory write-back, and on run-end (defeat). |
 | `load_save` | `() -> bool` | Reads and deserializes `user://save.json`. Returns `true` if a valid save was found and loaded, `false` on a fresh run or corrupt file. Called by **MapManager** at the start of `_ready()`, before any map data is built. Typed arrays are converted via `Array(raw, TYPE_STRING, "", null)`. Equipment slots resolve via `EquipmentLibrary.get_equipment(id)`; `""` id → `null` slot. |
 | `delete_save` | `() -> void` | Removes `user://save.json` if it exists. Called by **MapManager**'s debug "Delete Save" button before resetting in-memory state. |
-| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "badurga"`, `visited_nodes = ["badurga"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`, `current_combat_node_id = ""`, `cleared_nodes = []`, `threat_level = 0.0`, `used_event_ids = []`, `party = []`, `bench = []`, `run_summary = {}`, `inventory = []`). Must be called alongside `delete_save()` when wiping a save mid-session. |
+| `reset` | `() -> void` | Resets all in-memory fields to fresh-run defaults (`player_node_id = "badurga"`, `visited_nodes = ["badurga"]`, `map_seed = 0`, `node_types = {}`, `pending_node_type = ""`, `current_combat_node_id = ""`, `cleared_nodes = []`, `threat_level = 0.0`, `used_event_ids = []`, `party = []`, `bench = []`, `run_summary = {}`, `inventory = []`, `gold = 0`). Must be called alongside `delete_save()` when wiping a save mid-session. |
 
 ---
 
@@ -97,8 +98,9 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `party` | `GameState.party` | JSON Array of dicts — each dict holds all scalar fields + `abilities`/`ability_pool` as string arrays + `feat_ids` as string array + `level`/`xp`/`pending_level_ups` as ints + `physical_armor`/`magic_armor` as ints + `weapon_id`/`armor_id`/`accessory_id` as strings + `temperament_id` as string. Deserialized back to `Array[CombatantData]` by `_deserialize_combatant()`. **Migrations:** old saves with `armor_defense` key → both armor lanes. Missing `level`/`xp`/`pending_level_ups` default to `1`/`0`/`0`. Missing `temperament_id` defaults to `"even"` (neutral). |
 | `bench` | `GameState.bench` | JSON Array using the same `_serialize_combatant()` / `_deserialize_combatant()` format as `party`. Loaded back via the same deserialization path with `bench.clear()` + append loop. Old saves without the `bench` key default to an empty bench (no crash). |
 | `inventory` | `GameState.inventory` | JSON Array of reward dicts `{id, name, description, item_type, seen}`. Stored and loaded as-is — no resolution step needed. `seen` persists naturally in JSON; old saves without the key read as `true` via `.get("seen", true)`. |
+| `gold` | `GameState.gold` | `int`. Read back as `int(parsed.get("gold", 0))` — old saves without the key default to `0`. |
 
-**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, party roster, **bench roster** (all CombatantData fields, same format as party), inventory.
+**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, party roster, **bench roster** (all CombatantData fields, same format as party), inventory, **gold**.
 
 Note: `pending_node_type` and `current_combat_node_id` are **not** saved — they are transient handoffs consumed within a single scene transition.
 
@@ -154,6 +156,7 @@ None currently.
 
 | Date | Change |
 |---|---|
+| 2026-04-28 | **Follower Slice 6 — City Hire Channel: gold field.** `gold: int = 0` added to `GameState`. Wired into `save()` (key `"gold"`), `load_save()` (`int(parsed.get("gold", 0))` — old saves default 0), and `reset()` (`gold = 0`). `BadurgaManager._on_hire_pressed()` deducts `gold` on hire and restores it on Cancel. MapManager dev menu "Give Gold +100" button calls `GameState.gold += 100; GameState.save()`. |
 | 2026-04-28 | **Follower Slice 4 — bench persistence + release + swap.** `bench` now saved to disk (serialized via `_serialize_combatant()` under key `"bench"`; deserialized on load with `bench.clear()` + append loop; `reset()` clears bench). `release_from_bench(index)` added: auto-deequips weapon/armor/accessory back to inventory, then removes the entry and calls `save()`. `swap_active_bench(party_idx, bench_idx)` added: in-place swap of `party[party_idx]` and `bench[bench_idx]`; gear deequip is caller's responsibility. `add_to_bench()` stub comment updated — no longer deferred. `test_room_kind` valid values extended to include `"recruit_test"`. |
 | 2026-04-28 | **Follower bench stub (Slice 3).** `BENCH_CAP: int = 9` constant added. `bench: Array[CombatantData]` field added (not yet saved). `add_to_bench(follower) -> bool` method added. |
 | 2026-04-27 | **Temperament serialization.** `_serialize_combatant()` now writes `temperament_id: String`. `_deserialize_combatant()` reads it with `dict.get("temperament_id", "even")` — old saves default to neutral `"even"`. |

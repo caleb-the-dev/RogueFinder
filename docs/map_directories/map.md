@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-28 (Follower Slice 5 — event follower channel: recruit_follower effect + bench_not_full condition + 3 follower events) |
+| last_updated | 2026-04-28 (Follower Slice 6 — City Hire Channel: gold, Hire Roster overlay, seeded candidate generation) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 15 |
+| sessions_since_groom | 16 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -39,11 +39,12 @@
 | [Kindred Library](combatant_data.md) | `combatant_data.md` | ✅ Active (8 kindreds — Human/Half-Orc/Gnome/Dwarf/Skeleton/Giant Rat/Spider/Dragon; owns ability lane; no longer grants feats) | Data |
 | [Main Menu + Character Creation](character_creation.md) | `character_creation.md` | ✅ Active (deterministic stats; slot 0 = class ability, slot 1 = kindred ability; bg feat seeds feat_ids; 12 tests) | Presentation |
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
-| [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + bench + inventory + XP/level-up) | Global |
+| [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + bench + inventory + gold + XP/level-up) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
 | [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay layer 20; level-up pick overlay layer 25) | Presentation |
 | [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker + 17 events (3 smoke + 14 authored) + recruit_follower effect (Slices 1/3/4/5/6/7) | Data / World Map |
-| BenchSwapPanel | `event_system.md` | ✅ Active — shared bench-swap comparison UI; used by EventManager (event recruit) and CombatManager3D (combat recruit); static builder, no scene | Presentation |
+| BenchSwapPanel | `event_system.md` | ✅ Active — shared bench-swap comparison UI; used by EventManager (event recruit), CombatManager3D (combat recruit), and BadurgaManager (city hire bench-full path); static builder, no scene | Presentation |
+| Hire Roster (BadurgaManager) | `map_scene.md` | ✅ Active — full hire overlay in Badurga; seeded roster generation; one-at-a-time card with nav; ability/feat tabs with tooltips; gold economy | City |
 | [Feat System (FeatLibrary / FeatData)](feat_system.md) | `feat_system.md` | ✅ Active — 38 feats (20 class, 18 background), stat bonuses applied, grant_feat() API live | Data |
 
 ---
@@ -116,7 +117,16 @@ PartySheet
   └── FeatLibrary           (feat name + description for Feats tab)
 
 NodeStub          → GameState (reads + clears pending_node_type)
-BadurgaManager    → standalone (no deps; returns to MapScene on back)
+
+BadurgaManager
+  ├── GameState             (gold, bench, party, add_to_bench, release_from_bench, swap_active_bench, save)
+  ├── ArchetypeLibrary      (_generate_hire_roster, _create_hire_candidate, get_archetype for hire_cost lookup)
+  ├── KindredLibrary        (name pool for deterministic candidate naming)
+  ├── AbilityLibrary        (ability name + energy cost + attribute + description for hire card tooltips)
+  ├── FeatLibrary           (feat name + description + stat_bonuses for hire card tooltips)
+  ├── BackgroundLibrary     (feat pool per background for feats tab)
+  ├── TemperamentLibrary    (temperament display in hire card identity)
+  └── BenchSwapPanel        (bench-full path on hire)
 
 GameState (autoload)
   ├── ArchetypeLibrary      (init_party() safety-fallback creates default PC)
@@ -179,7 +189,7 @@ rogue-finder/
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); 6 consumables
 │   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 20 items (7 armor + 7 weapon + 6 accessory)
-│   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 15 events (3 smoke + 12 authored)
+│   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 17 events (3 smoke + 14 authored)
 │   │   ├── EventSelector.gd            ← static picker; ring filter + exhaustion fallback; appends to GameState.used_event_ids
 │   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 38 feats (20 class, 18 background); parses stat_bonuses
 │   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 8 kindreds (4 humanoid + 4 non-humanoid)
@@ -222,8 +232,8 @@ rogue-finder/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
 │   ├── consumables.csv                 ← 6 consumables; read via res://data/
 │   ├── equipment.csv                   ← 20 items (7 armor + 7 weapon + 6 accessory); stat_bonuses as stat:value|stat:value pairs
-│   ├── event_choices.csv               ← 46 choice rows; joined to events by event_id; effects as JSON arrays
-│   ├── events.csv                      ← 15 events (3 smoke + 12 authored); ring_eligibility as pipe list
+│   ├── event_choices.csv               ← 53 choice rows; joined to events by event_id; effects as JSON arrays
+│   ├── events.csv                      ← 17 events (3 smoke + 14 authored); ring_eligibility as pipe list
 │   ├── feats.csv                       ← 38 feats (20 class, 18 background); kindred rows removed
 │   ├── kindreds.csv                    ← 8 kindreds (Human/Half-Orc/Gnome/Dwarf/Skeleton/Giant Rat/Spider/Dragon); read via res://data/
 │   ├── temperaments.csv                ← 21 rows; columns: id, name, boosted_stat, hindered_stat; "even" row has empty stats (neutral)
@@ -247,7 +257,7 @@ rogue-finder/
 │       ├── HUD.tscn                    ← legacy 2D only
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 38 test scripts + 24 scene runners (test_recruit_success.gd/.tscn added 2026-04-28; 11 assertions covering bench save round-trip, release_from_bench deequip, build_follower level matching); test_recruit_math.gd/.tscn (13 assertions); test_armor_mod.gd/.tscn (11 assertions); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; SceneTree tests use `--script`.
+└── tests/                              ← 39 test scripts + 25 scene runners (test_hire_roster.gd/.tscn added 2026-04-28; 6 assertions covering roster count, determinism, seed variance, hire_cost > 0 guard, gold deduction, insufficient gold guard); test_recruit_success.gd/.tscn (11 assertions); test_recruit_math.gd/.tscn (13 assertions); test_armor_mod.gd/.tscn (11 assertions); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; SceneTree tests use `--script`.
 ```
 
 ---
@@ -258,6 +268,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-28 | GameState, BadurgaManager, ArchetypeLibrary, ArchetypeData, MapManager, kindreds.csv, archetypes.csv, tests | **Follower Slice 6 — City Hire Channel.** `GameState.gold: int` added with full save/load/reset wiring; old saves default 0. `archetypes.csv` gained `hire_cost` column (RogueFinder=0, grunts=20, others 25–60); `ArchetypeData.hire_cost: int` added; `ArchetypeLibrary._row_to_data()` parses it. `kindreds.csv` name pools expanded from 6 → 22 names per kindred (reduces hire-card name overlap). `MapManager` dev menu INVENTORY section gained third button: "+ Give Gold +100". `BadurgaManager` Hire Roster overlay: "Hire Roster" added to SECTIONS (2nd position); `_open_hire_roster()` → full CanvasLayer overlay (layer 18) with ◀ / N of Total / ▶ navigation showing one recruit at a time. Roster generation: `_generate_hire_roster(seed, 4)` (deterministic Fisher-Yates, pool = archetypes with hire_cost > 0; stable seed = `map_seed + visited_nodes.size()`). Candidate pre-generation: `_generate_hire_candidates()` + `_create_hire_candidate(arch, rng)` — mirrors `ArchetypeLibrary.create()` with a seeded RNG so the card display and bench insert are identical (fixes identity mismatch bug). Hire card shows: portrait, name, archetype/class/kindred/background/temperament identity, all 10 stats as large 26px chips, Abilities tab (flat pool list with tooltips), Feats tab (scrollable, per rolled background, with tooltips). BenchSwapPanel used for bench-full path (layer 19 above hire overlay); gold restored on Cancel. 6 headless tests (`test_hire_roster.gd/.tscn`). |
 | 2026-04-28 | EventManager, CombatManager3D, MapManager, ArchetypeLibrary, BenchSwapPanel (new), tests | **Follower Slices 5–7 — event follower channel + bench-swap comparison panel.** EventManager: `recruit_follower` effect + `bench_not_full` condition; 3 follower-offer events (`wandering_sellsword`, `skeletal_wanderer`, `stray_dog` upgraded). `BenchSwapPanel.gd` added — static builder, shared by EventManager and CombatManager3D; shows left recruit card (portrait, archetype, 10 stats) + right scrollable bench list (portraits, stats + Δ coloring, Swap buttons) + cancel button; "Never Mind" restores event choice list, "Lose Recruit" abandons combat recruit. `dispatch_effect` gains `bench_release_idx` + `prebuilt_follower` params. `ArchetypeLibrary.create()` guards empty `backgrounds` (was crash on skeleton_warrior/rat_scrapper). Dev menu INVENTORY section: "⊕ Add Random to Bench" button added. 6 headless tests (`test_event_follower.gd`); `test_event_library.gd` ring counts updated. |
 | 2026-04-28 | CombatManager3D, CombatActionPanel, GameState, MapManager, BadurgaManager, tests | **Follower Slice 4 — recruit success path + bench persistence + Party Management restore.** `_initiate_recruit()` success branch replaced with `await _on_recruit_succeeded(target)`. Full async coroutine: enemy erased from `_enemy_units` + grid; "Recruited!" floating text (0.4 s then hide); `_build_follower()` copies enemy CombatantData to player-side (is_player_unit=true, qte_resolution=0.0, level matched to party[0].level); blocking rename prompt (CanvasLayer layer 16, pre-filled from kindred name pool, Enter or Confirm button); `GameState.add_to_bench()` — on full bench, blocking 9-slot release modal; `target.queue_free()`; camera shake; `_check_win_lose()` deferred until after full flow so recruiting the last enemy triggers victory after the rename. `_make_test_combatant()` gained optional `"hp"` dict key. New `"recruit_test"` test room scenario (RogueFinder vit10 + 2 allies vs 3 Whelps at 1 HP / qte 0.05). `CombatActionPanel._refresh_recruit()` falls back to `archetype_id == "RogueFinder"` check when `test_room_kind == "recruit_test"`. GameState: `bench` now serialized under `"bench"` key (same `_serialize_combatant` format as party); `load_save()` restores bench; `reset()` clears bench. `release_from_bench(index)` added (auto-deequip + save). `swap_active_bench(party_idx, bench_idx)` added (in-place swap; caller deequips first). Bug: `BadurgaManager` called `GameState.swap_active_bench()` which was missing — added. Bug: `BadurgaManager.gd` Party Management overlay (1085 lines) was silently dropped by the follower-bench-ui merge — restored from branch tip. 11 new headless tests (`test_recruit_success.gd/.tscn`) — bench save round-trip, release deequip, level matching. |
 | 2026-04-28 | CombatManager3D, CombatActionPanel, Grid3D, GameState, RecruitBar (new), tests | **Follower Slice 3 — Recruit action + hold-and-release QTE.** Pathfinder gets a dedicated "⊕ Recruit 3E" button in CombatActionPanel (below the 2×2 ability grid; Pathfinder-only; greyed when energy <3, already acted, or bench full). Clicking enters RECRUIT_TARGET_MODE: teal highlights appear on living enemies ≤3 Manhattan tiles; hovering shows qualitative odds label ("Very Low"–"Very High") anchored in world space above target. Clicking a teal enemy commits the action (spend 3 energy, has_acted=true), camera focuses on target, and the new RecruitBar QTE fires (layer 11, vertical 40×220 px bar floating above target). Player holds SPACE to push fill faster; releases inside gold window for higher-tier result. Result multiplies base_chance (driven by target HP% 80% + WIL delta 20%, clamped 0.05–0.95) to determine final success roll. On failure: "Failed!" floating text, turn continues. On success: `recruit_attempt_succeeded(target)` emitted — **Slice 4 wires bench insertion + enemy removal**. ESC or off-target click cancels free (no energy spent). `_unit_can_still_act()` updated: Pathfinder is "can still act" if recruit is available, preventing premature auto-end-turn. Grid3D gained `COLOR_RECRUIT_TARGET` teal constant + `"recruit_target"` highlight case. GameState gained `BENCH_CAP=9`, `bench: Array[CombatantData]`, `add_to_bench()` stub (not yet saved to disk). 13 new headless tests (`test_recruit_math.gd/.tscn`). |
