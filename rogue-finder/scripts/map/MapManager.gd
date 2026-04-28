@@ -1244,6 +1244,10 @@ func _build_dev_event_panel() -> void:
 	inv_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
 	vbox.add_child(inv_hdr)
 
+	var inv_row := HBoxContainer.new()
+	inv_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(inv_row)
+
 	var add_item_btn := Button.new()
 	add_item_btn.text = "+ Add Item to Inventory"
 	add_item_btn.custom_minimum_size = Vector2(220.0, 32.0)
@@ -1252,7 +1256,26 @@ func _build_dev_event_panel() -> void:
 		_dev_event_panel.visible = false
 		_show_add_item_panel()
 	)
-	vbox.add_child(add_item_btn)
+	inv_row.add_child(add_item_btn)
+
+	var add_bench_btn := Button.new()
+	add_bench_btn.text = "⊕ Add Random to Bench"
+	add_bench_btn.custom_minimum_size = Vector2(200.0, 32.0)
+	add_bench_btn.add_theme_font_size_override("font_size", 13)
+	add_bench_btn.pressed.connect(func() -> void:
+		var all_archs: Array[ArchetypeData] = ArchetypeLibrary.all_archetypes()
+		var pool: Array[ArchetypeData] = []
+		for a: ArchetypeData in all_archs:
+			if a.archetype_id != "RogueFinder":
+				pool.append(a)
+		if pool.is_empty():
+			return
+		var pick: ArchetypeData = pool[randi() % pool.size()]
+		var f: CombatantData = ArchetypeLibrary.create(pick.archetype_id, "", true)
+		if not GameState.add_to_bench(f):
+			push_warning("DevMenu: bench is full (%d/%d)" % [GameState.bench.size(), GameState.BENCH_CAP])
+	)
+	inv_row.add_child(add_bench_btn)
 
 	var sep_inv := HSeparator.new()
 	vbox.add_child(sep_inv)
