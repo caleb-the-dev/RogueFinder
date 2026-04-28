@@ -21,7 +21,6 @@ func _ready() -> void:
 	test_odds_label_very_high()
 	test_odds_label_boundaries()
 	print("=== All recruit-math tests passed ===")
-	get_tree().quit()
 
 ## --- Base Chance Formula ---
 ## Formula: clampf(hp_component * 0.80 + wil_delta * 0.20, 0.05, 0.95)
