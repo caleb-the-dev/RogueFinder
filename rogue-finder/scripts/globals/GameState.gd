@@ -26,6 +26,10 @@ var used_event_ids: Array[String] = [] # event ids drawn this run; used by Event
 var party: Array[CombatantData] = []  # index 0 = PC; empty = not yet initialized
 var run_summary: Dictionary = {}      # populated before run-end transition; cleared on reset()
 
+## --- Economy ---
+
+var gold: int = 0
+
 ## --- Followers / Bench ---
 ## Followers captured in combat. Saved to disk via save()/load_save().
 
@@ -148,6 +152,7 @@ func save() -> void:
 		"party": party_data,
 		"bench": bench.map(func(f: CombatantData) -> Dictionary: return _serialize_combatant(f)),
 		"inventory": inventory,
+		"gold": gold,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data, "\t"))
@@ -218,6 +223,7 @@ func load_save() -> bool:
 	for entry in raw_inv:
 		if entry is Dictionary:
 			inventory.append(entry)
+	gold = int(parsed.get("gold", 0))
 	return true
 
 func _deserialize_combatant(dict: Dictionary) -> CombatantData:
@@ -355,3 +361,4 @@ func reset() -> void:
 	bench = []
 	run_summary = {}
 	inventory = []
+	gold = 0

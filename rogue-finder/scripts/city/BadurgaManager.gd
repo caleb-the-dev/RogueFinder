@@ -7,6 +7,7 @@ const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 
 const SECTIONS: Array = [
 	["Party Management",                     "party_management"],
+	["Hire Roster",                          "hire_roster"],
 	["The Broken Compass  [Tavern]",         "tavern"],
 	["Bulletin Board",                       "bulletin"],
 	["Ironmonger's Stall  [Weapons]",        "vendor_weapon"],
@@ -25,6 +26,11 @@ const ICON_CONSUMABLE: String = "res://assets/icons/sConsumableIcon.png"
 ## --- Overlay State ---
 
 var _overlay_layer: CanvasLayer = null
+
+## Hire roster overlay state
+var _hire_layer: CanvasLayer = null
+var _hire_gold_lbl: Label = null
+var _hire_card_container: VBoxContainer = null
 
 ## Drag compare panel — added to _overlay_layer; cleared in _process when drag ends.
 var _drag_compare_panel: Control = null
@@ -142,6 +148,9 @@ func _on_section_pressed(section_id: String) -> void:
 	if section_id == "party_management":
 		_open_party_management()
 		return
+	if section_id == "hire_roster":
+		_open_hire_roster()
+		return
 	print("[Badurga] ", section_id, " not yet implemented")
 
 func _on_return_pressed() -> void:
@@ -247,6 +256,245 @@ func _build_overlay() -> void:
 		var si: LineEdit = _active_bag_search
 		si.grab_focus.call_deferred()
 		(func() -> void: si.set_caret_column(si.text.length())).call_deferred()
+
+## --- Hire Roster Overlay ---
+
+func _open_hire_roster() -> void:
+	if _hire_layer != null and is_instance_valid(_hire_layer):
+		_hire_layer.queue_free()
+	_hire_layer = null
+	_hire_gold_lbl = null
+	_hire_card_container = null
+	_build_hire_overlay()
+
+func _close_hire_roster() -> void:
+	if _hire_layer != null and is_instance_valid(_hire_layer):
+		_hire_layer.queue_free()
+	_hire_layer = null
+	_hire_gold_lbl = null
+	_hire_card_container = null
+
+func _build_hire_overlay() -> void:
+	_hire_layer = CanvasLayer.new()
+	_hire_layer.layer = 18
+	add_child(_hire_layer)
+
+	var backdrop := ColorRect.new()
+	backdrop.color = Color(0.06, 0.05, 0.07, 0.97)
+	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	_hire_layer.add_child(backdrop)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	_hire_layer.add_child(margin)
+
+	var root_vbox := VBoxContainer.new()
+	root_vbox.add_theme_constant_override("separation", 8)
+	root_vbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_child(root_vbox)
+
+	# Header row: title | gold | close
+	var header_row := HBoxContainer.new()
+	root_vbox.add_child(header_row)
+
+	var title_lbl := Label.new()
+	title_lbl.text = "Hire Roster"
+	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_lbl.add_theme_font_size_override("font_size", 22)
+	title_lbl.add_theme_color_override("font_color", Color(0.95, 0.88, 0.65))
+	header_row.add_child(title_lbl)
+
+	_hire_gold_lbl = Label.new()
+	_hire_gold_lbl.text = "Gold: %d" % GameState.gold
+	_hire_gold_lbl.add_theme_font_size_override("font_size", 18)
+	_hire_gold_lbl.add_theme_color_override("font_color", Color(0.90, 0.80, 0.30))
+	_hire_gold_lbl.add_theme_constant_override("margin_right", 16)
+	header_row.add_child(_hire_gold_lbl)
+
+	var close_btn := Button.new()
+	close_btn.text = "✕  Close"
+	close_btn.custom_minimum_size = Vector2(120.0, 34.0)
+	close_btn.add_theme_font_size_override("font_size", 14)
+	close_btn.pressed.connect(_close_hire_roster)
+	header_row.add_child(close_btn)
+
+	root_vbox.add_child(_make_hsep())
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	root_vbox.add_child(scroll)
+
+	_hire_card_container = VBoxContainer.new()
+	_hire_card_container.add_theme_constant_override("separation", 10)
+	_hire_card_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_hire_card_container)
+
+	var roster: Array[ArchetypeData] = _generate_hire_roster(
+		GameState.map_seed + GameState.visited_nodes.size(), 4
+	)
+	for i in roster.size():
+		_hire_card_container.add_child(_build_hire_card(roster[i], i))
+
+static func _generate_hire_roster(seed: int, count: int) -> Array[ArchetypeData]:
+	var pool: Array[ArchetypeData] = []
+	for arch: ArchetypeData in ArchetypeLibrary.all_archetypes():
+		if arch.hire_cost > 0:
+			pool.append(arch)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	# Fisher-Yates shuffle seeded by rng for determinism
+	for i in range(pool.size() - 1, 0, -1):
+		var j: int = rng.randi_range(0, i)
+		var tmp: ArchetypeData = pool[i]
+		pool[i] = pool[j]
+		pool[j] = tmp
+	return pool.slice(0, mini(count, pool.size()))
+
+func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
+	# Deterministic name: use roster seed + card index as secondary seed
+	var rng := RandomNumberGenerator.new()
+	rng.seed = GameState.map_seed + GameState.visited_nodes.size() + card_index + 1
+	var name_pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
+	var hire_name: String = name_pool[rng.randi_range(0, name_pool.size() - 1)] \
+		if not name_pool.is_empty() else "Wanderer"
+
+	var can_afford: bool = GameState.gold >= arch.hire_cost
+
+	var card := PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style := StyleBoxFlat.new()
+	style.bg_color     = Color(0.10, 0.10, 0.14) if can_afford else Color(0.09, 0.08, 0.09)
+	style.border_color = Color(0.38, 0.38, 0.55) if can_afford else Color(0.25, 0.25, 0.28)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(4)
+	style.content_margin_left   = 10.0; style.content_margin_right  = 10.0
+	style.content_margin_top    = 8.0;  style.content_margin_bottom  = 8.0
+	card.add_theme_stylebox_override("panel", style)
+	if not can_afford:
+		card.modulate = Color(1.0, 1.0, 1.0, 0.65)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 12)
+	card.add_child(hbox)
+
+	# Portrait
+	var portrait := TextureRect.new()
+	portrait.custom_minimum_size = Vector2(64.0, 64.0)
+	portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait.texture = load(arch.artwork_idle) as Texture2D if arch.artwork_idle != "" \
+		else load("res://icon.svg") as Texture2D
+	hbox.add_child(portrait)
+
+	# Info vbox
+	var info_vbox := VBoxContainer.new()
+	info_vbox.add_theme_constant_override("separation", 3)
+	info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_vbox.size_flags_vertical   = Control.SIZE_SHRINK_CENTER
+	hbox.add_child(info_vbox)
+
+	var name_lbl := Label.new()
+	name_lbl.text = hire_name
+	name_lbl.add_theme_font_size_override("font_size", 16)
+	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.72))
+	info_vbox.add_child(name_lbl)
+
+	var arch_lbl := Label.new()
+	arch_lbl.text = arch.archetype_id.replace("_", " ")
+	arch_lbl.add_theme_font_size_override("font_size", 12)
+	arch_lbl.add_theme_color_override("font_color", Color(0.68, 0.65, 0.80))
+	info_vbox.add_child(arch_lbl)
+
+	# 4 key stats: HP (estimated from vit mid + kindred bonus) / STR / DEX / VIT
+	var mid_vit: int = (arch.vit_range[0] + arch.vit_range[1]) / 2
+	var mid_str: int = (arch.str_range[0] + arch.str_range[1]) / 2
+	var mid_dex: int = (arch.dex_range[0] + arch.dex_range[1]) / 2
+	var est_hp: int  = 10 + KindredLibrary.get_hp_bonus(arch.kindred) + mid_vit * 4
+
+	var stat_row := HBoxContainer.new()
+	stat_row.add_theme_constant_override("separation", 16)
+	info_vbox.add_child(stat_row)
+	for pair in [["HP", est_hp], ["STR", mid_str], ["DEX", mid_dex], ["VIT", mid_vit]]:
+		_add_stat_chip(stat_row, pair[0], pair[1])
+
+	# Cost + hire button
+	var cost_lbl := Label.new()
+	cost_lbl.text = "%d Gold" % arch.hire_cost
+	cost_lbl.add_theme_font_size_override("font_size", 13)
+	cost_lbl.add_theme_color_override("font_color",
+		Color(0.90, 0.80, 0.30) if can_afford else Color(0.55, 0.50, 0.35))
+	hbox.add_child(cost_lbl)
+
+	var cap_arch := arch
+	var cap_card := card
+	var cap_index := card_index
+
+	var hire_btn := Button.new()
+	hire_btn.text = "Hire"
+	hire_btn.custom_minimum_size = Vector2(72.0, 36.0)
+	hire_btn.add_theme_font_size_override("font_size", 14)
+	hire_btn.disabled = not can_afford
+	hire_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hire_btn.pressed.connect(func() -> void: _on_hire_pressed(cap_arch, cap_card, cap_index))
+	hbox.add_child(hire_btn)
+
+	return card
+
+func _on_hire_pressed(arch: ArchetypeData, card: Control, _card_index: int) -> void:
+	if GameState.gold < arch.hire_cost:
+		return
+	GameState.gold -= arch.hire_cost
+
+	var follower: CombatantData = ArchetypeLibrary.create(arch.archetype_id, "", true)
+	if not GameState.party.is_empty():
+		var target_level: int = GameState.party[0].level
+		follower.level = target_level
+	follower.xp = 0
+	follower.pending_level_ups = 0
+	follower.current_hp     = follower.hp_max
+	follower.current_energy = follower.energy_max
+
+	if GameState.bench.size() < GameState.BENCH_CAP:
+		GameState.add_to_bench(follower)
+		GameState.save()
+		card.queue_free()
+		if _hire_gold_lbl != null and is_instance_valid(_hire_gold_lbl):
+			_hire_gold_lbl.text = "Gold: %d" % GameState.gold
+	else:
+		# Bench full — show swap panel on a new CanvasLayer above hire overlay
+		var swap_layer := CanvasLayer.new()
+		swap_layer.layer = 19
+		add_child(swap_layer)
+
+		var restored_gold := GameState.gold  # save in case cancel
+		var cap_card := card
+
+		var panel: Control = BenchSwapPanel.build_panel(
+			follower,
+			"Cancel Hire",
+			func(bench_idx: int) -> void:
+				# Swap: release bench[bench_idx], add hired follower
+				GameState.release_from_bench(bench_idx)
+				GameState.add_to_bench(follower)
+				GameState.save()
+				swap_layer.queue_free()
+				cap_card.queue_free()
+				if _hire_gold_lbl != null and is_instance_valid(_hire_gold_lbl):
+					_hire_gold_lbl.text = "Gold: %d" % GameState.gold,
+			func() -> void:
+				# Cancel — restore gold
+				GameState.gold = restored_gold
+				swap_layer.queue_free()
+		)
+		swap_layer.add_child(panel)
 
 ## --- Inventory Column ---
 
