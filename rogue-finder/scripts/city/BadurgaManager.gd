@@ -30,7 +30,10 @@ var _overlay_layer: CanvasLayer = null
 ## Hire roster overlay state
 var _hire_layer: CanvasLayer = null
 var _hire_gold_lbl: Label = null
-var _hire_card_container: VBoxContainer = null
+var _hire_roster: Array[ArchetypeData] = []
+var _hire_card_idx: int = 0
+var _hire_card_area: Control = null
+var _hire_nav_lbl: Label = null
 
 ## Drag compare panel — added to _overlay_layer; cleared in _process when drag ends.
 var _drag_compare_panel: Control = null
@@ -264,7 +267,12 @@ func _open_hire_roster() -> void:
 		_hire_layer.queue_free()
 	_hire_layer = null
 	_hire_gold_lbl = null
-	_hire_card_container = null
+	_hire_card_area = null
+	_hire_nav_lbl = null
+	_hire_card_idx = 0
+	_hire_roster = _generate_hire_roster(
+		GameState.map_seed + GameState.visited_nodes.size(), 4
+	)
 	_build_hire_overlay()
 
 func _close_hire_roster() -> void:
@@ -272,7 +280,10 @@ func _close_hire_roster() -> void:
 		_hire_layer.queue_free()
 	_hire_layer = null
 	_hire_gold_lbl = null
-	_hire_card_container = null
+	_hire_card_area = null
+	_hire_nav_lbl = null
+	_hire_roster = []
+	_hire_card_idx = 0
 
 func _build_hire_overlay() -> void:
 	_hire_layer = CanvasLayer.new()
@@ -294,12 +305,12 @@ func _build_hire_overlay() -> void:
 	_hire_layer.add_child(margin)
 
 	var root_vbox := VBoxContainer.new()
-	root_vbox.add_theme_constant_override("separation", 8)
+	root_vbox.add_theme_constant_override("separation", 6)
 	root_vbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	margin.add_child(root_vbox)
 
-	# Header row: title | gold | close
+	# Header: title | gold | close
 	var header_row := HBoxContainer.new()
 	root_vbox.add_child(header_row)
 
@@ -314,7 +325,6 @@ func _build_hire_overlay() -> void:
 	_hire_gold_lbl.text = "Gold: %d" % GameState.gold
 	_hire_gold_lbl.add_theme_font_size_override("font_size", 18)
 	_hire_gold_lbl.add_theme_color_override("font_color", Color(0.90, 0.80, 0.30))
-	_hire_gold_lbl.add_theme_constant_override("margin_right", 16)
 	header_row.add_child(_hire_gold_lbl)
 
 	var close_btn := Button.new()
@@ -326,21 +336,70 @@ func _build_hire_overlay() -> void:
 
 	root_vbox.add_child(_make_hsep())
 
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	root_vbox.add_child(scroll)
+	# Nav row: ◀ | N / Total | ▶
+	var nav_row := HBoxContainer.new()
+	nav_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	nav_row.add_theme_constant_override("separation", 14)
+	root_vbox.add_child(nav_row)
 
-	_hire_card_container = VBoxContainer.new()
-	_hire_card_container.add_theme_constant_override("separation", 10)
-	_hire_card_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_hire_card_container)
+	var prev_btn := Button.new()
+	prev_btn.text = "◀"
+	prev_btn.custom_minimum_size = Vector2(44.0, 32.0)
+	prev_btn.add_theme_font_size_override("font_size", 16)
+	prev_btn.disabled = _hire_roster.size() <= 1
+	prev_btn.pressed.connect(func() -> void: _on_hire_navigate(-1))
+	nav_row.add_child(prev_btn)
 
-	var roster: Array[ArchetypeData] = _generate_hire_roster(
-		GameState.map_seed + GameState.visited_nodes.size(), 4
-	)
-	for i in roster.size():
-		_hire_card_container.add_child(_build_hire_card(roster[i], i))
+	_hire_nav_lbl = Label.new()
+	_hire_nav_lbl.text = "%d / %d" % [_hire_card_idx + 1, _hire_roster.size()]
+	_hire_nav_lbl.custom_minimum_size = Vector2(64.0, 0.0)
+	_hire_nav_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hire_nav_lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	_hire_nav_lbl.add_theme_font_size_override("font_size", 16)
+	_hire_nav_lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.58))
+	nav_row.add_child(_hire_nav_lbl)
+
+	var next_btn := Button.new()
+	next_btn.text = "▶"
+	next_btn.custom_minimum_size = Vector2(44.0, 32.0)
+	next_btn.add_theme_font_size_override("font_size", 16)
+	next_btn.disabled = _hire_roster.size() <= 1
+	next_btn.pressed.connect(func() -> void: _on_hire_navigate(1))
+	nav_row.add_child(next_btn)
+
+	root_vbox.add_child(_make_hsep())
+
+	# Card area — single card, rebuilt on navigate
+	_hire_card_area = VBoxContainer.new()
+	_hire_card_area.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	_hire_card_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.add_child(_hire_card_area)
+
+	_build_hire_card_area()
+
+func _build_hire_card_area() -> void:
+	for child in _hire_card_area.get_children():
+		child.queue_free()
+
+	if _hire_roster.is_empty():
+		var empty := Label.new()
+		empty.text = "No recruits available."
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.add_theme_font_size_override("font_size", 16)
+		empty.add_theme_color_override("font_color", Color(0.50, 0.48, 0.45))
+		_hire_card_area.add_child(empty)
+		return
+
+	_hire_card_area.add_child(_build_hire_card(_hire_roster[_hire_card_idx], _hire_card_idx))
+
+	if _hire_nav_lbl != null and is_instance_valid(_hire_nav_lbl):
+		_hire_nav_lbl.text = "%d / %d" % [_hire_card_idx + 1, _hire_roster.size()]
+
+func _on_hire_navigate(delta: int) -> void:
+	if _hire_roster.is_empty():
+		return
+	_hire_card_idx = (_hire_card_idx + delta + _hire_roster.size()) % _hire_roster.size()
+	_build_hire_card_area()
 
 static func _generate_hire_roster(seed: int, count: int) -> Array[ArchetypeData]:
 	var pool: Array[ArchetypeData] = []
@@ -369,6 +428,7 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 
 	var card := PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	var style := StyleBoxFlat.new()
 	style.bg_color     = Color(0.10, 0.10, 0.14) if can_afford else Color(0.09, 0.08, 0.09)
 	style.border_color = Color(0.38, 0.38, 0.55) if can_afford else Color(0.25, 0.25, 0.28)
@@ -382,15 +442,17 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 
 	var outer_vbox := VBoxContainer.new()
 	outer_vbox.add_theme_constant_override("separation", 8)
+	outer_vbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	outer_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.add_child(outer_vbox)
 
-	# Header row: portrait | identity (expand) | cost+hire button
+	# Header: portrait | identity (expand) | cost + hire
 	var top_hbox := HBoxContainer.new()
-	top_hbox.add_theme_constant_override("separation", 12)
+	top_hbox.add_theme_constant_override("separation", 14)
 	outer_vbox.add_child(top_hbox)
 
 	var portrait := TextureRect.new()
-	portrait.custom_minimum_size = Vector2(80.0, 80.0)
+	portrait.custom_minimum_size = Vector2(90.0, 90.0)
 	portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
@@ -399,67 +461,69 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	top_hbox.add_child(portrait)
 
 	var id_vbox := VBoxContainer.new()
-	id_vbox.add_theme_constant_override("separation", 3)
+	id_vbox.add_theme_constant_override("separation", 4)
 	id_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	id_vbox.size_flags_vertical   = Control.SIZE_SHRINK_CENTER
 	top_hbox.add_child(id_vbox)
 
 	var name_lbl := Label.new()
 	name_lbl.text = hire_name
-	name_lbl.add_theme_font_size_override("font_size", 18)
+	name_lbl.add_theme_font_size_override("font_size", 20)
 	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.72))
 	id_vbox.add_child(name_lbl)
 
 	var arch_type_lbl := Label.new()
 	arch_type_lbl.text = "%s  ·  %s  ·  %s" % [
 		arch.archetype_id.replace("_", " "), arch.unit_class, arch.kindred]
-	arch_type_lbl.add_theme_font_size_override("font_size", 13)
+	arch_type_lbl.add_theme_font_size_override("font_size", 14)
 	arch_type_lbl.add_theme_color_override("font_color", Color(0.68, 0.65, 0.80))
 	id_vbox.add_child(arch_type_lbl)
 
 	if not arch.backgrounds.is_empty():
 		var bg_lbl := Label.new()
 		bg_lbl.text = "Backgrounds: %s" % ", ".join(arch.backgrounds)
-		bg_lbl.add_theme_font_size_override("font_size", 11)
+		bg_lbl.add_theme_font_size_override("font_size", 12)
 		bg_lbl.add_theme_color_override("font_color", Color(0.62, 0.60, 0.55))
 		id_vbox.add_child(bg_lbl)
 
 	var hire_col := VBoxContainer.new()
-	hire_col.add_theme_constant_override("separation", 4)
+	hire_col.add_theme_constant_override("separation", 6)
 	hire_col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	top_hbox.add_child(hire_col)
 
 	var cost_lbl := Label.new()
 	cost_lbl.text = "%d Gold" % arch.hire_cost
 	cost_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cost_lbl.add_theme_font_size_override("font_size", 16)
+	cost_lbl.add_theme_font_size_override("font_size", 18)
 	cost_lbl.add_theme_color_override("font_color",
 		Color(0.90, 0.80, 0.30) if can_afford else Color(0.55, 0.50, 0.35))
 	hire_col.add_child(cost_lbl)
 
 	var cap_arch := arch
-	var cap_card := card
 	var cap_index := card_index
 
 	var hire_btn := Button.new()
 	hire_btn.text = "Hire"
-	hire_btn.custom_minimum_size = Vector2(100.0, 36.0)
-	hire_btn.add_theme_font_size_override("font_size", 15)
+	hire_btn.custom_minimum_size = Vector2(110.0, 40.0)
+	hire_btn.add_theme_font_size_override("font_size", 16)
 	hire_btn.disabled = not can_afford
-	hire_btn.pressed.connect(func() -> void: _on_hire_pressed(cap_arch, cap_card, cap_index))
+	hire_btn.pressed.connect(func() -> void: _on_hire_pressed(cap_arch, cap_index))
 	hire_col.add_child(hire_btn)
 
 	outer_vbox.add_child(_make_hsep())
 
-	# Body: left column (stats) | separator | right column (abilities + feats)
+	# Body: stats (left fixed) | vsep | tabs (right expand)
 	var body_hbox := HBoxContainer.new()
-	body_hbox.add_theme_constant_override("separation", 16)
+	body_hbox.add_theme_constant_override("separation", 14)
+	body_hbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	body_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	outer_vbox.add_child(body_hbox)
 
-	# --- Left column: Stats ---
+	# --- Left: all stats ---
 	var stats_col := VBoxContainer.new()
-	stats_col.custom_minimum_size = Vector2(340.0, 0.0)
-	stats_col.add_theme_constant_override("separation", 5)
+	stats_col.custom_minimum_size = Vector2(320.0, 0.0)
+	stats_col.add_theme_constant_override("separation", 6)
+	stats_col.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	body_hbox.add_child(stats_col)
 
 	var stats_hdr := Label.new()
@@ -468,24 +532,22 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	stats_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
 	stats_col.add_child(stats_hdr)
 
-	# Estimated derived stats from mid-range attribute values
-	var mid_str: int  = (arch.str_range[0]           + arch.str_range[1])           / 2
-	var mid_dex: int  = (arch.dex_range[0]           + arch.dex_range[1])           / 2
-	var mid_cog: int  = (arch.cog_range[0]           + arch.cog_range[1])           / 2
-	var mid_wil: int  = (arch.wil_range[0]           + arch.wil_range[1])           / 2
-	var mid_vit: int  = (arch.vit_range[0]           + arch.vit_range[1])           / 2
+	var mid_str: int  = (arch.str_range[0]            + arch.str_range[1])           / 2
+	var mid_dex: int  = (arch.dex_range[0]            + arch.dex_range[1])           / 2
+	var mid_cog: int  = (arch.cog_range[0]            + arch.cog_range[1])           / 2
+	var mid_wil: int  = (arch.wil_range[0]            + arch.wil_range[1])           / 2
+	var mid_vit: int  = (arch.vit_range[0]            + arch.vit_range[1])           / 2
 	var mid_phys: int = (arch.physical_armor_range[0] + arch.physical_armor_range[1]) / 2
-	var mid_mag: int  = (arch.magic_armor_range[0]   + arch.magic_armor_range[1])   / 2
+	var mid_mag: int  = (arch.magic_armor_range[0]    + arch.magic_armor_range[1])   / 2
 	var est_hp: int     = 10 + KindredLibrary.get_hp_bonus(arch.kindred) + mid_vit * 4
 	var est_energy: int = 5  + mid_vit
 	var est_speed: int  = 1  + KindredLibrary.get_speed_bonus(arch.kindred)
 
 	var stat_grid := GridContainer.new()
 	stat_grid.columns = 5
-	stat_grid.add_theme_constant_override("h_separation", 16)
-	stat_grid.add_theme_constant_override("v_separation", 4)
+	stat_grid.add_theme_constant_override("h_separation", 14)
+	stat_grid.add_theme_constant_override("v_separation", 5)
 	stats_col.add_child(stat_grid)
-
 	for pair: Array in [
 		["HP",    est_hp],   ["Nrg",   est_energy], ["Spd",   est_speed],
 		["P.Arm", mid_phys], ["M.Arm", mid_mag],
@@ -496,70 +558,83 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 
 	body_hbox.add_child(_make_vsep())
 
-	# --- Right column: Abilities + Feats ---
-	var right_col := VBoxContainer.new()
-	right_col.add_theme_constant_override("separation", 6)
-	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body_hbox.add_child(right_col)
+	# --- Right: Abilities + Feats tabs ---
+	var tabs := TabContainer.new()
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	body_hbox.add_child(tabs)
 
-	# Abilities header
-	var ab_hdr := Label.new()
-	ab_hdr.text = "ABILITIES"
-	ab_hdr.add_theme_font_size_override("font_size", 11)
-	ab_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
-	right_col.add_child(ab_hdr)
+	# Abilities tab
+	var abil_tab := VBoxContainer.new()
+	abil_tab.name = "Abilities"
+	abil_tab.add_theme_constant_override("separation", 3)
+	tabs.add_child(abil_tab)
 
-	var start_ids: Array[String] = arch.abilities.filter(
-		func(id: String) -> bool: return id != "")
-	if not start_ids.is_empty():
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		right_col.add_child(row)
-		var lbl := Label.new()
-		lbl.text = "Starting:"
-		lbl.add_theme_font_size_override("font_size", 11)
-		lbl.add_theme_color_override("font_color", Color(0.52, 0.50, 0.40))
-		row.add_child(lbl)
-		var names: Array[String] = []
-		for ab_id: String in start_ids:
-			names.append(AbilityLibrary.get_ability(ab_id).ability_name)
-		var val := Label.new()
-		val.text = "  ·  ".join(names)
-		val.add_theme_font_size_override("font_size", 12)
-		val.add_theme_color_override("font_color", Color(0.88, 0.84, 0.70))
-		val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(val)
+	var abil_scroll := ScrollContainer.new()
+	abil_scroll.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	abil_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	abil_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
+	abil_tab.add_child(abil_scroll)
 
-	if not arch.pool_extras.is_empty():
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		right_col.add_child(row)
-		var lbl := Label.new()
-		lbl.text = "Pool:"
-		lbl.add_theme_font_size_override("font_size", 11)
-		lbl.add_theme_color_override("font_color", Color(0.52, 0.50, 0.40))
-		row.add_child(lbl)
-		var names: Array[String] = []
-		for ab_id: String in arch.pool_extras:
-			names.append(AbilityLibrary.get_ability(ab_id).ability_name)
-		var val := Label.new()
-		val.text = "  ·  ".join(names)
-		val.add_theme_font_size_override("font_size", 12)
-		val.add_theme_color_override("font_color", Color(0.75, 0.78, 0.72))
-		val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(val)
+	var abil_vbox := VBoxContainer.new()
+	abil_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	abil_vbox.add_theme_constant_override("separation", 3)
+	abil_scroll.add_child(abil_vbox)
 
-	# Feats (only if the archetype has any possible backgrounds)
-	if not arch.backgrounds.is_empty():
-		right_col.add_child(_make_hsep())
-		var feat_hdr := Label.new()
-		feat_hdr.text = "FEATS  (pool across all possible backgrounds)"
-		feat_hdr.add_theme_font_size_override("font_size", 11)
-		feat_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
-		right_col.add_child(feat_hdr)
+	var active_ids: Array[String] = arch.abilities.filter(func(id: String) -> bool: return id != "")
+	var pool_ids:   Array[String] = arch.pool_extras.duplicate()
 
+	if not active_ids.is_empty():
+		var sec_lbl := Label.new()
+		sec_lbl.text = "Active slots"
+		sec_lbl.add_theme_font_size_override("font_size", 10)
+		sec_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.40))
+		abil_vbox.add_child(sec_lbl)
+		for ab_id: String in active_ids:
+			abil_vbox.add_child(_hire_ability_row(ab_id, true))
+
+	if not pool_ids.is_empty():
+		if not active_ids.is_empty():
+			abil_vbox.add_child(_make_hsep())
+		var sec_lbl := Label.new()
+		sec_lbl.text = "Can learn"
+		sec_lbl.add_theme_font_size_override("font_size", 10)
+		sec_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.40))
+		abil_vbox.add_child(sec_lbl)
+		for ab_id: String in pool_ids:
+			abil_vbox.add_child(_hire_ability_row(ab_id, false))
+
+	if active_ids.is_empty() and pool_ids.is_empty():
+		var empty := Label.new()
+		empty.text = "No abilities."
+		empty.add_theme_font_size_override("font_size", 12)
+		empty.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		abil_vbox.add_child(empty)
+
+	# Feats tab
+	var feat_tab := VBoxContainer.new()
+	feat_tab.name = "Feats"
+	feat_tab.add_theme_constant_override("separation", 3)
+	tabs.add_child(feat_tab)
+
+	var feat_scroll := ScrollContainer.new()
+	feat_scroll.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	feat_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	feat_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
+	feat_tab.add_child(feat_scroll)
+
+	var feat_vbox := VBoxContainer.new()
+	feat_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	feat_vbox.add_theme_constant_override("separation", 3)
+	feat_scroll.add_child(feat_vbox)
+
+	if arch.backgrounds.is_empty():
+		var no_bg := Label.new()
+		no_bg.text = "No backgrounds — no feats available."
+		no_bg.add_theme_font_size_override("font_size", 12)
+		no_bg.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+		feat_vbox.add_child(no_bg)
+	else:
 		var feat_ids: Array[String] = []
 		for bg_id: String in arch.backgrounds:
 			var bg: BackgroundData = BackgroundLibrary.get_background(bg_id)
@@ -568,29 +643,150 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 			for fid: String in bg.feat_pool:
 				if fid not in feat_ids:
 					feat_ids.append(fid)
-
-		if not feat_ids.is_empty():
-			var feat_names: Array[String] = []
+		if feat_ids.is_empty():
+			var empty := Label.new()
+			empty.text = "No feats available."
+			empty.add_theme_font_size_override("font_size", 12)
+			empty.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
+			feat_vbox.add_child(empty)
+		else:
 			for fid: String in feat_ids:
-				feat_names.append(FeatLibrary.get_feat(fid).name)
-			var feat_lbl := Label.new()
-			feat_lbl.text = "  ·  ".join(feat_names)
-			feat_lbl.add_theme_font_size_override("font_size", 12)
-			feat_lbl.add_theme_color_override("font_color", Color(0.80, 0.72, 0.90))
-			feat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			right_col.add_child(feat_lbl)
+				feat_vbox.add_child(_hire_feat_row(fid))
 
 	return card
 
-func _on_hire_pressed(arch: ArchetypeData, card: Control, _card_index: int) -> void:
+func _hire_ability_row(ab_id: String, is_active: bool) -> Control:
+	var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
+	var tip: String = _hire_wrap_tooltip("%s\nCost: %d Energy  ·  %s\n\n%s" % [
+		ab.ability_name, ab.energy_cost, _hire_attr_name(ab.attribute), ab.description])
+
+	var pnl := PanelContainer.new()
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color      = Color(0.28, 0.22, 0.05, 0.70) if is_active else Color(0.12, 0.12, 0.15, 0.80)
+	sbox.border_color  = Color(0.42, 0.36, 0.12, 0.70) if is_active else Color(0.25, 0.25, 0.30, 0.60)
+	sbox.border_width_bottom = 1
+	sbox.set_corner_radius_all(2)
+	pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pnl.add_theme_stylebox_override("panel", sbox)
+	pnl.tooltip_text = tip
+
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 1)
+	pnl.add_child(inner)
+
+	var name_lbl := Label.new()
+	name_lbl.text = ("● " if is_active else "") + ab.ability_name
+	name_lbl.add_theme_font_size_override("font_size", 12)
+	name_lbl.add_theme_color_override("font_color",
+		Color(0.95, 0.82, 0.20) if is_active else Color(0.90, 0.86, 0.72))
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_lbl.tooltip_text = tip
+	inner.add_child(name_lbl)
+
+	var sub_lbl := Label.new()
+	sub_lbl.text = "%d EN  ·  %s" % [ab.energy_cost, _hire_attr_name(ab.attribute)]
+	sub_lbl.add_theme_font_size_override("font_size", 10)
+	sub_lbl.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
+	sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sub_lbl.tooltip_text = tip
+	inner.add_child(sub_lbl)
+
+	return pnl
+
+func _hire_feat_row(feat_id: String) -> Control:
+	var feat: FeatData = FeatLibrary.get_feat(feat_id)
+	var bonus_parts: Array[String] = []
+	for stat: String in feat.stat_bonuses:
+		var val: int = feat.stat_bonuses[stat]
+		if val != 0:
+			bonus_parts.append("%s %+d" % [_stat_abbrev(stat), val])
+	var tip_text: String = feat.name + "\n\n" + feat.description
+	if not bonus_parts.is_empty():
+		tip_text += "\n\n" + "  ·  ".join(bonus_parts)
+	var tip: String = _hire_wrap_tooltip(tip_text)
+
+	var pnl := PanelContainer.new()
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color = Color(0.12, 0.12, 0.15, 0.80)
+	sbox.border_color = Color(0.25, 0.25, 0.30, 0.60)
+	sbox.border_width_bottom = 1
+	sbox.set_corner_radius_all(2)
+	pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pnl.add_theme_stylebox_override("panel", sbox)
+	pnl.tooltip_text = tip
+
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 1)
+	pnl.add_child(inner)
+
+	var name_lbl := Label.new()
+	name_lbl.text = feat.name
+	name_lbl.add_theme_font_size_override("font_size", 12)
+	name_lbl.add_theme_color_override("font_color", Color(0.80, 0.76, 0.60))
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_lbl.tooltip_text = tip
+	inner.add_child(name_lbl)
+
+	if feat.description != "":
+		var desc_lbl := Label.new()
+		desc_lbl.text = feat.description
+		desc_lbl.add_theme_font_size_override("font_size", 10)
+		desc_lbl.add_theme_color_override("font_color", Color(0.55, 0.52, 0.48))
+		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		desc_lbl.tooltip_text = tip
+		inner.add_child(desc_lbl)
+
+	if not bonus_parts.is_empty():
+		var bonus_lbl := Label.new()
+		bonus_lbl.text = "  ".join(bonus_parts)
+		bonus_lbl.add_theme_font_size_override("font_size", 10)
+		bonus_lbl.add_theme_color_override("font_color", Color(0.60, 0.80, 0.60))
+		bonus_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bonus_lbl.tooltip_text = tip
+		inner.add_child(bonus_lbl)
+
+	return pnl
+
+static func _hire_wrap_tooltip(text: String, max_line: int = 40) -> String:
+	var sections: PackedStringArray = text.split("\n\n")
+	var result_sections: PackedStringArray = []
+	for section: String in sections:
+		var wrapped: PackedStringArray = []
+		for line: String in section.split("\n"):
+			if line.length() <= max_line:
+				wrapped.append(line)
+				continue
+			var words := line.split(" ", false)
+			var cur := ""
+			for w: String in words:
+				if cur == "":        cur = w
+				elif cur.length() + 1 + w.length() <= max_line: cur += " " + w
+				else:
+					wrapped.append(cur)
+					cur = w
+			if cur != "": wrapped.append(cur)
+		result_sections.append("\n".join(wrapped))
+	return "\n\n".join(result_sections)
+
+static func _hire_attr_name(attr: int) -> String:
+	match attr:
+		AbilityData.Attribute.STRENGTH:  return "Strength"
+		AbilityData.Attribute.DEXTERITY: return "Dexterity"
+		AbilityData.Attribute.COGNITION: return "Cognition"
+		AbilityData.Attribute.WILLPOWER: return "Willpower"
+		AbilityData.Attribute.VITALITY:  return "Vitality"
+		_: return "—"
+
+func _on_hire_pressed(arch: ArchetypeData, card_index: int) -> void:
 	if GameState.gold < arch.hire_cost:
 		return
-	GameState.gold -= arch.hire_cost
+	var hire_cost: int = arch.hire_cost
+	GameState.gold -= hire_cost
 
 	var follower: CombatantData = ArchetypeLibrary.create(arch.archetype_id, "", true)
 	if not GameState.party.is_empty():
-		var target_level: int = GameState.party[0].level
-		follower.level = target_level
+		follower.level = GameState.party[0].level
 	follower.xp = 0
 	follower.pending_level_ups = 0
 	follower.current_hp     = follower.hp_max
@@ -599,33 +795,36 @@ func _on_hire_pressed(arch: ArchetypeData, card: Control, _card_index: int) -> v
 	if GameState.bench.size() < GameState.BENCH_CAP:
 		GameState.add_to_bench(follower)
 		GameState.save()
-		card.queue_free()
+		_hire_roster.remove_at(card_index)
+		if _hire_card_idx >= _hire_roster.size() and _hire_card_idx > 0:
+			_hire_card_idx -= 1
 		if _hire_gold_lbl != null and is_instance_valid(_hire_gold_lbl):
 			_hire_gold_lbl.text = "Gold: %d" % GameState.gold
+		_build_hire_card_area()
 	else:
-		# Bench full — show swap panel on a new CanvasLayer above hire overlay
+		# Bench full — BenchSwapPanel on layer above hire overlay
 		var swap_layer := CanvasLayer.new()
 		swap_layer.layer = 19
 		add_child(swap_layer)
 
-		var restored_gold := GameState.gold  # save in case cancel
-		var cap_card := card
+		var cap_index := card_index
 
 		var panel: Control = BenchSwapPanel.build_panel(
 			follower,
 			"Cancel Hire",
 			func(bench_idx: int) -> void:
-				# Swap: release bench[bench_idx], add hired follower
 				GameState.release_from_bench(bench_idx)
 				GameState.add_to_bench(follower)
 				GameState.save()
 				swap_layer.queue_free()
-				cap_card.queue_free()
+				_hire_roster.remove_at(cap_index)
+				if _hire_card_idx >= _hire_roster.size() and _hire_card_idx > 0:
+					_hire_card_idx -= 1
 				if _hire_gold_lbl != null and is_instance_valid(_hire_gold_lbl):
-					_hire_gold_lbl.text = "Gold: %d" % GameState.gold,
+					_hire_gold_lbl.text = "Gold: %d" % GameState.gold
+				_build_hire_card_area(),
 			func() -> void:
-				# Cancel — restore gold
-				GameState.gold = restored_gold
+				GameState.gold += hire_cost  # restore on cancel
 				swap_layer.queue_free()
 		)
 		swap_layer.add_child(panel)
