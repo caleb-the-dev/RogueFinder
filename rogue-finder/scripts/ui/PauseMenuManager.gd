@@ -32,7 +32,6 @@ var _guide_panel:   VBoxContainer  = null
 var _log_panel:     VBoxContainer  = null
 var _confirm_panel: VBoxContainer  = null
 
-var _fs_check:      CheckBox      = null
 var _master_slider: HSlider       = null
 var _music_slider:  HSlider       = null
 var _sfx_slider:    HSlider       = null
@@ -133,8 +132,6 @@ func _show_settings() -> void:
 	_guide_panel.visible    = false
 	_log_panel.visible      = false
 	_confirm_panel.visible  = false
-	# set_pressed_no_signal avoids re-firing the toggle handler on panel open.
-	_fs_check.set_pressed_no_signal(SettingsStore.fullscreen)
 	_master_slider.value = SettingsStore.master_volume
 	_music_slider.value  = SettingsStore.music_volume
 	_sfx_slider.value    = SettingsStore.sfx_volume
@@ -259,17 +256,6 @@ func _build_settings_panel(vbox: VBoxContainer) -> void:
 	vbox.add_child(back)
 
 	vbox.add_child(HSeparator.new())
-
-	var fs_row := HBoxContainer.new()
-	var fs_lbl := Label.new()
-	fs_lbl.text = "Fullscreen"
-	fs_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	fs_row.add_child(fs_lbl)
-	_fs_check = CheckBox.new()
-	_fs_check.set_pressed_no_signal(SettingsStore.fullscreen)
-	_fs_check.toggled.connect(_on_fullscreen_toggled)
-	fs_row.add_child(_fs_check)
-	vbox.add_child(fs_row)
 
 	# Volume sliders — values persist but audio bus is not wired yet.
 	_master_slider = _add_volume_row(vbox, "Master Volume  (placeholder)",
@@ -498,14 +484,6 @@ func _on_confirm_yes() -> void:
 		_confirm_action.call()
 
 ## --- Settings Handlers ---
-
-func _on_fullscreen_toggled(pressed: bool) -> void:
-	SettingsStore.fullscreen = pressed
-	SettingsStore.save_settings()
-	var target: Window.Mode = Window.MODE_FULLSCREEN if pressed else Window.MODE_WINDOWED
-	get_window().mode = target
-	print("[PauseMenu] fullscreen toggled: %s — window mode now %d" % [pressed, get_window().mode])
-	emit_signal("settings_changed")
 
 func _on_master_changed(value: float) -> void:
 	SettingsStore.master_volume = value

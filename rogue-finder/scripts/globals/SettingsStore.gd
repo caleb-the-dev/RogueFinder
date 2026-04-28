@@ -6,7 +6,6 @@ extends Node
 
 const SETTINGS_PATH := "user://settings.json"
 
-var fullscreen:    bool  = false
 var master_volume: float = 1.0
 var music_volume:  float = 1.0
 var sfx_volume:    float = 1.0
@@ -16,7 +15,6 @@ func _ready() -> void:
 
 func save_settings() -> void:
 	var data := {
-		"fullscreen":    fullscreen,
 		"master_volume": master_volume,
 		"music_volume":  music_volume,
 		"sfx_volume":    sfx_volume,
@@ -31,12 +29,7 @@ func load_settings() -> void:
 	var parsed = JSON.parse_string(file.get_as_text())
 	if not parsed is Dictionary:
 		return
-	fullscreen    = bool(parsed.get("fullscreen",    false))
 	master_volume = float(parsed.get("master_volume", 1.0))
 	music_volume  = float(parsed.get("music_volume",  1.0))
 	sfx_volume    = float(parsed.get("sfx_volume",    1.0))
 
-func set_fullscreen(value: bool) -> void:
-	fullscreen = value
-	save_settings()
-	# Window mode is applied by the caller (PauseMenuManager) which has a live window context.

@@ -169,21 +169,17 @@ func test_recruited_archetypes_save_round_trip() -> void:
 	print("  PASS test_recruited_archetypes_save_round_trip")
 
 func test_settings_store_round_trip() -> void:
-	SettingsStore.fullscreen    = false
 	SettingsStore.master_volume = 0.75
 	SettingsStore.music_volume  = 0.50
 	SettingsStore.sfx_volume    = 0.25
 	SettingsStore.save_settings()
 
 	# Overwrite in memory, then reload from disk
-	SettingsStore.fullscreen    = true
 	SettingsStore.master_volume = 1.0
 	SettingsStore.music_volume  = 1.0
 	SettingsStore.sfx_volume    = 1.0
 	SettingsStore.load_settings()
 
-	assert(SettingsStore.fullscreen == false,
-		"fullscreen should reload as false")
 	assert(abs(SettingsStore.master_volume - 0.75) < 0.001,
 		"master_volume should reload as 0.75, got %f" % SettingsStore.master_volume)
 	assert(abs(SettingsStore.music_volume - 0.50) < 0.001,
