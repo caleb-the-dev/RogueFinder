@@ -525,21 +525,23 @@ func _build_hire_card(candidate: CombatantData, card_index: int) -> Control:
 	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.72))
 	id_vbox.add_child(name_lbl)
 
-	var arch_type_lbl := Label.new()
-	arch_type_lbl.text = "Archetype: %s  ·  Class: %s  ·  Kindred: %s" % [
-		candidate.archetype_id.replace("_", " ").capitalize(),
-		candidate.unit_class.capitalize(),
-		candidate.kindred]
-	arch_type_lbl.add_theme_font_size_override("font_size", 14)
-	arch_type_lbl.add_theme_color_override("font_color", Color(0.68, 0.65, 0.80))
-	id_vbox.add_child(arch_type_lbl)
+	var arch_lbl := Label.new()
+	arch_lbl.text = "Archetype: %s" % candidate.archetype_id.replace("_", " ").capitalize()
+	arch_lbl.add_theme_font_size_override("font_size", 14)
+	arch_lbl.add_theme_color_override("font_color", Color(0.68, 0.65, 0.80))
+	id_vbox.add_child(arch_lbl)
 
+	var class_bg_parts: Array[String] = [
+		"Class: %s" % candidate.unit_class.capitalize(),
+		"Kindred: %s" % candidate.kindred,
+	]
 	if candidate.background != "":
-		var bg_lbl := Label.new()
-		bg_lbl.text = "Background: %s" % candidate.background
-		bg_lbl.add_theme_font_size_override("font_size", 12)
-		bg_lbl.add_theme_color_override("font_color", Color(0.62, 0.60, 0.55))
-		id_vbox.add_child(bg_lbl)
+		class_bg_parts.append("Background: %s" % candidate.background)
+	var class_bg_lbl := Label.new()
+	class_bg_lbl.text = "  ·  ".join(class_bg_parts)
+	class_bg_lbl.add_theme_font_size_override("font_size", 12)
+	class_bg_lbl.add_theme_color_override("font_color", Color(0.62, 0.60, 0.55))
+	id_vbox.add_child(class_bg_lbl)
 
 	if candidate.temperament_id != "" and candidate.temperament_id != "even":
 		var t: TemperamentData = TemperamentLibrary.get_temperament(candidate.temperament_id)
