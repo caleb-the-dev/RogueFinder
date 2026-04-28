@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-04-28 (Follower Slice 6 — City Hire Channel: gold field + save/load wiring)
+> Last updated: 2026-04-28 (Pause Menu — encountered_archetypes field + record_archetype() + SettingsStore autoload)
 
 ---
 
@@ -54,6 +54,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `inventory` | `Array` | `[]` | Shared party bag. Holds raw reward dicts `{id, name, description, item_type, seen}` for both equipment and consumables. `item_type` is used by the bag UI (Stage 2) to filter into tabs. `seen: bool` drives the new-item glow in PartySheet — `add_to_inventory()` always stamps `false`; PartySheet sets it `true` on hover. Old saves without the `seen` key default to `true` via `.get("seen", true)` (no spurious glow on upgrade). Nothing is auto-assigned on pickup. Cleared by `reset()`. **Saved to disk.** |
 | `bench` | `Array[CombatantData]` | `[]` | Follower bench — `CombatantData` instances recruited via the combat Recruit action. Capped at `BENCH_CAP = 9`. **Saved to disk** (serialized alongside `party`). Cleared by `reset()`. |
 | `gold` | `int` | `0` | Player's current gold. Spent in the Hire Roster overlay (`BadurgaManager`). **Saved to disk** under key `"gold"`. Read back with `int(parsed.get("gold", 0))` — old saves default to `0`. Reset to `0` by `reset()`. |
+| `encountered_archetypes` | `Array[String]` | `[]` | Archetype ids seen in combat or recruited this run. Populated by `record_archetype()`. Drives the Archetypes Log in the pause menu. **Saved to disk** under key `"encountered_archetypes"`. Old saves default to `[]`. Reset by `reset()`. |
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -67,6 +68,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `add_to_bench` | `(follower: CombatantData) -> bool` | Appends `follower` to `bench` if `bench.size() < BENCH_CAP`. Returns `true` on success, `false` if bench is full. Does **not** call `save()` — caller must save explicitly after successful insert. |
 | `release_from_bench` | `(index: int) -> void` | Removes `bench[index]`. Auto-deequips all three gear slots (weapon/armor/accessory) back to `GameState.inventory` before removing. Calls `save()`. No-op on out-of-bounds index. |
 | `swap_active_bench` | `(party_idx: int, bench_idx: int) -> void` | Swaps `party[party_idx]` with `bench[bench_idx]` in-place. Gear deequip is the **caller's responsibility** — `BadurgaManager` calls `_deequip_to_bag()` before this. No-op on out-of-bounds indices. Does **not** call `save()` — caller must save. |
+| `record_archetype` | `(id: String) -> void` | Appends `id` to `encountered_archetypes` if non-empty and not already present. Calls `save()`. Called by `CombatManager3D._setup_units()` for each enemy at combat start (encounter recorded even if the player flees). TODO comment marks the recruit site for future wiring. |
 | `grant_feat` | `(pc_index: int, feat_id: String) -> void` | Appends `feat_id` to `party[pc_index].feat_ids` if not already present (deduplicates). Calls `save()` immediately. `push_error` + no-op on invalid index. The canonical way to add feats during a run — `EventManager.dispatch_effect` routes `feat_grant` effects here. |
 | `xp_needed_for_next_level` | `(current_level: int) -> int` | Returns the XP threshold to advance from `current_level` to `current_level + 1`. Uses `XP_THRESHOLDS` for levels 1–4; `current_level × 20` for level 5+. |
 | `grant_xp` | `(amount: int) -> void` | Awards `amount` XP to every non-dead party member. For each member, while XP ≥ threshold and level < 20: subtracts threshold XP, increments `level`, increments `pending_level_ups`. Calls `save()` once after all members are processed. Called by `CombatManager3D._end_combat(true)` with `amount = 15` on every combat victory. |
@@ -95,12 +97,13 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `cleared_nodes` | `GameState.cleared_nodes` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load |
 | `threat_level` | `GameState.threat_level` | float — read back via `float(parsed.get("threat_level", 0.0))` (no typed-array conversion needed) |
 | `used_event_ids` | `GameState.used_event_ids` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)` on load; defaults to `[]` if key absent (old saves) |
+| `encountered_archetypes` | `GameState.encountered_archetypes` | JSON Array — typed back via `Array(raw, TYPE_STRING, "", null)`; defaults to `[]` on old saves |
 | `party` | `GameState.party` | JSON Array of dicts — each dict holds all scalar fields + `abilities`/`ability_pool` as string arrays + `feat_ids` as string array + `level`/`xp`/`pending_level_ups` as ints + `physical_armor`/`magic_armor` as ints + `weapon_id`/`armor_id`/`accessory_id` as strings + `temperament_id` as string. Deserialized back to `Array[CombatantData]` by `_deserialize_combatant()`. **Migrations:** old saves with `armor_defense` key → both armor lanes. Missing `level`/`xp`/`pending_level_ups` default to `1`/`0`/`0`. Missing `temperament_id` defaults to `"even"` (neutral). |
 | `bench` | `GameState.bench` | JSON Array using the same `_serialize_combatant()` / `_deserialize_combatant()` format as `party`. Loaded back via the same deserialization path with `bench.clear()` + append loop. Old saves without the `bench` key default to an empty bench (no crash). |
 | `inventory` | `GameState.inventory` | JSON Array of reward dicts `{id, name, description, item_type, seen}`. Stored and loaded as-is — no resolution step needed. `seen` persists naturally in JSON; old saves without the key read as `true` via `.get("seen", true)`. |
 | `gold` | `GameState.gold` | `int`. Read back as `int(parsed.get("gold", 0))` — old saves without the key default to `0`. |
 
-**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, party roster, **bench roster** (all CombatantData fields, same format as party), inventory, **gold**.
+**What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, **encountered archetypes**, party roster, **bench roster** (all CombatantData fields, same format as party), inventory, **gold**.
 
 Note: `pending_node_type` and `current_combat_node_id` are **not** saved — they are transient handoffs consumed within a single scene transition.
 

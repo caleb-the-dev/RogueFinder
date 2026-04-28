@@ -185,7 +185,7 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 			"hire_cost":
 				archetype.hire_cost = int(val)
 			"notes":
-				pass  # designer free-text; intentionally ignored
+				archetype.notes = val
 			_:
 				push_warning("ArchetypeLibrary: unknown column '%s' at row %d" % [col, row_num])
 	if archetype.archetype_id == "":

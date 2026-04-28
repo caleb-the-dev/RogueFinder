@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-28 (Follower Slice 3 — CombatActionPanel: recruit_selected signal + ⊕ Recruit button)
+> Last updated: 2026-04-28 (Pause Menu — PauseMenuManager autoload layer 26, SettingsStore autoload, Archetypes Log sub-panel)
 
 ---
 
@@ -159,6 +159,64 @@ Static utility class (`scripts/globals/RewardGenerator.gd`). Builds a shuffled p
 ## MainMenuScene + CharacterCreationScene
 
 > Moved to [`character_creation.md`](character_creation.md).
+
+---
+
+## PauseMenu
+
+**Layer 26.** Global pause overlay registered as an autoload (`PauseMenu`). Active in all gameplay scenes (MapScene, CombatScene3D, BadurgaScene, CharacterCreationScene). Blocked in MainMenuScene and RunSummaryScene via a scene-file path gate.
+
+**Architecture decision:** Implemented as a CanvasLayer autoload rather than a per-scene instance so it works across all 4+ gameplay scenes without boilerplate. The tradeoff vs per-scene: less control over scene-specific behavior, but the gate function handles the two excluded scenes cleanly.
+
+**SettingsStore:** User preferences live in a separate `SettingsStore` autoload (`scripts/globals/SettingsStore.gd`) persisted to `user://settings.json`. This is distinct from `user://save.json` (run state) so fullscreen and volume prefs survive run deletion. Tradeoff vs folding settings into PauseMenuManager: adds one autoload but keeps settings accessible anywhere without coupling them to the menu lifecycle.
+
+**ESC conflict resolution:** CM3D only marks ESC as handled when it actually does something (cancel recruit mode, deselect a unit). When nothing is selected and mode is IDLE, ESC falls through to PauseMenu. StatPanel ESC is handled inside CM3D's guard block (all input consumed while panel is visible) — PauseMenu never sees those events.
+
+### Scene / Script
+
+| File | Role |
+|------|------|
+| `scenes/ui/PauseMenuScene.tscn` | Minimal (root CanvasLayer + PauseMenuManager script) |
+| `scripts/ui/PauseMenuManager.gd` | Full UI built in `_ready()`; sub-panel switching; ESC handler |
+| `scripts/globals/SettingsStore.gd` | Autoload; reads/writes `user://settings.json` |
+
+### Signals
+
+| Signal | When emitted |
+|--------|-------------|
+| `menu_opened` | On `open_menu()` |
+| `menu_closed` | On `close_menu()` |
+| `settings_changed` | Any settings slider or toggle changed |
+| `archetype_log_opened` | On navigating to the Archetypes Log sub-panel |
+
+### Public API
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `open_menu` | `() -> void` | Show overlay, pause tree, switch to main buttons |
+| `close_menu` | `() -> void` | Hide overlay, unpause tree |
+| `_scene_name_is_pauseable` | `static (path: String) -> bool` | Returns false for MainMenuScene and RunSummaryScene |
+
+### Sub-Panels
+
+| Panel | Contents |
+|-------|---------|
+| **Main** | Resume · Settings · Guide · Archetypes Log · Main Menu · Exit Game |
+| **Settings** | ← Back · Fullscreen toggle (calls `DisplayServer.window_set_mode`) · Master/Music/SFX sliders (visible + draggable; audio bus wiring deferred) |
+| **Guide** | ← Back · "Guide coming soon." stub |
+| **Archetypes Log** | ← Back · Scrollable list of cards per `GameState.encountered_archetypes`; RogueFinder player archetype excluded; empty state shown when none encountered |
+
+### Archetypes Log
+
+Populated from `GameState.encountered_archetypes` on every open. Rebuilt by `_rebuild_log_list()`. Each card shows: archetype name (title-cased from id), kindred · class, and notes text from `ArchetypeData.notes` (parsed from `archetypes.csv`). RogueFinder is always filtered from display — it is the player template, not a collectable creature.
+
+**Recording:** `GameState.record_archetype(id)` is called in `CombatManager3D._setup_units()` for each enemy when combat begins. Encounter is recorded even if the player flees (matches the "encountered" framing). A `TODO` comment marks the recruit site in `GameState.record_archetype()` for future wiring.
+
+### Recent Changes (PauseMenu)
+
+| Date | Change |
+|------|--------|
+| 2026-04-28 | **Pause Menu + Archetypes Log.** Initial implementation. Layer 26 CanvasLayer autoload. ESC gate, fullscreen toggle, volume sliders (placeholder), guide stub, Archetypes Log panel. SettingsStore autoload. `GameState.encountered_archetypes` + `record_archetype()`. `ArchetypeData.notes` field parsed. CM3D ESC handler fixed to not consume when idle. 8 headless tests. |
 
 ---
 

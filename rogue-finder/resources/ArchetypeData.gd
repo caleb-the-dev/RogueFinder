@@ -25,3 +25,4 @@ extends Resource
 @export var artwork_idle:    String        = ""
 @export var artwork_attack:  String        = ""
 @export var hire_cost:       int           = 0
+@export var notes:           String        = ""
