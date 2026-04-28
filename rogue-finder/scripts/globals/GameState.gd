@@ -21,6 +21,7 @@ var cleared_nodes: Array[String] = []  # nodes where player won and collected re
 var threat_level: float = 0.0          # 0.0–1.0; rises on travel + entry; resets to 0 on BOSS defeat
 var used_event_ids: Array[String] = [] # event ids drawn this run; used by EventSelector for no-repeat logic; saved to disk
 var encountered_archetypes: Array[String] = [] # archetype ids seen in combat or recruited this run; drives the Archetypes Log
+var recruited_archetypes:  Array[String] = [] # archetype ids ever added to the bench (persists across bench releases)
 
 ## --- Party ---
 
@@ -42,6 +43,7 @@ func add_to_bench(follower: CombatantData) -> bool:
 	if bench.size() >= BENCH_CAP:
 		return false
 	bench.append(follower)
+	record_recruited_archetype(follower.archetype_id)
 	return true
 
 ## Swaps party[party_idx] with bench[bench_idx] in-place. Gear deequip is the
@@ -151,6 +153,7 @@ func save() -> void:
 		"threat_level": threat_level,
 		"used_event_ids": used_event_ids,
 		"encountered_archetypes": encountered_archetypes,
+		"recruited_archetypes":  recruited_archetypes,
 		"party": party_data,
 		"bench": bench.map(func(f: CombatantData) -> Dictionary: return _serialize_combatant(f)),
 		"inventory": inventory,
@@ -212,6 +215,8 @@ func load_save() -> bool:
 	used_event_ids = Array(raw_event_ids, TYPE_STRING, "", null)
 	var raw_archetypes: Array = parsed.get("encountered_archetypes", [])
 	encountered_archetypes = Array(raw_archetypes, TYPE_STRING, "", null)
+	var raw_recruited: Array = parsed.get("recruited_archetypes", [])
+	recruited_archetypes = Array(raw_recruited, TYPE_STRING, "", null)
 	party.clear()
 	var raw_party: Array = parsed.get("party", [])
 	for dict in raw_party:
@@ -291,11 +296,18 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 
 ## Records an archetype as encountered this run. Deduplicates; saves immediately.
 ## Called by CombatManager3D at combat setup for each enemy.
-## TODO: record on recruit — call here when a follower joins the bench.
 func record_archetype(id: String) -> void:
 	if id == "" or id in encountered_archetypes:
 		return
 	encountered_archetypes.append(id)
+	save()
+
+## Records an archetype as ever recruited. Called automatically by add_to_bench().
+## Persists across bench releases — "once a follower, always logged."
+func record_recruited_archetype(id: String) -> void:
+	if id == "" or id in recruited_archetypes:
+		return
+	recruited_archetypes.append(id)
 	save()
 
 ## Grants a feat to the party member at pc_index. Deduplicates; saves immediately.
@@ -371,6 +383,7 @@ func reset() -> void:
 	threat_level = 0.0
 	used_event_ids = []
 	encountered_archetypes = []
+	recruited_archetypes   = []
 	party = []
 	bench = []
 	run_summary = {}

@@ -15,6 +15,10 @@ func _ready() -> void:
 	test_encountered_archetypes_save_round_trip()
 	test_log_filter_excludes_rogue_finder()
 	test_settings_store_round_trip()
+	test_recruited_archetype_adds_id()
+	test_recruited_archetype_skips_duplicate()
+	test_add_to_bench_records_recruited()
+	test_recruited_archetypes_save_round_trip()
 	_cleanup()
 	print("=== All pause menu tests passed ===")
 
@@ -114,6 +118,55 @@ func test_log_filter_excludes_rogue_finder() -> void:
 	print("  PASS test_log_filter_excludes_rogue_finder")
 
 ## --- SettingsStore ---
+
+## --- recruited_archetypes ---
+
+func test_recruited_archetype_adds_id() -> void:
+	GameState.reset()
+	GameState.record_recruited_archetype("grunt")
+	assert(GameState.recruited_archetypes.has("grunt"),
+		"grunt should be in recruited_archetypes after record")
+	assert(GameState.recruited_archetypes.size() == 1,
+		"exactly one entry expected")
+	GameState.reset()
+	print("  PASS test_recruited_archetype_adds_id")
+
+func test_recruited_archetype_skips_duplicate() -> void:
+	GameState.reset()
+	GameState.record_recruited_archetype("grunt")
+	GameState.record_recruited_archetype("grunt")
+	assert(GameState.recruited_archetypes.size() == 1,
+		"duplicate record must not create a second entry")
+	GameState.reset()
+	print("  PASS test_recruited_archetype_skips_duplicate")
+
+func test_add_to_bench_records_recruited() -> void:
+	GameState.reset()
+	var follower := CombatantData.new()
+	follower.archetype_id = "archer_bandit"
+	follower.vitality = 3
+	follower.current_hp = follower.hp_max
+	GameState.add_to_bench(follower)
+	assert(GameState.recruited_archetypes.has("archer_bandit"),
+		"add_to_bench must record the follower's archetype_id")
+	GameState.reset()
+	print("  PASS test_add_to_bench_records_recruited")
+
+func test_recruited_archetypes_save_round_trip() -> void:
+	_cleanup()
+	GameState.record_recruited_archetype("grunt")
+	GameState.record_recruited_archetype("alchemist")
+	GameState.save()
+	GameState.reset()
+	assert(GameState.recruited_archetypes.is_empty(),
+		"recruited_archetypes must be empty after reset()")
+	GameState.load_save()
+	assert(GameState.recruited_archetypes.size() == 2,
+		"should load 2 recruited archetypes, got %d" % GameState.recruited_archetypes.size())
+	assert(GameState.recruited_archetypes.has("grunt"), "grunt missing after load")
+	assert(GameState.recruited_archetypes.has("alchemist"), "alchemist missing after load")
+	_cleanup()
+	print("  PASS test_recruited_archetypes_save_round_trip")
 
 func test_settings_store_round_trip() -> void:
 	SettingsStore.fullscreen    = false
