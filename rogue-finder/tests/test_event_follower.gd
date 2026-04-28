@@ -8,6 +8,7 @@ func _ready() -> void:
 
 	test_recruit_follower_adds_to_bench()
 	test_recruit_follower_bench_full_no_crash()
+	test_recruit_follower_bench_full_with_release_idx()
 	test_recruit_follower_explicit_name()
 	test_recruit_follower_no_name_uses_pool()
 	test_bench_not_full_condition()
@@ -48,6 +49,24 @@ func test_recruit_follower_bench_full_no_crash() -> void:
 
 	assert(GameState.bench.size() == GameState.BENCH_CAP, "bench size should stay at cap")
 	print("  PASS: recruit_follower with full bench does not crash or add")
+
+func test_recruit_follower_bench_full_with_release_idx() -> void:
+	_reset_state()
+	for i in GameState.BENCH_CAP:
+		var f := ArchetypeLibrary.create("grunt", "Filler%d" % i, true)
+		GameState.bench.append(f)
+	assert(GameState.bench.size() == GameState.BENCH_CAP)
+
+	var effect := {"type": "recruit_follower", "archetype_id": "rat_scrapper", "name": "Fang"}
+	EventManager.dispatch_effect(effect, GameState.party, null, 0)
+
+	assert(GameState.bench.size() == GameState.BENCH_CAP, "bench should stay at cap after release+recruit")
+	var names: Array[String] = []
+	for m: CombatantData in GameState.bench:
+		names.append(m.character_name)
+	assert("Fang" in names, "Fang should be in bench after recruit")
+	assert(not ("Filler0" in names), "Filler0 should have been released")
+	print("  PASS: recruit_follower with bench_release_idx releases slot and adds follower")
 
 func test_recruit_follower_explicit_name() -> void:
 	_reset_state()
