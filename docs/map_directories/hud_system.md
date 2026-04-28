@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-28 (Pause Menu — Pokédex log with UNKNOWN/ENCOUNTERED/FOLLOWER/PLAYER statuses; fullscreen toggle removed)
+> Last updated: 2026-04-28 (Rarity Foundation — EndCombatScreen refactored to PanelContainer cards; RewardGenerator weighted rarity roll + rarity field in dicts)
 
 ---
 
@@ -128,31 +128,51 @@ The defeat path bypasses this system entirely — `CombatManager3D._end_combat(f
 |--------|-----------|---------|
 | `show_victory` | `(reward_items: Array) -> void` | Displays VICTORY header + 3 reward buttons |
 
-Victory flow: 3 reward buttons (item name + description). Clicking one:
-1. Calls `GameState.add_to_inventory(item)` (via `has_method()` guard).
-2. Disables all reward buttons, highlights chosen with `✓` prefix.
+Victory flow — reward cards are `PanelContainer` nodes (not raw `Button` nodes). Each card has a rarity-colored border and a colored item name `Label` above a grey description `Label`. An invisible flat `Button` covers the card for click detection. Clicking a card:
+1. Calls `GameState.add_to_inventory(item)` (direct call — `has_method()` guard kept for safety).
+2. Disables all reward buttons. Chosen card's name label gets `"✓ "` prefix; border widens to 3px.
 3. Appends `GameState.current_combat_node_id` to `GameState.cleared_nodes` (if not already present).
-4. If the defeated node's type is `"BOSS"` (checked via `GameState.node_types.get(...)`), resets `GameState.threat_level = 0.0`.
+4. If the defeated node's type is `"BOSS"`, resets `GameState.threat_level = 0.0`.
 5. Calls `GameState.save()`.
 6. Calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
 
 There is no intermediate "Onward..." step — reward selection is the final input.
 
-The constant is `MAP_SCENE_PATH`; the method is `_return_to_map()` (renamed from `_reload_combat()` in Feature 3).
+Reward items come from `RewardGenerator.roll(3)` — plain Dicts with keys `id`, `name`, `description`, `item_type`, **`rarity`** (int — `EquipmentData.Rarity` value; COMMON=0 for consumables).
 
-Reward items come from `RewardGenerator.roll(3)` — plain Dicts with keys `id`, `name`, `description`, `item_type`.
+**Rarity color source:** `EquipmentData.RARITY_COLORS.get(rarity, RARITY_COLORS[0])`. Applied to card border and name label. Currently all items are COMMON (grey) until Slices 3–5 add higher-tier items.
 
 ---
 
 ## RewardGenerator
 
-Static utility class (`scripts/globals/RewardGenerator.gd`). Builds a shuffled pool from all `EquipmentLibrary` items + all `ConsumableLibrary` items and returns `count` distinct entries as plain Dictionaries.
+Static utility class (`scripts/globals/RewardGenerator.gd`). Selects `count` distinct reward items using weighted rarity tiers and returns them as plain Dictionaries. Equipment is bucketed by `EquipmentData.rarity`; consumables slot into the COMMON bucket.
+
+### Constants
+
+```gdscript
+const RARITY_WEIGHTS: Dictionary = {
+    EquipmentData.Rarity.COMMON: 60, EquipmentData.Rarity.RARE: 25,
+    EquipmentData.Rarity.EPIC: 12,   EquipmentData.Rarity.LEGENDARY: 3
+}  # sums to 100
+```
 
 ### Public API
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `roll` | `(count: int) -> Array` | Returns `count` random distinct reward Dicts |
+| `roll` | `(count: int) -> Array` | Returns `count` distinct reward Dicts with rarity-weighted selection |
+
+### Roll algorithm
+
+1. Bucket all equipment by `eq.rarity`; add all consumables into the COMMON bucket.
+2. For each needed slot, call `_roll_rarity()` (weighted 0–99 pick → tier).
+3. If the rolled tier's bucket is empty, fall back to COMMON.
+4. Pick a random item from the bucket. Retry if already used (max `count × 20` attempts).
+
+### Returned dict keys
+
+`id`, `name`, `description`, `item_type` ("equipment" or "consumable"), **`rarity`** (int).
 
 ---
 

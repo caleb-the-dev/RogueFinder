@@ -22,7 +22,7 @@ Gear comes from rewards — no archetype starts with equipment. Consumables are 
 | `resources/EquipmentData.gd` | Resource — one equipment item |
 | `resources/ConsumableData.gd` | Resource — one consumable item |
 | `scripts/globals/EquipmentLibrary.gd` | Static catalog — CSV-sourced (`res://data/equipment.csv`), `get_equipment()` / `all_equipment()` / `reload()` |
-| `data/equipment.csv` | Source of truth — 20 items; `stat_bonuses` as `stat:value\|stat:value` pipe pairs |
+| `data/equipment.csv` | Source of truth — 9 COMMON placeholder items; columns: `id, name, slot, rarity, stat_bonuses, granted_ability_ids, feat_id, description, notes` |
 | `scripts/globals/ConsumableLibrary.gd` | Static catalog — CSV-sourced (`res://data/consumables.csv`), `get_consumable()` / `all_consumables()` / `reload()` |
 | `data/consumables.csv` | Source of truth — 6 consumables; edit here |
 
@@ -237,3 +237,16 @@ Consumables apply immediately when used — no QTE, no energy cost. Handled in `
 - **Slots serialize as id strings** — `CombatantData` slots are `EquipmentData` resources, but `GameState.save()` writes them as their `equipment_id` string. Empty string on load → `null` slot.
 - **Unknown ids survive load** — `get_equipment()` / `get_consumable()` return stubs, not null. A corrupt save never silently drops a slot.
 - **Consumable slot is a String, not a Resource** — `CombatantData.consumable: String`. Unlike the three equipment slots, consumables resolve through `ConsumableLibrary` at use-time. `""` means the slot is empty.
+- **Rarity in inventory dicts** — all `add_to_inventory()` call sites are responsible for including `"rarity": eq.rarity` in the dict. The field defaults to 0 (COMMON) via `.get("rarity", 0)` in UI code, so missing it causes no crash — but items will display as grey regardless of tier.
+- **EquipmentData stub rarity** — `get_equipment(unknown_id)` returns a stub with `rarity = COMMON`. Old saves equipping now-deleted item IDs silently slot a COMMON-colored "Unknown" item.
+
+---
+
+## Recent Changes
+
+| Date | Change |
+|---|---|
+| 2026-04-28 | **Rarity Foundation — Slice 1.** `EquipmentData`: `Rarity` enum + `rarity: int` field + `granted_ability_ids: Array[String]` + `feat_id: String` + `RARITY_COLORS: Dictionary` (int keys 0–3 → grey/green/blue/orange) + `rarity_color() -> Color` helper. `EquipmentLibrary`: parses `rarity`, `granted_ability_ids` (pipe-split), `feat_id` from CSV; stub defaults COMMON / [] / "". Old 20-item CSV wiped; 9 COMMON placeholders added. UI color treatment across PartySheet, EndCombatScreen, MapManager Add Item modal. All `add_to_inventory` call sites updated with `"rarity"`. |
+| 2026-04-27 | Kindred expansion (equipment 9→20; added war_hammer, twin_daggers, mages_staff, bone_club, hide_armor, silk_shroud, dragonscale_vest, swift_boots, scholars_ring, amulet_of_will, fang_necklace). First magic_armor equipment (`warded_robe`, `silk_shroud`, `dragonscale_vest`). `plate_cuirass` (heavy physical armor). |
+| 2026-04-27 | **Dual armor.** `leather_armor` / `chain_mail` stat_bonuses column renamed `armor_defense` → `physical_armor`. All armor stat keys updated. `warded_robe` added (first `magic_armor` equipment). |
+| 2026-04-24 | **Events Slice 4.** `rusted_dagger` added to equipment.csv (zero bonuses, WEAPON slot) for event reward use. |

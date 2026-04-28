@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-28 (Rarity Foundation — Rarity enum, RARITY_COLORS, weighted drops, 9 COMMON placeholders replace old 20 items) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 18 |
+| sessions_since_groom | 19 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -197,7 +197,7 @@ rogue-finder/
 │   │   ├── BackgroundLibrary.gd        ← CSV-sourced (res://data/backgrounds.csv)
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); 6 consumables
-│   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 20 items (7 armor + 7 weapon + 6 accessory)
+│   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 9 COMMON placeholder items; rarity + granted_ability_ids + feat_id columns added
 │   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 17 events (3 smoke + 14 authored)
 │   │   ├── EventSelector.gd            ← static picker; ring filter + exhaustion fallback; appends to GameState.used_event_ids
 │   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 38 feats (20 class, 18 background); parses stat_bonuses
@@ -242,7 +242,7 @@ rogue-finder/
 │   ├── backgrounds.csv                 ← 6 backgrounds; read via res://data/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
 │   ├── consumables.csv                 ← 6 consumables; read via res://data/
-│   ├── equipment.csv                   ← 20 items (7 armor + 7 weapon + 6 accessory); stat_bonuses as stat:value|stat:value pairs
+│   ├── equipment.csv                   ← 9 COMMON placeholder items (3 weapon/3 armor/3 accessory); rarity|granted_ability_ids|feat_id columns added (Slices 3–5 fill tiered families)
 │   ├── event_choices.csv               ← 53 choice rows; joined to events by event_id; effects as JSON arrays
 │   ├── events.csv                      ← 17 events (3 smoke + 14 authored); ring_eligibility as pipe list
 │   ├── feats.csv                       ← 38 feats (20 class, 18 background); kindred rows removed
@@ -269,7 +269,7 @@ rogue-finder/
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       ├── PauseMenuScene.tscn         ← minimal (root CanvasLayer + PauseMenuManager script); registered as PauseMenu autoload
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 39 test scripts + 26 scene runners (test_pause_menu.gd/.tscn added 2026-04-28; 12 assertions — scene gate, record_archetype, save round-trips, log filter, settings store, recruited_archetypes); test_hire_roster.gd/.tscn (6 assertions); test_recruit_success.gd/.tscn (11 assertions); test_recruit_math.gd/.tscn (13 assertions); test_armor_mod.gd/.tscn (11 assertions); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6 headless assertions, extends SceneTree). All `extends Node` tests require a .tscn scene runner and are invoked with `--headless --path rogue-finder <test>.tscn`; `extends SceneTree` tests use `--script`.
+└── tests/                              ← 40 test scripts + 27 scene runners. **test_rarity.gd/.tscn** added 2026-04-28 (11 assertions — EquipmentData defaults, RARITY_COLORS, rarity_color(), CSV parse, RARITY_WEIGHTS, roll dict shape, distinct ids, smoke distribution). test_pause_menu.gd/.tscn (12); test_hire_roster.gd/.tscn (6); test_recruit_success.gd/.tscn (11); test_recruit_math.gd/.tscn (13); test_armor_mod.gd/.tscn (11); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; `extends SceneTree` tests use `--script`.
 ```
 
 ---
