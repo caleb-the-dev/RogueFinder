@@ -110,6 +110,7 @@ Lives in `scripts/ui/CombatActionPanel.gd` + `scenes/ui/CombatActionPanel.tscn`.
 
 | Date | Change |
 |------|--------|
+| 2026-04-28 | **Follower Slice 4.** `_refresh_recruit()` Pathfinder check extended: also returns `true` when `GameState.test_room_kind == "recruit_test"` and `unit.data.archetype_id == "RogueFinder"` — enables the Recruit button in the recruit test room where `GameState.party` is empty. |
 | 2026-04-28 | **Follower Slice 3.** `recruit_selected` signal added. `_recruit_btn: Button` built once in `_build_ui()`, placed below the 2×2 ability grid. `_refresh_recruit(unit)` method handles show/hide and enable/disable; called from `_rebuild_ability_grid()` and `refresh()`. Button is Pathfinder-only (compares `unit.data == GameState.party[0]`). Greys out if energy < 3, `has_acted`, or bench full. Tooltip: "Attempt to recruit a nearby enemy. 3 Energy · Range 3 · Chance depends on target HP and your party's Willpower." Panel closes before emitting `recruit_selected` (same pattern as `ability_selected`). |
 | 2026-04-23 | **Kindred label.** Small muted blue-grey label added between name and portrait for both player and enemy views. |
 
