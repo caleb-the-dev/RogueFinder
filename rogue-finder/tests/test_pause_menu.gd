@@ -38,6 +38,8 @@ func test_scene_gate_pauseable_scenes() -> void:
 
 ## Title screen and run-end summary must not allow the pause menu.
 func test_scene_gate_blocks_menu_and_run_summary() -> void:
+	assert(not PauseMenuManager._scene_name_is_pauseable("res://main.tscn"),
+		"main.tscn (MainMenu wrapper) must NOT be pauseable")
 	assert(not PauseMenuManager._scene_name_is_pauseable("res://scenes/ui/MainMenuScene.tscn"),
 		"MainMenuScene must NOT be pauseable")
 	assert(not PauseMenuManager._scene_name_is_pauseable("res://scenes/ui/RunSummaryScene.tscn"),

@@ -3,9 +3,9 @@ extends CanvasLayer
 
 ## --- PauseMenuManager ---
 ## Global pause overlay reachable from all gameplay scenes.
-## ESC toggles open/closed via _unhandled_input; a scene-name gate blocks the main
-## menu and run-summary screens. Layer 26 sits above all other overlays.
-## process_mode = WHEN_PAUSED so the menu remains interactive while get_tree().paused.
+## ESC or the "☰" button toggle the menu; a scene-name gate blocks main.tscn and
+## RunSummaryScene. Layer 26 sits above all other overlays.
+## process_mode = ALWAYS so _unhandled_input fires whether or not the tree is paused.
 
 signal menu_opened
 signal menu_closed
@@ -36,15 +36,21 @@ var _master_slider: HSlider  = null
 var _music_slider:  HSlider  = null
 var _sfx_slider:    HSlider  = null
 var _log_list:      VBoxContainer = null
+var _menu_btn:      Button        = null
 
 ## --- Lifecycle ---
 
 func _ready() -> void:
 	layer = 26
-	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	# ALWAYS so _unhandled_input and _process fire in both paused and unpaused states.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
 	_backdrop.visible  = false
 	_container.visible = false
+
+func _process(_delta: float) -> void:
+	if _menu_btn != null:
+		_menu_btn.visible = not _is_open and _is_pauseable_scene()
 
 ## --- Input ---
 
@@ -70,6 +76,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		close_menu()
 	get_viewport().set_input_as_handled()
 
+func _on_menu_btn_pressed() -> void:
+	if _is_open:
+		return
+	if _is_pauseable_scene():
+		open_menu()
+
 ## Returns true when the current scene supports the pause menu.
 func _is_pauseable_scene() -> bool:
 	var scene := get_tree().current_scene
@@ -79,6 +91,9 @@ func _is_pauseable_scene() -> bool:
 
 ## Pure function — testable without a live scene.
 static func _scene_name_is_pauseable(path: String) -> bool:
+	# main.tscn is the boot wrapper that instances MainMenuScene — treat it as non-pauseable.
+	if path.ends_with("main.tscn"):
+		return false
 	if path.ends_with("MainMenuScene.tscn"):
 		return false
 	if path.ends_with("RunSummaryScene.tscn"):
@@ -151,6 +166,14 @@ func _build_ui() -> void:
 	_backdrop.size  = Vector2(VP_W, VP_H)
 	_backdrop.position = Vector2.ZERO
 	add_child(_backdrop)
+
+	# Persistent ☰ menu button — top-right corner, shown in pauseable scenes only.
+	_menu_btn = Button.new()
+	_menu_btn.text = "☰"
+	_menu_btn.custom_minimum_size = Vector2(40.0, 28.0)
+	_menu_btn.position = Vector2(VP_W - 48.0, 8.0)
+	_menu_btn.pressed.connect(_on_menu_btn_pressed)
+	add_child(_menu_btn)
 
 	# Centered panel container
 	_container = PanelContainer.new()
