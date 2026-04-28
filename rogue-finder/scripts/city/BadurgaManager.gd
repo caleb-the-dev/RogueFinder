@@ -526,15 +526,17 @@ func _build_hire_card(candidate: CombatantData, card_index: int) -> Control:
 	id_vbox.add_child(name_lbl)
 
 	var arch_type_lbl := Label.new()
-	arch_type_lbl.text = "%s  ·  %s  ·  %s" % [
-		candidate.archetype_id.replace("_", " "), candidate.unit_class, candidate.kindred]
+	arch_type_lbl.text = "Archetype: %s  ·  Class: %s  ·  Kindred: %s" % [
+		candidate.archetype_id.replace("_", " ").capitalize(),
+		candidate.unit_class.capitalize(),
+		candidate.kindred]
 	arch_type_lbl.add_theme_font_size_override("font_size", 14)
 	arch_type_lbl.add_theme_color_override("font_color", Color(0.68, 0.65, 0.80))
 	id_vbox.add_child(arch_type_lbl)
 
 	if candidate.background != "":
 		var bg_lbl := Label.new()
-		bg_lbl.text = candidate.background
+		bg_lbl.text = "Background: %s" % candidate.background
 		bg_lbl.add_theme_font_size_override("font_size", 12)
 		bg_lbl.add_theme_color_override("font_color", Color(0.62, 0.60, 0.55))
 		id_vbox.add_child(bg_lbl)
@@ -542,7 +544,7 @@ func _build_hire_card(candidate: CombatantData, card_index: int) -> Control:
 	if candidate.temperament_id != "" and candidate.temperament_id != "even":
 		var t: TemperamentData = TemperamentLibrary.get_temperament(candidate.temperament_id)
 		var temp_lbl := Label.new()
-		temp_lbl.text = "%s  (+%s / −%s)" % [
+		temp_lbl.text = "Temperament: %s  (+%s / −%s)" % [
 			t.temperament_name, _stat_abbrev(t.boosted_stat), _stat_abbrev(t.hindered_stat)]
 		temp_lbl.add_theme_font_size_override("font_size", 12)
 		temp_lbl.add_theme_color_override("font_color", Color(0.65, 0.58, 0.78))
@@ -601,16 +603,16 @@ func _build_hire_card(candidate: CombatantData, card_index: int) -> Control:
 	stats_col.add_child(stat_grid)
 
 	for pair: Array in [
-		["HP",    candidate.hp_max],
-		["Nrg",   candidate.energy_max],
-		["Spd",   candidate.speed],
-		["P.Arm", candidate.physical_armor],
-		["M.Arm", candidate.magic_armor],
-		["STR",   candidate.strength],
-		["DEX",   candidate.dexterity],
-		["COG",   candidate.cognition],
-		["WIL",   candidate.willpower],
-		["VIT",   candidate.vitality],
+		["Health",       candidate.hp_max],
+		["Energy",       candidate.energy_max],
+		["Speed",        candidate.speed],
+		["Phys Armor",   candidate.physical_armor],
+		["Magic Armor",  candidate.magic_armor],
+		["Strength",     candidate.strength],
+		["Dexterity",    candidate.dexterity],
+		["Cognition",    candidate.cognition],
+		["Willpower",    candidate.willpower],
+		["Vitality",     candidate.vitality],
 	]:
 		var cell := VBoxContainer.new()
 		cell.add_theme_constant_override("separation", 0)
