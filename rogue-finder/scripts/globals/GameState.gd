@@ -39,6 +39,17 @@ func add_to_bench(follower: CombatantData) -> bool:
 	bench.append(follower)
 	return true
 
+## Swaps party[party_idx] with bench[bench_idx] in-place. Gear deequip is the
+## caller's responsibility (BadurgaManager calls _deequip_to_bag first).
+func swap_active_bench(party_idx: int, bench_idx: int) -> void:
+	if party_idx < 0 or party_idx >= party.size():
+		return
+	if bench_idx < 0 or bench_idx >= bench.size():
+		return
+	var tmp: CombatantData = party[party_idx]
+	party[party_idx]  = bench[bench_idx]
+	bench[bench_idx]  = tmp
+
 ## Removes the bench entry at index. Auto-deequips gear back to inventory. Saves.
 func release_from_bench(index: int) -> void:
 	if index < 0 or index >= bench.size():
