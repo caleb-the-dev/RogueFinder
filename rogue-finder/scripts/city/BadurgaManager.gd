@@ -1527,6 +1527,7 @@ func _pm_push_equip_to_bag(eq: EquipmentData) -> void:
 		"name":        eq.equipment_name,
 		"description": eq.description,
 		"item_type":   "equipment",
+		"rarity":      eq.rarity,
 		"seen":        true,
 	})
 

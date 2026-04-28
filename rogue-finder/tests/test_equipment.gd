@@ -1,7 +1,7 @@
 extends Node
 
 ## --- Unit Tests: EquipmentData + EquipmentLibrary ---
-## Run via Project > Run This Scene (F6) with this script attached to a Node.
+## Run headless: import then run test_equipment.tscn.
 ## Tests cover get_bonus(), null-equipment regression, equipped-stat formulas, and library size.
 ## No scene nodes, timers, or signals required.
 
@@ -15,11 +15,10 @@ func _ready() -> void:
 	test_null_equipment_hp_max_no_regression()
 	test_null_equipment_energy_max_no_regression()
 	test_null_equipment_energy_regen_no_regression()
-	test_leather_armor_defense_plus_one()
-	test_chain_mail_defense_plus_two_speed_minus_one()
-	test_plate_cuirass_heavy_physical()
-	test_warded_robe_magic_defense()
-	test_warded_robe_does_not_affect_physical()
+	test_padded_armor_physical_defense_plus_one()
+	test_rough_hide_stacks_armor_and_vitality()
+	test_cloth_robe_magic_defense()
+	test_cloth_robe_does_not_affect_physical()
 	test_equipment_library_all_returns_nine_items()
 	print("=== All equipment tests passed ===")
 
@@ -51,7 +50,6 @@ func test_get_bonus_returns_correct_value_for_present_stat() -> void:
 func test_null_equipment_attack_no_regression() -> void:
 	var d := CombatantData.new()
 	d.strength = 3
-	# weapon/armor/accessory are null by default
 	assert(d.attack == 8, "attack with str=3, no equip: expected 8, got %d" % d.attack)
 	d.strength = 0
 	assert(d.attack == 5, "attack with str=0, no equip: expected 5, got %d" % d.attack)
@@ -66,7 +64,6 @@ func test_null_equipment_defense_no_regression() -> void:
 	print("  PASS test_null_equipment_defense_no_regression")
 
 func test_null_equipment_speed_no_regression() -> void:
-	# S29: speed = 1 + kindred_bonus; DEX no longer drives base speed.
 	var d := CombatantData.new()
 	d.dexterity = 4
 	assert(d.speed == 1, "speed with no kindred should be 1 regardless of dex, got %d" % d.speed)
@@ -75,7 +72,6 @@ func test_null_equipment_speed_no_regression() -> void:
 	print("  PASS test_null_equipment_speed_no_regression")
 
 func test_null_equipment_hp_max_no_regression() -> void:
-	# hp_max = 10 + kindred_bonus + VIT*4. No kindred → bonus=0; vit=3 → 10+0+12=22.
 	var d := CombatantData.new()
 	d.vitality = 3
 	assert(d.hp_max == 22, "hp_max with vit=3, no equip: expected 22, got %d" % d.hp_max)
@@ -93,59 +89,45 @@ func test_null_equipment_energy_regen_no_regression() -> void:
 	assert(d.energy_regen == 4, "energy_regen with wil=2, no equip: expected 4, got %d" % d.energy_regen)
 	print("  PASS test_null_equipment_energy_regen_no_regression")
 
-## --- Equipped item stat formulas ---
+## --- Placeholder item stat formulas ---
 
-func test_leather_armor_defense_plus_one() -> void:
+func test_padded_armor_physical_defense_plus_one() -> void:
 	var d := CombatantData.new()
 	d.physical_armor = 5
-	d.armor = EquipmentLibrary.get_equipment("leather_armor")
-	# leather_armor: physical_armor +1
+	d.armor = EquipmentLibrary.get_equipment("padded_armor")
 	assert(d.physical_defense == 6,
-		"physical_defense with leather_armor (+1) should be 6, got %d" % d.physical_defense)
-	print("  PASS test_leather_armor_defense_plus_one")
+		"physical_defense with padded_armor (+1) should be 6, got %d" % d.physical_defense)
+	print("  PASS test_padded_armor_physical_defense_plus_one")
 
-func test_chain_mail_defense_plus_two_speed_minus_one() -> void:
+func test_rough_hide_stacks_armor_and_vitality() -> void:
 	var d := CombatantData.new()
-	d.physical_armor = 5
-	d.dexterity = 3
-	d.armor = EquipmentLibrary.get_equipment("chain_mail")
-	# chain_mail: physical_armor +2, dexterity -1
-	assert(d.physical_defense == 7,
-		"physical_defense with chain_mail (+2) should be 7, got %d" % d.physical_defense)
-	# speed = 1 + kindred_bonus + equip_dex_bonus; chain_mail dex -1 → 1 + 0 + (-1) = 0
-	assert(d.speed == 0,
-		"speed with no kindred + chain_mail (dex-1) should be 0, got %d" % d.speed)
-	print("  PASS test_chain_mail_defense_plus_two_speed_minus_one")
+	d.physical_armor = 3
+	d.vitality = 2
+	d.armor = EquipmentLibrary.get_equipment("rough_hide")
+	# rough_hide: physical_armor +1, vitality +1
+	assert(d.physical_defense == 4,
+		"physical_defense with rough_hide (+1 armor) should be 4, got %d" % d.physical_defense)
+	# Equipment vitality bonus is a flat addition to hp_max, not multiplied by 4.
+	assert(d.hp_max == 10 + d.vitality * 4 + 1,
+		"hp_max with rough_hide (+1 vit flat) should be %d, got %d" % [10 + d.vitality * 4 + 1, d.hp_max])
+	print("  PASS test_rough_hide_stacks_armor_and_vitality")
 
-func test_plate_cuirass_heavy_physical() -> void:
-	var d := CombatantData.new()
-	d.physical_armor = 4
-	d.dexterity = 4
-	d.armor = EquipmentLibrary.get_equipment("plate_cuirass")
-	# plate_cuirass: physical_armor +3, dexterity -2
-	assert(d.physical_defense == 7,
-		"physical_defense with plate_cuirass (+3) should be 7, got %d" % d.physical_defense)
-	# speed = 1 + kindred + equip_dex_bonus; plate_cuirass dex -2 → 1 + 0 + (-2) = -1
-	assert(d.speed == -1,
-		"speed with no kindred + plate_cuirass (dex-2) should be -1, got %d" % d.speed)
-	print("  PASS test_plate_cuirass_heavy_physical")
-
-func test_warded_robe_magic_defense() -> void:
+func test_cloth_robe_magic_defense() -> void:
 	var d := CombatantData.new()
 	d.magic_armor = 3
-	d.armor = EquipmentLibrary.get_equipment("warded_robe")
-	# warded_robe: magic_armor +2 — first equipment piece exercising the magic_armor equip path
-	assert(d.magic_defense == 5,
-		"magic_defense with warded_robe (+2) should be 5, got %d" % d.magic_defense)
-	print("  PASS test_warded_robe_magic_defense")
+	d.armor = EquipmentLibrary.get_equipment("cloth_robe")
+	# cloth_robe: magic_armor +1
+	assert(d.magic_defense == 4,
+		"magic_defense with cloth_robe (+1) should be 4, got %d" % d.magic_defense)
+	print("  PASS test_cloth_robe_magic_defense")
 
-func test_warded_robe_does_not_affect_physical() -> void:
+func test_cloth_robe_does_not_affect_physical() -> void:
 	var d := CombatantData.new()
 	d.physical_armor = 4
-	d.armor = EquipmentLibrary.get_equipment("warded_robe")
+	d.armor = EquipmentLibrary.get_equipment("cloth_robe")
 	assert(d.physical_defense == 4,
-		"warded_robe must not affect physical_defense, got %d" % d.physical_defense)
-	print("  PASS test_warded_robe_does_not_affect_physical")
+		"cloth_robe must not affect physical_defense, got %d" % d.physical_defense)
+	print("  PASS test_cloth_robe_does_not_affect_physical")
 
 ## --- EquipmentLibrary ---
 
@@ -153,7 +135,6 @@ func test_equipment_library_all_returns_nine_items() -> void:
 	var all: Array[EquipmentData] = EquipmentLibrary.all_equipment()
 	assert(all.size() == 9,
 		"all_equipment() should return 9 items, got %d" % all.size())
-	# Verify no nulls slipped in
 	for item in all:
 		assert(item != null, "all_equipment() should not contain null entries")
 		assert(item.equipment_id != "", "every item should have a non-empty equipment_id")

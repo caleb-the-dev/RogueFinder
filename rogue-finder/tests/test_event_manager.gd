@@ -105,12 +105,12 @@ func test_feat_passes_when_present_fails_when_absent() -> void:
 
 func test_item_passes_when_in_inventory_fails_when_absent() -> void:
 	GameState.inventory.clear()
-	assert(not EventManager.evaluate_condition("item:short_sword", GameState.party),
-		"item:short_sword should fail with empty inventory")
-	GameState.inventory.append({"id": "short_sword", "name": "Short Sword",
+	assert(not EventManager.evaluate_condition("item:iron_sword", GameState.party),
+		"item:iron_sword should fail with empty inventory")
+	GameState.inventory.append({"id": "iron_sword", "name": "Iron Sword",
 		"description": "A blade.", "item_type": "equipment"})
-	assert(EventManager.evaluate_condition("item:short_sword", GameState.party),
-		"item:short_sword should pass when item is in inventory")
+	assert(EventManager.evaluate_condition("item:iron_sword", GameState.party),
+		"item:iron_sword should pass when item is in inventory")
 	GameState.inventory.clear()
 	print("  PASS test_item_passes_when_in_inventory_fails_when_absent")
 
@@ -188,26 +188,26 @@ func test_feat_grant_appends_and_no_duplicate() -> void:
 func test_item_gain_adds_to_inventory() -> void:
 	GameState.inventory.clear()
 	var party: Array[CombatantData] = []
-	# short_sword exists in equipment.csv
-	EventManager.dispatch_effect({"type": "item_gain", "item_id": "short_sword"}, party)
+	# iron_sword exists in equipment.csv
+	EventManager.dispatch_effect({"type": "item_gain", "item_id": "iron_sword"}, party)
 	assert(GameState.inventory.size() == 1,
-		"item_gain should add short_sword to inventory, got size %d" % GameState.inventory.size())
-	assert(GameState.inventory[0].get("id", "") == "short_sword",
-		"inventory entry should have id 'short_sword'")
+		"item_gain should add iron_sword to inventory, got size %d" % GameState.inventory.size())
+	assert(GameState.inventory[0].get("id", "") == "iron_sword",
+		"inventory entry should have id 'iron_sword'")
 	assert(GameState.inventory[0].get("item_type", "") == "equipment",
-		"short_sword should be item_type 'equipment'")
+		"iron_sword should be item_type 'equipment'")
 	GameState.inventory.clear()
 	print("  PASS test_item_gain_adds_to_inventory")
 
 func test_item_remove_removes_from_inventory() -> void:
 	GameState.inventory.clear()
-	GameState.inventory.append({"id": "short_sword", "name": "Short Sword",
+	GameState.inventory.append({"id": "iron_sword", "name": "Iron Sword",
 		"description": "A blade.", "item_type": "equipment"})
 	assert(GameState.inventory.size() == 1, "setup: inventory should have 1 item")
 	var party: Array[CombatantData] = []
-	EventManager.dispatch_effect({"type": "item_remove", "item_id": "short_sword"}, party)
+	EventManager.dispatch_effect({"type": "item_remove", "item_id": "iron_sword"}, party)
 	assert(GameState.inventory.is_empty(),
-		"item_remove should remove short_sword from inventory")
+		"item_remove should remove iron_sword from inventory")
 	print("  PASS test_item_remove_removes_from_inventory")
 
 ## --- Persistence ---
