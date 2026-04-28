@@ -30,7 +30,7 @@ var _overlay_layer: CanvasLayer = null
 ## Hire roster overlay state
 var _hire_layer: CanvasLayer = null
 var _hire_gold_lbl: Label = null
-var _hire_roster: Array[ArchetypeData] = []
+var _hire_roster: Array[CombatantData] = []   # pre-generated; what you see is what you hire
 var _hire_card_idx: int = 0
 var _hire_card_area: Control = null
 var _hire_nav_lbl: Label = null
@@ -270,7 +270,7 @@ func _open_hire_roster() -> void:
 	_hire_card_area = null
 	_hire_nav_lbl = null
 	_hire_card_idx = 0
-	_hire_roster = _generate_hire_roster(
+	_hire_roster = _generate_hire_candidates(
 		GameState.map_seed + GameState.visited_nodes.size(), 4
 	)
 	_build_hire_overlay()
@@ -408,7 +408,6 @@ static func _generate_hire_roster(seed: int, count: int) -> Array[ArchetypeData]
 			pool.append(arch)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
-	# Fisher-Yates shuffle seeded by rng for determinism
 	for i in range(pool.size() - 1, 0, -1):
 		var j: int = rng.randi_range(0, i)
 		var tmp: ArchetypeData = pool[i]
@@ -416,15 +415,69 @@ static func _generate_hire_roster(seed: int, count: int) -> Array[ArchetypeData]
 		pool[j] = tmp
 	return pool.slice(0, mini(count, pool.size()))
 
-func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
-	# Deterministic name: use roster seed + card index as secondary seed
-	var rng := RandomNumberGenerator.new()
-	rng.seed = GameState.map_seed + GameState.visited_nodes.size() + card_index + 1
-	var name_pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
-	var hire_name: String = name_pool[rng.randi_range(0, name_pool.size() - 1)] \
-		if not name_pool.is_empty() else "Wanderer"
+## Pre-generates seeded CombatantData for each roster slot so the displayed card
+## matches exactly what the player receives on hire.
+static func _generate_hire_candidates(seed: int, count: int) -> Array[CombatantData]:
+	var archetypes: Array[ArchetypeData] = _generate_hire_roster(seed, count)
+	var candidates: Array[CombatantData] = []
+	for i in archetypes.size():
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed + i + 1
+		candidates.append(_create_hire_candidate(archetypes[i], rng))
+	return candidates
 
-	var can_afford: bool = GameState.gold >= arch.hire_cost
+## Mirrors ArchetypeLibrary.create() with a caller-supplied RNG for determinism.
+static func _create_hire_candidate(arch: ArchetypeData, rng: RandomNumberGenerator) -> CombatantData:
+	var data := CombatantData.new()
+	data.archetype_id   = arch.archetype_id
+	data.is_player_unit = true
+	data.unit_class     = arch.unit_class
+	data.kindred        = arch.kindred
+	data.feat_ids       = []
+	data.artwork_idle   = arch.artwork_idle
+	data.artwork_attack = arch.artwork_attack
+
+	data.abilities.clear()
+	for ab in arch.abilities:
+		data.abilities.append(str(ab))
+	while data.abilities.size() < 4:
+		data.abilities.append("")
+
+	data.ability_pool.clear()
+	for ab in arch.abilities:
+		if ab != "":
+			data.ability_pool.append(str(ab))
+	for ab in arch.pool_extras:
+		var ab_str: String = str(ab)
+		if ab_str != "" and not data.ability_pool.has(ab_str):
+			data.ability_pool.append(ab_str)
+
+	data.consumable = arch.consumable
+
+	var bgs: Array[String] = arch.backgrounds
+	data.background = bgs[rng.randi_range(0, bgs.size() - 1)] if not bgs.is_empty() else ""
+
+	data.strength        = rng.randi_range(arch.str_range[0],            arch.str_range[1])
+	data.dexterity       = rng.randi_range(arch.dex_range[0],            arch.dex_range[1])
+	data.cognition       = rng.randi_range(arch.cog_range[0],            arch.cog_range[1])
+	data.willpower       = rng.randi_range(arch.wil_range[0],            arch.wil_range[1])
+	data.vitality        = maxi(1, rng.randi_range(arch.vit_range[0],    arch.vit_range[1]))
+	data.physical_armor  = rng.randi_range(arch.physical_armor_range[0], arch.physical_armor_range[1])
+	data.magic_armor     = rng.randi_range(arch.magic_armor_range[0],    arch.magic_armor_range[1])
+	data.qte_resolution  = rng.randf_range(arch.qte_range[0],            arch.qte_range[1])
+	data.temperament_id  = TemperamentLibrary.random_id(rng)
+
+	var name_pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
+	data.character_name = name_pool[rng.randi_range(0, name_pool.size() - 1)] \
+		if not name_pool.is_empty() else "Unit"
+
+	data.current_hp     = data.hp_max
+	data.current_energy = data.energy_max
+	return data
+
+func _build_hire_card(candidate: CombatantData, card_index: int) -> Control:
+	var hire_cost: int = ArchetypeLibrary.get_archetype(candidate.archetype_id).hire_cost
+	var can_afford: bool = GameState.gold >= hire_cost
 
 	var card := PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -456,7 +509,7 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-	portrait.texture = load(arch.artwork_idle) as Texture2D if arch.artwork_idle != "" \
+	portrait.texture = load(candidate.artwork_idle) as Texture2D if candidate.artwork_idle != "" \
 		else load("res://icon.svg") as Texture2D
 	top_hbox.add_child(portrait)
 
@@ -467,24 +520,33 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	top_hbox.add_child(id_vbox)
 
 	var name_lbl := Label.new()
-	name_lbl.text = hire_name
+	name_lbl.text = candidate.character_name
 	name_lbl.add_theme_font_size_override("font_size", 20)
 	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.72))
 	id_vbox.add_child(name_lbl)
 
 	var arch_type_lbl := Label.new()
 	arch_type_lbl.text = "%s  ·  %s  ·  %s" % [
-		arch.archetype_id.replace("_", " "), arch.unit_class, arch.kindred]
+		candidate.archetype_id.replace("_", " "), candidate.unit_class, candidate.kindred]
 	arch_type_lbl.add_theme_font_size_override("font_size", 14)
 	arch_type_lbl.add_theme_color_override("font_color", Color(0.68, 0.65, 0.80))
 	id_vbox.add_child(arch_type_lbl)
 
-	if not arch.backgrounds.is_empty():
+	if candidate.background != "":
 		var bg_lbl := Label.new()
-		bg_lbl.text = "Backgrounds: %s" % ", ".join(arch.backgrounds)
+		bg_lbl.text = candidate.background
 		bg_lbl.add_theme_font_size_override("font_size", 12)
 		bg_lbl.add_theme_color_override("font_color", Color(0.62, 0.60, 0.55))
 		id_vbox.add_child(bg_lbl)
+
+	if candidate.temperament_id != "" and candidate.temperament_id != "even":
+		var t: TemperamentData = TemperamentLibrary.get_temperament(candidate.temperament_id)
+		var temp_lbl := Label.new()
+		temp_lbl.text = "%s  (+%s / −%s)" % [
+			t.temperament_name, _stat_abbrev(t.boosted_stat), _stat_abbrev(t.hindered_stat)]
+		temp_lbl.add_theme_font_size_override("font_size", 12)
+		temp_lbl.add_theme_color_override("font_color", Color(0.65, 0.58, 0.78))
+		id_vbox.add_child(temp_lbl)
 
 	var hire_col := VBoxContainer.new()
 	hire_col.add_theme_constant_override("separation", 6)
@@ -492,14 +554,14 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	top_hbox.add_child(hire_col)
 
 	var cost_lbl := Label.new()
-	cost_lbl.text = "%d Gold" % arch.hire_cost
+	cost_lbl.text = "%d Gold" % hire_cost
 	cost_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cost_lbl.add_theme_font_size_override("font_size", 18)
 	cost_lbl.add_theme_color_override("font_color",
 		Color(0.90, 0.80, 0.30) if can_afford else Color(0.55, 0.50, 0.35))
 	hire_col.add_child(cost_lbl)
 
-	var cap_arch := arch
+	var cap_candidate := candidate
 	var cap_index := card_index
 
 	var hire_btn := Button.new()
@@ -507,7 +569,7 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	hire_btn.custom_minimum_size = Vector2(110.0, 40.0)
 	hire_btn.add_theme_font_size_override("font_size", 16)
 	hire_btn.disabled = not can_afford
-	hire_btn.pressed.connect(func() -> void: _on_hire_pressed(cap_arch, cap_index))
+	hire_btn.pressed.connect(func() -> void: _on_hire_pressed(cap_candidate, cap_index))
 	hire_col.add_child(hire_btn)
 
 	outer_vbox.add_child(_make_hsep())
@@ -519,42 +581,50 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	body_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	outer_vbox.add_child(body_hbox)
 
-	# --- Left: all stats ---
+	# --- Left: all 10 stats, large 2-line chips ---
 	var stats_col := VBoxContainer.new()
 	stats_col.custom_minimum_size = Vector2(320.0, 0.0)
-	stats_col.add_theme_constant_override("separation", 6)
+	stats_col.add_theme_constant_override("separation", 8)
 	stats_col.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	body_hbox.add_child(stats_col)
 
 	var stats_hdr := Label.new()
-	stats_hdr.text = "STATS  (averages)"
+	stats_hdr.text = "STATS"
 	stats_hdr.add_theme_font_size_override("font_size", 11)
 	stats_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
 	stats_col.add_child(stats_hdr)
 
-	var mid_str: int  = (arch.str_range[0]            + arch.str_range[1])           / 2
-	var mid_dex: int  = (arch.dex_range[0]            + arch.dex_range[1])           / 2
-	var mid_cog: int  = (arch.cog_range[0]            + arch.cog_range[1])           / 2
-	var mid_wil: int  = (arch.wil_range[0]            + arch.wil_range[1])           / 2
-	var mid_vit: int  = (arch.vit_range[0]            + arch.vit_range[1])           / 2
-	var mid_phys: int = (arch.physical_armor_range[0] + arch.physical_armor_range[1]) / 2
-	var mid_mag: int  = (arch.magic_armor_range[0]    + arch.magic_armor_range[1])   / 2
-	var est_hp: int     = 10 + KindredLibrary.get_hp_bonus(arch.kindred) + mid_vit * 4
-	var est_energy: int = 5  + mid_vit
-	var est_speed: int  = 1  + KindredLibrary.get_speed_bonus(arch.kindred)
-
 	var stat_grid := GridContainer.new()
 	stat_grid.columns = 5
-	stat_grid.add_theme_constant_override("h_separation", 14)
-	stat_grid.add_theme_constant_override("v_separation", 5)
+	stat_grid.add_theme_constant_override("h_separation", 18)
+	stat_grid.add_theme_constant_override("v_separation", 12)
 	stats_col.add_child(stat_grid)
+
 	for pair: Array in [
-		["HP",    est_hp],   ["Nrg",   est_energy], ["Spd",   est_speed],
-		["P.Arm", mid_phys], ["M.Arm", mid_mag],
-		["STR",   mid_str],  ["DEX",   mid_dex],    ["COG",   mid_cog],
-		["WIL",   mid_wil],  ["VIT",   mid_vit],
+		["HP",    candidate.hp_max],
+		["Nrg",   candidate.energy_max],
+		["Spd",   candidate.speed],
+		["P.Arm", candidate.physical_armor],
+		["M.Arm", candidate.magic_armor],
+		["STR",   candidate.strength],
+		["DEX",   candidate.dexterity],
+		["COG",   candidate.cognition],
+		["WIL",   candidate.willpower],
+		["VIT",   candidate.vitality],
 	]:
-		_add_stat_chip(stat_grid, pair[0], pair[1])
+		var cell := VBoxContainer.new()
+		cell.add_theme_constant_override("separation", 0)
+		var slbl := Label.new()
+		slbl.text = pair[0]
+		slbl.add_theme_font_size_override("font_size", 11)
+		slbl.add_theme_color_override("font_color", Color(0.60, 0.58, 0.50))
+		cell.add_child(slbl)
+		var vlbl := Label.new()
+		vlbl.text = str(pair[1])
+		vlbl.add_theme_font_size_override("font_size", 26)
+		vlbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.72))
+		cell.add_child(vlbl)
+		stat_grid.add_child(cell)
 
 	body_hbox.add_child(_make_vsep())
 
@@ -564,7 +634,7 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	tabs.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	body_hbox.add_child(tabs)
 
-	# Abilities tab
+	# Abilities tab — flat list of entire ability_pool (no active/pool distinction)
 	var abil_tab := VBoxContainer.new()
 	abil_tab.name = "Abilities"
 	abil_tab.add_theme_constant_override("separation", 3)
@@ -581,37 +651,17 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	abil_vbox.add_theme_constant_override("separation", 3)
 	abil_scroll.add_child(abil_vbox)
 
-	var active_ids: Array[String] = arch.abilities.filter(func(id: String) -> bool: return id != "")
-	var pool_ids:   Array[String] = arch.pool_extras.duplicate()
-
-	if not active_ids.is_empty():
-		var sec_lbl := Label.new()
-		sec_lbl.text = "Active slots"
-		sec_lbl.add_theme_font_size_override("font_size", 10)
-		sec_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.40))
-		abil_vbox.add_child(sec_lbl)
-		for ab_id: String in active_ids:
-			abil_vbox.add_child(_hire_ability_row(ab_id, true))
-
-	if not pool_ids.is_empty():
-		if not active_ids.is_empty():
-			abil_vbox.add_child(_make_hsep())
-		var sec_lbl := Label.new()
-		sec_lbl.text = "Can learn"
-		sec_lbl.add_theme_font_size_override("font_size", 10)
-		sec_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.40))
-		abil_vbox.add_child(sec_lbl)
-		for ab_id: String in pool_ids:
-			abil_vbox.add_child(_hire_ability_row(ab_id, false))
-
-	if active_ids.is_empty() and pool_ids.is_empty():
+	if candidate.ability_pool.is_empty():
 		var empty := Label.new()
 		empty.text = "No abilities."
 		empty.add_theme_font_size_override("font_size", 12)
 		empty.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
 		abil_vbox.add_child(empty)
+	else:
+		for ab_id: String in candidate.ability_pool:
+			abil_vbox.add_child(_hire_ability_row(ab_id))
 
-	# Feats tab
+	# Feats tab — from the background this candidate actually rolled
 	var feat_tab := VBoxContainer.new()
 	feat_tab.name = "Feats"
 	feat_tab.add_theme_constant_override("separation", 3)
@@ -628,21 +678,20 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 	feat_vbox.add_theme_constant_override("separation", 3)
 	feat_scroll.add_child(feat_vbox)
 
-	if arch.backgrounds.is_empty():
+	if candidate.background == "":
 		var no_bg := Label.new()
-		no_bg.text = "No backgrounds — no feats available."
+		no_bg.text = "No background — no feats available."
 		no_bg.add_theme_font_size_override("font_size", 12)
 		no_bg.add_theme_color_override("font_color", Color(0.45, 0.43, 0.40))
 		feat_vbox.add_child(no_bg)
 	else:
+		var bg: BackgroundData = BackgroundLibrary.get_background(candidate.background)
 		var feat_ids: Array[String] = []
-		for bg_id: String in arch.backgrounds:
-			var bg: BackgroundData = BackgroundLibrary.get_background(bg_id)
-			if bg.starting_feat_id != "" and bg.starting_feat_id not in feat_ids:
-				feat_ids.append(bg.starting_feat_id)
-			for fid: String in bg.feat_pool:
-				if fid not in feat_ids:
-					feat_ids.append(fid)
+		if bg.starting_feat_id != "":
+			feat_ids.append(bg.starting_feat_id)
+		for fid: String in bg.feat_pool:
+			if fid not in feat_ids:
+				feat_ids.append(fid)
 		if feat_ids.is_empty():
 			var empty := Label.new()
 			empty.text = "No feats available."
@@ -655,15 +704,15 @@ func _build_hire_card(arch: ArchetypeData, card_index: int) -> Control:
 
 	return card
 
-func _hire_ability_row(ab_id: String, is_active: bool) -> Control:
+func _hire_ability_row(ab_id: String) -> Control:
 	var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
 	var tip: String = _hire_wrap_tooltip("%s\nCost: %d Energy  ·  %s\n\n%s" % [
 		ab.ability_name, ab.energy_cost, _hire_attr_name(ab.attribute), ab.description])
 
 	var pnl := PanelContainer.new()
 	var sbox := StyleBoxFlat.new()
-	sbox.bg_color      = Color(0.28, 0.22, 0.05, 0.70) if is_active else Color(0.12, 0.12, 0.15, 0.80)
-	sbox.border_color  = Color(0.42, 0.36, 0.12, 0.70) if is_active else Color(0.25, 0.25, 0.30, 0.60)
+	sbox.bg_color      = Color(0.12, 0.12, 0.15, 0.80)
+	sbox.border_color  = Color(0.25, 0.25, 0.30, 0.60)
 	sbox.border_width_bottom = 1
 	sbox.set_corner_radius_all(2)
 	pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -675,10 +724,9 @@ func _hire_ability_row(ab_id: String, is_active: bool) -> Control:
 	pnl.add_child(inner)
 
 	var name_lbl := Label.new()
-	name_lbl.text = ("● " if is_active else "") + ab.ability_name
+	name_lbl.text = ab.ability_name
 	name_lbl.add_theme_font_size_override("font_size", 12)
-	name_lbl.add_theme_color_override("font_color",
-		Color(0.95, 0.82, 0.20) if is_active else Color(0.90, 0.86, 0.72))
+	name_lbl.add_theme_color_override("font_color", Color(0.90, 0.86, 0.72))
 	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_lbl.tooltip_text = tip
 	inner.add_child(name_lbl)
@@ -778,22 +826,22 @@ static func _hire_attr_name(attr: int) -> String:
 		AbilityData.Attribute.VITALITY:  return "Vitality"
 		_: return "—"
 
-func _on_hire_pressed(arch: ArchetypeData, card_index: int) -> void:
-	if GameState.gold < arch.hire_cost:
+func _on_hire_pressed(candidate: CombatantData, card_index: int) -> void:
+	var hire_cost: int = ArchetypeLibrary.get_archetype(candidate.archetype_id).hire_cost
+	if GameState.gold < hire_cost:
 		return
-	var hire_cost: int = arch.hire_cost
 	GameState.gold -= hire_cost
 
-	var follower: CombatantData = ArchetypeLibrary.create(arch.archetype_id, "", true)
+	# Level-match to party leader; reset transient fields
 	if not GameState.party.is_empty():
-		follower.level = GameState.party[0].level
-	follower.xp = 0
-	follower.pending_level_ups = 0
-	follower.current_hp     = follower.hp_max
-	follower.current_energy = follower.energy_max
+		candidate.level = GameState.party[0].level
+	candidate.xp = 0
+	candidate.pending_level_ups = 0
+	candidate.current_hp     = candidate.hp_max
+	candidate.current_energy = candidate.energy_max
 
 	if GameState.bench.size() < GameState.BENCH_CAP:
-		GameState.add_to_bench(follower)
+		GameState.add_to_bench(candidate)
 		GameState.save()
 		_hire_roster.remove_at(card_index)
 		if _hire_card_idx >= _hire_roster.size() and _hire_card_idx > 0:
@@ -810,11 +858,11 @@ func _on_hire_pressed(arch: ArchetypeData, card_index: int) -> void:
 		var cap_index := card_index
 
 		var panel: Control = BenchSwapPanel.build_panel(
-			follower,
+			candidate,
 			"Cancel Hire",
 			func(bench_idx: int) -> void:
 				GameState.release_from_bench(bench_idx)
-				GameState.add_to_bench(follower)
+				GameState.add_to_bench(candidate)
 				GameState.save()
 				swap_layer.queue_free()
 				_hire_roster.remove_at(cap_index)
