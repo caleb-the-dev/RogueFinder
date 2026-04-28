@@ -9,6 +9,7 @@ extends CanvasLayer
 signal event_finished
 signal event_nav(dest: String)
 signal target_picked(target: CombatantData)
+signal bench_target_picked(index: int)
 
 ## --- UI Nodes ---
 
@@ -20,6 +21,7 @@ var _choices_container: VBoxContainer
 var _result_panel: VBoxContainer
 var _result_label: Label
 var _picker_centering: CenterContainer = null
+var _bench_picker_centering: Control = null
 
 ## --- Lifecycle ---
 
@@ -171,8 +173,39 @@ func _on_choice_pressed(choice: EventChoiceData) -> void:
 		picked_target = await target_picked
 		_hide_picker()
 
+	# Pre-scan for recruit_follower when bench is full; show compare panel
+	var bench_release_idx := -1
+	var pending_recruit: CombatantData = null
 	for effect: Dictionary in choice.effects:
-		dispatch_effect(effect, GameState.party, picked_target)
+		if effect.get("type", "") == "recruit_follower" and GameState.bench.size() >= GameState.BENCH_CAP:
+			# Build the follower now so the comparison shows the exact instance that will be added.
+			var arch_id: String = effect.get("archetype_id", "grunt")
+			var arch: ArchetypeData = ArchetypeLibrary.get_archetype(arch_id)
+			var name_val: String = effect.get("name", "")
+			if name_val.is_empty():
+				var pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
+				name_val = pool[randi() % pool.size()] if not pool.is_empty() else "Recruit"
+			pending_recruit = ArchetypeLibrary.create(arch_id, name_val, true)
+			if not GameState.party.is_empty():
+				pending_recruit.level = GameState.party[0].level
+			pending_recruit.xp = 0
+			pending_recruit.pending_level_ups = 0
+			pending_recruit.current_hp     = pending_recruit.hp_max
+			pending_recruit.current_energy = pending_recruit.energy_max
+
+			_choices_container.visible = false
+			_show_bench_picker(pending_recruit)
+			bench_release_idx = await bench_target_picked
+			_hide_bench_picker()
+			if bench_release_idx == -1:
+				# Player changed their mind — restore the choice list
+				pending_recruit = null
+				_choices_container.visible = true
+				return
+			break
+
+	for effect: Dictionary in choice.effects:
+		dispatch_effect(effect, GameState.party, picked_target, bench_release_idx, pending_recruit)
 
 	_result_label.text = choice.result_text
 	_choices_container.visible = false
@@ -228,6 +261,24 @@ func _hide_picker() -> void:
 		_picker_centering.queue_free()
 	_picker_centering = null
 
+## --- Bench Release Picker ---
+## Shown when a recruit_follower effect fires with a full bench.
+## Emits bench_target_picked(index) on swap, bench_target_picked(-1) on cancel.
+
+func _show_bench_picker(new_recruit: CombatantData) -> void:
+	_bench_picker_centering = BenchSwapPanel.build_panel(
+		new_recruit,
+		"Never Mind",
+		func(idx: int) -> void: bench_target_picked.emit(idx),
+		func() -> void:         bench_target_picked.emit(-1)
+	)
+	add_child(_bench_picker_centering)
+
+func _hide_bench_picker() -> void:
+	if _bench_picker_centering != null and is_instance_valid(_bench_picker_centering):
+		_bench_picker_centering.queue_free()
+	_bench_picker_centering = null
+
 func _on_continue_pressed() -> void:
 	GameState.save()
 	event_finished.emit()
@@ -236,6 +287,10 @@ func _on_continue_pressed() -> void:
 ## --- Static: Condition Evaluator ---
 
 static func evaluate_condition(condition: String, party: Array[CombatantData]) -> bool:
+	# Zero-argument conditions
+	if condition == "bench_not_full":
+		return GameState.bench.size() < GameState.BENCH_CAP
+
 	var parts := condition.split(":")
 	if parts.size() < 2:
 		push_warning("EventManager: unknown condition format '%s' — failing open" % condition)
@@ -331,7 +386,8 @@ static func resolve_target(target: String, party: Array[CombatantData]) -> Comba
 ##   instead of resolve_target. Keeps dispatch static + headless-testable.
 
 static func dispatch_effect(effect: Dictionary, party: Array[CombatantData],
-		forced_target: CombatantData = null) -> void:
+		forced_target: CombatantData = null, bench_release_idx: int = -1,
+		prebuilt_follower: CombatantData = null) -> void:
 	var effect_type: String = effect.get("type", "")
 	match effect_type:
 		"item_gain":
@@ -366,6 +422,30 @@ static func dispatch_effect(effect: Dictionary, party: Array[CombatantData],
 			var feat_id: String = effect.get("feat_id", "")
 			if not feat_id.is_empty():
 				GameState.grant_feat(party.find(t), feat_id)
+		"recruit_follower":
+			var follower: CombatantData
+			if prebuilt_follower != null:
+				# Reuse the instance shown in the comparison UI (stats are identical).
+				follower = prebuilt_follower
+			else:
+				var arch_id: String = effect.get("archetype_id", "grunt")
+				var arch: ArchetypeData = ArchetypeLibrary.get_archetype(arch_id)
+				var name_val: String = effect.get("name", "")
+				if name_val.is_empty():
+					var pool: Array[String] = KindredLibrary.get_name_pool(arch.kindred)
+					name_val = pool[randi() % pool.size()] if not pool.is_empty() else "Recruit"
+				follower = ArchetypeLibrary.create(arch_id, name_val, true)
+				if not GameState.party.is_empty():
+					follower.level = GameState.party[0].level
+				follower.xp = 0
+				follower.pending_level_ups = 0
+				follower.current_hp     = follower.hp_max
+				follower.current_energy = follower.energy_max
+			# Release a bench slot first if the player chose one via the compare panel
+			if GameState.bench.size() >= GameState.BENCH_CAP and bench_release_idx >= 0:
+				GameState.release_from_bench(bench_release_idx)
+			if not GameState.add_to_bench(follower):
+				push_warning("EventManager: recruit_follower — bench full, follower not added")
 		"open_vendor", "open_bench":
 			pass  # nav effects handled in _on_choice_pressed
 		_:

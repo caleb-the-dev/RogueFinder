@@ -26,7 +26,7 @@
 | `resources/ArchetypeData.gd` | Resource: one archetype's fixed data and stat ranges. Populated by ArchetypeLibrary from archetypes.csv. |
 | `scripts/globals/ArchetypeLibrary.gd` | CSV-native factory: loads `archetypes.csv`, exposes `create()` / `get_archetype()` / `all_archetypes()` / `reload()`. |
 | `scripts/globals/KindredLibrary.gd` | Static class: per-kindred mechanical data (speed bonus, HP bonus, stat_bonuses, starting_ability_id, ability_pool, name pool). CSV-sourced (`res://data/kindreds.csv`). Single source of truth — referenced by `CombatantData` computed properties and by `ArchetypeLibrary.create()` for auto-naming. |
-| `data/archetypes.csv` | Data source: 5 archetype rows. Single source of truth for all archetype stat ranges, ability pools, and backgrounds. |
+| `data/archetypes.csv` | Data source: 9+ archetype rows. Single source of truth for all archetype stat ranges, ability pools, and backgrounds. |
 
 ---
 
@@ -192,7 +192,7 @@ Design intent: grunt = physical tank, alchemist = magic-hardened, elite_guard = 
 - `id` — archetype key (e.g. `grunt`).
 - `class` → `unit_class: String` — fixed class label.
 - `kindred: String` — species/ancestry (fixed per archetype).
-- `backgrounds: Array[String]` — pipe-separated pool; one chosen at random in `create()`.
+- `backgrounds: Array[String]` — pipe-separated pool; one chosen at random in `create()`. **Some archetypes (e.g. `skeleton_warrior`, `rat_scrapper`) have an empty backgrounds column — `create()` guards this and sets `background = ""` rather than crashing.**
 - `abilities: Array[String]` — pipe-separated; 4 active slot ids.
 - `pool_extras: Array[String]` — pipe-separated; additional ids appended to `ability_pool` beyond the 4 slots. RogueFinder/archer_bandit/grunt have +4; alchemist/elite_guard empty.
 - Attribute ranges stored as `min|max` pipe pairs; `create()` samples via `randi_range()`.
@@ -247,6 +247,7 @@ static func reload() -> void                             # cache-clear for tests
 
 | Date | Change |
 |---|---|
+| 2026-04-28 | **ArchetypeLibrary.create() empty-backgrounds guard.** `randi_range(0, bgs.size()-1)` on an empty array caused a crash (manifested on `skeleton_warrior` and `rat_scrapper` archetypes, both of which have no backgrounds column value). Fixed: `data.background = bgs[...] if not bgs.is_empty() else ""`. These archetypes now work as followers; their `background` field will be `""` at runtime. |
 | 2026-04-27 | **Temperament system.** Added `temperament_id: String = ""` to Identity section (`@export`, serialized). Added `get_temperament_stat_bonus(stat)` method: `+1` for boosted_stat, `-1` for hindered_stat, `0` otherwise. Wired into `hp_max`, `energy_max`, `energy_regen`, `speed`, and `attack` as a sixth flat bonus source. Derived stat formulas for `physical_defense` / `magic_defense` are NOT affected (those use armor stat keys, not core attributes). Depends on `TemperamentLibrary`. |
 | 2026-04-27 | **Armor mod — runtime BUFF/DEBUFF lane.** Added two transient fields: `physical_armor_mod: int = 0` and `magic_armor_mod: int = 0`. Both are plain `var` (NOT `@export`) — never serialized; combat state is transient. `physical_defense` / `magic_defense` formulas extended to include the mod field as the sixth source (after base, equip, feat, class, kindred, bg). Snapshotted by `CombatManager3D._setup_units()` (and `_setup_test_room_units()`) in `_attr_snapshots` and restored in `_end_combat()` so mid-combat changes never bleed into the next combat. Powering `stone_guard` (Dwarf kindred — `+2 PHYSICAL_ARMOR_MOD`) and `divine_ward` (Warden pool — `+2 MAGIC_ARMOR_MOD`); both were no-ops before this session. |
 | 2026-04-27 | **Dual armor system.** Removed `armor_defense: int` and `defense` computed property. Added `physical_armor: int = 3` + `magic_armor: int = 2` (both serialized). Added `physical_defense` + `magic_defense` computed properties, each summing five bonus sources with stat keys `"physical_armor"` / `"magic_armor"`. `archetypes.csv` `armor_range` column replaced by `physical_armor_range` + `magic_armor_range`. `ArchetypeData` gained two new range fields. Dwarf kindred stat_bonuses renamed `armor_defense:2` → `physical_armor:2`. feats.csv + equipment.csv armor bonus keys renamed accordingly. `CharacterCreationManager._build_pc()` seeds `physical_armor=3, magic_armor=2`. `GameState` serialization updated; old saves migrate `armor_defense` value to both lanes. |

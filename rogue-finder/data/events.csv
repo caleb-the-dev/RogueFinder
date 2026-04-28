@@ -14,3 +14,5 @@ standing_stone,Standing Stone,"An ancient standing stone leans at the clearing's
 river_crossing,Broken Bridge,The bridge's center span has collapsed. The river runs chest-deep this time of year.,middle
 mass_grave,Fresh Mound,"The ground here has been recently turned. The mound is too long, too wide, too fresh. Not a burial. An erasure.",inner
 ember_idol,Ember Idol,A stone figure the size of a child stands in a clearing. Its carved eyes glow faintly. Not with fire. With something older.,inner
+wandering_sellsword,Wandering Sellsword,"A grizzled sellsword on the road flags you down. Her last contract ended badly; she's looking for new blood.",outer|middle
+skeletal_wanderer,Skeletal Wanderer,"An animate skeleton crouches at the edge of a ruined shrine, bones polished smooth by long years. It makes no move to attack — just watches.",middle|inner

@@ -18,7 +18,7 @@ dry_well,2,Move on.,,[],"Whatever's down there can stay there."
 abandoned_campfire,0,Search the pack.,,"[{""type"":""item_gain"",""item_id"":""healing_potion""}]","Tucked under a spare shirt: a healing potion. Whoever left it, left in a hurry."
 abandoned_campfire,1,Stay the night and wait.,,"[{""type"":""harm"",""target"":""random_party"",""value"":3}]",Nothing friendly shows up. In the scramble to leave before dawn one of your party takes a bad knock.
 abandoned_campfire,2,Leave it alone.,,[],"Not your fire, not your pack."
-stray_dog,0,Try to recruit it.,,[],"It warms to you quickly. Not the right time to bring it along."
+stray_dog,0,Take it with you.,,"[{""type"":""recruit_follower"",""archetype_id"":""rat_scrapper"",""name"":""Fang""}]","The little beast trots after you, surprisingly determined."
 stray_dog,1,Leave it be.,,[],"It follows a while longer, then cuts into the scrub and vanishes."
 road_patrol,0,Cite your service and walk through (Soldier).,background:soldier,[],"They stand aside without a word. You keep walking."
 road_patrol,1,Offer a potion as road tax (Healing Potion).,item:healing_potion,"[{""type"":""item_remove"",""item_id"":""healing_potion""}]",They accept it without comment and wave you through.
@@ -45,3 +45,8 @@ mass_grave,2,Leave quickly.,,[],"You double your pace and don't look back."
 ember_idol,0,Approach and sketch it (Gnome).,kindred:Gnome,"[{""type"":""threat_delta"",""value"":-10}]",You sketch it quickly. The proportions match no known god-form. That's useful.
 ember_idol,1,Look directly at it.,,"[{""type"":""harm"",""target"":""PC"",""value"":3}]",It looks back. A pressure behind your eyes lingers for days.
 ember_idol,2,Back away slowly.,,[],"You don't turn your back until the clearing is out of sight."
+wandering_sellsword,0,Take her on.,,"[{""type"":""recruit_follower"",""archetype_id"":""archer_bandit"",""name"":""Renn""}]","Renn slings her quiver over one shoulder and falls into step behind you."
+wandering_sellsword,1,Not interested.,,[],"She shrugs and turns back toward the road."
+skeletal_wanderer,0,Let it follow.,,"[{""type"":""recruit_follower"",""archetype_id"":""skeleton_warrior"",""name"":""Rattle""}]","The skeleton rises and falls into step at the back of the group without a word."
+skeletal_wanderer,1,Destroy it.,,"[{""type"":""harm"",""target"":""PC"",""value"":4}]","The bones resist more than they should. Your hand aches."
+skeletal_wanderer,2,Leave it be.,,[],"It watches until you are out of sight."
