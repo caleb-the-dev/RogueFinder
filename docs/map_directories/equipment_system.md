@@ -1,6 +1,6 @@
 # System: Equipment & Consumables
 
-> Last updated: 2026-04-29 (Slice 5 — 12 tiered accessory families; read-time feat aggregation via accessory.feat_id)
+> Last updated: 2026-04-29 (Slice 6 — 5 minor BUFF +1 consumables; 11 total consumables)
 
 ---
 
@@ -24,7 +24,7 @@ Gear comes from rewards — no archetype starts with equipment. Consumables are 
 | `scripts/globals/EquipmentLibrary.gd` | Static catalog — CSV-sourced (`res://data/equipment.csv`), `get_equipment()` / `all_equipment()` / `reload()` |
 | `data/equipment.csv` | Source of truth — 36 items (12 tiered weapons + 12 tiered armor + 12 tiered accessory); columns: `id, name, slot, rarity, stat_bonuses, granted_ability_ids, feat_id, description, notes` |
 | `scripts/globals/ConsumableLibrary.gd` | Static catalog — CSV-sourced (`res://data/consumables.csv`), `get_consumable()` / `all_consumables()` / `reload()` |
-| `data/consumables.csv` | Source of truth — 6 consumables; edit here |
+| `data/consumables.csv` | Source of truth — 11 consumables; edit here |
 
 ---
 
@@ -297,7 +297,7 @@ Only MEND, BUFF, and DEBUFF are valid — consumables never HARM, FORCE, or TRAV
 
 Static class. Internal storage: `const CONSUMABLES: Dictionary`.
 
-### Defined Consumables (6)
+### Defined Consumables (11)
 
 | ID | Name | Effect | Value |
 |----|------|--------|-------|
@@ -307,6 +307,11 @@ Static class. Internal storage: `const CONSUMABLES: Dictionary`.
 | `focus_brew` | Focus Brew | BUFF COG | +2 |
 | `swiftness_tonic` | Swiftness Tonic | BUFF DEX | +2 |
 | `antidote` | Antidote | MEND HP | 8 |
+| `steel_tonic` | Steel Tonic | BUFF STR | +1 |
+| `quicksilver_draught` | Quicksilver Draught | BUFF DEX | +1 |
+| `clarity_brew` | Clarity Brew | BUFF COG | +1 |
+| `iron_word` | Iron Word | BUFF WIL | +1 |
+| `heartroot_tonic` | Heartroot Tonic | BUFF VIT | +1 |
 
 ### Public API
 
@@ -364,6 +369,7 @@ Consumables apply immediately when used — no QTE, no energy cost. Handled in `
 
 | Date | Change |
 |---|---|
+| 2026-04-29 | **Consumable Pool Expansion — Slice 6.** 5 new BUFF +1 consumables added to `consumables.csv`: `steel_tonic` (STR), `quicksilver_draught` (DEX), `clarity_brew` (COG), `iron_word` (WIL), `heartroot_tonic` (VIT). Total: 11 consumables. No code changes — pure CSV. 6 new headless tests (5 item assertions + total count). |
 | 2026-04-29 | **Accessory Tier Families — Slice 5.** 3 placeholder COMMON accessory rows replaced by 12 tiered entries across 3 families × 4 rarities. Tier ladder: Common = X:1 · Rare = X:1 + background feat · Epic = X:1,Y:1 + feat · Legendary = X:1,Y:1,Z:2 + feat. Families: Ring of Valor (STR/VIT/WIL, feat=combat_training), Scholar's Amulet (COG/WIL/VIT, feat=analytical_mind), Iron Bracers (VIT/STR/DEX, feat=hearty_constitution). `get_feat_stat_bonus()` updated to include accessory.feat_id at read-time with dedup. No on_equip/on_unequip changes — feat is never written to feat_ids. 5 new headless tests (test_accessory_feat.gd). Total: 36 equipment items. |
 | 2026-04-29 | **Armor Tier Families — Slice 4.** 3 placeholder COMMON armor rows replaced by 12 tiered entries across 3 families × 4 rarities. Distribution rule: `physical_armor + magic_armor = 6` at Common. Tier ladder: Common = stats only · Rare = stats + base ability · Epic = stats +2/+2 + base ability · Legendary = Epic stats + upgraded ability. Families: Iron Plate (5/1, dexterity-1), Scale Mail (3/3), Mystic Robe (1/5). Armor abilities: `stone_guard`→`fortified_guard` (Iron Plate), `guard`→`enhanced_guard` (Scale Mail), `divine_ward`→`greater_ward` (Mystic Robe); `upgraded_id` wired on 3 existing base rows; 3 new upgraded abilities added to `abilities.csv`. No code changes — `on_equip`/`on_unequip` already handled armor. 7 new headless tests (`test_armor_equip.gd`). Totals: 66 abilities, 27 equipment items. |
 | 2026-04-28 | **Weapon Tier Families — Slice 3.** 3 placeholder COMMON weapons replaced by 12 tiered entries across 3 families (STR/DEX/COG) × 4 rarities. `abilities.csv` gained 6 weapon abilities: `blade_strike`→`heavy_blade_strike` (STR), `quick_draw`→`aimed_draw` (DEX), `staff_bolt`→`empowered_bolt` (COG). `CombatantData.on_equip()` / `on_unequip()` added — manage `granted_ability_ids` in `ability_pool` without touching active slots. All equip/unequip call sites in `PartySheet`, `BadurgaManager`, `GameState.release_from_bench()` updated. `EquipmentLibrary.granted_ability_ids` parse fixed (`.assign()` not typed `Array()` ctor). 7 new headless tests (`test_weapon_equip.gd`). |
