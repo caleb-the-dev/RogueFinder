@@ -54,6 +54,7 @@ var _abil_views_wide:   Array[bool]   = [false, false, false]  ## false=1-per-ro
 var _feat_views_wide:   Array[bool]   = [false, false, false]
 var _feat_sort_ascs:    Array[bool]   = [true, true, true]
 var _feat_search_texts: Array[String] = ["", "", ""]
+var _active_tab_indices: Array[int]  = [0, 0, 0]
 
 ## --- Inventory sort / search / view state ---
 var _inv_search_text:   String   = ""
@@ -613,8 +614,13 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	for i in range(attr_defs.size()):
 		var ad: Array = attr_defs[i]
 		var ax: float = tr_x + float(i) * acol_w
-		# Item bonus = equipment stat_bonuses + feat bonuses (including accessory feat).
-		var item_bonus: int = member.get_equip_bonus(ad[1]) + member.get_feat_stat_bonus(ad[1])
+		# Item bonus = equipment stat_bonuses + the accessory's feat (if newly granting one).
+		# Excludes background/class feats already in feat_ids — those aren't from items.
+		var acc_feat_bonus: int = 0
+		if member.accessory != null and member.accessory.feat_id != "" \
+				and not member.feat_ids.has(member.accessory.feat_id):
+			acc_feat_bonus = FeatLibrary.get_feat(member.accessory.feat_id).stat_bonuses.get(ad[1], 0)
+		var item_bonus: int = member.get_equip_bonus(ad[1]) + acc_feat_bonus
 		var base_val: int = ad[2]
 		var attr_color: Color
 		if is_dead:
@@ -903,6 +909,13 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 	if member.is_dead:
 		tabs.modulate = Color(0.55, 0.55, 0.55)
 	parent.add_child(tabs)
+	# Save tab state on change; restore after _rebuild() recreates the container.
+	var mi_tab: int = member_idx
+	tabs.tab_changed.connect(func(tab: int) -> void: _active_tab_indices[mi_tab] = tab)
+	# Defer the restore so children (the tab pages) exist before we switch.
+	var saved_tab: int = _active_tab_indices[member_idx]
+	if saved_tab > 0:
+		tabs.call_deferred("set_current_tab", saved_tab)
 
 	# --- Abilities tab: search + sort bar + draggable pool list ---
 	var abil_tab := VBoxContainer.new()
