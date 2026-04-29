@@ -17,6 +17,7 @@ var map_seed: int = 0  # 0 = not yet seeded
 var node_types: Dictionary = {}    # id -> String; populated by MapManager on first run, saved to disk
 var pending_node_type: String = "" # consumed by NodeStub on scene entry; NOT saved to disk
 var current_combat_node_id: String = "" # transient handoff to EndCombatScreen; NOT saved to disk
+var current_combat_ring: String = ""    # transient ring name ("inner"/"middle"/"outer"); NOT saved to disk
 var cleared_nodes: Array[String] = []  # nodes where player won and collected reward; saved to disk
 var threat_level: float = 0.0          # 0.0–1.0; rises on travel + entry; resets to 0 on BOSS defeat
 var used_event_ids: Array[String] = [] # event ids drawn this run; used by EventSelector for no-repeat logic; saved to disk
@@ -382,6 +383,7 @@ func reset() -> void:
 	node_types = {}
 	pending_node_type = ""
 	current_combat_node_id = ""
+	current_combat_ring = ""
 	cleared_nodes = []
 	threat_level = 0.0
 	used_event_ids = []

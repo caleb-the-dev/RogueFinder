@@ -188,7 +188,8 @@ None — CombatManager3D is the scene root. All other systems signal up to it.
 | `_setup_environment_tiles()` | Calls `_grid.build_walls()` and `_grid.set_cell_type()` for the hardcoded placeholder layout. Called from `_ready()` after `_setup_grid()`. |
 | `_pick_best_aoe_origin(enemy, ability)` | For AoE abilities: finds the origin cell that maximizes living player units hit (random tiebreak). RADIAL scans all cells in range; CONE/ARC/LINE try 4 cardinal roots. |
 | `_check_win_lose()` | All-dead check on either side; calls `_end_combat()` |
-| `_end_combat(player_won)` | Sets WIN/LOSE state; hides UI; restores `_attr_snapshots` for all player units. **Victory:** writes `current_hp`/`current_energy` back; PC revives at 1 HP if downed; calls `GameState.grant_xp(15)` (awards XP + increments level/pending if thresholds crossed); calls `GameState.save()` then `EndCombatScreen.show_victory()`. **Defeat:** marks PC `is_dead = true`; calls `_capture_run_summary()` + `GameState.save()` + `_show_run_end_overlay()`. |
+| `_calc_gold_reward()` | Computes gold drop for a player victory. Averages level of non-dead party members (matching `grant_xp()` skip logic). Converts `GameState.threat_level` (0.0–1.0) to 0–100 int. Calls `RewardGenerator.gold_drop(ring, threat_int, avg_level)`. |
+| `_end_combat(player_won)` | Sets WIN/LOSE state; hides UI; restores `_attr_snapshots` for all player units. **Victory:** writes `current_hp`/`current_energy` back; PC revives at 1 HP if downed; calls `GameState.grant_xp(15)`; calls `_calc_gold_reward()` and adds result to `GameState.gold`; calls `GameState.save()` then `EndCombatScreen.show_victory(items, gold)`. **Defeat:** marks PC `is_dead = true`; calls `_capture_run_summary()` + `GameState.save()` + `_show_run_end_overlay()`. |
 | `_capture_run_summary()` | Snapshots run stats into `GameState.run_summary` (pc_name, nodes_visited, nodes_cleared, threat_level, fallen_allies list) immediately before defeat transition |
 | `_show_run_end_overlay()` | Builds a full-screen "The RogueFinder has perished." CanvasLayer (layer 20); awaits 3 seconds then `change_scene_to_file("res://scenes/ui/RunSummaryScene.tscn")` |
 | `_toggle_debug_menu()` | T key: creates `_debug_menu` on first call (returns immediately, so menu appears); toggles visible on subsequent presses |
@@ -208,8 +209,10 @@ armor = defender.data.physical_defense  (if ability.damage_type == PHYSICAL)
       | defender.data.magic_defense     (if ability.damage_type == MAGIC)
       | 0                               (if ability.damage_type == NONE)
 
-dmg = max(1, round(dmg_multiplier * (effect.base_value + caster.data.attack)) - armor)
+dmg = max(1, round(dmg_multiplier * (effect.base_value + _get_attribute_value(caster, ability.attribute))) - armor)
 ```
+`_get_attribute_value(caster, ability.attribute)` calls `caster.data.effective_stat(stat)` — raw attribute + all 6 bonus sources (equip/feat/class/kindred/bg/temp). A STR ability scales with effective STR; COG with effective COG; etc. No separate attack stat.
+
 Armor is subtracted **after** the QTE roll multiplier, so armor is a flat post-roll mitigation.
 
 **MEND** (auto-resolve, full strength, no QTE):
@@ -231,8 +234,6 @@ slides target along ForceType direction for base_value tiles (or until wall/unit
 ```
 enters TRAVEL_DESTINATION mode immediately; player picks destination tile
 ```
-
-`caster.data.attack` = `5 + strength + equip_bonus`
 
 ---
 
@@ -292,6 +293,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-04-29 | **Vendor Slice 1 — gold reward on combat victory.** `_calc_gold_reward() -> int` added: averages non-dead party level, converts `threat_level` to 0–100 int, calls `RewardGenerator.gold_drop(ring, threat, avg_level)`. `_end_combat(true)` now calls it and adds result to `GameState.gold` before saving. `show_victory()` now takes `gold_amount: int` as second argument. Gold line displayed in `EndCombatScreen` above item cards using Hire Roster gold color. |
 | 2026-04-29 | **ATK stat removed.** `_run_harm_defenders` HARM formula changed from `base_value + caster.data.attack` to `base_value + _get_attribute_value(caster, ability.attribute)`. `_get_attribute_value` updated: now calls `unit.data.effective_stat(stat_key)` for each attribute instead of returning raw field value. `effective_stat()` is a new method on `CombatantData` (raw attribute + all 6 bonus sources — equip/feat/class/kindred/bg/temp). No separate "attack" stat exists. A STR ability scales with effective STR; a COG ability with effective COG; etc. `CombatantData.attack` property removed. |
 | 2026-04-28 | **Follower Slice 4 — recruit success path + recruit_test room.** `_initiate_recruit()` success branch replaced: instead of emitting + doing turn cleanup inline, it now does `await _on_recruit_succeeded(target)` so the entire async flow (rename + bench-full modal) runs before the turn resumes. Two internal signals added: `_recruit_rename_confirmed` (one-shot, emitted by confirm button/Enter key) + `_bench_full_resolved` (emitted by slot-release or Lose Recruit). New methods: `_on_recruit_succeeded(target)`, `_build_follower(source)`, `_show_recruit_rename_prompt(follower)`, `_show_bench_full_modal(follower)`, `_show_bench_add_label(world_pos)`. `_make_test_combatant()` gained optional `"hp"` dict key to override `current_hp`. New `"recruit_test"` scenario: `_recruit_test_player_defs()` + `_recruit_test_enemy_defs()` (3 Whelps at 1 HP, qte 0.05). `_unit_can_still_act()` Pathfinder check extended: also matches `archetype_id == "RogueFinder"` when `test_room_kind == "recruit_test"`. MapManager dev menu gained "⊕ Test Room — Recruit" button. 11 new headless tests (`test_recruit_success.gd/.tscn`). Bug fix: `GameState.swap_active_bench()` added (was called by BadurgaManager but missing from GameState). |
 | 2026-04-28 | **Follower Slice 3 — Recruit action.** `RECRUIT_ENERGY_COST: int = 3` constant added. `recruit_attempt_succeeded(target: Unit3D)` signal added (stub — Slice 4 connects it). `RECRUIT_TARGET_MODE` added to `PlayerMode` enum. New vars: `_recruit_caster: Unit3D`, `_recruit_bar: RecruitBar`, `_recruit_odds_layer: CanvasLayer`, `_recruit_odds_label_node: Label`. `_setup_ui()` instantiates `RecruitBar.tscn` + odds CanvasLayer (layer 6) + connects `_action_menu.recruit_selected`. `_handle_left_click()` dispatches to `_try_recruit_target()` in new mode. `_handle_unit_hover()` shows qualitative odds label over teal enemies. ESC in `RECRUIT_TARGET_MODE` calls `_cancel_recruit_targeting()` instead of full deselect. `_deselect()` clears `_recruit_caster` + hides odds label. `_unit_can_still_act()` returns true for Pathfinder when energy ≥ 3 and bench not full (prevents premature auto-end-turn). `_update_status()` extended for new mode. 8 new methods: `_on_recruit_selected`, `_try_recruit_target`, `_cancel_recruit_targeting`, `_initiate_recruit`, `_compute_recruit_base_chance`, `_recruit_odds_label`, `_qte_mult_to_recruit_mult`, `_show_recruit_fail_feedback`, `_show_recruit_odds`, `_clear_recruit_odds_label`. |

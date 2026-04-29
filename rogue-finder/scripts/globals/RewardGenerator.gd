@@ -6,6 +6,23 @@ extends RefCounted
 ## Equipment is selected with weighted rarity — Common 60% / Rare 25% / Epic 12% / Legendary 3%.
 ## Returns plain Dictionaries so EndCombatScreen has no resource dependencies.
 
+## --- Gold Drop Formula ---
+## gold_drop(ring, threat, party_avg_level) -> int
+## Base gold per ring reflects traversal depth — outer nodes are harder to reach.
+## THREAT_COEFF scales 0–100 threat (percentage × 100 of GameState.threat_level) → 0–15 bonus.
+## LEVEL_COEFF scales party avg level 1–20 → 3–60 bonus.
+## Final value is jittered ±10% so back-to-back combats don't feel identical.
+const RING_BASE: Dictionary = { "outer": 30, "middle": 20, "inner": 12 }
+const THREAT_COEFF: float   = 0.15
+const LEVEL_COEFF:  float   = 3.0
+
+## Returns gold earned on combat victory. threat is 0–100 (GameState.threat_level * 100 rounded).
+static func gold_drop(ring: String, threat: int, party_avg_level: int) -> int:
+	var base: float = float(RING_BASE.get(ring, RING_BASE["inner"]))
+	var raw:  float = (base + THREAT_COEFF * threat + LEVEL_COEFF * party_avg_level) \
+		* randf_range(0.9, 1.1)
+	return maxi(1, roundi(raw))
+
 ## Sum must equal 100. Scale these later by boss iteration / player level.
 const RARITY_WEIGHTS: Dictionary = {
 	EquipmentData.Rarity.COMMON:    60,

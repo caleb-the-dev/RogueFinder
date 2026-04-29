@@ -20,14 +20,14 @@ func _ready() -> void:
 
 ## --- Public API ---
 
-func show_victory(reward_items: Array) -> void:
+func show_victory(reward_items: Array, gold_amount: int = 0) -> void:
 	_reward_chosen = false
-	_build_victory_layout(reward_items)
+	_build_victory_layout(reward_items, gold_amount)
 	visible = true
 
 ## --- Victory Layout ---
 
-func _build_victory_layout(items: Array) -> void:
+func _build_victory_layout(items: Array, gold_amount: int) -> void:
 	var bg := _make_background()
 	add_child(bg)
 
@@ -40,20 +40,30 @@ func _build_victory_layout(items: Array) -> void:
 	header.position = Vector2(0.0, 110.0)
 	bg.add_child(header)
 
+	## Gold line — shown above item cards; uses Hire Roster gold color
+	var gold_lbl := Label.new()
+	gold_lbl.text = "+%d Gold  (Total: %d)" % [gold_amount, GameState.gold]
+	gold_lbl.add_theme_font_size_override("font_size", 22)
+	gold_lbl.add_theme_color_override("font_color", Color(0.90, 0.80, 0.30))
+	gold_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	gold_lbl.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	gold_lbl.position = Vector2(0.0, 195.0)
+	bg.add_child(gold_lbl)
+
 	var subtitle := Label.new()
 	subtitle.text                 = "Choose your reward:"
-	subtitle.add_theme_font_size_override("font_size", 22)
+	subtitle.add_theme_font_size_override("font_size", 18)
 	subtitle.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	subtitle.position = Vector2(0.0, 200.0)
+	subtitle.position = Vector2(0.0, 225.0)
 	bg.add_child(subtitle)
 
 	var card_w  := 270.0
 	var gap     := 30.0
 	var total_w := card_w * 3.0 + gap * 2.0
 	var start_x := (1152.0 - total_w) / 2.0
-	var card_y  := 250.0
+	var card_y  := 265.0
 
 	_reward_cards.clear()
 	for i in range(items.size()):
