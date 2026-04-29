@@ -398,9 +398,15 @@ func _build_draggable_item(parent: Control, item: Dictionary, compact: bool = fa
 	var tip: String
 	if is_equipment:
 		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
-		tip = "%s  [%s]\n%s\n%s\n\nDrag to a matching slot to equip." % [
+		var extra_lines: PackedStringArray = []
+		var ab_line: String = _granted_abilities_str(eq)
+		var feat_line: String = _feat_str(eq)
+		if ab_line != "": extra_lines.append(ab_line)
+		if feat_line != "": extra_lines.append(feat_line)
+		var extras: String = ("\n" + "\n".join(extra_lines)) if not extra_lines.is_empty() else ""
+		tip = "%s  [%s]\n%s%s\n%s\n\nDrag to a matching slot to equip." % [
 			item.get("name", "?"), _slot_name(eq.slot),
-			_bonuses_str(eq.stat_bonuses), eq.description
+			_bonuses_str(eq.stat_bonuses), extras, eq.description
 		]
 	else:
 		tip = "%s  [consumable]\n%s\n\nDrag to a CONSUMABLE slot to equip." % [
@@ -562,12 +568,14 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	var tr_w: float = half_w - 16.0   ## = 239
 	var tr_y: float = card_pos.y + 10.0
 
-	# Derived stats — 4 columns
+	# Derived stats — 6 columns
 	var derived_defs: Array = [
-		["Speed",    str(member.speed),            "Speed\nMovement cells per turn.\n= 1 + kindred bonus + gear"],
-		["P.Def",    str(member.physical_defense), "Physical Defense\nReduces physical HARM.\n= physical_armor + gear bonuses"],
-		["M.Def",    str(member.magic_defense),    "Magic Defense\nReduces magic HARM.\n= magic_armor + gear bonuses"],
-		["EN Max",   str(member.energy_max),       "Energy Max\nTotal energy pool.\n= 5 + VIT + gear bonuses"],
+		["Atk",    str(member.attack),            "Attack\nPhysical output per hit.\n= 5 + STR + gear + feats"],
+		["P.Def",  str(member.physical_defense),  "Physical Defense\nReduces physical HARM.\n= physical_armor + gear + feats"],
+		["M.Def",  str(member.magic_defense),     "Magic Defense\nReduces magic HARM.\n= magic_armor + gear + feats"],
+		["Speed",  str(member.speed),             "Speed\nMovement cells per turn.\n= 1 + kindred bonus"],
+		["EN Max", str(member.energy_max),        "Energy Max\nTotal energy pool.\n= 5 + VIT + gear + feats"],
+		["Regen",  str(member.energy_regen),      "Energy Regen\nEnergy restored per turn.\n= 2 + WIL + gear + feats"],
 	]
 	var dcol_w: float = tr_w / float(derived_defs.size())
 	for i in range(derived_defs.size()):
@@ -585,7 +593,7 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		var dval := Label.new()
 		dval.text = dd[1]
 		dval.position = Vector2(dx, tr_y + 11.0)
-		dval.add_theme_font_size_override("font_size", 14)
+		dval.add_theme_font_size_override("font_size", 13)
 		dval.add_theme_color_override("font_color",
 			Color(0.68, 0.84, 1.00).lerp(Color(0.40, 0.40, 0.40), 0.5 if is_dead else 0.0))
 		dval.tooltip_text = dd[2]
@@ -725,8 +733,14 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		elif eq != null:
 			slot_btn.text = eq.equipment_name
 			var bonus: String = _bonuses_str(eq.stat_bonuses)
-			slot_btn.tooltip_text = _wrap_tooltip("%s  [%s]\n%s\n%s\n\nRight-click to unequip." % [
-				eq.equipment_name, slot_label, bonus, eq.description])
+			var slot_extra_lines: PackedStringArray = []
+			var slot_ab: String = _granted_abilities_str(eq)
+			var slot_feat: String = _feat_str(eq)
+			if slot_ab != "": slot_extra_lines.append(slot_ab)
+			if slot_feat != "": slot_extra_lines.append(slot_feat)
+			var slot_extras: String = ("\n" + "\n".join(slot_extra_lines)) if not slot_extra_lines.is_empty() else ""
+			slot_btn.tooltip_text = _wrap_tooltip("%s  [%s]\n%s%s\n%s\n\nRight-click to unequip." % [
+				eq.equipment_name, slot_label, bonus, slot_extras, eq.description])
 			slot_btn.add_theme_color_override("font_color",
 				EquipmentData.RARITY_COLORS.get(eq.rarity, Color(0.85, 0.82, 0.72)))
 		else:
@@ -1258,6 +1272,10 @@ func _show_equip_compare(near_pos: Vector2, cur_eq: EquipmentData, incoming: Dic
 	_add_cmp_label(col_a, cur_eq.equipment_name, 14, Color(0.92, 0.88, 0.78))
 	_add_cmp_label(col_a, "%s  %s" % [_slot_name(cur_eq.slot), _bonuses_str(cur_eq.stat_bonuses)],
 		10, Color(0.65, 0.62, 0.50))
+	if _granted_abilities_str(cur_eq) != "":
+		_add_cmp_label(col_a, _granted_abilities_str(cur_eq), 10, Color(0.72, 0.85, 0.62))
+	if _feat_str(cur_eq) != "":
+		_add_cmp_label(col_a, _feat_str(cur_eq), 10, Color(0.82, 0.72, 0.95))
 	_add_cmp_desc(col_a, cur_eq.description)
 
 	# Right: incoming item from bag
@@ -1267,6 +1285,10 @@ func _show_equip_compare(near_pos: Vector2, cur_eq: EquipmentData, incoming: Dic
 		_add_cmp_label(col_b, in_eq.equipment_name, 14, Color(0.92, 0.88, 0.78))
 		_add_cmp_label(col_b, "%s  %s" % [_slot_name(in_eq.slot), _bonuses_str(in_eq.stat_bonuses)],
 			10, Color(0.65, 0.62, 0.50))
+		if _granted_abilities_str(in_eq) != "":
+			_add_cmp_label(col_b, _granted_abilities_str(in_eq), 10, Color(0.72, 0.85, 0.62))
+		if _feat_str(in_eq) != "":
+			_add_cmp_label(col_b, _feat_str(in_eq), 10, Color(0.82, 0.72, 0.95))
 		_add_cmp_desc(col_b, in_eq.description)
 	else:
 		_add_cmp_label(col_b, incoming.get("name", "?"), 14, Color(0.92, 0.88, 0.78))
@@ -1710,6 +1732,25 @@ func _bonuses_str(bonuses: Dictionary) -> String:
 		var val: int = bonuses[key]
 		parts.append("%s %s%d" % [_stat_abbr(key), "+" if val >= 0 else "", val])
 	return "  ".join(parts)
+
+## Returns a single-line feat description for tooltip use, or "" if no feat.
+func _feat_str(eq: EquipmentData) -> String:
+	if eq.feat_id == "":
+		return ""
+	var feat: FeatData = FeatLibrary.get_feat(eq.feat_id)
+	var bonus: String = _bonuses_str(feat.stat_bonuses)
+	if bonus != "":
+		return "[Feat] %s  (%s)" % [feat.name, bonus]
+	return "[Feat] %s" % feat.name
+
+## Returns a single-line granted-ability list for tooltip use, or "" if none.
+func _granted_abilities_str(eq: EquipmentData) -> String:
+	if eq.granted_ability_ids.is_empty():
+		return ""
+	var names: PackedStringArray = []
+	for aid: String in eq.granted_ability_ids:
+		names.append(AbilityLibrary.get_ability(aid).ability_name)
+	return "[Ability] %s" % ", ".join(names)
 
 func _stat_abbr(stat: String) -> String:
 	match stat:
