@@ -59,11 +59,12 @@ func test_get_upgraded_csv_row_no_upgraded_id() -> void:
 		"arcane_bolt has no upgrade; stub expected, got: '%s'" % result.ability_id)
 	print("  PASS test_get_upgraded_csv_row_no_upgraded_id")
 
-## Adding the upgraded_id column must not alter the row count.
+## 54 original + 6 weapon abilities (blade_strike, heavy_blade_strike, quick_draw,
+## aimed_draw, staff_bolt, empowered_bolt) added in Slice 3.
 func test_all_abilities_still_54() -> void:
 	var all: Array[AbilityData] = AbilityLibrary.all_abilities()
-	assert(all.size() == 54,
-		"expected 54 abilities, got %d" % all.size())
+	assert(all.size() == 60,
+		"expected 60 abilities (54 + 6 weapon), got %d" % all.size())
 	print("  PASS test_all_abilities_still_54")
 
 ## get_upgraded() must return non-null for any existing ability ID.

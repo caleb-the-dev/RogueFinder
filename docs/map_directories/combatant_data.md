@@ -103,6 +103,8 @@ These fields survive between combats. Seeded at creation by `ArchetypeLibrary.cr
 
 **Pool ⊇ Slots invariant:** every non-empty entry in `abilities` must also appear in `ability_pool`. True by construction in `create()` since both are seeded from the same archetype source.
 
+**Equipment pool lifecycle:** `on_equip(eq)` adds `eq.granted_ability_ids` to `ability_pool` (deduped). `on_unequip(eq)` removes them from `ability_pool` AND clears any active slot (`abilities[i] = ""`) that held the ability — unequipping a weapon always strips the granted ability completely. Both methods are no-ops for armor/accessories (empty `granted_ability_ids`). All equip/unequip call sites (`PartySheet`, `BadurgaManager`, `GameState.release_from_bench`) must call these before setting or clearing the slot field.
+
 ### Armor (base fields — set at creation, not serialized mid-combat)
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|

@@ -1,6 +1,6 @@
 # System: HUD System
 
-> Last updated: 2026-04-28 (Rarity Foundation — EndCombatScreen refactored to PanelContainer cards; RewardGenerator weighted rarity roll + rarity field in dicts)
+> Last updated: 2026-04-28 (Weapon Tier Families — EndCombatScreen reward cards now show stat bonuses + granted ability with tooltips; overlay button replaced by PanelContainer gui_input)
 
 ---
 
@@ -128,19 +128,34 @@ The defeat path bypasses this system entirely — `CombatManager3D._end_combat(f
 |--------|-----------|---------|
 | `show_victory` | `(reward_items: Array) -> void` | Displays VICTORY header + 3 reward buttons |
 
-Victory flow — reward cards are `PanelContainer` nodes (not raw `Button` nodes). Each card has a rarity-colored border and a colored item name `Label` above a grey description `Label`. An invisible flat `Button` covers the card for click detection. Clicking a card:
-1. Calls `GameState.add_to_inventory(item)` (direct call — `has_method()` guard kept for safety).
-2. Disables all reward buttons. Chosen card's name label gets `"✓ "` prefix; border widens to 3px.
-3. Appends `GameState.current_combat_node_id` to `GameState.cleared_nodes` (if not already present).
-4. If the defeated node's type is `"BOSS"`, resets `GameState.threat_level = 0.0`.
-5. Calls `GameState.save()`.
-6. Calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
+Victory flow — reward cards are `PanelContainer` nodes. Each card has a rarity-colored border and is clickable anywhere. Card layout (top → bottom):
+- **Item name** — rarity colored, 18px, centered.
+- **Stat bonuses row** (equipment only) — one chip label per bonus (`STR +1` etc.); gold for positive, red for negative. Hover shows tooltip: `"Strength +1 — drives attack damage"`.
+- **Grants: [Ability Name]** (equipment with `granted_ability_ids` only) — light blue label; hover shows: `"ability name\nATTR · cost Energy · range\ndescription"`.
+- **HSeparator.**
+- **Flavor description** — 12px, dimmed, autowrapped.
 
-There is no intermediate "Onward..." step — reward selection is the final input.
+**Click detection:** `PanelContainer.gui_input` (no overlay button). `_reward_chosen: bool` flag prevents double-fires. Clicking a card:
+1. Sets `_reward_chosen = true`.
+2. Calls `GameState.add_to_inventory(item)`.
+3. Chosen card name label gets `"✓ "` prefix; border widens to 3px.
+4. Appends `GameState.current_combat_node_id` to `GameState.cleared_nodes` (if not already present).
+5. If the defeated node's type is `"BOSS"`, resets `GameState.threat_level = 0.0`.
+6. Calls `GameState.save()`.
+7. Calls `_return_to_map()` → `change_scene_to_file("res://scenes/map/MapScene.tscn")`.
 
-Reward items come from `RewardGenerator.roll(3)` — plain Dicts with keys `id`, `name`, `description`, `item_type`, **`rarity`** (int — `EquipmentData.Rarity` value; COMMON=0 for consumables).
+There is no intermediate step — reward selection transitions the scene immediately.
 
-**Rarity color source:** `EquipmentData.RARITY_COLORS.get(rarity, RARITY_COLORS[0])`. Applied to card border and name label. Currently all items are COMMON (grey) until Slices 3–5 add higher-tier items.
+**Tooltip rendering:** Stat/ability labels use `MOUSE_FILTER_PASS` so hover events reach them despite the PanelContainer sitting below them. Card click propagates from child labels up to the PanelContainer's `gui_input` since labels don't consume click events.
+
+Reward items come from `RewardGenerator.roll(3)` — plain Dicts: `id`, `name`, `description`, `item_type`, **`rarity`** (int). Rarity color sourced from `EquipmentData.RARITY_COLORS`.
+
+### Recent Changes (EndCombatScreen)
+
+| Date | Change |
+|------|--------|
+| 2026-04-28 | **Weapon Tier Families — Slice 3.** Reward cards now show stat bonuses (chip labels, hover tooltip) + granted ability name (hover tooltip with cost/range/description). Invisible overlay `Button` removed; `PanelContainer.gui_input` used for click detection (allows child label tooltips to work). `_reward_buttons: Array[Button]` removed; `_reward_chosen: bool` flag prevents double-fires. Card min height 130→160, width 260→270. `_build_reward_card` signature simplified (no `h` param). Helper methods `_stat_abbrev`, `_stat_desc`, `_attr_abbrev` added. |
+| 2026-04-28 | **Rarity Foundation — Slice 1.** Reward cards refactored from plain `Button` to `PanelContainer` with rarity-colored border + colored name `Label`; invisible `Button` overlay added for click detection. `_reward_cards` + `_reward_buttons` arrays track cards. |
 
 ---
 

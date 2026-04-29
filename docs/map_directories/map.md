@@ -8,7 +8,7 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-28 (Upgraded Ability System — upgraded_id data layer, get_upgraded() helper) |
+| last_updated | 2026-04-28 (Weapon Tier Families Slice 3 — 12 tiered weapons, on_equip/on_unequip pool lifecycle, 6 weapon abilities) |
 | last_groomed | 2026-04-25 |
 | sessions_since_groom | 20 |
 | groom_trigger | 10 |
@@ -30,8 +30,8 @@
 | [Camera System](camera_system.md) | `camera_system.md` | ✅ Active (3D only) | Presentation |
 | [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
 | [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34) | Data |
-| [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (54 abilities — 22 base + 8 kindred natural attacks + 12 ancestry + 4 class definings + 8 class pool additions, CSV-sourced; upgraded_id data layer live) | Data |
-| [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (9 COMMON placeholder equipment CSV-sourced; 6 consumables CSV-sourced; rarity tier system live) | Data |
+| [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (60 abilities — 22 base + 8 kindred natural attacks + 12 ancestry + 4 class definings + 8 class pool + 6 weapon; upgraded_id live; weapon base→upgrade linked) | Data |
+| [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (18 equipment items: 12 tiered weapons (3 families × 4 rarities) + 3 COMMON armor + 3 COMMON accessory; 6 consumables; on_equip/on_unequip pool lifecycle live) | Data |
 | [Background System](background_system.md) | `background_system.md` | ✅ Active (6 backgrounds; owns feat lane; +1 single stat per background) | Data |
 | [Class Library](class_system.md) | `class_system.md` | ✅ Active (4 classes; 4 total stat points, max +2 per stat; 13-ability pool, 10-feat pool; wired into CombatantData) | Data |
 | [Temperament System](combatant_data.md) | `combatant_data.md` | ✅ Active (21 temperaments; +1 boosted / -1 hindered / Even neutral; randomly assigned at creation; hidden until post-creation) | Data |
@@ -192,12 +192,12 @@ rogue-finder/
 │   ├── events/
 │   │   └── EventManager.gd             ← CanvasLayer (layer 10) overlay; show/hide event UI; static condition evaluator + effect dispatcher
 │   ├── globals/
-│   │   ├── AbilityLibrary.gd           ← CSV-sourced (res://data/abilities.csv); 54 abilities (22 base + 8 kindred natural attacks + 12 ancestry + 4 class definings + 8 class pool)
+│   │   ├── AbilityLibrary.gd           ← CSV-sourced (res://data/abilities.csv); 60 abilities (22 base + 8 kindred natural attacks + 12 ancestry + 4 class definings + 8 class pool + 6 weapon)
 │   │   ├── ArchetypeLibrary.gd         ← CSV-sourced (res://data/archetypes.csv); 9 archetypes (RogueFinder + 4 original + 4 new kindred templates)
 │   │   ├── BackgroundLibrary.gd        ← CSV-sourced (res://data/backgrounds.csv)
 │   │   ├── ClassLibrary.gd             ← CSV-sourced (res://data/classes.csv); 4 classes
 │   │   ├── ConsumableLibrary.gd        ← CSV-sourced (res://data/consumables.csv); 6 consumables
-│   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 9 COMMON placeholder items; rarity + granted_ability_ids + feat_id columns added
+│   │   ├── EquipmentLibrary.gd         ← CSV-sourced (res://data/equipment.csv); 18 items (12 tiered weapons + 3 armor + 3 accessory); on_equip/on_unequip pool lifecycle
 │   │   ├── EventLibrary.gd             ← CSV-sourced (events.csv + event_choices.csv); 17 events (3 smoke + 14 authored)
 │   │   ├── EventSelector.gd            ← static picker; ring filter + exhaustion fallback; appends to GameState.used_event_ids
 │   │   ├── FeatLibrary.gd              ← CSV-sourced (res://data/feats.csv); 38 feats (20 class, 18 background); parses stat_bonuses
@@ -237,12 +237,12 @@ rogue-finder/
 │   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
 ├── data/
-│   ├── abilities.csv                   ← 54 abilities; effects as JSON arrays; read via res://data/
+│   ├── abilities.csv                   ← 60 abilities; effects as JSON arrays; upgraded_id column added; read via res://data/
 │   ├── archetypes.csv                  ← 9 archetypes; read via res://data/
 │   ├── backgrounds.csv                 ← 6 backgrounds; read via res://data/
 │   ├── classes.csv                     ← 4 classes; read via res://data/
 │   ├── consumables.csv                 ← 6 consumables; read via res://data/
-│   ├── equipment.csv                   ← 9 COMMON placeholder items (3 weapon/3 armor/3 accessory); rarity|granted_ability_ids|feat_id columns added (Slices 3–5 fill tiered families)
+│   ├── equipment.csv                   ← 18 items: 12 tiered weapons (3 STR/DEX/COG families × 4 rarities) + 3 COMMON armor + 3 COMMON accessory; Slices 4–5 add armor/accessory families
 │   ├── event_choices.csv               ← 53 choice rows; joined to events by event_id; effects as JSON arrays
 │   ├── events.csv                      ← 17 events (3 smoke + 14 authored); ring_eligibility as pipe list
 │   ├── feats.csv                       ← 38 feats (20 class, 18 background); kindred rows removed
@@ -269,7 +269,7 @@ rogue-finder/
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       ├── PauseMenuScene.tscn         ← minimal (root CanvasLayer + PauseMenuManager script); registered as PauseMenu autoload
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 41 test scripts + 28 scene runners. **test_upgraded_ability.gd/.tscn** added 2026-04-28 (6 assertions — upgraded_id default, get_upgraded() stub on no-upgrade, manual round-trip with cache injection, CSV row with no upgraded_id, 54-row count regression, never-null guarantee). test_rarity.gd/.tscn (11); test_pause_menu.gd/.tscn (12); test_hire_roster.gd/.tscn (6); test_recruit_success.gd/.tscn (11); test_recruit_math.gd/.tscn (13); test_armor_mod.gd/.tscn (11); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; `extends SceneTree` tests use `--script`.
+└── tests/                              ← 42 test scripts + 29 scene runners. **test_weapon_equip.gd/.tscn** added 2026-04-28 (7 assertions — on_equip adds to pool, dedup, on_unequip removes, slot preserves on unequip, CSV parse iron_sword, multiple ids round-trip, armor noop). **test_upgraded_ability.gd/.tscn** (6 — upgraded_id default, stub on no-upgrade, round-trip, CSV no upgrade, 60-row count, never-null). test_rarity.gd/.tscn (13, updated for tiered weapons); test_pause_menu.gd/.tscn (12); test_hire_roster.gd/.tscn (6); test_recruit_success.gd/.tscn (11); test_recruit_math.gd/.tscn (13); test_armor_mod.gd/.tscn (11); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; `extends SceneTree` tests use `--script`.
 ```
 
 ---
@@ -280,6 +280,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-28 | equipment.csv, abilities.csv, CombatantData, PartySheet, BadurgaManager, GameState, EquipmentLibrary, tests | **Weapon Tier Families (Slice 3).** 3 placeholder weapon rows replaced by 12 tiered entries: `iron_sword/long_sword/war_blade/warlords_cleaver` (STR), `crude_bow/hunters_bow/shadow_bow/longbow` (DEX), `gnarled_staff/focusing_wand/ley_staff/archmages_focus` (COG). Tier ladder: COMMON = ability only · RARE = ability + +1 primary stat · EPIC = Rare's stat + upgraded ability · LEGENDARY = Epic + extra. 6 new weapon abilities added to `abilities.csv`: `blade_strike`→`heavy_blade_strike` (STR PHYSICAL), `quick_draw`→`aimed_draw` (DEX PHYSICAL), `staff_bolt`→`empowered_bolt` (COG MAGIC); `upgraded_id` linked on base rows. `CombatantData.on_equip(eq)` + `on_unequip(eq)` added — manage `granted_ability_ids` in `ability_pool` (deduped; active slots preserved on unequip). All equip/unequip call sites updated. `EquipmentLibrary` pipe-parse fixed (`.assign()` not typed `Array()` ctor). 7 new headless tests. Totals: 60 abilities, 18 equipment items. |
 | 2026-04-28 | AbilityData, AbilityLibrary, abilities.csv, tests | **Upgraded Ability System (Rarity Slice 2).** `AbilityData` gained `upgraded_id: String = ""`. `AbilityLibrary._row_to_data()` parses the new CSV column; `get_upgraded(base_id)` static method added — returns the linked ability via `get_ability(.upgraded_id)`, or a blank stub (`ability_id == ""`) when `upgraded_id` is empty or unknown; never null. `abilities.csv` gained `upgraded_id` column between `damage_type` and `notes`; all 54 existing rows left empty — content wires in Slices 3–5. 6 headless tests (`test_upgraded_ability.gd/.tscn`). No UI or gameplay changes — data layer only. |
 | 2026-04-28 | EquipmentData, EquipmentLibrary, RewardGenerator, equipment.csv, PartySheet, EndCombatScreen, MapManager, GameState, BadurgaManager, tests | **Rarity Foundation (Slice 1).** `EquipmentData` gained `Rarity` enum (COMMON/RARE/EPIC/LEGENDARY), `rarity: int` field, `granted_ability_ids: Array[String]`, `feat_id: String`, `RARITY_COLORS` const (grey/green/blue/orange), `rarity_color()` helper. `EquipmentLibrary` parses the three new CSV columns; stub defaults to COMMON/[]/`""`. Old 20-item `equipment.csv` wiped; replaced with 9 placeholder COMMON items (3 weapon/3 armor/3 accessory). `RewardGenerator` gained `RARITY_WEIGHTS` const (60/25/12/3); `roll()` now buckets equipment by rarity, rolls tier first, picks from bucket, falls back to COMMON for empty tiers; consumables in COMMON bucket; `rarity` field added to all returned dicts. UI rarity color treatment: PartySheet (bag card border + name text + slot button text), EndCombatScreen (PanelContainer cards with colored border + name label — refactored from plain Button), MapManager Add Item modal (font color). All `add_to_inventory` call sites updated to include `rarity`. 11 new headless tests (`test_rarity.gd`); `test_equipment.gd` + `test_dual_armor.gd` + `test_event_manager.gd` updated for new item IDs. |
 | 2026-04-28 | PauseMenuManager, SettingsStore, GameState, tests | **Pause Menu — Pokédex log, recruited_archetypes, fullscreen dropped.** Full Pokédex-style Archetypes Log: shows all 9 archetypes with 4 status levels — UNKNOWN (dark silhouette "???"), ENCOUNTERED (seen in combat), FOLLOWER (ever recruited to bench), PLAYER (RogueFinder = "The Pathfinder"). `GameState.recruited_archetypes: Array[String]` + `record_recruited_archetype()` added with save/load/reset wiring; `add_to_bench()` is the canonical hookpoint for all follower paths. Confirm dialogs added to Main Menu + Exit Game. `☰` button + Party button overlap fixed (party shifted left). ESC fixed: was `PROCESS_MODE_WHEN_PAUSED` (couldn't receive initial ESC to open); changed to `PROCESS_MODE_ALWAYS`. CM3D ESC: only consumed when action taken — IDLE falls through to PauseMenu. Fullscreen toggle dropped entirely (CheckBox rendered as non-interactive text). `SettingsStore.fullscreen` field + `set_fullscreen()` removed. 12 headless tests (`test_pause_menu.gd/.tscn`). |

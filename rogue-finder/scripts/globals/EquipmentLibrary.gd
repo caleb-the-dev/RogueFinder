@@ -99,7 +99,7 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				eq.stat_bonuses = _parse_stat_bonuses(val, row_num)
 			"granted_ability_ids":
 				if val != "":
-					eq.granted_ability_ids = Array(val.split("|", false), TYPE_STRING, "", null)
+					eq.granted_ability_ids.assign(val.split("|", false))
 			"feat_id":
 				eq.feat_id = val
 			"description":

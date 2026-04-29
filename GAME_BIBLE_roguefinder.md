@@ -132,7 +132,7 @@ All gear — weapons, armor, and accessories — lives in a single `equipment.cs
 | `slot` | enum | WEAPON / ARMOR / ACCESSORY |
 | `stat_bonuses` | pipe-separated pairs | Stat deltas applied while equipped, e.g. `physical_armor:1\|dexterity:-1`. Supports any `CombatantData` stat key. |
 | `rarity` | enum | COMMON / RARE / EPIC / LEGENDARY. Governs drop weight (60/25/12/3) and UI color treatment. |
-| `granted_ability_ids` | pipe-separated strings | Ability IDs added to the bearer's `ability_pool` while equipped; removed on unequip (unless already slotted). |
+| `granted_ability_ids` | pipe-separated strings | Ability IDs added to the bearer's `ability_pool` while equipped; removed from pool AND cleared from active slots on unequip. |
 | `feat_id` | string | Feat granted while equipped (empty for most items; used by accessories and high-rarity gear). |
 | `description` | string | Player-facing flavor text |
 | `notes` | string | Dev-only notes for design/balance |
