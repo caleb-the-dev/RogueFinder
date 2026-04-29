@@ -1,6 +1,6 @@
 # System: Ability System
 
-> Last updated: 2026-04-27 (kindred expansion — 12 new abilities for 4 new kindreds; total 54)
+> Last updated: 2026-04-28 (Weapon Tier Families Slice 3 — 6 weapon abilities added; total 60)
 
 ---
 
@@ -134,7 +134,7 @@ One QTE fires per ability. The resulting `multiplier: float` is shared across al
 
 CSV-native lazy-loaded class. Same pattern as all other data libraries. `ABILITIES` const dict removed; data now sourced from `abilities.csv`. Effects column stores a JSON array — each object has `type` (string), `base_value` (int), and type-specific optional keys (`pool`, `stat`, `move`, `force`).
 
-### Defined Abilities (54)
+### Defined Abilities (60)
 
 Rows are grouped by origin; all share the same CSV format and `get_ability()` lookup.
 
@@ -208,6 +208,19 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 
 > Defining abilities must **not** appear in any class's `ability_pool` — they are auto-granted separately.
 
+#### Weapon Abilities (6) — granted via equipped weapons (Slice 3)
+
+Each base ability is linked to its upgrade via `upgraded_id`. These are pool-only abilities — they appear in the level-up pick screen when the weapon is equipped, and are removed from the pool on unequip (unless slotted).
+
+| ID | Name | Attr | Cost | Range | Effects | Upgraded Form |
+|----|------|------|------|-------|---------|---------------|
+| `blade_strike` | Blade Strike | STR | 2 | 1 | HARM 4 PHYSICAL | `heavy_blade_strike` |
+| `heavy_blade_strike` | Heavy Blade Strike | STR | 2 | 1 | HARM 7 PHYSICAL | — |
+| `quick_draw` | Quick Draw | DEX | 2 | 3 | HARM 4 PHYSICAL | `aimed_draw` |
+| `aimed_draw` | Aimed Draw | DEX | 2 | 3 | HARM 6 PHYSICAL | — |
+| `staff_bolt` | Staff Bolt | COG | 3 | 4 | HARM 4 MAGIC | `empowered_bolt` |
+| `empowered_bolt` | Empowered Bolt | COG | 3 | 4 | HARM 7 MAGIC | — |
+
 #### Class Pool Additions (6) — added this session for Prowler / Warden pools
 
 | ID | Name | Attr | Cost | Range | Targets | Effects |
@@ -268,6 +281,7 @@ static func get_upgraded(base_id: String) -> AbilityData
 
 | Date | Change |
 |---|---|
+| 2026-04-28 | **Weapon Tier Families (Slice 3).** 6 new weapon abilities added to `abilities.csv`: `blade_strike` (STR base, upgraded_id=heavy_blade_strike), `heavy_blade_strike` (STR upgraded), `quick_draw` (DEX base, upgraded_id=aimed_draw), `aimed_draw` (DEX upgraded), `staff_bolt` (COG base, upgraded_id=empowered_bolt), `empowered_bolt` (COG upgraded). All are HARM-only with the appropriate `DamageType` (PHYSICAL or MAGIC). Total abilities: 54→60. |
 | 2026-04-28 | **Upgraded ability data layer (Rarity Slice 2).** `AbilityData` gained `upgraded_id: String = ""`. `AbilityLibrary` parses the new CSV column and exposes `get_upgraded(base_id)` — returns the linked ability or a blank stub; never null. `abilities.csv` gained the `upgraded_id` column (all 54 rows empty — content comes in Slices 3–5). 6 headless tests added. |
 | 2026-04-27 | **Kindred expansion — 12 new abilities.** 4 new kindreds (Skeleton, Giant Rat, Spider, Dragon) each received a natural attack + 2 ancestry pool abilities. Total 42→54. Notable: `scatter` (cost 1) is intentionally the cheapest ability in the game. `venom_bite` is the first natural attack with a dual effect (HARM + DEBUFF). `claw_swipe` uses ARC shape at natural-attack cost 2. No code changes — data-only additions to `abilities.csv`. |
 | 2026-04-27 | **Armor mod — Attribute enum extended.** Added `PHYSICAL_ARMOR_MOD = 6` and `MAGIC_ARMOR_MOD = 7` to `AbilityData.Attribute`. `AbilityLibrary._ATTRIBUTE` gained the matching string keys so JSON `"stat":"PHYSICAL_ARMOR_MOD"` / `"MAGIC_ARMOR_MOD"` parse correctly in effects cells. `stone_guard` and `divine_ward` rows updated from the dead `"ARMOR_DEFENSE"` value to the new enum names — both are now mechanically active. No new abilities; no other ability rows changed. |

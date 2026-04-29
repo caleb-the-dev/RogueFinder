@@ -1,6 +1,6 @@
 # System: Equipment & Consumables
 
-> Last updated: 2026-04-28 (Rarity Foundation Slice 1 — rarity enum, RARITY_COLORS, weighted drop, 9 placeholder COMMON items replace old 20)
+> Last updated: 2026-04-28 (Slice 3 — 12 tiered weapon families; equip/unequip pool lifecycle)
 
 ---
 
@@ -78,17 +78,37 @@ Static class. Internal storage: `static var _cache: Dictionary` (lazy CSV parse)
 - `granted_ability_ids`: pipe-separated ability id strings, or empty
 - `feat_id`: single feat id string, or empty
 
-### Defined Items — Slice 1 Placeholders (9, all COMMON)
+### Defined Weapon Items — Tiered Families (12, Slice 3)
 
-Previous 20 items wiped. Slices 3–5 will replace these with tiered item families.
+3 placeholder COMMON weapons replaced by 3 full families × 4 rarities.
+Each weapon grants exactly 1 ability via `granted_ability_ids`.
 
-**WEAPON (3):**
+**STR family (melee):**
 
-| ID | Name | Bonuses |
-|----|------|---------|
-| `iron_sword` | Iron Sword | strength +1 |
-| `crude_bow` | Crude Bow | dexterity +1 |
-| `gnarled_staff` | Gnarled Staff | willpower +1 |
+| ID | Name | Rarity | Bonuses | Granted Ability |
+|----|------|--------|---------|-----------------|
+| `iron_sword` | Iron Sword | COMMON | — | `blade_strike` |
+| `long_sword` | Long Sword | RARE | strength +1 | `blade_strike` |
+| `war_blade` | War Blade | EPIC | strength +1 | `heavy_blade_strike` |
+| `warlords_cleaver` | Warlord's Cleaver | LEGENDARY | strength +2 | `heavy_blade_strike` |
+
+**DEX family (ranged):**
+
+| ID | Name | Rarity | Bonuses | Granted Ability |
+|----|------|--------|---------|-----------------|
+| `crude_bow` | Crude Bow | COMMON | — | `quick_draw` |
+| `hunters_bow` | Hunter's Bow | RARE | dexterity +1 | `quick_draw` |
+| `shadow_bow` | Shadow Bow | EPIC | dexterity +1 | `aimed_draw` |
+| `longbow` | Longbow | LEGENDARY | dexterity +2 | `aimed_draw` |
+
+**COG family (magic):**
+
+| ID | Name | Rarity | Bonuses | Granted Ability |
+|----|------|--------|---------|-----------------|
+| `gnarled_staff` | Gnarled Staff | COMMON | — | `staff_bolt` |
+| `focusing_wand` | Focusing Wand | RARE | cognition +1 | `staff_bolt` |
+| `ley_staff` | Ley Staff | EPIC | cognition +1 | `empowered_bolt` |
+| `archmages_focus` | Archmage's Focus | LEGENDARY | cognition +1, willpower +1 | `empowered_bolt` |
 
 **ARMOR (3):**
 
@@ -142,9 +162,9 @@ const RARITY_WEIGHTS: Dictionary = {
 
 `RewardGenerator.roll(n)` picks rarity first (weighted), then a random item from that tier. Falls back to COMMON if the rolled tier bucket is empty. Consumables slot into the COMMON bucket. The roll is fixed for now; boss-iteration + player-level scaling is deferred to Stage 2.
 
-### Tiered Item Families (Slices 3–5)
+### Tiered Item Families
 
-Each conceptual item (e.g. "iron sword") will have 4 variants as separate CSV rows with distinct IDs (e.g. `iron_sword_common`, `iron_sword_rare`, `iron_sword_epic`, `iron_sword_legendary`). Single row per variant, hand-authored. The 9 Slice 1 placeholders will be replaced.
+Each family has 4 variants as separate CSV rows (e.g. `iron_sword` COMMON → `long_sword` RARE → `war_blade` EPIC → `warlords_cleaver` LEGENDARY). Single row per variant. Weapon tier ladder: Common = ability only · Rare = ability + +1 primary stat · Epic = Rare's stat + upgraded ability · Legendary = Epic's stat + extra stat (either +1 more primary OR +1 secondary). Armor and accessory families (Slices 4–5) still placeholder.
 
 ### UI Color Surfaces
 
@@ -155,6 +175,29 @@ Applied across:
 - **Dev Menu "Add Item" modal** (MapManager) — button font color for equipment items
 
 Inventory dicts include `"rarity": int` from `RewardGenerator.roll()` and all `add_to_inventory()` call sites. Old saves without the key default to COMMON via `.get("rarity", 0)`.
+
+---
+
+## Weapon-Grants-Ability Lifecycle
+
+When a weapon with `granted_ability_ids` is equipped, its ability IDs are added to the combatant's `ability_pool` (deduped). When unequipped, they are removed — unless the ability is currently occupying one of the 4 active slots, in which case it stays in the pool until the player manually replaces it.
+
+**Two methods on `CombatantData`** (call at all equip/unequip sites):
+
+```gdscript
+## Adds granted ids to ability_pool (deduped). Safe on armor/accessories — no-op.
+func on_equip(eq: EquipmentData) -> void
+
+## Removes granted ids from ability_pool, unless the id is in active slots.
+func on_unequip(eq: EquipmentData) -> void
+```
+
+**Call sites that invoke these:**
+- `PartySheet._drop_to_slot()` / `_unequip_item()`
+- `BadurgaManager._pm_drop_to_slot()` / `_pm_unequip_item()` / `_deequip_to_bag()`
+- `GameState.release_from_bench()`
+
+Armor and accessories have empty `granted_ability_ids` so `on_equip`/`on_unequip` are no-ops for them — safe to call unconditionally.
 
 ---
 
@@ -246,6 +289,7 @@ Consumables apply immediately when used — no QTE, no energy cost. Handled in `
 
 | Date | Change |
 |---|---|
+| 2026-04-28 | **Weapon Tier Families — Slice 3.** 3 placeholder COMMON weapons replaced by 12 tiered entries across 3 families (STR/DEX/COG) × 4 rarities. `abilities.csv` gained 6 weapon abilities: `blade_strike`→`heavy_blade_strike` (STR), `quick_draw`→`aimed_draw` (DEX), `staff_bolt`→`empowered_bolt` (COG). `CombatantData.on_equip()` / `on_unequip()` added — manage `granted_ability_ids` in `ability_pool` without touching active slots. All equip/unequip call sites in `PartySheet`, `BadurgaManager`, `GameState.release_from_bench()` updated. `EquipmentLibrary.granted_ability_ids` parse fixed (`.assign()` not typed `Array()` ctor). 7 new headless tests (`test_weapon_equip.gd`). |
 | 2026-04-28 | **Rarity Foundation — Slice 1.** `EquipmentData`: `Rarity` enum + `rarity: int` field + `granted_ability_ids: Array[String]` + `feat_id: String` + `RARITY_COLORS: Dictionary` (int keys 0–3 → grey/green/blue/orange) + `rarity_color() -> Color` helper. `EquipmentLibrary`: parses `rarity`, `granted_ability_ids` (pipe-split), `feat_id` from CSV; stub defaults COMMON / [] / "". Old 20-item CSV wiped; 9 COMMON placeholders added. UI color treatment across PartySheet, EndCombatScreen, MapManager Add Item modal. All `add_to_inventory` call sites updated with `"rarity"`. |
 | 2026-04-27 | Kindred expansion (equipment 9→20; added war_hammer, twin_daggers, mages_staff, bone_club, hide_armor, silk_shroud, dragonscale_vest, swift_boots, scholars_ring, amulet_of_will, fang_necklace). First magic_armor equipment (`warded_robe`, `silk_shroud`, `dragonscale_vest`). `plate_cuirass` (heavy physical armor). |
 | 2026-04-27 | **Dual armor.** `leather_armor` / `chain_mail` stat_bonuses column renamed `armor_defense` → `physical_armor`. All armor stat keys updated. `warded_robe` added (first `magic_armor` equipment). |
