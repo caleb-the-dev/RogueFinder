@@ -1,6 +1,6 @@
 # System: Ability System
 
-> Last updated: 2026-04-28 (Weapon Tier Families Slice 3 — 6 weapon abilities added; total 60)
+> Last updated: 2026-04-29 (Armor Tier Families Slice 4 — 6 armor abilities added; total 66)
 
 ---
 
@@ -22,8 +22,8 @@ One QTE fires per ability. The resulting `multiplier` float is shared across eve
 |------|------|
 | `resources/AbilityData.gd` | Ability resource — identity, targeting shape, cost, effects array |
 | `resources/EffectData.gd` | Sub-resource — one effect within an ability |
-| `scripts/globals/AbilityLibrary.gd` | CSV-native loader — 42 abilities, `get_ability()` / `all_abilities()` / `reload()` API |
-| `data/abilities.csv` | Data source — 54 ability rows; `effects` column is a JSON array of effect objects |
+| `scripts/globals/AbilityLibrary.gd` | CSV-native loader — `get_ability()` / `all_abilities()` / `reload()` / `get_upgraded()` API |
+| `data/abilities.csv` | Data source — 66 ability rows; `effects` column is a JSON array of effect objects |
 
 ---
 
@@ -134,7 +134,7 @@ One QTE fires per ability. The resulting `multiplier: float` is shared across al
 
 CSV-native lazy-loaded class. Same pattern as all other data libraries. `ABILITIES` const dict removed; data now sourced from `abilities.csv`. Effects column stores a JSON array — each object has `type` (string), `base_value` (int), and type-specific optional keys (`pool`, `stat`, `move`, `force`).
 
-### Defined Abilities (60)
+### Defined Abilities (66)
 
 Rows are grouped by origin; all share the same CSV format and `get_ability()` lookup.
 
@@ -153,7 +153,7 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 | `counter` | Counter | WIL | 2 | 0 | Self | Any | BUFF 2 STR |
 | `taunt` | Taunt | WIL | 1 | 3 | Single | Enemy | DEBUFF 1 WIL |
 | `inspire` | Inspire | WIL | 3 | 3 | Single | Ally | BUFF 1 STR |
-| `guard` | Guard | VIT | 2 | 0 | Self | Any | BUFF 2 VIT |
+| `guard` | Guard | VIT | 2 | 0 | Self | Any | BUFF 2 VIT | `enhanced_guard` |
 | `sweep` | Sweep | STR | 3 | 1 | Arc | Enemy | HARM 4 HP |
 | `piercing_shot` | Piercing Shot | DEX | 3 | 4 | Line | Enemy | HARM 4 HP (passthrough) |
 | `fire_breath` | Fire Breath | COG | 4 | 1 | Cone | Enemy | HARM 5 HP |
@@ -187,7 +187,7 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 | `warcry` | Warcry | WIL | 2 | ARC DEBUFF 1 STR (range 1) |
 | `tinker_boost` | Tinker Boost | COG | 2 | BUFF 1 COG |
 | `quick_wit` | Quick Wit | COG | 2 | DEBUFF 1 COG (range 3) |
-| `stone_guard` | Stone Guard | STR | 2 | BUFF 2 PHYSICAL_ARMOR_MOD |
+| `stone_guard` | Stone Guard | STR | 2 | BUFF 2 PHYSICAL_ARMOR_MOD | `fortified_guard` |
 | `grim_endurance` | Grim Endurance | WIL | 2 | BUFF 2 VIT (Skeleton) |
 | `death_rattle` | Death Rattle | WIL | 2 | DEBUFF 1 WIL range 2 (Skeleton) |
 | `scatter` | Scatter | DEX | 1 | TRAVEL 2 FREE — cost 1, cheapest ability (Giant Rat) |
@@ -221,6 +221,19 @@ Each base ability is linked to its upgrade via `upgraded_id`. These are pool-onl
 | `staff_bolt` | Staff Bolt | COG | 3 | 4 | HARM 4 MAGIC | `empowered_bolt` |
 | `empowered_bolt` | Empowered Bolt | COG | 3 | 4 | HARM 7 MAGIC | — |
 
+#### Armor Abilities (6) — granted via equipped armor (Slice 4)
+
+3 base abilities (one per armor family) linked to 3 upgraded forms via `upgraded_id`. All are BUFF effects (never HARM). `guard` and `stone_guard` existed before this slice; their `upgraded_id` was wired here. `divine_ward` also existed; `greater_ward` is new.
+
+| ID | Name | Attr | Cost | Effects | Upgraded Form |
+|----|------|------|------|---------|---------------|
+| `stone_guard` | Stone Guard | STR | 2 | BUFF 2 PHYSICAL_ARMOR_MOD | `fortified_guard` |
+| `fortified_guard` | Fortified Guard | STR | 2 | BUFF 3 PHYSICAL_ARMOR_MOD | — |
+| `guard` | Guard | VIT | 2 | BUFF 2 VIT | `enhanced_guard` |
+| `enhanced_guard` | Enhanced Guard | VIT | 2 | BUFF 3 VIT | — |
+| `divine_ward` | Divine Ward | WIL | 2 | BUFF 2 MAGIC_ARMOR_MOD | `greater_ward` |
+| `greater_ward` | Greater Ward | WIL | 2 | BUFF 3 MAGIC_ARMOR_MOD | — |
+
 #### Class Pool Additions (6) — added this session for Prowler / Warden pools
 
 | ID | Name | Attr | Cost | Range | Targets | Effects |
@@ -229,7 +242,7 @@ Each base ability is linked to its upgrade via `upgraded_id`. These are pool-onl
 | `crippling_shot` | Crippling Shot | DEX | 3 | 3 | Enemy | HARM 3 HP + DEBUFF 1 DEX |
 | `vanishing_step` | Vanishing Step | DEX | 2 | 0 | Self | BUFF 2 DEX |
 | `lay_on_hands` | Lay on Hands | WIL | 3 | 1 | Ally | MEND 6 HP |
-| `divine_ward` | Divine Ward | WIL | 2 | 0 | Self | BUFF 2 MAGIC_ARMOR_MOD |
+| `divine_ward` | Divine Ward | WIL | 2 | 0 | Self | BUFF 2 MAGIC_ARMOR_MOD | `greater_ward` |
 | `rallying_shout` | Rallying Shout | WIL | 3 | 1 | Ally (Arc) | BUFF 1 STR |
 
 ### Public API
@@ -281,6 +294,7 @@ static func get_upgraded(base_id: String) -> AbilityData
 
 | Date | Change |
 |---|---|
+| 2026-04-29 | **Armor Tier Families (Slice 4).** 6 new armor abilities added: `stone_guard` / `divine_ward` / `guard` (3 existing) gained `upgraded_id` links to `fortified_guard` / `greater_ward` / `enhanced_guard` (3 new). Upgraded forms are plain BUFF abilities with `base_value` bumped by +1 (2→3). All are SELF-target BUFF, cost 2, NONE damage_type. Total abilities: 60→66. |
 | 2026-04-28 | **Weapon Tier Families (Slice 3).** 6 new weapon abilities added to `abilities.csv`: `blade_strike` (STR base, upgraded_id=heavy_blade_strike), `heavy_blade_strike` (STR upgraded), `quick_draw` (DEX base, upgraded_id=aimed_draw), `aimed_draw` (DEX upgraded), `staff_bolt` (COG base, upgraded_id=empowered_bolt), `empowered_bolt` (COG upgraded). All are HARM-only with the appropriate `DamageType` (PHYSICAL or MAGIC). Total abilities: 54→60. |
 | 2026-04-28 | **Upgraded ability data layer (Rarity Slice 2).** `AbilityData` gained `upgraded_id: String = ""`. `AbilityLibrary` parses the new CSV column and exposes `get_upgraded(base_id)` — returns the linked ability or a blank stub; never null. `abilities.csv` gained the `upgraded_id` column (all 54 rows empty — content comes in Slices 3–5). 6 headless tests added. |
 | 2026-04-27 | **Kindred expansion — 12 new abilities.** 4 new kindreds (Skeleton, Giant Rat, Spider, Dragon) each received a natural attack + 2 ancestry pool abilities. Total 42→54. Notable: `scatter` (cost 1) is intentionally the cheapest ability in the game. `venom_bite` is the first natural attack with a dual effect (HARM + DEBUFF). `claw_swipe` uses ARC shape at natural-attack cost 2. No code changes — data-only additions to `abilities.csv`. |

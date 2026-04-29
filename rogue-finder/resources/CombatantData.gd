@@ -186,14 +186,10 @@ var energy_regen: int:
 		+ get_class_stat_bonus("willpower") + get_kindred_stat_bonus("willpower") \
 		+ get_background_stat_bonus("willpower") + get_temperament_stat_bonus("willpower")
 
-## speed: movement range in grid cells — 1 + kindred bonus.
-## DEX removed from base formula; reserved for dodge/evasion (future).
-## Equipment/feat/class/kindred/bg dexterity bonuses still flow through until a dedicated speed slot exists.
+## speed: movement range in grid cells — base 1 + kindred bonus.
+## DEX is reserved for dodge/evasion (future). Nothing flows into speed through dex.
 var speed: int:
-	get: return 1 + KindredLibrary.get_speed_bonus(kindred) \
-		+ _equip_bonus("dexterity") + get_feat_stat_bonus("dexterity") \
-		+ get_class_stat_bonus("dexterity") + get_kindred_stat_bonus("dexterity") \
-		+ get_background_stat_bonus("dexterity") + get_temperament_stat_bonus("dexterity")
+	get: return 1 + KindredLibrary.get_speed_bonus(kindred)
 
 ## physical_defense: resists PHYSICAL HARM — base + transient mod + 5 pillar bonuses keyed "physical_armor".
 var physical_defense: int:

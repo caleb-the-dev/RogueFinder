@@ -21,7 +21,7 @@ func _make_grid() -> Grid3D:
 	add_child(g)
 	return g
 
-## dexterity drives speed: speed = 2 + dexterity. Pass desired speed; dex is inferred.
+## Creates a unit and overrides remaining_move with the desired value for movement tests.
 func _make_unit(speed: int = 6) -> Unit3D:
 	var u := Unit3D.new()
 	add_child(u)
@@ -29,15 +29,15 @@ func _make_unit(speed: int = 6) -> Unit3D:
 	d.character_name  = "Test"
 	d.archetype_id    = "grunt"
 	d.is_player_unit  = true
-	d.vitality        = 2  # hp_max = 20
+	d.vitality        = 2
 	d.willpower       = 2
 	d.strength        = 2
 	d.cognition       = 2
 	d.physical_armor  = 3
 	d.magic_armor     = 2
-	d.dexterity       = speed - 2  # speed = 2 + dexterity
 	d.qte_resolution  = 0.5
 	u.setup(d, Vector2i(0, 0))
+	u.remaining_move = speed  # seed desired budget directly; speed formula is independent
 	return u
 
 ## --- Tests ---

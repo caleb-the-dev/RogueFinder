@@ -11,9 +11,18 @@ gnarled_staff,Gnarled Staff,WEAPON,COMMON,,staff_bolt,,Carved from a storm-struc
 focusing_wand,Focusing Wand,WEAPON,RARE,cognition:1,staff_bolt,,A conductor for precise intent. Channels thought into impact.,COG family rare
 ley_staff,Ley Staff,WEAPON,EPIC,cognition:1,empowered_bolt,,Taps something old in the earth. The current runs deeper than most realize.,COG family epic
 archmages_focus,Archmage's Focus,WEAPON,LEGENDARY,cognition:1|willpower:1,empowered_bolt,,Shaped from years of accumulated intent. The staff barely contains it.,COG family legendary
-padded_armor,Padded Armor,ARMOR,COMMON,physical_armor:1,,,Layers of cloth and leather. Better than nothing.,placeholder — slice 4 will replace
-cloth_robe,Cloth Robe,ARMOR,COMMON,magic_armor:1,,,Loosely woven with protective thread.,placeholder — slice 4 will replace
-rough_hide,Rough Hide,ARMOR,COMMON,physical_armor:1|vitality:1,,,Scraped clean. Smells like old campfire.,placeholder — slice 4 will replace
+iron_plate,Iron Plate,ARMOR,COMMON,physical_armor:5|magic_armor:1,,,Heavy beaten iron — keeps blows out.,phys family common
+iron_plate_rare,Fitted Plate,ARMOR,RARE,physical_armor:5|magic_armor:1,stone_guard,,The same iron — this time the stance that comes with it matters.,phys family rare
+iron_plate_epic,War Plate,ARMOR,EPIC,physical_armor:7|magic_armor:3,stone_guard,,Forged thick and tested. Doesn't crack.,phys family epic
+iron_plate_legendary,Bulwark Plate,ARMOR,LEGENDARY,physical_armor:7|magic_armor:3,fortified_guard,,Passed down. The dents are from battles the previous owner survived.,phys family legendary
+scale_mail,Scale Mail,ARMOR,COMMON,physical_armor:3|magic_armor:3,,,Overlapping plates — distributes impact more than it stops it.,balanced family common
+scale_mail_rare,Reinforced Scales,ARMOR,RARE,physical_armor:3|magic_armor:3,guard,,The underlay has been tightened. You feel the difference.,balanced family rare
+scale_mail_epic,Dragon Scale,ARMOR,EPIC,physical_armor:5|magic_armor:5,guard,,Harvested and fitted. Resistant to almost everything by default.,balanced family epic
+scale_mail_legendary,Elder Scale Coat,ARMOR,LEGENDARY,physical_armor:5|magic_armor:5,enhanced_guard,,Each plate is a piece of something that outlasted most things.,balanced family legendary
+mystic_robe,Mystic Robe,ARMOR,COMMON,physical_armor:1|magic_armor:5,,,Woven with channeling thread. Won't stop a blade but stops most else.,magic family common
+mystic_robe_rare,Warded Mantle,ARMOR,RARE,physical_armor:1|magic_armor:5,divine_ward,,The ward is built in — you feel it the moment you put it on.,magic family rare
+mystic_robe_epic,Arcane Vestment,ARMOR,EPIC,physical_armor:3|magic_armor:7,divine_ward,,The kind of enchantment that takes years and a particular kind of patience.,magic family epic
+mystic_robe_legendary,Sorcerer's Mantle,ARMOR,LEGENDARY,physical_armor:3|magic_armor:7,greater_ward,,Whatever power it holds — it held it long before you found it.,magic family legendary
 copper_ring,Copper Ring,ACCESSORY,COMMON,vitality:1,,,Simple band. Warms with use.,placeholder — slice 5 will replace
 worn_amulet,Worn Amulet,ACCESSORY,COMMON,willpower:1,,,The inscription has faded. The weight remains.,placeholder — slice 5 will replace
 leather_bracers,Leather Bracers,ACCESSORY,COMMON,strength:1,,,Worn at the wrists. Keeps the swing tight.,placeholder — slice 5 will replace

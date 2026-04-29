@@ -87,7 +87,7 @@ Each character has three identity pillars — **Class**, **Kindred**, **Backgrou
 - **A Kindred** — the character's species or ancestry (e.g. Human, Dwarf, Gnome, Half-Orc, Griffin). Fixed at creation. Provides a stat bump, 1 starting *natural-attack* ability, and 2 ancestry abilities in the run-time ability pool.
 - **A Class** — defines role and is the dominant source of run-time growth. Provides exactly **4 stat points** (max +2 per stat, no negatives), 1 *defining* ability (unique per class, auto-granted at run start), 13 abilities in the run-time ability pool, and 10 feats in the run-time feat pool.
 - **A Background** — the character's past. Provides exactly **+1 to one stat**, 1 *defining* feat, and 2 background feats in the run-time feat pool. May occasionally branch event outcomes or gate content, but not frequently.
-- **A Temperament** — a hidden Pokémon-style personality modifier, randomly assigned at creation and revealed only after the character is built. Gives **+1 to one attribute and −1 to another** (or no effect for the neutral "Even" temperament). Affects derived stats (attack, HP, energy regen, speed) but not armor defenses. Temperament never changes during a run.
+- **A Temperament** — a hidden Pokémon-style personality modifier, randomly assigned at creation and revealed only after the character is built. Gives **+1 to one attribute and −1 to another** (or no effect for the neutral "Even" temperament). Affects derived stats (attack, HP, energy regen) but not speed or armor defenses. DEX is reserved for a future dodge/evasion system; temperament DEX bonuses are currently inert. Temperament never changes during a run.
 - **4 Equipment Slots:** Weapon, Armor, Consumable, Accessory
 - **A Level** (max level 20)
 - **Stats** — attributes (STR, DEX, COG, WIL, VIT, plus the defenses) all start at base **4** and are modified by pillar bumps. Class: 4 points total, max +2 per stat, no negatives. Background: exactly +1 to one stat. Kindred: variable (see KindredLibrary). Temperament: +1 one stat / −1 another (or neutral).
@@ -130,7 +130,7 @@ All gear — weapons, armor, and accessories — lives in a single `equipment.cs
 | `id` | string | Unique identifier |
 | `name` | string | Display name |
 | `slot` | enum | WEAPON / ARMOR / ACCESSORY |
-| `stat_bonuses` | pipe-separated pairs | Stat deltas applied while equipped, e.g. `physical_armor:1\|dexterity:-1`. Supports any `CombatantData` stat key. |
+| `stat_bonuses` | pipe-separated pairs | Stat deltas applied while equipped, e.g. `physical_armor:5\|magic_armor:1`. Supports any `CombatantData` stat key. Equipment stat bonuses are always positive — no tradeoffs/penalties on any item. |
 | `rarity` | enum | COMMON / RARE / EPIC / LEGENDARY. Governs drop weight (60/25/12/3) and UI color treatment. |
 | `granted_ability_ids` | pipe-separated strings | Ability IDs added to the bearer's `ability_pool` while equipped; removed from pool AND cleared from active slots on unequip. |
 | `feat_id` | string | Feat granted while equipped (empty for most items; used by accessories and high-rarity gear). |
@@ -140,7 +140,7 @@ All gear — weapons, armor, and accessories — lives in a single `equipment.cs
 Higher-rarity equipment grants upgraded ability versions. The link lives on `AbilityData`: the `upgraded_id: String` field (default `""`) points from a base ability to its enhanced form. Epic/Legendary items populate `granted_ability_ids` with the upgraded ID rather than the base.
 
 - Weapons boost attack stats (typically `strength`, `dexterity`, or `cognition`) via `stat_bonuses`.
-- Armor provides defense values (`physical_armor`, `magic_armor`) and may apply stat penalties (e.g. `dexterity:-2` on heavy plate).
+- Armor provides defense values (`physical_armor`, `magic_armor`) — **no stat penalties**. The three families (phys-heavy, balanced, magic-heavy) trade off against each other by which defense lane they boost, not by penalizing other stats.
 - A character can equip an "off-attribute" weapon — it's a build trade-off, not a trap.
 - Weapons do **not** carry a damage value or damage type — those live with the ability being used.
 - Armor pieces can skew to one defense lane (plate → high physical, low magic), provide a balanced split, or offer unusual profiles.

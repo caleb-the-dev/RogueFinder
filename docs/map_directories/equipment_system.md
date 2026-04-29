@@ -1,6 +1,6 @@
 # System: Equipment & Consumables
 
-> Last updated: 2026-04-28 (Slice 3 — 12 tiered weapon families; equip/unequip pool lifecycle)
+> Last updated: 2026-04-29 (Slice 4 — 12 tiered armor families; 3 new + 3 linked armor abilities)
 
 ---
 
@@ -22,7 +22,7 @@ Gear comes from rewards — no archetype starts with equipment. Consumables are 
 | `resources/EquipmentData.gd` | Resource — one equipment item |
 | `resources/ConsumableData.gd` | Resource — one consumable item |
 | `scripts/globals/EquipmentLibrary.gd` | Static catalog — CSV-sourced (`res://data/equipment.csv`), `get_equipment()` / `all_equipment()` / `reload()` |
-| `data/equipment.csv` | Source of truth — 18 items (12 tiered weapons + 3 COMMON armor + 3 COMMON accessory); columns: `id, name, slot, rarity, stat_bonuses, granted_ability_ids, feat_id, description, notes` |
+| `data/equipment.csv` | Source of truth — 27 items (12 tiered weapons + 12 tiered armor + 3 COMMON accessory); columns: `id, name, slot, rarity, stat_bonuses, granted_ability_ids, feat_id, description, notes` |
 | `scripts/globals/ConsumableLibrary.gd` | Static catalog — CSV-sourced (`res://data/consumables.csv`), `get_consumable()` / `all_consumables()` / `reload()` |
 | `data/consumables.csv` | Source of truth — 6 consumables; edit here |
 
@@ -110,13 +110,36 @@ Each weapon grants exactly 1 ability via `granted_ability_ids`.
 | `ley_staff` | Ley Staff | EPIC | cognition +1 | `empowered_bolt` |
 | `archmages_focus` | Archmage's Focus | LEGENDARY | cognition +1, willpower +1 | `empowered_bolt` |
 
-**ARMOR (3):**
+**ARMOR (12) — Tiered Families (Slice 4):**
 
-| ID | Name | Bonuses |
-|----|------|---------|
-| `padded_armor` | Padded Armor | physical_armor +1 |
-| `cloth_robe` | Cloth Robe | magic_armor +1 |
-| `rough_hide` | Rough Hide | physical_armor +1, vitality +1 |
+3 families × 4 rarities. **Distribution rule:** `physical_armor + magic_armor = 6` at Common (before the +2/+2 Epic bump). **Tier ladder:** Common = stats only · Rare = stats + base ability · Epic = stats+2/+2 + base ability · Legendary = stats+2/+2 + upgraded ability.
+
+**Iron Plate family (phys-heavy 5/1, dexterity:-1 tradeoff):**
+
+| ID | Name | Rarity | Bonuses | Granted Ability |
+|----|------|--------|---------|-----------------|
+| `iron_plate` | Iron Plate | COMMON | physical_armor+5, magic_armor+1, dexterity-1 | — |
+| `iron_plate_rare` | Fitted Plate | RARE | same | `stone_guard` |
+| `iron_plate_epic` | War Plate | EPIC | physical_armor+7, magic_armor+3, dexterity-1 | `stone_guard` |
+| `iron_plate_legendary` | Bulwark Plate | LEGENDARY | same as Epic | `fortified_guard` |
+
+**Scale Mail family (balanced 3/3):**
+
+| ID | Name | Rarity | Bonuses | Granted Ability |
+|----|------|--------|---------|-----------------|
+| `scale_mail` | Scale Mail | COMMON | physical_armor+3, magic_armor+3 | — |
+| `scale_mail_rare` | Reinforced Scales | RARE | same | `guard` |
+| `scale_mail_epic` | Dragon Scale | EPIC | physical_armor+5, magic_armor+5 | `guard` |
+| `scale_mail_legendary` | Elder Scale Coat | LEGENDARY | same as Epic | `enhanced_guard` |
+
+**Mystic Robe family (magic-heavy 1/5):**
+
+| ID | Name | Rarity | Bonuses | Granted Ability |
+|----|------|--------|---------|-----------------|
+| `mystic_robe` | Mystic Robe | COMMON | physical_armor+1, magic_armor+5 | — |
+| `mystic_robe_rare` | Warded Mantle | RARE | same | `divine_ward` |
+| `mystic_robe_epic` | Arcane Vestment | EPIC | physical_armor+3, magic_armor+7 | `divine_ward` |
+| `mystic_robe_legendary` | Sorcerer's Mantle | LEGENDARY | same as Epic | `greater_ward` |
 
 **ACCESSORY (3):**
 
@@ -131,7 +154,7 @@ Each weapon grants exactly 1 ability via `granted_ability_ids`.
 ```gdscript
 ## Returns a populated EquipmentData. Never returns null — falls back to a stub for unknown IDs.
 static func get_equipment(id: String) -> EquipmentData
-## Returns all 9 defined items. Use for reward pools.
+## Returns all 27 defined items (12 weapons + 12 armor + 3 accessory). Use for reward pools.
 static func all_equipment() -> Array[EquipmentData]
 ```
 
@@ -164,7 +187,7 @@ const RARITY_WEIGHTS: Dictionary = {
 
 ### Tiered Item Families
 
-Each family has 4 variants as separate CSV rows (e.g. `iron_sword` COMMON → `long_sword` RARE → `war_blade` EPIC → `warlords_cleaver` LEGENDARY). Single row per variant. Weapon tier ladder: Common = ability only · Rare = ability + +1 primary stat · Epic = Rare's stat + upgraded ability · Legendary = Epic's stat + extra stat (either +1 more primary OR +1 secondary). Armor and accessory families (Slices 4–5) still placeholder.
+Each family has 4 variants as separate CSV rows (e.g. `iron_sword` COMMON → `long_sword` RARE → `war_blade` EPIC → `warlords_cleaver` LEGENDARY). Single row per variant. Weapon tier ladder: Common = ability only · Rare = ability + +1 primary stat · Epic = Rare's stat + upgraded ability · Legendary = Epic's stat + extra stat (either +1 more primary OR +1 secondary). Accessory families (Slice 5) still placeholder.
 
 ### UI Color Surfaces
 
@@ -290,6 +313,7 @@ Consumables apply immediately when used — no QTE, no energy cost. Handled in `
 
 | Date | Change |
 |---|---|
+| 2026-04-29 | **Armor Tier Families — Slice 4.** 3 placeholder COMMON armor rows replaced by 12 tiered entries across 3 families × 4 rarities. Distribution rule: `physical_armor + magic_armor = 6` at Common. Tier ladder: Common = stats only · Rare = stats + base ability · Epic = stats +2/+2 + base ability · Legendary = Epic stats + upgraded ability. Families: Iron Plate (5/1, dexterity-1), Scale Mail (3/3), Mystic Robe (1/5). Armor abilities: `stone_guard`→`fortified_guard` (Iron Plate), `guard`→`enhanced_guard` (Scale Mail), `divine_ward`→`greater_ward` (Mystic Robe); `upgraded_id` wired on 3 existing base rows; 3 new upgraded abilities added to `abilities.csv`. No code changes — `on_equip`/`on_unequip` already handled armor. 7 new headless tests (`test_armor_equip.gd`). Totals: 66 abilities, 27 equipment items. |
 | 2026-04-28 | **Weapon Tier Families — Slice 3.** 3 placeholder COMMON weapons replaced by 12 tiered entries across 3 families (STR/DEX/COG) × 4 rarities. `abilities.csv` gained 6 weapon abilities: `blade_strike`→`heavy_blade_strike` (STR), `quick_draw`→`aimed_draw` (DEX), `staff_bolt`→`empowered_bolt` (COG). `CombatantData.on_equip()` / `on_unequip()` added — manage `granted_ability_ids` in `ability_pool` without touching active slots. All equip/unequip call sites in `PartySheet`, `BadurgaManager`, `GameState.release_from_bench()` updated. `EquipmentLibrary.granted_ability_ids` parse fixed (`.assign()` not typed `Array()` ctor). 7 new headless tests (`test_weapon_equip.gd`). |
 | 2026-04-28 | **Rarity Foundation — Slice 1.** `EquipmentData`: `Rarity` enum + `rarity: int` field + `granted_ability_ids: Array[String]` + `feat_id: String` + `RARITY_COLORS: Dictionary` (int keys 0–3 → grey/green/blue/orange) + `rarity_color() -> Color` helper. `EquipmentLibrary`: parses `rarity`, `granted_ability_ids` (pipe-split), `feat_id` from CSV; stub defaults COMMON / [] / "". Old 20-item CSV wiped; 9 COMMON placeholders added. UI color treatment across PartySheet, EndCombatScreen, MapManager Add Item modal. All `add_to_inventory` call sites updated with `"rarity"`. |
 | 2026-04-27 | Kindred expansion (equipment 9→20; added war_hammer, twin_daggers, mages_staff, bone_club, hide_armor, silk_shroud, dragonscale_vest, swift_boots, scholars_ring, amulet_of_will, fang_necklace). First magic_armor equipment (`warded_robe`, `silk_shroud`, `dragonscale_vest`). `plate_cuirass` (heavy physical armor). |
