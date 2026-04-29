@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-29 (Consumable Pool Expansion Slice 6 — 5 new BUFF +1 consumables; 11 total) |
+| last_updated | 2026-04-29 (ATK stat removed — no separate attack score; HARM scales from ability attribute via effective_stat()) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 24 |
+| sessions_since_groom | 25 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -29,7 +29,7 @@
 | [QTE System — QTEBar + RecruitBar](qte_system.md) | `qte_system.md` | ✅ Active (QTEBar: Slide dodge; RecruitBar: hold-and-release capture) | Core |
 | [Camera System](camera_system.md) | `camera_system.md` | ✅ Active (3D only) | Presentation |
 | [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
-| [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34; speed = 1 + kindred_bonus only — dex severed) | Data |
+| [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34; speed = 1 + kindred_bonus only — dex severed; no attack stat — effective_stat() drives HARM) | Data |
 | [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (66 abilities — 22 base + 8 kindred natural attacks + 12 ancestry + 4 class definings + 8 class pool + 6 weapon + 6 armor; upgraded_id live on weapon + armor base abilities) | Data |
 | [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (36 equipment items: 12 tiered weapons + 12 tiered armor + 12 tiered accessories (3 STR/COG/VIT families × 4 rarities); 11 consumables; on_equip/on_unequip pool lifecycle live; accessory feat_id applied at read-time via get_feat_stat_bonus()) | Data |
 | [Background System](background_system.md) | `background_system.md` | ✅ Active (6 backgrounds; owns feat lane; +1 single stat per background) | Data |
@@ -41,7 +41,7 @@
 | [Unit Data Resource](unit_data.md) | `unit_data.md` | ⚠️ Legacy (2D only) | Data |
 | [Game State](game_state.md) | `game_state.md` | ✅ Active (map traversal + save/load + party + bench + inventory + gold + XP/level-up) | Global |
 | [Map Scene](map_scene.md) | `map_scene.md` | ✅ Active (traversable + save/load) | World Map |
-| [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay layer 20; level-up pick overlay layer 25; 6-col derived stats; attribute green/red coloring from items; accessory feat in Feats tab; tooltips show feat+ability; tab state persists across equip) | Presentation |
+| [Party Sheet](party_sheet.md) | `party_sheet.md` | ✅ Active (interactive overlay layer 20; level-up pick overlay layer 25; 5-col derived stats (no ATK — removed); attribute green/red coloring from items; accessory feat in Feats tab; tooltips show feat+ability; tab state persists across equip) | Presentation |
 | [Event System](event_system.md) | `event_system.md` | ✅ Active — data + selector + overlay + dispatch + player_pick picker + 17 events (3 smoke + 14 authored) + recruit_follower effect (Slices 1/3/4/5/6/7) | Data / World Map |
 | BenchSwapPanel | `event_system.md` | ✅ Active — shared bench-swap comparison UI; used by EventManager (event recruit), CombatManager3D (combat recruit), and BadurgaManager (city hire bench-full path); static builder, no scene | Presentation |
 | Hire Roster (BadurgaManager) | `map_scene.md` | ✅ Active — full hire overlay in Badurga; seeded roster generation; one-at-a-time card with nav; ability/feat tabs with tooltips; gold economy | City |
@@ -280,6 +280,7 @@ Last 5 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-29 | CombatantData, CombatManager3D, PartySheet, StatPanel, GAME_BIBLE | **ATK stat removed.** `CombatantData.attack` computed property deleted — there is no separate attack stat. New method `effective_stat(stat: String) -> int` returns raw attribute + all bonus sources (equip/feat/class/kindred/bg/temp). HARM formula in `_run_harm_defenders` changed from `base_value + caster.data.attack` to `base_value + _get_attribute_value(caster, ability.attribute)`, where `_get_attribute_value` now calls `effective_stat()` for each attribute. A STR-based ability scales with effective STR; COG-based with effective COG; etc. PartySheet derived stats row drops from 6 to 5 cols (Atk removed). StatPanel drops the Attack derived stat line. GAME_BIBLE attack resolution section and damage formula updated to match. |
 | 2026-04-29 | consumables.csv, tests/test_consumables.gd | **Consumable Pool Expansion (Slice 6).** 5 new BUFF +1 consumables added to `consumables.csv`: `steel_tonic` (STR), `quicksilver_draught` (DEX), `clarity_brew` (COG), `iron_word` (WIL), `heartroot_tonic` (VIT). Total: 11 consumables. Pure CSV — no GDScript changes. `test_consumables.gd` gained 6 new assertions (5 item tests + count == 11). All 13 tests pass. |
 | 2026-04-29 | equipment.csv, CombatantData, PartySheet, tests | **Accessory Tier Families (Slice 5) + PartySheet equipment UI overhaul.** 3 COMMON placeholder accessories replaced by 12 tiered entries across 3 families × 4 rarities. Tier ladder: Common=X:1 · Rare=X:1+feat · Epic=X:1,Y:1+feat · Legendary=X:1,Y:1,Z:2+feat. Families: Ring of Valor (STR/VIT/WIL, feat=`combat_training`), Scholar's Amulet (COG/WIL/VIT, feat=`analytical_mind`), Iron Bracers (VIT/STR/DEX, feat=`hearty_constitution`). `get_feat_stat_bonus()` reads `accessory.feat_id` at compute-time with dedup. `CombatantData.get_equip_bonus()` added as public wrapper. PartySheet: (1) equipment tooltips now show `[Ability] <name>` and `[Feat] <name> (<stat>)` lines; (2) derived stat row expanded from 4 to 6 cols (added Atk + Regen); (3) attribute values show effective total (base+item_bonus) colored green/red when items modify them; (4) accessory feat appears in Feats tab as purple-bordered card; (5) `_active_tab_indices[3]` preserves per-member tab across equip/rebuild. `test_accessory_feat.gd` added (5 assertions); `test_rarity.gd` + `test_equipment.gd` + `test_armor_equip.gd` updated. Totals: 66 abilities, 36 equipment items. |
 | 2026-04-29 | equipment.csv, abilities.csv, tests | **Armor Tier Families (Slice 4).** 3 placeholder COMMON armor rows replaced by 12 tiered entries: `iron_plate` family (phys-heavy 5/1, dexterity-1 tradeoff), `scale_mail` family (balanced 3/3), `mystic_robe` family (magic-heavy 1/5). Tier ladder mirrors weapons: Common=stats · Rare=stats+ability · Epic=stats+2/+2+ability · Legendary=Epic+upgraded. 6 new abilities in `abilities.csv`: `stone_guard`/`guard`/`divine_ward` gained `upgraded_id` links; `fortified_guard`/`enhanced_guard`/`greater_ward` added as +1 bumped upgrades. No code changes — `on_equip`/`on_unequip` already covered armor. 7 new headless tests (`test_armor_equip.gd`). Totals: 66 abilities, 27 equipment items. |
