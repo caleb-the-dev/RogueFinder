@@ -233,10 +233,13 @@ func on_equip(eq: EquipmentData) -> void:
 		if aid != "" and not ability_pool.has(aid):
 			ability_pool.append(aid)
 
-## Removes each id in eq.granted_ability_ids from ability_pool, unless the id is currently
-## occupying one of the 4 active ability slots. Pool widening only — active slots are never
-## cleared here; a player who slotted a weapon ability keeps it until they manually swap it out.
+## Removes each id in eq.granted_ability_ids from ability_pool AND clears any active slot
+## that holds the ability. The player does not keep granted abilities after unequipping.
 func on_unequip(eq: EquipmentData) -> void:
 	for aid: String in eq.granted_ability_ids:
-		if aid != "" and not abilities.has(aid):
-			ability_pool.erase(aid)
+		if aid == "":
+			continue
+		for i in abilities.size():
+			if abilities[i] == aid:
+				abilities[i] = ""
+		ability_pool.erase(aid)
