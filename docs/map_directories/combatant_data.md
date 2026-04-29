@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-29 (Slice 5 — get_feat_stat_bonus() now includes accessory.feat_id at read-time with dedup)
+> Last updated: 2026-04-29 (ATK stat removed — no separate attack score; HARM now uses ability attribute via effective_stat())
 
 ---
 
@@ -60,7 +60,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 |-------|------|-------|
 | `background` | `String` | Background handle. Resolves to `BackgroundData` via `BackgroundLibrary.get_background()` / `get_background_by_name()`. Currently PascalCase display strings; snake_case-id migration deferred. See `background_system.md`. |
 | `unit_class` | `String` | Lowercase class ID (e.g. `"vanguard"`, `"arcanist"`, `"prowler"`, `"warden"`). Fixed per archetype. Stored as class ID (not display name) so `get_class_stat_bonus()` can look up via `ClassLibrary`. Display via `ClassLibrary.get_class_data(unit_class).display_name`. |
-| `temperament_id` | `String` | Pokémon-style personality modifier. Key into `TemperamentLibrary` (e.g. `"fierce"`, `"nimble"`, `"even"`). Randomly assigned at creation by `ArchetypeLibrary.create()` and `CharacterCreationManager._build_pc()` via `TemperamentLibrary.random_id(rng)`. **Hidden from the player before character creation** — visible afterward in StatPanel and PartySheet. Serialized to save; old saves default to `"even"` (neutral). **Mechanically active** — `get_temperament_stat_bonus(stat)` returns `+1` for the boosted stat, `-1` for the hindered stat, `0` otherwise; wired into attack, hp_max, energy_max, and energy_regen. **Not wired into speed** — DEX is fully reserved for future dodge/evasion; temperament DEX bonuses have no mechanical effect on speed. |
+| `temperament_id` | `String` | Pokémon-style personality modifier. Key into `TemperamentLibrary` (e.g. `"fierce"`, `"nimble"`, `"even"`). Randomly assigned at creation by `ArchetypeLibrary.create()` and `CharacterCreationManager._build_pc()` via `TemperamentLibrary.random_id(rng)`. **Hidden from the player before character creation** — visible afterward in StatPanel and PartySheet. Serialized to save; old saves default to `"even"` (neutral). **Mechanically active** — `get_temperament_stat_bonus(stat)` returns `+1` for the boosted stat, `-1` for the hindered stat, `0` otherwise; wired into hp_max, energy_max, energy_regen, and `effective_stat()` (which drives HARM damage). **Not wired into speed** — DEX is fully reserved for future dodge/evasion; temperament DEX bonuses have no mechanical effect on speed. |
 
 ### Portrait & Artwork
 | Field | Type | Notes |
@@ -72,7 +72,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 ### Core Attributes (range 1–10, **default 4**)
 | Field | Drives |
 |-------|--------|
-| `strength` | `attack` (5 + STR + kindred + bg + class + feat + equip) |
+| `strength` | Scales STR-based HARM abilities — contributes directly to damage via `effective_stat("strength")` |
 | `dexterity` | Fully reserved for future dodge/evasion. Has **zero** effect on any current derived stat, including speed. Equipment, feats, class, kindred, bg, and temperament DEX bonuses are mechanically inert until the dodge system is built. |
 | `cognition` | Reserved for ability cost scaling (TBD) |
 | `willpower` | `energy_regen` (2 + WIL + kindred + bg + class + feat + equip) |
@@ -137,7 +137,6 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 | `energy_max` | `5 + vitality + equip("vitality") + feat("vitality") + class("vitality") + kindred("vitality") + bg("vitality") + temp("vitality")` |
 | `energy_regen` | `2 + willpower + equip("willpower") + feat("willpower") + class("willpower") + kindred("willpower") + bg("willpower") + temp("willpower")` |
 | `speed` | `1 + KindredLibrary.get_speed_bonus(kindred)` — no dex passthrough; DEX reserved for future dodge/evasion |
-| `attack` | `5 + strength + equip("strength") + feat("strength") + class("strength") + kindred("strength") + bg("strength") + temp("strength")` |
 | `physical_defense` | `physical_armor + physical_armor_mod + equip("physical_armor") + feat("physical_armor") + class("physical_armor") + kindred("physical_armor") + bg("physical_armor")` |
 | `magic_defense` | `magic_armor + magic_armor_mod + equip("magic_armor") + feat("magic_armor") + class("magic_armor") + kindred("magic_armor") + bg("magic_armor")` |
 
@@ -150,6 +149,11 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 ### Stat Bonus Methods
 
 ```gdscript
+## Returns raw attribute + all bonus sources (equip + feat + class + kindred + bg + temperament).
+## Used by the HARM formula (via CombatManager3D._get_attribute_value) so ability scaling
+## reflects the same total the player sees on the sheet. No "attack" base offset — just the stat.
+func effective_stat(stat: String) -> int
+
 ## Public wrapper for _equip_bonus() — returns total stat_bonuses contribution from all three equipment slots.
 ## Used by PartySheet to compute item_bonus for attribute green/red coloring without accessing a private method.
 func get_equip_bonus(stat: String) -> int

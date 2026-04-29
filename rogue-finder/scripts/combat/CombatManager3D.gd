@@ -984,8 +984,8 @@ func _defender_roll_to_dmg_multiplier(roll: float) -> float:
 
 ## Processes HARM for each defender sequentially.
 ## Player-controlled defenders see the QTE bar; AI-controlled defenders instant-sim.
-## Damage formula: max(1, round(dmg_mult * (base_value + caster.attack)) - armor)
-## armor is physical_defense or magic_defense based on ability.damage_type; NONE = 0.
+## Damage formula: max(1, round(dmg_mult * (base_value + caster's effective attribute)) - armor)
+## Attribute is taken from ability.attribute; armor from physical_defense or magic_defense; NONE = 0.
 func _run_harm_defenders(caster: Unit3D, defenders: Array[Unit3D],
 		effect: EffectData, energy_cost: int, ability: AbilityData) -> void:
 	for defender: Unit3D in defenders:
@@ -1015,20 +1015,20 @@ func _run_harm_defenders(caster: Unit3D, defenders: Array[Unit3D],
 			AbilityData.DamageType.PHYSICAL: armor = defender.data.physical_defense
 			AbilityData.DamageType.MAGIC:    armor = defender.data.magic_defense
 			_:                               armor = 0
-		var dmg: int = maxi(1, roundi(dmg_mult * float(effect.base_value + caster.data.attack)) - armor)
+		var dmg: int = maxi(1, roundi(dmg_mult * float(effect.base_value + _get_attribute_value(caster, ability.attribute))) - armor)
 		defender.take_damage(dmg)
 		_check_win_lose()
 		if state == CombatState.WIN or state == CombatState.LOSE:
 			return
 
-## Returns the raw attribute int value from a unit's CombatantData.
+## Returns the effective attribute value (raw + all bonus sources) for HARM scaling.
 func _get_attribute_value(unit: Unit3D, attribute: AbilityData.Attribute) -> int:
 	match attribute:
-		AbilityData.Attribute.STRENGTH:  return unit.data.strength
-		AbilityData.Attribute.DEXTERITY: return unit.data.dexterity
-		AbilityData.Attribute.COGNITION: return unit.data.cognition
-		AbilityData.Attribute.VITALITY:  return unit.data.vitality
-		AbilityData.Attribute.WILLPOWER: return unit.data.willpower
+		AbilityData.Attribute.STRENGTH:  return unit.data.effective_stat("strength")
+		AbilityData.Attribute.DEXTERITY: return unit.data.effective_stat("dexterity")
+		AbilityData.Attribute.COGNITION: return unit.data.effective_stat("cognition")
+		AbilityData.Attribute.VITALITY:  return unit.data.effective_stat("vitality")
+		AbilityData.Attribute.WILLPOWER: return unit.data.effective_stat("willpower")
 		_: return 0
 
 ## Applies a +/- delta to one of a unit's core attributes (or transient armor mods).

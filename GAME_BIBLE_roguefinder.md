@@ -87,7 +87,7 @@ Each character has three identity pillars — **Class**, **Kindred**, **Backgrou
 - **A Kindred** — the character's species or ancestry (e.g. Human, Dwarf, Gnome, Half-Orc, Griffin). Fixed at creation. Provides a stat bump, 1 starting *natural-attack* ability, and 2 ancestry abilities in the run-time ability pool.
 - **A Class** — defines role and is the dominant source of run-time growth. Provides exactly **4 stat points** (max +2 per stat, no negatives), 1 *defining* ability (unique per class, auto-granted at run start), 13 abilities in the run-time ability pool, and 10 feats in the run-time feat pool.
 - **A Background** — the character's past. Provides exactly **+1 to one stat**, 1 *defining* feat, and 2 background feats in the run-time feat pool. May occasionally branch event outcomes or gate content, but not frequently.
-- **A Temperament** — a hidden Pokémon-style personality modifier, randomly assigned at creation and revealed only after the character is built. Gives **+1 to one attribute and −1 to another** (or no effect for the neutral "Even" temperament). Affects derived stats (attack, HP, energy regen) but not speed or armor defenses. DEX is reserved for a future dodge/evasion system; temperament DEX bonuses are currently inert. Temperament never changes during a run.
+- **A Temperament** — a hidden Pokémon-style personality modifier, randomly assigned at creation and revealed only after the character is built. Gives **+1 to one attribute and −1 to another** (or no effect for the neutral "Even" temperament). Affects HP, energy regen, and ability damage (via effective attribute scaling) but not speed or armor defenses. DEX is reserved for a future dodge/evasion system; temperament DEX bonuses are currently inert. Temperament never changes during a run.
 - **4 Equipment Slots:** Weapon, Armor, Consumable, Accessory
 - **A Level** (max level 20)
 - **Stats** — attributes (STR, DEX, COG, WIL, VIT, plus the defenses) all start at base **4** and are modified by pillar bumps. Class: 4 points total, max +2 per stat, no negatives. Background: exactly +1 to one stat. Kindred: variable (see KindredLibrary). Temperament: +1 one stat / −1 another (or neutral).
@@ -174,14 +174,14 @@ Abilities can transiently raise or lower either defense lane during combat via *
 
 #### Attack Resolution
 - Every offensive ability has a **damage type tag: Physical or Magic**
-- The tag determines which of the target's two defense stats is used in the Stat Delta comparison
-- The attacker side of the Stat Delta is the **attacker's attribute** (STR, DEX, or COG — specified by the ability) plus any weapon `attack_bonus` if the weapon boosts that attribute
-- Ability damage scale is owned by the ability's **Base Power** — it does not add to the attacker's stat
+- The tag determines which of the target's two defense stats resists the hit
+- **There is no separate "Attack" stat.** Damage is driven by the ability's own attribute (STR, DEX, or COG) applied directly to the caster's effective value of that stat (raw + equipment + feats + class + kindred + background + temperament bonuses)
+- Ability damage scale is owned by the ability's **Base Power** — it adds directly to the attacker's attribute value
 
 This yields three clean knobs per ability:
-1. **Attribute** — who's attacking (which character stat drives the Stat Delta)
-2. **Base Power** — how hard the hit lands before modifiers
-3. **Damage Type tag** — which defense stat the attack is compared against
+1. **Attribute** — which character stat (STR / DEX / COG) scales the damage
+2. **Base Power** — the ability's inherent damage before the scaling stat is added
+3. **Damage Type tag** — which defense stat the hit is compared against
 
 #### Attribute / Damage Type Decoupling
 Attribute and damage type are **independent**. The default alignment is intuitive:
@@ -284,9 +284,9 @@ The defender’s roll maps to a damage multiplier (inverted — a better dodge m
 | 0.75 (weak dodge) | 1.0× |
 | 0.25 (miss) | 1.25× |
 
-`Damage = max(1, round(dmg_mult × (base_power + attacker.attack)))`
+`Damage = max(1, round(dmg_mult × (base_power + attacker.effective_stat)) - defense)`
 
-Where `attacker.attack = 5 + strength + equipment_bonus`.
+Where `attacker.effective_stat` = the ability's attribute (e.g. STR for a STR ability) + all bonus sources (equipment, feats, class, kindred, background, temperament). No separate "Attack" stat exists — the attribute IS the attack score.
 
 **Design intent:** Skilled players can punch up against stronger enemies by consistently landing perfect dodges, while less mechanically-inclined players lean on superior builds and stat growth. The stat line sets the floor and ceiling; execution determines where you land within that range.
 
