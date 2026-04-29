@@ -22,7 +22,7 @@ Gear comes from rewards — no archetype starts with equipment. Consumables are 
 | `resources/EquipmentData.gd` | Resource — one equipment item |
 | `resources/ConsumableData.gd` | Resource — one consumable item |
 | `scripts/globals/EquipmentLibrary.gd` | Static catalog — CSV-sourced (`res://data/equipment.csv`), `get_equipment()` / `all_equipment()` / `reload()` |
-| `data/equipment.csv` | Source of truth — 9 COMMON placeholder items; columns: `id, name, slot, rarity, stat_bonuses, granted_ability_ids, feat_id, description, notes` |
+| `data/equipment.csv` | Source of truth — 18 items (12 tiered weapons + 3 COMMON armor + 3 COMMON accessory); columns: `id, name, slot, rarity, stat_bonuses, granted_ability_ids, feat_id, description, notes` |
 | `scripts/globals/ConsumableLibrary.gd` | Static catalog — CSV-sourced (`res://data/consumables.csv`), `get_consumable()` / `all_consumables()` / `reload()` |
 | `data/consumables.csv` | Source of truth — 6 consumables; edit here |
 
@@ -188,7 +188,8 @@ When a weapon with `granted_ability_ids` is equipped, its ability IDs are added 
 ## Adds granted ids to ability_pool (deduped). Safe on armor/accessories — no-op.
 func on_equip(eq: EquipmentData) -> void
 
-## Removes granted ids from ability_pool, unless the id is in active slots.
+## Removes granted ids from ability_pool AND clears any active slot holding the ability.
+## Unequipping always strips the granted ability — slots are NOT preserved.
 func on_unequip(eq: EquipmentData) -> void
 ```
 
