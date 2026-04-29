@@ -131,10 +131,13 @@ All gear — weapons, armor, and accessories — lives in a single `equipment.cs
 | `name` | string | Display name |
 | `slot` | enum | WEAPON / ARMOR / ACCESSORY |
 | `stat_bonuses` | pipe-separated pairs | Stat deltas applied while equipped, e.g. `physical_armor:1\|dexterity:-1`. Supports any `CombatantData` stat key. |
+| `rarity` | enum | COMMON / RARE / EPIC / LEGENDARY. Governs drop weight (60/25/12/3) and UI color treatment. |
+| `granted_ability_ids` | pipe-separated strings | Ability IDs added to the bearer's `ability_pool` while equipped; removed on unequip (unless already slotted). |
+| `feat_id` | string | Feat granted while equipped (empty for most items; used by accessories and high-rarity gear). |
 | `description` | string | Player-facing flavor text |
 | `notes` | string | Dev-only notes for design/balance |
 
-**Planned fields (not yet implemented):** `rarity`, `abilities_granted` (abilities added to the bearer's pool while equipped).
+Higher-rarity equipment grants upgraded ability versions. The link lives on `AbilityData`: the `upgraded_id: String` field (default `""`) points from a base ability to its enhanced form. Epic/Legendary items populate `granted_ability_ids` with the upgraded ID rather than the base.
 
 - Weapons boost attack stats (typically `strength`, `dexterity`, or `cognition`) via `stat_bonuses`.
 - Armor provides defense values (`physical_armor`, `magic_armor`) and may apply stat penalties (e.g. `dexterity:-2` on heavy plate).
