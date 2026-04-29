@@ -255,7 +255,8 @@ static func get_upgraded(base_id: String) -> AbilityData
 
 ## Key Patterns & Gotchas
 
-- **`get_ability()` never returns null** — safe to call without nil checks. Unknown IDs return a stub AbilityData with `damage_type = DamageType.NONE`.
+- **`get_ability()` never returns null** — safe to call without nil checks. Unknown IDs return a stub AbilityData with `ability_id = "unknown"` and `damage_type = DamageType.NONE`.
+- **`get_upgraded()` stub differs from `get_ability()` stub** — when `upgraded_id` is empty or unresolvable, `get_upgraded()` returns a blank `AbilityData.new()` with `ability_id == ""` (not `"unknown"`). Callers checking for "no upgrade available" should test `result.ability_id == ""`, not `result == null`.
 - **One QTE per ability, not per effect** — `AbilityData.effects` can contain multiple entries (e.g. `acid_splash`: HARM + DEBUFF); they all receive the same `multiplier`.
 - **CSV effects format** — each row's `effects` cell is a JSON array. String enum names (e.g. `"HARM"`, `"DEXTERITY"`) are mapped to int values by lookup tables inside `AbilityLibrary`. Edit the CSV in a spreadsheet; the `""` escaping of double quotes is standard CSV and handled transparently.
 - **`damage_type` lives on `AbilityData`, not `EffectData`** — it is ability-level, shared by all effects in the ability. This means an ability cannot mix PHYSICAL and MAGIC damage from a single cast.
