@@ -1382,14 +1382,21 @@ func _drop_to_slot(item: Dictionary, member_idx: int, slot_field: String) -> voi
 		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
 		match slot_field:
 			"weapon":
-				if member.weapon    != null: _push_equipment_to_bag(member.weapon)
+				if member.weapon    != null:
+					member.on_unequip(member.weapon)
+					_push_equipment_to_bag(member.weapon)
 				member.weapon    = eq
 			"armor":
-				if member.armor     != null: _push_equipment_to_bag(member.armor)
+				if member.armor     != null:
+					member.on_unequip(member.armor)
+					_push_equipment_to_bag(member.armor)
 				member.armor     = eq
 			"accessory":
-				if member.accessory != null: _push_equipment_to_bag(member.accessory)
+				if member.accessory != null:
+					member.on_unequip(member.accessory)
+					_push_equipment_to_bag(member.accessory)
 				member.accessory = eq
+		member.on_equip(eq)
 		GameState.remove_from_inventory(item["id"])
 	elif item.get("item_type", "") == "consumable":
 		if member.consumable != "": _push_consumable_to_bag(member.consumable)
@@ -1404,7 +1411,9 @@ func _unequip_item(member_idx: int, slot_field: String) -> void:
 		"weapon":    eq = member.weapon;    member.weapon    = null
 		"armor":     eq = member.armor;     member.armor     = null
 		"accessory": eq = member.accessory; member.accessory = null
-	if eq != null: _push_equipment_to_bag(eq)
+	if eq != null:
+		member.on_unequip(eq)
+		_push_equipment_to_bag(eq)
 	_rebuild()
 
 func _unequip_consumable(member_idx: int) -> void:

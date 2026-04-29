@@ -19,7 +19,7 @@ func _ready() -> void:
 	test_rough_hide_stacks_armor_and_vitality()
 	test_cloth_robe_magic_defense()
 	test_cloth_robe_does_not_affect_physical()
-	test_equipment_library_all_returns_nine_items()
+	test_equipment_library_all_returns_eighteen_items()
 	print("=== All equipment tests passed ===")
 
 ## --- EquipmentData.get_bonus() ---
@@ -131,11 +131,11 @@ func test_cloth_robe_does_not_affect_physical() -> void:
 
 ## --- EquipmentLibrary ---
 
-func test_equipment_library_all_returns_nine_items() -> void:
+func test_equipment_library_all_returns_eighteen_items() -> void:
 	var all: Array[EquipmentData] = EquipmentLibrary.all_equipment()
-	assert(all.size() == 9,
-		"all_equipment() should return 9 items, got %d" % all.size())
+	assert(all.size() == 18,
+		"all_equipment() should return 18 items (12 weapons + 3 armor + 3 accessory), got %d" % all.size())
 	for item in all:
 		assert(item != null, "all_equipment() should not contain null entries")
 		assert(item.equipment_id != "", "every item should have a non-empty equipment_id")
-	print("  PASS test_equipment_library_all_returns_nine_items")
+	print("  PASS test_equipment_library_all_returns_eighteen_items")

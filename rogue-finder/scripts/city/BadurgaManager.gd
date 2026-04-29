@@ -1512,12 +1512,15 @@ func _add_equipment_slots_2x2(parent: VBoxContainer, party_idx: int, member: Com
 
 func _deequip_to_bag(member: CombatantData) -> void:
 	if member.weapon != null:
+		member.on_unequip(member.weapon)
 		_pm_push_equip_to_bag(member.weapon)
 		member.weapon = null
 	if member.armor != null:
+		member.on_unequip(member.armor)
 		_pm_push_equip_to_bag(member.armor)
 		member.armor = null
 	if member.accessory != null:
+		member.on_unequip(member.accessory)
 		_pm_push_equip_to_bag(member.accessory)
 		member.accessory = null
 
@@ -1554,14 +1557,21 @@ func _pm_drop_to_slot(item: Dictionary, party_idx: int, slot_field: String) -> v
 		var eq: EquipmentData = EquipmentLibrary.get_equipment(item.get("id", ""))
 		match slot_field:
 			"weapon":
-				if member.weapon != null: _pm_push_equip_to_bag(member.weapon)
+				if member.weapon != null:
+					member.on_unequip(member.weapon)
+					_pm_push_equip_to_bag(member.weapon)
 				member.weapon = eq
 			"armor":
-				if member.armor != null: _pm_push_equip_to_bag(member.armor)
+				if member.armor != null:
+					member.on_unequip(member.armor)
+					_pm_push_equip_to_bag(member.armor)
 				member.armor = eq
 			"accessory":
-				if member.accessory != null: _pm_push_equip_to_bag(member.accessory)
+				if member.accessory != null:
+					member.on_unequip(member.accessory)
+					_pm_push_equip_to_bag(member.accessory)
 				member.accessory = eq
+		member.on_equip(eq)
 	GameState.remove_from_inventory(item.get("id", ""))
 	GameState.save()
 	_build_overlay()
@@ -1574,6 +1584,7 @@ func _pm_unequip_item(party_idx: int, slot_field: String) -> void:
 		"armor":     eq = member.armor;     member.armor     = null
 		"accessory": eq = member.accessory; member.accessory = null
 	if eq != null:
+		member.on_unequip(eq)
 		_pm_push_equip_to_bag(eq)
 	GameState.save()
 	_build_overlay()

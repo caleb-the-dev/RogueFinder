@@ -219,3 +219,24 @@ var attack: int:
 ## Keeps HUD.gd and Unit3D.gd working without changes — they duck-type on this field.
 var unit_name: String:
 	get: return character_name
+
+## ======================================================
+## --- Equipment Pool Lifecycle ---
+## Call on_equip before setting the slot; call on_unequip before clearing it.
+## These manage granted_ability_ids in ability_pool without touching active ability slots.
+## ======================================================
+
+## Adds each id in eq.granted_ability_ids to ability_pool (deduped). Safe to call on items
+## with empty granted_ability_ids (armor, accessories) — no-op in that case.
+func on_equip(eq: EquipmentData) -> void:
+	for aid: String in eq.granted_ability_ids:
+		if aid != "" and not ability_pool.has(aid):
+			ability_pool.append(aid)
+
+## Removes each id in eq.granted_ability_ids from ability_pool, unless the id is currently
+## occupying one of the 4 active ability slots. Pool widening only — active slots are never
+## cleared here; a player who slotted a weapon ability keeps it until they manually swap it out.
+func on_unequip(eq: EquipmentData) -> void:
+	for aid: String in eq.granted_ability_ids:
+		if aid != "" and not abilities.has(aid):
+			ability_pool.erase(aid)

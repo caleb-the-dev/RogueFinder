@@ -11,8 +11,10 @@ func _ready() -> void:
 	test_rarity_colors_all_four_tiers()
 	test_rarity_color_convenience_method()
 	test_equipment_library_parses_common_rarity()
-	test_equipment_library_all_items_common()
-	test_equipment_library_granted_ability_ids_default_empty()
+	test_equipment_library_armor_accessory_all_common()
+	test_equipment_library_weapon_tiers_exist()
+	test_equipment_library_weapons_have_granted_ability()
+	test_equipment_library_armor_accessory_granted_ability_ids_empty()
 	test_equipment_library_feat_id_default_empty()
 	test_reward_generator_weights_sum_to_100()
 	test_reward_generator_roll_includes_rarity_field()
@@ -59,22 +61,43 @@ func test_equipment_library_parses_common_rarity() -> void:
 		"iron_sword rarity should be COMMON, got %d" % eq.rarity)
 	print("  PASS test_equipment_library_parses_common_rarity")
 
-func test_equipment_library_all_items_common() -> void:
+func test_equipment_library_armor_accessory_all_common() -> void:
 	for eq: EquipmentData in EquipmentLibrary.all_equipment():
+		if eq.slot == EquipmentData.Slot.WEAPON:
+			continue
 		assert(eq.rarity == EquipmentData.Rarity.COMMON,
-			"all placeholder items should be COMMON; '%s' is %d" % [eq.equipment_id, eq.rarity])
-	print("  PASS test_equipment_library_all_items_common")
+			"armor/accessory placeholder '%s' should be COMMON, got %d" % [eq.equipment_id, eq.rarity])
+	print("  PASS test_equipment_library_armor_accessory_all_common")
 
-func test_equipment_library_granted_ability_ids_default_empty() -> void:
+func test_equipment_library_weapon_tiers_exist() -> void:
+	var rarities_seen: Dictionary = {}
 	for eq: EquipmentData in EquipmentLibrary.all_equipment():
+		if eq.slot == EquipmentData.Slot.WEAPON:
+			rarities_seen[eq.rarity] = true
+	for r in [EquipmentData.Rarity.COMMON, EquipmentData.Rarity.RARE,
+			  EquipmentData.Rarity.EPIC, EquipmentData.Rarity.LEGENDARY]:
+		assert(rarities_seen.has(r), "weapon pool must include rarity tier %d" % r)
+	print("  PASS test_equipment_library_weapon_tiers_exist")
+
+func test_equipment_library_weapons_have_granted_ability() -> void:
+	for eq: EquipmentData in EquipmentLibrary.all_equipment():
+		if eq.slot == EquipmentData.Slot.WEAPON:
+			assert(not eq.granted_ability_ids.is_empty(),
+				"weapon '%s' must have at least one granted_ability_id" % eq.equipment_id)
+	print("  PASS test_equipment_library_weapons_have_granted_ability")
+
+func test_equipment_library_armor_accessory_granted_ability_ids_empty() -> void:
+	for eq: EquipmentData in EquipmentLibrary.all_equipment():
+		if eq.slot == EquipmentData.Slot.WEAPON:
+			continue
 		assert(eq.granted_ability_ids.is_empty(),
-			"placeholder item '%s' should have empty granted_ability_ids" % eq.equipment_id)
-	print("  PASS test_equipment_library_granted_ability_ids_default_empty")
+			"armor/accessory '%s' should have empty granted_ability_ids" % eq.equipment_id)
+	print("  PASS test_equipment_library_armor_accessory_granted_ability_ids_empty")
 
 func test_equipment_library_feat_id_default_empty() -> void:
 	for eq: EquipmentData in EquipmentLibrary.all_equipment():
 		assert(eq.feat_id == "",
-			"placeholder item '%s' should have empty feat_id" % eq.equipment_id)
+			"item '%s' should have empty feat_id" % eq.equipment_id)
 	print("  PASS test_equipment_library_feat_id_default_empty")
 
 ## --- RewardGenerator ---
@@ -106,7 +129,8 @@ func test_reward_generator_roll_distinct_ids() -> void:
 		seen[cid] = true
 	print("  PASS test_reward_generator_roll_distinct_ids")
 
-## Smoke: with only COMMON items in CSV, 100 rolls should all return COMMON.
+## Smoke: COMMON weight is 60/100 so COMMON should dominate but not monopolize.
+## With tiered weapons now in the pool, RARE/EPIC/LEGENDARY results are expected.
 func test_weighted_roll_smoke_mostly_common() -> void:
 	seed(42)
 	var common_count: int = 0
@@ -117,7 +141,8 @@ func test_weighted_roll_smoke_mostly_common() -> void:
 			var r: int = items[0].get("rarity", -1)
 			if r == EquipmentData.Rarity.COMMON:
 				common_count += 1
-	# All CSV items are COMMON right now, so fallback always returns COMMON.
-	assert(common_count == total,
-		"with only COMMON items in CSV, all rolls should be COMMON; got %d/%d" % [common_count, total])
+	assert(common_count >= 40,
+		"with 60%% COMMON weight, at least 40/100 rolls should be COMMON; got %d" % common_count)
+	assert(common_count < 100,
+		"with tiered weapons in pool, not all 100 rolls should be COMMON; got %d" % common_count)
 	print("  PASS test_weighted_roll_smoke_mostly_common")

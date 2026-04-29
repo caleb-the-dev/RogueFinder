@@ -1,7 +1,16 @@
 id,name,slot,rarity,stat_bonuses,granted_ability_ids,feat_id,description,notes
-iron_sword,Iron Sword,WEAPON,COMMON,strength:1,,,A simple iron blade.Reliable if dull.,placeholder — slice 3 will replace
-crude_bow,Crude Bow,WEAPON,COMMON,dexterity:1,,,A rough wood bow. Gets the job done.,placeholder — slice 3 will replace
-gnarled_staff,Gnarled Staff,WEAPON,COMMON,willpower:1,,,Carved from a storm-struck oak.,placeholder — slice 3 will replace
+iron_sword,Iron Sword,WEAPON,COMMON,,blade_strike,,A plain iron blade. Free from rust. Free from flourish.,STR family common
+long_sword,Long Sword,WEAPON,RARE,strength:1,blade_strike,,Fuller-ground for leverage. The extra reach adds up.,STR family rare
+war_blade,War Blade,WEAPON,EPIC,strength:1,heavy_blade_strike,,Balanced for punishment. The edge never needed refinement.,STR family epic
+warlords_cleaver,Warlord's Cleaver,WEAPON,LEGENDARY,strength:2,heavy_blade_strike,,Hacked from a fallen champion's grip. Still hungry.,STR family legendary
+crude_bow,Crude Bow,WEAPON,COMMON,,quick_draw,,Bent ash and twine. Reliable if you don't expect much.,DEX family common
+hunters_bow,Hunter's Bow,WEAPON,RARE,dexterity:1,quick_draw,,Recurve cut for field work. The pull is smooth if you know what you're doing.,DEX family rare
+shadow_bow,Shadow Bow,WEAPON,EPIC,dexterity:1,aimed_draw,,Lacquered black. The string barely whispers.,DEX family epic
+longbow,Longbow,WEAPON,LEGENDARY,dexterity:2,aimed_draw,,The draw weight alone disqualifies most. The ones left don't miss.,DEX family legendary
+gnarled_staff,Gnarled Staff,WEAPON,COMMON,,staff_bolt,,Carved from a storm-struck oak. The knots don't matter; the current does.,COG family common
+focusing_wand,Focusing Wand,WEAPON,RARE,cognition:1,staff_bolt,,A conductor for precise intent. Channels thought into impact.,COG family rare
+ley_staff,Ley Staff,WEAPON,EPIC,cognition:1,empowered_bolt,,Taps something old in the earth. The current runs deeper than most realize.,COG family epic
+archmages_focus,Archmage's Focus,WEAPON,LEGENDARY,cognition:1|willpower:1,empowered_bolt,,Shaped from years of accumulated intent. The staff barely contains it.,COG family legendary
 padded_armor,Padded Armor,ARMOR,COMMON,physical_armor:1,,,Layers of cloth and leather. Better than nothing.,placeholder — slice 4 will replace
 cloth_robe,Cloth Robe,ARMOR,COMMON,magic_armor:1,,,Loosely woven with protective thread.,placeholder — slice 4 will replace
 rough_hide,Rough Hide,ARMOR,COMMON,physical_armor:1|vitality:1,,,Scraped clean. Smells like old campfire.,placeholder — slice 4 will replace
