@@ -8,6 +8,12 @@ func _initialize() -> void:
 	_test_all_archetype_consumables_resolve()
 	_test_mend_base_value()
 	_test_buff_target_stat()
+	_test_steel_tonic()
+	_test_quicksilver_draught()
+	_test_clarity_brew()
+	_test_iron_word()
+	_test_heartroot_tonic()
+	_test_total_count()
 	print("All ConsumableLibrary tests PASSED.")
 	quit()
 
@@ -70,3 +76,42 @@ func _test_buff_target_stat() -> void:
 		if c.effect_type == EffectData.EffectType.BUFF or c.effect_type == EffectData.EffectType.DEBUFF:
 			assert(c.target_stat != AbilityData.Attribute.NONE,
 				"BUFF/DEBUFF consumable '%s' must declare a target_stat (not NONE)" % c.consumable_id)
+
+func _test_steel_tonic() -> void:
+	var c: ConsumableData = ConsumableLibrary.get_consumable("steel_tonic")
+	assert(c.consumable_id == "steel_tonic", "ID mismatch: " + c.consumable_id)
+	assert(c.effect_type == EffectData.EffectType.BUFF, "steel_tonic should be BUFF")
+	assert(c.base_value == 1, "steel_tonic base_value should be 1, got " + str(c.base_value))
+	assert(c.target_stat == AbilityData.Attribute.STRENGTH, "steel_tonic target_stat should be STRENGTH")
+
+func _test_quicksilver_draught() -> void:
+	var c: ConsumableData = ConsumableLibrary.get_consumable("quicksilver_draught")
+	assert(c.consumable_id == "quicksilver_draught", "ID mismatch: " + c.consumable_id)
+	assert(c.effect_type == EffectData.EffectType.BUFF, "quicksilver_draught should be BUFF")
+	assert(c.base_value == 1, "quicksilver_draught base_value should be 1, got " + str(c.base_value))
+	assert(c.target_stat == AbilityData.Attribute.DEXTERITY, "quicksilver_draught target_stat should be DEXTERITY")
+
+func _test_clarity_brew() -> void:
+	var c: ConsumableData = ConsumableLibrary.get_consumable("clarity_brew")
+	assert(c.consumable_id == "clarity_brew", "ID mismatch: " + c.consumable_id)
+	assert(c.effect_type == EffectData.EffectType.BUFF, "clarity_brew should be BUFF")
+	assert(c.base_value == 1, "clarity_brew base_value should be 1, got " + str(c.base_value))
+	assert(c.target_stat == AbilityData.Attribute.COGNITION, "clarity_brew target_stat should be COGNITION")
+
+func _test_iron_word() -> void:
+	var c: ConsumableData = ConsumableLibrary.get_consumable("iron_word")
+	assert(c.consumable_id == "iron_word", "ID mismatch: " + c.consumable_id)
+	assert(c.effect_type == EffectData.EffectType.BUFF, "iron_word should be BUFF")
+	assert(c.base_value == 1, "iron_word base_value should be 1, got " + str(c.base_value))
+	assert(c.target_stat == AbilityData.Attribute.WILLPOWER, "iron_word target_stat should be WILLPOWER")
+
+func _test_heartroot_tonic() -> void:
+	var c: ConsumableData = ConsumableLibrary.get_consumable("heartroot_tonic")
+	assert(c.consumable_id == "heartroot_tonic", "ID mismatch: " + c.consumable_id)
+	assert(c.effect_type == EffectData.EffectType.BUFF, "heartroot_tonic should be BUFF")
+	assert(c.base_value == 1, "heartroot_tonic base_value should be 1, got " + str(c.base_value))
+	assert(c.target_stat == AbilityData.Attribute.VITALITY, "heartroot_tonic target_stat should be VITALITY")
+
+func _test_total_count() -> void:
+	assert(ConsumableLibrary.all_consumables().size() == 11,
+		"Expected 11 consumables, got " + str(ConsumableLibrary.all_consumables().size()))

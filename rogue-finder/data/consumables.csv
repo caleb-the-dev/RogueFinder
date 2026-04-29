@@ -5,3 +5,8 @@ rage_draught,Rage Draught,BUFF,3,STRENGTH,Burns going down. Everything you hit a
 focus_brew,Focus Brew,BUFF,2,COGNITION,Bitter and cold — your mind sharpens like a blade.,
 swiftness_tonic,Swiftness Tonic,BUFF,2,DEXTERITY,Your feet find angles you didn't know you had.,
 antidote,Antidote,MEND,8,,Clears the worst of whatever's in your blood.,
+steel_tonic,Steel Tonic,BUFF,1,STRENGTH,Tastes like iron filings. Your grip tightens.,
+quicksilver_draught,Quicksilver Draught,BUFF,1,DEXTERITY,Swallowed fast — your hands are already faster.,
+clarity_brew,Clarity Brew,BUFF,1,COGNITION,The noise in your head quiets. One clean thought at a time.,
+iron_word,Iron Word,BUFF,1,WILLPOWER,You said it aloud. Now you mean it.,
+heartroot_tonic,Heartroot Tonic,BUFF,1,VITALITY,Thick and earthy. Your pulse steadies like a drumbeat.,
