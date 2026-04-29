@@ -52,7 +52,7 @@ extends Resource
 ## --- Core Attributes (range 1–10) ---
 ## ======================================================
 
-@export_range(1, 10) var strength:  int = 4  # Offensive power; drives attack
+@export_range(1, 10) var strength:  int = 4  # Offensive power; scales STR-based abilities
 @export_range(1, 10) var dexterity: int = 4  # Agility; drives move speed
 @export_range(1, 10) var cognition: int = 4  # Intelligence; reserved for ability costs
 @export_range(1, 10) var willpower: int = 4  # Resolve; drives energy recharge
@@ -216,11 +216,19 @@ var magic_defense: int:
 		+ get_class_stat_bonus("magic_armor") + get_kindred_stat_bonus("magic_armor") \
 		+ get_background_stat_bonus("magic_armor")
 
-## attack: 5 + strength + any strength bonuses from equipped items + feats + class + kindred + bg.
-var attack: int:
-	get: return 5 + strength + _equip_bonus("strength") + get_feat_stat_bonus("strength") \
-		+ get_class_stat_bonus("strength") + get_kindred_stat_bonus("strength") \
-		+ get_background_stat_bonus("strength") + get_temperament_stat_bonus("strength")
+## effective_stat: returns raw attribute + all bonus sources (equip/feat/class/kindred/bg/temp).
+## Used by the HARM formula so ability scaling uses the same stat total the player sees on the sheet.
+func effective_stat(stat: String) -> int:
+	var raw: int
+	match stat:
+		"strength":  raw = strength
+		"dexterity": raw = dexterity
+		"cognition": raw = cognition
+		"vitality":  raw = vitality
+		"willpower": raw = willpower
+		_: return 0
+	return raw + _equip_bonus(stat) + get_feat_stat_bonus(stat) + get_class_stat_bonus(stat) \
+		+ get_kindred_stat_bonus(stat) + get_background_stat_bonus(stat) + get_temperament_stat_bonus(stat)
 
 ## unit_name: alias for character_name.
 ## Keeps HUD.gd and Unit3D.gd working without changes — they duck-type on this field.

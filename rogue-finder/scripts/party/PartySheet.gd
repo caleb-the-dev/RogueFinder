@@ -571,7 +571,6 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 
 	# Derived stats — 6 columns
 	var derived_defs: Array = [
-		["Atk",    str(member.attack),            "Attack\nPhysical output per hit.\n= 5 + STR + gear + feats"],
 		["P.Def",  str(member.physical_defense),  "Physical Defense\nReduces physical HARM.\n= physical_armor + gear + feats"],
 		["M.Def",  str(member.magic_defense),     "Magic Defense\nReduces magic HARM.\n= magic_armor + gear + feats"],
 		["Speed",  str(member.speed),             "Speed\nMovement cells per turn.\n= 1 + kindred bonus"],
@@ -604,7 +603,7 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 
 	# Base attributes — 5 columns. [abbr, stat_key, base_value, tooltip]
 	var attr_defs: Array = [
-		["STR", "strength",  member.strength,  "Strength\nDrives physical power. Used in attack formulas."],
+		["STR", "strength",  member.strength,  "Strength\nScales STR-based abilities. Contributes to HARM damage."],
 		["DEX", "dexterity", member.dexterity, "Dexterity\nReserved for future dodge/evasion."],
 		["COG", "cognition", member.cognition, "Cognition\nIntelligence. Reserved for future ability cost scaling."],
 		["WIL", "willpower", member.willpower, "Willpower\nEnergy Regen = 2 + WIL energy restored each turn."],
