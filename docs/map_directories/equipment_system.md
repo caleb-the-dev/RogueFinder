@@ -1,6 +1,6 @@
 # System: Equipment & Consumables
 
-> Last updated: 2026-04-29 (Slice 4 — 12 tiered armor families; 3 new + 3 linked armor abilities)
+> Last updated: 2026-04-29 (Slice 5 — 12 tiered accessory families; read-time feat aggregation via accessory.feat_id)
 
 ---
 
@@ -22,7 +22,7 @@ Gear comes from rewards — no archetype starts with equipment. Consumables are 
 | `resources/EquipmentData.gd` | Resource — one equipment item |
 | `resources/ConsumableData.gd` | Resource — one consumable item |
 | `scripts/globals/EquipmentLibrary.gd` | Static catalog — CSV-sourced (`res://data/equipment.csv`), `get_equipment()` / `all_equipment()` / `reload()` |
-| `data/equipment.csv` | Source of truth — 27 items (12 tiered weapons + 12 tiered armor + 3 COMMON accessory); columns: `id, name, slot, rarity, stat_bonuses, granted_ability_ids, feat_id, description, notes` |
+| `data/equipment.csv` | Source of truth — 36 items (12 tiered weapons + 12 tiered armor + 12 tiered accessory); columns: `id, name, slot, rarity, stat_bonuses, granted_ability_ids, feat_id, description, notes` |
 | `scripts/globals/ConsumableLibrary.gd` | Static catalog — CSV-sourced (`res://data/consumables.csv`), `get_consumable()` / `all_consumables()` / `reload()` |
 | `data/consumables.csv` | Source of truth — 6 consumables; edit here |
 
@@ -141,20 +141,43 @@ Each weapon grants exactly 1 ability via `granted_ability_ids`.
 | `mystic_robe_epic` | Arcane Vestment | EPIC | physical_armor+3, magic_armor+7 | `divine_ward` |
 | `mystic_robe_legendary` | Sorcerer's Mantle | LEGENDARY | same as Epic | `greater_ward` |
 
-**ACCESSORY (3):**
+**ACCESSORY (12) — Tiered Families (Slice 5):**
 
-| ID | Name | Bonuses |
-|----|------|---------|
-| `copper_ring` | Copper Ring | vitality +1 |
-| `worn_amulet` | Worn Amulet | willpower +1 |
-| `leather_bracers` | Leather Bracers | strength +1 |
+3 families × 4 rarities. Tier ladder: Common = `X:1` stat only · Rare = `X:1` + background feat · Epic = `X:1`, `Y:1` + same feat · Legendary = `X:1`, `Y:1`, `Z:2` + same feat. Accessories never have `granted_ability_ids`. The equipped accessory's `feat_id` applies stat bonuses at **read-time** via `get_feat_stat_bonus()` — NOT written to `feat_ids` on equip.
+
+**Ring of Valor family (STR → VIT → WIL), feat: `combat_training` str:1):**
+
+| ID | Name | Rarity | Bonuses | Feat |
+|----|------|--------|---------|------|
+| `ring_of_valor` | Ring of Valor | COMMON | strength+1 | — |
+| `ring_of_valor_rare` | Veteran's Ring | RARE | strength+1 | `combat_training` |
+| `ring_of_valor_epic` | Champion's Ring | EPIC | strength+1, vitality+1 | `combat_training` |
+| `ring_of_valor_legendary` | Warlord's Signet | LEGENDARY | strength+1, vitality+1, willpower+2 | `combat_training` |
+
+**Scholar's Amulet family (COG → WIL → VIT), feat: `analytical_mind` cog:2):**
+
+| ID | Name | Rarity | Bonuses | Feat |
+|----|------|--------|---------|------|
+| `scholars_amulet` | Scholar's Amulet | COMMON | cognition+1 | — |
+| `scholars_amulet_rare` | Seeker's Amulet | RARE | cognition+1 | `analytical_mind` |
+| `scholars_amulet_epic` | Sage's Amulet | EPIC | cognition+1, willpower+1 | `analytical_mind` |
+| `scholars_amulet_legendary` | Arcanist's Totem | LEGENDARY | cognition+1, willpower+1, vitality+2 | `analytical_mind` |
+
+**Iron Bracers family (VIT → STR → DEX), feat: `hearty_constitution` vit:1):**
+
+| ID | Name | Rarity | Bonuses | Feat |
+|----|------|--------|---------|------|
+| `iron_bracers` | Iron Bracers | COMMON | vitality+1 | — |
+| `iron_bracers_rare` | Hardened Bracers | RARE | vitality+1 | `hearty_constitution` |
+| `iron_bracers_epic` | Warden's Bracers | EPIC | vitality+1, strength+1 | `hearty_constitution` |
+| `iron_bracers_legendary` | Unbroken Vambraces | LEGENDARY | vitality+1, strength+1, dexterity+2 | `hearty_constitution` |
 
 ### Public API
 
 ```gdscript
 ## Returns a populated EquipmentData. Never returns null — falls back to a stub for unknown IDs.
 static func get_equipment(id: String) -> EquipmentData
-## Returns all 27 defined items (12 weapons + 12 armor + 3 accessory). Use for reward pools.
+## Returns all 36 defined items (12 weapons + 12 armor + 12 accessory). Use for reward pools.
 static func all_equipment() -> Array[EquipmentData]
 ```
 
@@ -187,7 +210,7 @@ const RARITY_WEIGHTS: Dictionary = {
 
 ### Tiered Item Families
 
-Each family has 4 variants as separate CSV rows (e.g. `iron_sword` COMMON → `long_sword` RARE → `war_blade` EPIC → `warlords_cleaver` LEGENDARY). Single row per variant. Weapon tier ladder: Common = ability only · Rare = ability + +1 primary stat · Epic = Rare's stat + upgraded ability · Legendary = Epic's stat + extra stat (either +1 more primary OR +1 secondary). Accessory families (Slice 5) still placeholder.
+Each family has 4 variants as separate CSV rows (e.g. `iron_sword` COMMON → `long_sword` RARE → `war_blade` EPIC → `warlords_cleaver` LEGENDARY). Single row per variant. Weapon tier ladder: Common = ability only · Rare = ability + +1 primary stat · Epic = Rare's stat + upgraded ability · Legendary = Epic's stat + extra stat. Accessory tier ladder: Common = X:1 stat · Rare = X:1 + background feat · Epic = X:1,Y:1 + same feat · Legendary = X:1,Y:1,Z:2 + same feat.
 
 ### UI Color Surfaces
 
@@ -222,6 +245,34 @@ func on_unequip(eq: EquipmentData) -> void
 - `GameState.release_from_bench()`
 
 Armor and accessories have empty `granted_ability_ids` so `on_equip`/`on_unequip` are no-ops for them — safe to call unconditionally.
+
+---
+
+## Accessory-Feat Aggregation (Slice 5)
+
+Accessories carry a `feat_id` field (single background feat). When a Rare/Epic/Legendary accessory is equipped, its feat's stat bonuses apply **at read-time** inside `CombatantData.get_feat_stat_bonus()`.
+
+**Rules:**
+- Read-time only — do NOT push to `feat_ids` on equip; do NOT remove from `feat_ids` on unequip.
+- Deduplication: if `accessory.feat_id` already appears in `feat_ids` (e.g. the character's background granted the same feat), the bonus counts **once** — a `Dictionary` seen-set prevents double-counting.
+- COMMON accessories have empty `feat_id` — no feat contribution.
+
+**`get_feat_stat_bonus()` (updated):**
+```gdscript
+func get_feat_stat_bonus(stat: String) -> int:
+    var seen: Dictionary = {}
+    var total: int = 0
+    for id in feat_ids:
+        if not seen.has(id):
+            seen[id] = true
+            total += FeatLibrary.get_feat(id).stat_bonuses.get(stat, 0)
+    if accessory != null and accessory.feat_id != "":
+        if not seen.has(accessory.feat_id):
+            total += FeatLibrary.get_feat(accessory.feat_id).stat_bonuses.get(stat, 0)
+    return total
+```
+
+This method is already called in all 7 derived stats (hp_max, energy_max, energy_regen, physical_defense, magic_defense, attack, and any speed-keyed future feats) — no call site changes needed.
 
 ---
 
@@ -313,6 +364,7 @@ Consumables apply immediately when used — no QTE, no energy cost. Handled in `
 
 | Date | Change |
 |---|---|
+| 2026-04-29 | **Accessory Tier Families — Slice 5.** 3 placeholder COMMON accessory rows replaced by 12 tiered entries across 3 families × 4 rarities. Tier ladder: Common = X:1 · Rare = X:1 + background feat · Epic = X:1,Y:1 + feat · Legendary = X:1,Y:1,Z:2 + feat. Families: Ring of Valor (STR/VIT/WIL, feat=combat_training), Scholar's Amulet (COG/WIL/VIT, feat=analytical_mind), Iron Bracers (VIT/STR/DEX, feat=hearty_constitution). `get_feat_stat_bonus()` updated to include accessory.feat_id at read-time with dedup. No on_equip/on_unequip changes — feat is never written to feat_ids. 5 new headless tests (test_accessory_feat.gd). Total: 36 equipment items. |
 | 2026-04-29 | **Armor Tier Families — Slice 4.** 3 placeholder COMMON armor rows replaced by 12 tiered entries across 3 families × 4 rarities. Distribution rule: `physical_armor + magic_armor = 6` at Common. Tier ladder: Common = stats only · Rare = stats + base ability · Epic = stats +2/+2 + base ability · Legendary = Epic stats + upgraded ability. Families: Iron Plate (5/1, dexterity-1), Scale Mail (3/3), Mystic Robe (1/5). Armor abilities: `stone_guard`→`fortified_guard` (Iron Plate), `guard`→`enhanced_guard` (Scale Mail), `divine_ward`→`greater_ward` (Mystic Robe); `upgraded_id` wired on 3 existing base rows; 3 new upgraded abilities added to `abilities.csv`. No code changes — `on_equip`/`on_unequip` already handled armor. 7 new headless tests (`test_armor_equip.gd`). Totals: 66 abilities, 27 equipment items. |
 | 2026-04-28 | **Weapon Tier Families — Slice 3.** 3 placeholder COMMON weapons replaced by 12 tiered entries across 3 families (STR/DEX/COG) × 4 rarities. `abilities.csv` gained 6 weapon abilities: `blade_strike`→`heavy_blade_strike` (STR), `quick_draw`→`aimed_draw` (DEX), `staff_bolt`→`empowered_bolt` (COG). `CombatantData.on_equip()` / `on_unequip()` added — manage `granted_ability_ids` in `ability_pool` without touching active slots. All equip/unequip call sites in `PartySheet`, `BadurgaManager`, `GameState.release_from_bench()` updated. `EquipmentLibrary.granted_ability_ids` parse fixed (`.assign()` not typed `Array()` ctor). 7 new headless tests (`test_weapon_equip.gd`). |
 | 2026-04-28 | **Rarity Foundation — Slice 1.** `EquipmentData`: `Rarity` enum + `rarity: int` field + `granted_ability_ids: Array[String]` + `feat_id: String` + `RARITY_COLORS: Dictionary` (int keys 0–3 → grey/green/blue/orange) + `rarity_color() -> Color` helper. `EquipmentLibrary`: parses `rarity`, `granted_ability_ids` (pipe-split), `feat_id` from CSV; stub defaults COMMON / [] / "". Old 20-item CSV wiped; 9 COMMON placeholders added. UI color treatment across PartySheet, EndCombatScreen, MapManager Add Item modal. All `add_to_inventory` call sites updated with `"rarity"`. |

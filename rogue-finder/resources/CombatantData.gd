@@ -134,17 +134,28 @@ var magic_armor_mod:    int = 0
 ## Derived Stats — computed from core attributes + equipped items + feats
 ## ======================================================
 
+## Public wrapper — returns the total stat_bonuses contribution from all three equipment slots.
+func get_equip_bonus(stat: String) -> int:
+	return _equip_bonus(stat)
+
 ## Sums a stat bonus across all three equipment slots.
 func _equip_bonus(stat: String) -> int:
 	return (weapon.get_bonus(stat)    if weapon    else 0) \
 		 + (armor.get_bonus(stat)     if armor     else 0) \
 		 + (accessory.get_bonus(stat) if accessory else 0)
 
-## Sums a stat bonus across all owned feats. Never crashes — unknown feat returns {}.
+## Sums a stat bonus across all owned feats plus the equipped accessory's feat (if any).
+## Deduplicates: if the accessory's feat_id already appears in feat_ids it counts once.
 func get_feat_stat_bonus(stat: String) -> int:
+	var seen: Dictionary = {}
 	var total: int = 0
-	for feat_id in feat_ids:
-		total += FeatLibrary.get_feat(feat_id).stat_bonuses.get(stat, 0)
+	for id in feat_ids:
+		if not seen.has(id):
+			seen[id] = true
+			total += FeatLibrary.get_feat(id).stat_bonuses.get(stat, 0)
+	if accessory != null and accessory.feat_id != "":
+		if not seen.has(accessory.feat_id):
+			total += FeatLibrary.get_feat(accessory.feat_id).stat_bonuses.get(stat, 0)
 	return total
 
 ## Returns the flat stat bonus from the unit's class. Stubs to 0 for unknown class IDs.

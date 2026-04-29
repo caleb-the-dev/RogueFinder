@@ -23,6 +23,15 @@ mystic_robe,Mystic Robe,ARMOR,COMMON,physical_armor:1|magic_armor:5,,,Woven with
 mystic_robe_rare,Warded Mantle,ARMOR,RARE,physical_armor:1|magic_armor:5,divine_ward,,The ward is built in — you feel it the moment you put it on.,magic family rare
 mystic_robe_epic,Arcane Vestment,ARMOR,EPIC,physical_armor:3|magic_armor:7,divine_ward,,The kind of enchantment that takes years and a particular kind of patience.,magic family epic
 mystic_robe_legendary,Sorcerer's Mantle,ARMOR,LEGENDARY,physical_armor:3|magic_armor:7,greater_ward,,Whatever power it holds — it held it long before you found it.,magic family legendary
-copper_ring,Copper Ring,ACCESSORY,COMMON,vitality:1,,,Simple band. Warms with use.,placeholder — slice 5 will replace
-worn_amulet,Worn Amulet,ACCESSORY,COMMON,willpower:1,,,The inscription has faded. The weight remains.,placeholder — slice 5 will replace
-leather_bracers,Leather Bracers,ACCESSORY,COMMON,strength:1,,,Worn at the wrists. Keeps the swing tight.,placeholder — slice 5 will replace
+ring_of_valor,Ring of Valor,ACCESSORY,COMMON,strength:1,,,Simple iron band — worn smooth from a fighter's grip.,STR family common
+ring_of_valor_rare,Veteran's Ring,ACCESSORY,RARE,strength:1,,combat_training,The same ring. Now the stance that comes with it matters.,STR family rare
+ring_of_valor_epic,Champion's Ring,ACCESSORY,EPIC,strength:1|vitality:1,,combat_training,Sized for a champion's finger. Proof that they survived.,STR family epic
+ring_of_valor_legendary,Warlord's Signet,ACCESSORY,LEGENDARY,strength:1|vitality:1|willpower:2,,combat_training,Passed through enough hands that the metal holds memory.,STR family legendary
+scholars_amulet,Scholar's Amulet,ACCESSORY,COMMON,cognition:1,,,A small lens on a chain. Helps with focus more than it looks.,COG family common
+scholars_amulet_rare,Seeker's Amulet,ACCESSORY,RARE,cognition:1,,analytical_mind,The inscription slows the eye down. That's the point.,COG family rare
+scholars_amulet_epic,Sage's Amulet,ACCESSORY,EPIC,cognition:1|willpower:1,,analytical_mind,Two disciplines in one setting — thought and endurance.,COG family epic
+scholars_amulet_legendary,Arcanist's Totem,ACCESSORY,LEGENDARY,cognition:1|willpower:1|vitality:2,,analytical_mind,Old enough that it predates the school that named it.,COG family legendary
+iron_bracers,Iron Bracers,ACCESSORY,COMMON,vitality:1,,,Hammered flat and strapped tight. Nothing more needed.,VIT family common
+iron_bracers_rare,Hardened Bracers,ACCESSORY,RARE,vitality:1,,hearty_constitution,The extra weight teaches the body to carry more.,VIT family rare
+iron_bracers_epic,Warden's Bracers,ACCESSORY,EPIC,vitality:1|strength:1,,hearty_constitution,Thicker at the forearm. Built for weight.,VIT family epic
+iron_bracers_legendary,Unbroken Vambraces,ACCESSORY,LEGENDARY,vitality:1|strength:1|dexterity:2,,hearty_constitution,No dents — not from lack of use but from not staying dented.,VIT family legendary

@@ -62,11 +62,19 @@ func test_equipment_library_parses_common_rarity() -> void:
 	print("  PASS test_equipment_library_parses_common_rarity")
 
 func test_equipment_library_armor_accessory_all_common() -> void:
+	# Armor and accessories now have all 4 rarity tiers (Slices 4 + 5).
+	# Verify each slot type covers all tiers rather than asserting COMMON-only.
+	var armor_rarities: Dictionary = {}
+	var accessory_rarities: Dictionary = {}
 	for eq: EquipmentData in EquipmentLibrary.all_equipment():
-		if eq.slot == EquipmentData.Slot.WEAPON:
-			continue
-		assert(eq.rarity == EquipmentData.Rarity.COMMON,
-			"armor/accessory placeholder '%s' should be COMMON, got %d" % [eq.equipment_id, eq.rarity])
+		if eq.slot == EquipmentData.Slot.ARMOR:
+			armor_rarities[eq.rarity] = true
+		elif eq.slot == EquipmentData.Slot.ACCESSORY:
+			accessory_rarities[eq.rarity] = true
+	for r in [EquipmentData.Rarity.COMMON, EquipmentData.Rarity.RARE,
+			  EquipmentData.Rarity.EPIC, EquipmentData.Rarity.LEGENDARY]:
+		assert(armor_rarities.has(r), "armor pool must include rarity tier %d" % r)
+		assert(accessory_rarities.has(r), "accessory pool must include rarity tier %d" % r)
 	print("  PASS test_equipment_library_armor_accessory_all_common")
 
 func test_equipment_library_weapon_tiers_exist() -> void:
@@ -87,17 +95,28 @@ func test_equipment_library_weapons_have_granted_ability() -> void:
 	print("  PASS test_equipment_library_weapons_have_granted_ability")
 
 func test_equipment_library_armor_accessory_granted_ability_ids_empty() -> void:
+	# Armor items may carry granted_ability_ids (Slice 4). Accessories never do.
 	for eq: EquipmentData in EquipmentLibrary.all_equipment():
-		if eq.slot == EquipmentData.Slot.WEAPON:
+		if eq.slot != EquipmentData.Slot.ACCESSORY:
 			continue
 		assert(eq.granted_ability_ids.is_empty(),
-			"armor/accessory '%s' should have empty granted_ability_ids" % eq.equipment_id)
+			"accessory '%s' should have empty granted_ability_ids" % eq.equipment_id)
 	print("  PASS test_equipment_library_armor_accessory_granted_ability_ids_empty")
 
 func test_equipment_library_feat_id_default_empty() -> void:
+	# Weapons and armor never carry a feat_id. COMMON accessories have no feat_id.
+	# RARE/EPIC/LEGENDARY accessories carry a background feat_id (Slice 5).
 	for eq: EquipmentData in EquipmentLibrary.all_equipment():
-		assert(eq.feat_id == "",
-			"item '%s' should have empty feat_id" % eq.equipment_id)
+		if eq.slot == EquipmentData.Slot.WEAPON or eq.slot == EquipmentData.Slot.ARMOR:
+			assert(eq.feat_id == "",
+				"weapon/armor '%s' should have empty feat_id" % eq.equipment_id)
+		elif eq.slot == EquipmentData.Slot.ACCESSORY:
+			if eq.rarity == EquipmentData.Rarity.COMMON:
+				assert(eq.feat_id == "",
+					"COMMON accessory '%s' should have empty feat_id" % eq.equipment_id)
+			else:
+				assert(eq.feat_id != "",
+					"Rare+ accessory '%s' should have a non-empty feat_id" % eq.equipment_id)
 	print("  PASS test_equipment_library_feat_id_default_empty")
 
 ## --- RewardGenerator ---

@@ -54,6 +54,7 @@ var _abil_views_wide:   Array[bool]   = [false, false, false]  ## false=1-per-ro
 var _feat_views_wide:   Array[bool]   = [false, false, false]
 var _feat_sort_ascs:    Array[bool]   = [true, true, true]
 var _feat_search_texts: Array[String] = ["", "", ""]
+var _active_tab_indices: Array[int]  = [0, 0, 0]
 
 ## --- Inventory sort / search / view state ---
 var _inv_search_text:   String   = ""
@@ -398,9 +399,15 @@ func _build_draggable_item(parent: Control, item: Dictionary, compact: bool = fa
 	var tip: String
 	if is_equipment:
 		var eq: EquipmentData = EquipmentLibrary.get_equipment(item["id"])
-		tip = "%s  [%s]\n%s\n%s\n\nDrag to a matching slot to equip." % [
+		var extra_lines: PackedStringArray = []
+		var ab_line: String = _granted_abilities_str(eq)
+		var feat_line: String = _feat_str(eq)
+		if ab_line != "": extra_lines.append(ab_line)
+		if feat_line != "": extra_lines.append(feat_line)
+		var extras: String = ("\n" + "\n".join(extra_lines)) if not extra_lines.is_empty() else ""
+		tip = "%s  [%s]\n%s%s\n%s\n\nDrag to a matching slot to equip." % [
 			item.get("name", "?"), _slot_name(eq.slot),
-			_bonuses_str(eq.stat_bonuses), eq.description
+			_bonuses_str(eq.stat_bonuses), extras, eq.description
 		]
 	else:
 		tip = "%s  [consumable]\n%s\n\nDrag to a CONSUMABLE slot to equip." % [
@@ -562,12 +569,14 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	var tr_w: float = half_w - 16.0   ## = 239
 	var tr_y: float = card_pos.y + 10.0
 
-	# Derived stats — 4 columns
+	# Derived stats — 6 columns
 	var derived_defs: Array = [
-		["Speed",    str(member.speed),            "Speed\nMovement cells per turn.\n= 1 + kindred bonus + gear"],
-		["P.Def",    str(member.physical_defense), "Physical Defense\nReduces physical HARM.\n= physical_armor + gear bonuses"],
-		["M.Def",    str(member.magic_defense),    "Magic Defense\nReduces magic HARM.\n= magic_armor + gear bonuses"],
-		["EN Max",   str(member.energy_max),       "Energy Max\nTotal energy pool.\n= 5 + VIT + gear bonuses"],
+		["Atk",    str(member.attack),            "Attack\nPhysical output per hit.\n= 5 + STR + gear + feats"],
+		["P.Def",  str(member.physical_defense),  "Physical Defense\nReduces physical HARM.\n= physical_armor + gear + feats"],
+		["M.Def",  str(member.magic_defense),     "Magic Defense\nReduces magic HARM.\n= magic_armor + gear + feats"],
+		["Speed",  str(member.speed),             "Speed\nMovement cells per turn.\n= 1 + kindred bonus"],
+		["EN Max", str(member.energy_max),        "Energy Max\nTotal energy pool.\n= 5 + VIT + gear + feats"],
+		["Regen",  str(member.energy_regen),      "Energy Regen\nEnergy restored per turn.\n= 2 + WIL + gear + feats"],
 	]
 	var dcol_w: float = tr_w / float(derived_defs.size())
 	for i in range(derived_defs.size()):
@@ -585,7 +594,7 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		var dval := Label.new()
 		dval.text = dd[1]
 		dval.position = Vector2(dx, tr_y + 11.0)
-		dval.add_theme_font_size_override("font_size", 14)
+		dval.add_theme_font_size_override("font_size", 13)
 		dval.add_theme_color_override("font_color",
 			Color(0.68, 0.84, 1.00).lerp(Color(0.40, 0.40, 0.40), 0.5 if is_dead else 0.0))
 		dval.tooltip_text = dd[2]
@@ -593,34 +602,53 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		parent.add_child(dval)
 	tr_y += 36.0
 
-	# Base attributes — 5 columns
+	# Base attributes — 5 columns. [abbr, stat_key, base_value, tooltip]
 	var attr_defs: Array = [
-		["STR", member.strength,  "Strength\nDrives physical power. Used in attack formulas."],
-		["DEX", member.dexterity, "Dexterity\nSpeed = 2 + DEX cells of movement per turn."],
-		["COG", member.cognition, "Cognition\nIntelligence. Reserved for future ability cost scaling."],
-		["WIL", member.willpower, "Willpower\nEnergy Regen = 2 + WIL energy restored each turn."],
-		["VIT", member.vitality,  "Vitality\nHP Max = 10 × VIT.  Energy Max = 5 + VIT."],
+		["STR", "strength",  member.strength,  "Strength\nDrives physical power. Used in attack formulas."],
+		["DEX", "dexterity", member.dexterity, "Dexterity\nReserved for future dodge/evasion."],
+		["COG", "cognition", member.cognition, "Cognition\nIntelligence. Reserved for future ability cost scaling."],
+		["WIL", "willpower", member.willpower, "Willpower\nEnergy Regen = 2 + WIL energy restored each turn."],
+		["VIT", "vitality",  member.vitality,  "Vitality\nHP Max = 10 + VIT×4.  Energy Max = 5 + VIT."],
 	]
 	var acol_w: float = tr_w / float(attr_defs.size())
 	for i in range(attr_defs.size()):
 		var ad: Array = attr_defs[i]
 		var ax: float = tr_x + float(i) * acol_w
+		# Item bonus = equipment stat_bonuses + the accessory's feat (if newly granting one).
+		# Excludes background/class feats already in feat_ids — those aren't from items.
+		var acc_feat_bonus: int = 0
+		if member.accessory != null and member.accessory.feat_id != "" \
+				and not member.feat_ids.has(member.accessory.feat_id):
+			acc_feat_bonus = FeatLibrary.get_feat(member.accessory.feat_id).stat_bonuses.get(ad[1], 0)
+		var item_bonus: int = member.get_equip_bonus(ad[1]) + acc_feat_bonus
+		var base_val: int = ad[2]
+		var attr_color: Color
+		if is_dead:
+			attr_color = Color(0.45, 0.45, 0.45)
+		elif item_bonus > 0:
+			attr_color = Color(0.35, 0.92, 0.42)  # green — item is boosting this stat
+		elif item_bonus < 0:
+			attr_color = Color(0.90, 0.35, 0.35)  # red — item is penalizing this stat
+		else:
+			attr_color = Color(0.98, 0.92, 0.52)  # normal yellow
+		var tip_extra: String = (" (+%d from items)" % item_bonus) if item_bonus > 0 \
+			else ((" (%d from items)" % item_bonus) if item_bonus < 0 else "")
+		var full_tip: String = ad[3] + tip_extra
 		var abbr := Label.new()
 		abbr.text = ad[0]
 		abbr.position = Vector2(ax, tr_y)
 		abbr.add_theme_font_size_override("font_size", 10)
 		abbr.add_theme_color_override("font_color",
 			Color(0.80, 0.72, 0.34).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
-		abbr.tooltip_text = ad[2]
+		abbr.tooltip_text = full_tip
 		abbr.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(abbr)
 		var val := Label.new()
-		val.text = str(ad[1])
+		val.text = str(base_val + item_bonus)
 		val.position = Vector2(ax, tr_y + 12.0)
 		val.add_theme_font_size_override("font_size", 16)
-		val.add_theme_color_override("font_color",
-			Color(0.98, 0.92, 0.52).lerp(Color(0.45, 0.45, 0.45), 0.5 if is_dead else 0.0))
-		val.tooltip_text = ad[2]
+		val.add_theme_color_override("font_color", attr_color)
+		val.tooltip_text = full_tip
 		val.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(val)
 
@@ -725,8 +753,14 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		elif eq != null:
 			slot_btn.text = eq.equipment_name
 			var bonus: String = _bonuses_str(eq.stat_bonuses)
-			slot_btn.tooltip_text = _wrap_tooltip("%s  [%s]\n%s\n%s\n\nRight-click to unequip." % [
-				eq.equipment_name, slot_label, bonus, eq.description])
+			var slot_extra_lines: PackedStringArray = []
+			var slot_ab: String = _granted_abilities_str(eq)
+			var slot_feat: String = _feat_str(eq)
+			if slot_ab != "": slot_extra_lines.append(slot_ab)
+			if slot_feat != "": slot_extra_lines.append(slot_feat)
+			var slot_extras: String = ("\n" + "\n".join(slot_extra_lines)) if not slot_extra_lines.is_empty() else ""
+			slot_btn.tooltip_text = _wrap_tooltip("%s  [%s]\n%s%s\n%s\n\nRight-click to unequip." % [
+				eq.equipment_name, slot_label, bonus, slot_extras, eq.description])
 			slot_btn.add_theme_color_override("font_color",
 				EquipmentData.RARITY_COLORS.get(eq.rarity, Color(0.85, 0.82, 0.72)))
 		else:
@@ -875,6 +909,13 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 	if member.is_dead:
 		tabs.modulate = Color(0.55, 0.55, 0.55)
 	parent.add_child(tabs)
+	# Save tab state on change; restore after _rebuild() recreates the container.
+	var mi_tab: int = member_idx
+	tabs.tab_changed.connect(func(tab: int) -> void: _active_tab_indices[mi_tab] = tab)
+	# Defer the restore so children (the tab pages) exist before we switch.
+	var saved_tab: int = _active_tab_indices[member_idx]
+	if saved_tab > 0:
+		tabs.call_deferred("set_current_tab", saved_tab)
 
 	# --- Abilities tab: search + sort bar + draggable pool list ---
 	var abil_tab := VBoxContainer.new()
@@ -1200,6 +1241,42 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			fnl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			finner.add_child(fnl)
 
+	# Accessory-granted feat — shown after the feat_ids list if not already included.
+	# Read-time only; never written to feat_ids, so it needs its own card here.
+	if member.accessory != null and member.accessory.feat_id != "" \
+			and not member.feat_ids.has(member.accessory.feat_id):
+		var acc_feat: FeatData = FeatLibrary.get_feat(member.accessory.feat_id)
+		var acc_matches_search: bool = fq == "" or acc_feat.name.to_lower().contains(fq)
+		if acc_matches_search:
+			var acc_tip: String = _wrap_tooltip(
+				"%s\n\n%s\n\n[from %s]" % [acc_feat.name, acc_feat.description, member.accessory.equipment_name])
+			var acc_pnl := PanelContainer.new()
+			var acc_sbox := StyleBoxFlat.new()
+			acc_sbox.bg_color = Color(0.12, 0.10, 0.18, 0.90)
+			acc_sbox.border_width_bottom = 2
+			acc_sbox.border_color = Color(0.62, 0.42, 0.85, 0.80)  # purple — item-sourced
+			acc_sbox.set_corner_radius_all(2)
+			acc_pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			acc_pnl.add_theme_stylebox_override("panel", acc_sbox)
+			acc_pnl.tooltip_text = acc_tip
+			feat_container.add_child(acc_pnl)
+			var acc_inner := VBoxContainer.new()
+			acc_inner.add_theme_constant_override("separation", 1)
+			acc_pnl.add_child(acc_inner)
+			var acc_name := Label.new()
+			acc_name.text = acc_feat.name
+			acc_name.add_theme_font_size_override("font_size", 12)
+			acc_name.add_theme_color_override("font_color", Color(0.82, 0.68, 0.95))
+			acc_name.tooltip_text = acc_tip
+			acc_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			acc_inner.add_child(acc_name)
+			var acc_src := Label.new()
+			acc_src.text = "from %s" % member.accessory.equipment_name
+			acc_src.add_theme_font_size_override("font_size", 9)
+			acc_src.add_theme_color_override("font_color", Color(0.52, 0.42, 0.65))
+			acc_src.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			acc_inner.add_child(acc_src)
+
 ## --- Drag Compare Overlay ---
 ## Lives directly on the CanvasLayer so it survives _rebuild(). Cleared by _process
 ## when the drag ends, by _drop_ability_to_slot on a successful drop, and by hide_sheet.
@@ -1258,6 +1335,10 @@ func _show_equip_compare(near_pos: Vector2, cur_eq: EquipmentData, incoming: Dic
 	_add_cmp_label(col_a, cur_eq.equipment_name, 14, Color(0.92, 0.88, 0.78))
 	_add_cmp_label(col_a, "%s  %s" % [_slot_name(cur_eq.slot), _bonuses_str(cur_eq.stat_bonuses)],
 		10, Color(0.65, 0.62, 0.50))
+	if _granted_abilities_str(cur_eq) != "":
+		_add_cmp_label(col_a, _granted_abilities_str(cur_eq), 10, Color(0.72, 0.85, 0.62))
+	if _feat_str(cur_eq) != "":
+		_add_cmp_label(col_a, _feat_str(cur_eq), 10, Color(0.82, 0.72, 0.95))
 	_add_cmp_desc(col_a, cur_eq.description)
 
 	# Right: incoming item from bag
@@ -1267,6 +1348,10 @@ func _show_equip_compare(near_pos: Vector2, cur_eq: EquipmentData, incoming: Dic
 		_add_cmp_label(col_b, in_eq.equipment_name, 14, Color(0.92, 0.88, 0.78))
 		_add_cmp_label(col_b, "%s  %s" % [_slot_name(in_eq.slot), _bonuses_str(in_eq.stat_bonuses)],
 			10, Color(0.65, 0.62, 0.50))
+		if _granted_abilities_str(in_eq) != "":
+			_add_cmp_label(col_b, _granted_abilities_str(in_eq), 10, Color(0.72, 0.85, 0.62))
+		if _feat_str(in_eq) != "":
+			_add_cmp_label(col_b, _feat_str(in_eq), 10, Color(0.82, 0.72, 0.95))
 		_add_cmp_desc(col_b, in_eq.description)
 	else:
 		_add_cmp_label(col_b, incoming.get("name", "?"), 14, Color(0.92, 0.88, 0.78))
@@ -1710,6 +1795,25 @@ func _bonuses_str(bonuses: Dictionary) -> String:
 		var val: int = bonuses[key]
 		parts.append("%s %s%d" % [_stat_abbr(key), "+" if val >= 0 else "", val])
 	return "  ".join(parts)
+
+## Returns a single-line feat description for tooltip use, or "" if no feat.
+func _feat_str(eq: EquipmentData) -> String:
+	if eq.feat_id == "":
+		return ""
+	var feat: FeatData = FeatLibrary.get_feat(eq.feat_id)
+	var bonus: String = _bonuses_str(feat.stat_bonuses)
+	if bonus != "":
+		return "[Feat] %s  (%s)" % [feat.name, bonus]
+	return "[Feat] %s" % feat.name
+
+## Returns a single-line granted-ability list for tooltip use, or "" if none.
+func _granted_abilities_str(eq: EquipmentData) -> String:
+	if eq.granted_ability_ids.is_empty():
+		return ""
+	var names: PackedStringArray = []
+	for aid: String in eq.granted_ability_ids:
+		names.append(AbilityLibrary.get_ability(aid).ability_name)
+	return "[Ability] %s" % ", ".join(names)
 
 func _stat_abbr(stat: String) -> String:
 	match stat:

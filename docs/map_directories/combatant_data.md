@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-27 (temperament system — temperament_id field + get_temperament_stat_bonus(); derived stats now include temperament source)
+> Last updated: 2026-04-29 (Slice 5 — get_feat_stat_bonus() now includes accessory.feat_id at read-time with dedup)
 
 ---
 
@@ -150,6 +150,15 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 ### Stat Bonus Methods
 
 ```gdscript
+## Public wrapper for _equip_bonus() — returns total stat_bonuses contribution from all three equipment slots.
+## Used by PartySheet to compute item_bonus for attribute green/red coloring without accessing a private method.
+func get_equip_bonus(stat: String) -> int
+
+## Sums stat bonus across all feat_ids, plus the equipped accessory's feat_id (if non-empty).
+## Deduplicates: if accessory.feat_id already appears in feat_ids, it counts once.
+## Read-time only — never mutates feat_ids.
+func get_feat_stat_bonus(stat: String) -> int
+
 ## Returns flat stat bonus from kindred stat_bonuses dict. 0 for unknown.
 func get_kindred_stat_bonus(stat: String) -> int
 
