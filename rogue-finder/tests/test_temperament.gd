@@ -19,7 +19,7 @@ func _ready() -> void:
 	test_temperament_wires_into_attack()
 	test_temperament_wires_into_hp_max()
 	test_temperament_wires_into_energy_regen()
-	test_temperament_wires_into_speed()
+	test_temperament_dex_does_not_affect_speed()
 	test_archetype_create_assigns_temperament()
 	test_all_temperaments_boosted_ne_hindered()
 	test_all_backgrounds_single_plus_one()
@@ -123,17 +123,17 @@ func test_temperament_wires_into_energy_regen() -> void:
 		"reckless (-WIL) should lower energy_regen by 1, got %d (base %d)" % [d.energy_regen, base_regen])
 	print("  PASS test_temperament_wires_into_energy_regen")
 
-func test_temperament_wires_into_speed() -> void:
+func test_temperament_dex_does_not_affect_speed() -> void:
 	var d := _bare_combatant()
 	d.temperament_id = "even"
 	var base_speed: int = d.speed
-	d.temperament_id = "nimble"  # +dexterity / -strength
-	assert(d.speed == base_speed + 1,
-		"nimble (+DEX) should raise speed by 1, got %d (base %d)" % [d.speed, base_speed])
+	d.temperament_id = "nimble"  # +dexterity / -strength — DEX no longer flows into speed
+	assert(d.speed == base_speed,
+		"nimble (+DEX) must NOT change speed; speed=%d base=%d" % [d.speed, base_speed])
 	d.temperament_id = "brutish"  # +strength / -dexterity
-	assert(d.speed == base_speed - 1,
-		"brutish (-DEX) should lower speed by 1, got %d (base %d)" % [d.speed, base_speed])
-	print("  PASS test_temperament_wires_into_speed")
+	assert(d.speed == base_speed,
+		"brutish (-DEX) must NOT change speed; speed=%d base=%d" % [d.speed, base_speed])
+	print("  PASS test_temperament_dex_does_not_affect_speed")
 
 ## --- Creation tests ---
 

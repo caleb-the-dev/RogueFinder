@@ -13,7 +13,7 @@ func _ready() -> void:
 	test_attack_includes_class_bonus()
 	test_hp_max_includes_class_vit_bonus()
 	test_energy_regen_includes_class_wil_bonus()
-	test_speed_includes_class_dex_bonus()
+	test_speed_unaffected_by_class_dex_bonus()
 	test_attribute_range_min_boundary()
 	test_attribute_range_max_boundary()
 	test_hp_formula_with_max_vit()
@@ -93,13 +93,13 @@ func test_energy_regen_includes_class_wil_bonus() -> void:
 		"arcanist wil:2 should raise energy_regen by 2, got %d (base %d)" % [d.energy_regen, base_regen])
 	print("  PASS test_energy_regen_includes_class_wil_bonus")
 
-func test_speed_includes_class_dex_bonus() -> void:
+func test_speed_unaffected_by_class_dex_bonus() -> void:
 	var d := _bare_combatant()
 	var base_speed: int = d.speed  # unit_class = ""
-	d.unit_class = "prowler"  # dex:2
-	assert(d.speed == base_speed + 2,
-		"prowler dex:2 should raise speed by 2, got %d (base %d)" % [d.speed, base_speed])
-	print("  PASS test_speed_includes_class_dex_bonus")
+	d.unit_class = "prowler"  # dex:2 — DEX no longer flows into speed
+	assert(d.speed == base_speed,
+		"prowler dex:2 must NOT raise speed; speed=%d base=%d" % [d.speed, base_speed])
+	print("  PASS test_speed_unaffected_by_class_dex_bonus")
 
 func test_attribute_range_min_boundary() -> void:
 	var d := _bare_combatant()
