@@ -94,6 +94,18 @@ static func all_abilities() -> Array[AbilityData]:
 		result.append(_cache[key])
 	return result
 
+## Returns the upgraded form of base_id if upgraded_id is set and resolvable.
+## Falls back to a blank stub (ability_id == "") when upgraded_id is empty or unknown —
+## callers never need nil checks.
+static func get_upgraded(base_id: String) -> AbilityData:
+	_ensure_loaded()
+	var base := get_ability(base_id)
+	if base.upgraded_id != "":
+		return get_ability(base.upgraded_id)
+	var stub := AbilityData.new()
+	stub.ability_icon = _get_icon()
+	return stub
+
 ## Force reload from disk — for tests and dev-time CSV edits.
 static func reload() -> void:
 	_cache.clear()
@@ -160,6 +172,8 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray,
 				a.effects = _parse_effects(val, row_num)
 			"damage_type":
 				a.damage_type = _DAMAGE_TYPE.get(val, AbilityData.DamageType.NONE)
+			"upgraded_id":
+				a.upgraded_id = val
 			"notes":
 				pass  # designer free-text; intentionally ignored
 			_:
