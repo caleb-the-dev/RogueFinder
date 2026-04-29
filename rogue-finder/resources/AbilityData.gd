@@ -75,5 +75,8 @@ enum DamageType {
 @export var energy_cost:   int          = 0
 @export var effects:       Array[EffectData] = []
 @export var description:   String       = ""
+## ID of the upgraded form of this ability; empty if no upgrade exists.
+## Set on the base ability row — the upgraded row is itself a regular ability.
+@export var upgraded_id:   String       = ""
 ## Placeholder icon — replaced with real art when assets arrive
 @export var ability_icon:  Texture2D    = null
