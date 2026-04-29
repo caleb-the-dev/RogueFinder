@@ -32,4 +32,3 @@ func load_settings() -> void:
 	master_volume = float(parsed.get("master_volume", 1.0))
 	music_volume  = float(parsed.get("music_volume",  1.0))
 	sfx_volume    = float(parsed.get("sfx_volume",    1.0))
-
