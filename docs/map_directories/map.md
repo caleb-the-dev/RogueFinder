@@ -10,7 +10,7 @@
 |---|---|
 | last_updated | 2026-04-29 (Armor Tier Families Slice 4 — 12 tiered armor, 6 armor abilities, 27 total items) |
 | last_groomed | 2026-04-25 |
-| sessions_since_groom | 20 |
+| sessions_since_groom | 22 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -29,7 +29,7 @@
 | [QTE System — QTEBar + RecruitBar](qte_system.md) | `qte_system.md` | ✅ Active (QTEBar: Slide dodge; RecruitBar: hold-and-release capture) | Core |
 | [Camera System](camera_system.md) | `camera_system.md` | ✅ Active (3D only) | Presentation |
 | [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
-| [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34) | Data |
+| [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34; speed = 1 + kindred_bonus only — dex severed) | Data |
 | [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (66 abilities — 22 base + 8 kindred natural attacks + 12 ancestry + 4 class definings + 8 class pool + 6 weapon + 6 armor; upgraded_id live on weapon + armor base abilities) | Data |
 | [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (27 equipment items: 12 tiered weapons (3 STR/DEX/COG × 4 rarities) + 12 tiered armor (3 phys/balanced/magic × 4 rarities) + 3 COMMON accessory; 6 consumables; on_equip/on_unequip pool lifecycle live) | Data |
 | [Background System](background_system.md) | `background_system.md` | ✅ Active (6 backgrounds; owns feat lane; +1 single stat per background) | Data |
