@@ -601,34 +601,48 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		parent.add_child(dval)
 	tr_y += 36.0
 
-	# Base attributes — 5 columns
+	# Base attributes — 5 columns. [abbr, stat_key, base_value, tooltip]
 	var attr_defs: Array = [
-		["STR", member.strength,  "Strength\nDrives physical power. Used in attack formulas."],
-		["DEX", member.dexterity, "Dexterity\nSpeed = 2 + DEX cells of movement per turn."],
-		["COG", member.cognition, "Cognition\nIntelligence. Reserved for future ability cost scaling."],
-		["WIL", member.willpower, "Willpower\nEnergy Regen = 2 + WIL energy restored each turn."],
-		["VIT", member.vitality,  "Vitality\nHP Max = 10 × VIT.  Energy Max = 5 + VIT."],
+		["STR", "strength",  member.strength,  "Strength\nDrives physical power. Used in attack formulas."],
+		["DEX", "dexterity", member.dexterity, "Dexterity\nReserved for future dodge/evasion."],
+		["COG", "cognition", member.cognition, "Cognition\nIntelligence. Reserved for future ability cost scaling."],
+		["WIL", "willpower", member.willpower, "Willpower\nEnergy Regen = 2 + WIL energy restored each turn."],
+		["VIT", "vitality",  member.vitality,  "Vitality\nHP Max = 10 + VIT×4.  Energy Max = 5 + VIT."],
 	]
 	var acol_w: float = tr_w / float(attr_defs.size())
 	for i in range(attr_defs.size()):
 		var ad: Array = attr_defs[i]
 		var ax: float = tr_x + float(i) * acol_w
+		# Item bonus = equipment stat_bonuses + feat bonuses (including accessory feat).
+		var item_bonus: int = member.get_equip_bonus(ad[1]) + member.get_feat_stat_bonus(ad[1])
+		var base_val: int = ad[2]
+		var attr_color: Color
+		if is_dead:
+			attr_color = Color(0.45, 0.45, 0.45)
+		elif item_bonus > 0:
+			attr_color = Color(0.35, 0.92, 0.42)  # green — item is boosting this stat
+		elif item_bonus < 0:
+			attr_color = Color(0.90, 0.35, 0.35)  # red — item is penalizing this stat
+		else:
+			attr_color = Color(0.98, 0.92, 0.52)  # normal yellow
+		var tip_extra: String = (" (+%d from items)" % item_bonus) if item_bonus > 0 \
+			else ((" (%d from items)" % item_bonus) if item_bonus < 0 else "")
+		var full_tip: String = ad[3] + tip_extra
 		var abbr := Label.new()
 		abbr.text = ad[0]
 		abbr.position = Vector2(ax, tr_y)
 		abbr.add_theme_font_size_override("font_size", 10)
 		abbr.add_theme_color_override("font_color",
 			Color(0.80, 0.72, 0.34).lerp(Color(0.35, 0.35, 0.35), 0.5 if is_dead else 0.0))
-		abbr.tooltip_text = ad[2]
+		abbr.tooltip_text = full_tip
 		abbr.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(abbr)
 		var val := Label.new()
-		val.text = str(ad[1])
+		val.text = str(base_val + item_bonus)
 		val.position = Vector2(ax, tr_y + 12.0)
 		val.add_theme_font_size_override("font_size", 16)
-		val.add_theme_color_override("font_color",
-			Color(0.98, 0.92, 0.52).lerp(Color(0.45, 0.45, 0.45), 0.5 if is_dead else 0.0))
-		val.tooltip_text = ad[2]
+		val.add_theme_color_override("font_color", attr_color)
+		val.tooltip_text = full_tip
 		val.mouse_filter = Control.MOUSE_FILTER_PASS
 		parent.add_child(val)
 
@@ -1213,6 +1227,42 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			fnl.tooltip_text = tip
 			fnl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			finner.add_child(fnl)
+
+	# Accessory-granted feat — shown after the feat_ids list if not already included.
+	# Read-time only; never written to feat_ids, so it needs its own card here.
+	if member.accessory != null and member.accessory.feat_id != "" \
+			and not member.feat_ids.has(member.accessory.feat_id):
+		var acc_feat: FeatData = FeatLibrary.get_feat(member.accessory.feat_id)
+		var acc_matches_search: bool = fq == "" or acc_feat.name.to_lower().contains(fq)
+		if acc_matches_search:
+			var acc_tip: String = _wrap_tooltip(
+				"%s\n\n%s\n\n[from %s]" % [acc_feat.name, acc_feat.description, member.accessory.equipment_name])
+			var acc_pnl := PanelContainer.new()
+			var acc_sbox := StyleBoxFlat.new()
+			acc_sbox.bg_color = Color(0.12, 0.10, 0.18, 0.90)
+			acc_sbox.border_width_bottom = 2
+			acc_sbox.border_color = Color(0.62, 0.42, 0.85, 0.80)  # purple — item-sourced
+			acc_sbox.set_corner_radius_all(2)
+			acc_pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			acc_pnl.add_theme_stylebox_override("panel", acc_sbox)
+			acc_pnl.tooltip_text = acc_tip
+			feat_container.add_child(acc_pnl)
+			var acc_inner := VBoxContainer.new()
+			acc_inner.add_theme_constant_override("separation", 1)
+			acc_pnl.add_child(acc_inner)
+			var acc_name := Label.new()
+			acc_name.text = acc_feat.name
+			acc_name.add_theme_font_size_override("font_size", 12)
+			acc_name.add_theme_color_override("font_color", Color(0.82, 0.68, 0.95))
+			acc_name.tooltip_text = acc_tip
+			acc_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			acc_inner.add_child(acc_name)
+			var acc_src := Label.new()
+			acc_src.text = "from %s" % member.accessory.equipment_name
+			acc_src.add_theme_font_size_override("font_size", 9)
+			acc_src.add_theme_color_override("font_color", Color(0.52, 0.42, 0.65))
+			acc_src.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			acc_inner.add_child(acc_src)
 
 ## --- Drag Compare Overlay ---
 ## Lives directly on the CanvasLayer so it survives _rebuild(). Cleared by _process

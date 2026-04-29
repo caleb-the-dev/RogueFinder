@@ -134,6 +134,10 @@ var magic_armor_mod:    int = 0
 ## Derived Stats — computed from core attributes + equipped items + feats
 ## ======================================================
 
+## Public wrapper — returns the total stat_bonuses contribution from all three equipment slots.
+func get_equip_bonus(stat: String) -> int:
+	return _equip_bonus(stat)
+
 ## Sums a stat bonus across all three equipment slots.
 func _equip_bonus(stat: String) -> int:
 	return (weapon.get_bonus(stat)    if weapon    else 0) \
