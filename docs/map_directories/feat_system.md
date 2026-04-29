@@ -1,6 +1,6 @@
 # System: Feat System
 
-> Last updated: 2026-04-26 (class pool expansion — +8 new class feats, 10 pool slots per class, fixed stale kindred-feat test refs)
+> Last updated: 2026-04-29 (Slice 5 — accessory as a feat source; corrected background feat count 12→18; scavenger/pit_fighter rows added)
 
 ---
 
@@ -12,7 +12,7 @@
 
 ## Purpose
 
-Central registry for passive character feats. Each background grants one defining feat at character creation (`feat_ids[0]`). Event effects can grant additional feats via `GameState.grant_feat()`. Feats apply flat stat bonuses to derived stats, identical in form to equipment bonuses.
+Central registry for passive character feats. Each background grants one defining feat at character creation (`feat_ids[0]`). Event effects can grant additional feats via `GameState.grant_feat()`. Equipped accessories (Rare+) carry a `feat_id` that also contributes stat bonuses — read-time only, never written to `feat_ids`. Feats apply flat stat bonuses to derived stats, identical in form to equipment bonuses.
 
 > **Note:** Kindred feats were removed in the pillar-foundation session (2026-04-26). The old kindred-source rows (`adaptive`, `relentless`, `tinkerer`, `stonehide`) are deleted from `feats.csv`. Kindred stat bonuses are now structural via `KindredData.stat_bonuses` / `CombatantData.get_kindred_stat_bonus()`. Old saves with these IDs in `feat_ids` are automatically stripped on load.
 
@@ -24,7 +24,7 @@ Central registry for passive character feats. Each background grants one definin
 |------|------|
 | `resources/FeatData.gd` | Resource: one feat (id, name, description, source_type, stat_bonuses, effects) |
 | `scripts/globals/FeatLibrary.gd` | CSV-native loader; `get_feat()` / `all_feats()` / `reload()` |
-| `data/feats.csv` | Data source: 38 feats (20 class, 18 background — kindred rows removed) |
+| `data/feats.csv` | Data source: 38 feats (20 class, 18 background — kindred rows removed); background feats also applied via equipped accessories (read-time, not written to feat_ids) |
 
 ---
 
@@ -58,7 +58,7 @@ Central registry for passive character feats. Each background grants one definin
 
 ---
 
-## feats.csv — 32 Rows
+## feats.csv — 38 Rows
 
 ### Class Feats (20)
 
@@ -87,14 +87,14 @@ Pools are 10 feats each with ~50% overlap. See `class_system.md` for full per-cl
 | `iron_will` | Iron Will | willpower:2 | Arcanist, Prowler, Warden |
 | `veteran_instinct` | Veteran Instinct | armor_defense:1 | Vanguard, Warden |
 
-### Background Feats (12)
+### Background Feats (18)
 
 | id | name | stat_bonuses | background |
 |----|------|-------------|-----------|
 | `street_smart` | Street Smart | dexterity:1 | crook |
 | `nimble_fingers` | Nimble Fingers | dexterity:2 | crook |
 | `survival_instinct` | Survival Instinct | willpower:1 | crook |
-| `disciplined_stance` | Disciplined Stance | armor_defense:1 | soldier |
+| `disciplined_stance` | Disciplined Stance | physical_armor:1 | soldier |
 | `unit_cohesion` | Unit Cohesion | willpower:1 | soldier |
 | `combat_training` | Combat Training | strength:1 | soldier |
 | `analytical_mind` | Analytical Mind | cognition:2 | scholar |
@@ -103,6 +103,12 @@ Pools are 10 feats each with ~50% overlap. See `class_system.md` for full per-cl
 | `hearty_constitution` | Hearty Constitution | vitality:1 | baker |
 | `enduring_spirit` | Enduring Spirit | willpower:1 | baker |
 | `patient_resolve` | Patient Resolve | vitality:1 | baker |
+| `opportunist` | Opportunist | dexterity:1 | scavenger |
+| `quick_grab` | Quick Grab | dexterity:2 | scavenger |
+| `waste_not` | Waste Not | vitality:1 | scavenger |
+| `crowd_pleaser` | Crowd Pleaser | strength:1 | pit_fighter |
+| `brutal_technique` | Brutal Technique | strength:2 | pit_fighter |
+| `iron_chin` | Iron Chin | vitality:1 | pit_fighter |
 
 ---
 
@@ -144,7 +150,8 @@ Feat stat bonuses apply identically to equipment bonuses — flat additions to d
 | System | Role |
 |--------|------|
 | `BackgroundLibrary` | Provides `starting_feat_id` per background; `FeatLibrary` is the canonical name/desc/bonuses store |
-| `CombatantData` | `feat_ids: Array[String]` is the per-unit feat list; `get_feat_stat_bonus()` calls `FeatLibrary` |
+| `CombatantData` | `feat_ids: Array[String]` is the per-unit feat list; `get_feat_stat_bonus()` calls `FeatLibrary`; also reads `accessory.feat_id` at compute-time |
+| `EquipmentData` | `feat_id: String` — accessory feat source (background feats only; empty for COMMON accessories) |
 | `GameState` | `grant_feat()` mutates `feat_ids` and calls `save()` |
 | `EventManager` | `feat_grant` effect routes through `GameState.grant_feat()`; `feat:ID` condition checks `member.feat_ids` |
 
@@ -167,10 +174,12 @@ Feat stat bonuses apply identically to equipment bonuses — flat additions to d
 
 | File | Count | Covers |
 |------|-------|--------|
-| `tests/test_feat_library.gd` / `.tscn` | 11 | CSV loads 32 rows; stat_bonuses parsed (iron_guard, iron_will); source_type parsed (class, background); unknown id returns empty bonuses |
+| `tests/test_feat_library.gd` / `.tscn` | 11 | CSV loads 38 rows; stat_bonuses parsed (iron_guard, iron_will); source_type parsed (class, background); unknown id returns empty bonuses |
 | `tests/test_feat_stat_bonus.gd` / `.tscn` | 8 | `get_feat_stat_bonus()` sums correctly; derived attack/defense/energy_regen increase; unknown id is safe |
 | `tests/test_game_state_feat_grant.gd` / `.tscn` | 4 | grant adds id; deduplicates; invalid index no-crashes; save round-trip |
 | `tests/test_feat_migration.gd` / `.tscn` | 5 | Old `kindred_feat_id` + `feats` → `feat_ids` migration paths |
+
+| `tests/test_accessory_feat.gd` / `.tscn` | 5 | Rare accessory adds feat stat bonus; unequip removes it; dedup with feat_ids; COMMON has no feat bonus; 36-item count |
 
 Run via:
 ```
@@ -178,6 +187,7 @@ godot --headless --path rogue-finder res://tests/test_feat_library.tscn
 godot --headless --path rogue-finder res://tests/test_feat_stat_bonus.tscn
 godot --headless --path rogue-finder res://tests/test_game_state_feat_grant.tscn
 godot --headless --path rogue-finder res://tests/test_feat_migration.tscn
+godot --headless --path rogue-finder res://tests/test_accessory_feat.tscn
 ```
 
 ---

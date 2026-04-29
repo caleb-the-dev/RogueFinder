@@ -110,13 +110,13 @@ func test_epic_plus_two_plus_two_parses_correctly() -> void:
 		"iron_plate_epic magic_defense should be 5, got %d" % pc.magic_defense)
 	print("  PASS test_epic_plus_two_plus_two_parses_correctly")
 
-## (e) all_equipment() returns 27 items: 12 weapons + 12 armor + 3 accessory
+## (e) all_equipment() returns 36 items: 12 weapons + 12 armor + 12 accessory
 
 func test_all_equipment_count() -> void:
 	EquipmentLibrary.reload()
 	var all: Array[EquipmentData] = EquipmentLibrary.all_equipment()
-	assert(all.size() == 27,
-		"all_equipment() should return 27 items, got %d" % all.size())
+	assert(all.size() == 36,
+		"all_equipment() should return 36 items, got %d" % all.size())
 	var armor_count := 0
 	for eq in all:
 		if eq.slot == EquipmentData.Slot.ARMOR:
