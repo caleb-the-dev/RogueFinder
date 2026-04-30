@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-30 (Vendor Slice 4 — StockGenerator; GameState.vendor_stocks save/load/reset; MapManager._generate_vendor_stocks(); 7 headless tests) |
+| last_updated | 2026-04-30 (Vendor Slice 5 — VendorOverlay modal UI; try_buy static method; dev test button in MapManager; 6 headless tests; ui.md bucket created) |
 | last_groomed | 2026-04-29 |
-| sessions_since_groom | 3 |
+| sessions_since_groom | 4 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -23,7 +23,8 @@
 
 | System | Bucket File | Status | Layer |
 |--------|------------|--------|-------|
-| [Economy — Gold / Pricing / Vendors](economy.md) | `economy.md` | ✅ Active (RewardGenerator.gold_drop() · PricingFormula.price_for() · VendorLibrary 7 seed vendors · StockGenerator.roll_stock() · GameState.vendor_stocks save/load; VendorScene UI deferred to Slice 5) | Data |
+| [Economy — Gold / Pricing / Vendors](economy.md) | `economy.md` | ✅ Active (RewardGenerator.gold_drop() · PricingFormula.price_for() · VendorLibrary 7 seed vendors · StockGenerator.roll_stock() · GameState.vendor_stocks save/load; Slice 6 wire-up deferred) | Data |
+| [UI Overlays — VendorOverlay](ui.md) | `ui.md` | ✅ Active (VendorOverlay layer 20 — show_vendor / try_buy; Slice 6 wire-up to map nodes + Badurga deferred) | Presentation |
 | [Combat Manager](combat_manager.md) | `combat_manager.md` | ✅ Active (3D) + Legacy (2D) | Core |
 | [Grid System](grid_system.md) | `grid_system.md` | ✅ Active (3D) + Legacy (2D) | Core |
 | [Unit System](unit_system.md) | `unit_system.md` | ✅ Active (3D) + Legacy (2D) | Core |
@@ -227,6 +228,7 @@ rogue-finder/
 │       ├── PauseMenuManager.gd         ← global pause overlay autoload (layer 26)
 │       ├── StatPanel.gd                ← double-click examine (layer 8)
 │       ├── UnitInfoBar.gd              ← hover strip (layer 4)
+│       ├── VendorOverlay.gd            ← modal shop overlay (layer 20); show_vendor/try_buy; Slice 6 wires entry points
 │       └── HUD.gd                      ← legacy 2D only
 ├── resources/
 │   ├── AbilityData.gd                  ← TargetShape / ApplicableTo / Attribute enums
@@ -260,6 +262,7 @@ rogue-finder/
 │   ├── vendors.csv                     ← 7 vendors (4 CITY + 3 WORLD); category_pool pipe-separated; read via res://data/
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
+│   ├── ui/VendorOverlay.tscn           ← minimal (CanvasLayer root + VendorOverlay script)
 │   ├── city/BadurgaScene.tscn
 │   ├── combat/
 │   │   ├── CombatScene3D.tscn          ← active (3D)
@@ -279,7 +282,7 @@ rogue-finder/
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       ├── PauseMenuScene.tscn         ← minimal (root CanvasLayer + PauseMenuManager script); registered as PauseMenu autoload
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 48 test scripts + 35 scene runners. **test_vendor_stock.gd/.tscn** added 2026-04-30 (7 assertions — determinism, seed variance, category filter, mixed pool coverage, stock count, sold-flag JSON round-trip, regen WORLD-only). **test_consumables.gd** updated 2026-04-29 (Slice 6): 5 new item assertions (steel_tonic/quicksilver_draught/clarity_brew/iron_word/heartroot_tonic — each checks BUFF, base_value==1, correct target_stat) + total count assertion (11). **test_accessory_feat.gd/.tscn** added 2026-04-29 (5 assertions — Rare accessory adds feat stat bonus, unequip removes, dedup with feat_ids, COMMON no bonus, 36-item count). **test_armor_equip.gd/.tscn** updated for 36-item count. **test_rarity.gd** updated: armor_accessory_all_common now checks all 4 tiers exist (not COMMON-only); granted_ability_ids check narrowed to accessories only; feat_id check verifies COMMON=empty/Rare+=non-empty. **test_equipment.gd** updated: old padded_armor/rough_hide/cloth_robe tests replaced with iron_plate/ring_of_valor_epic/mystic_robe; count updated to 36. **test_armor_equip.gd/.tscn** (7); **test_weapon_equip.gd/.tscn** (7 — on_equip adds to pool, dedup, on_unequip removes, slot preserves on unequip, CSV parse iron_sword, multiple ids round-trip, armor noop). **test_upgraded_ability.gd/.tscn** (6 — upgraded_id default, stub on no-upgrade, round-trip, CSV no upgrade, ability count, never-null). Note: test asserts 60 rows — needs update to 63. test_rarity.gd/.tscn (13); test_pause_menu.gd/.tscn (12); test_hire_roster.gd/.tscn (6); test_recruit_success.gd/.tscn (11); test_recruit_math.gd/.tscn (13); test_armor_mod.gd/.tscn (11); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; `extends SceneTree` tests use `--script`.
+└── tests/                              ← 50 test scripts + 37 scene runners. **test_vendor_buy.gd/.tscn** added 2026-04-30 (6 assertions — gold debit, rarity preserved, sold-flag flip, insufficient-gold rejection, already-sold rejection, save round-trip). **test_vendor_stock.gd/.tscn** added 2026-04-30 (7 assertions — determinism, seed variance, category filter, mixed pool coverage, stock count, sold-flag JSON round-trip, regen WORLD-only). **test_consumables.gd** updated 2026-04-29 (Slice 6): 5 new item assertions (steel_tonic/quicksilver_draught/clarity_brew/iron_word/heartroot_tonic — each checks BUFF, base_value==1, correct target_stat) + total count assertion (11). **test_accessory_feat.gd/.tscn** added 2026-04-29 (5 assertions — Rare accessory adds feat stat bonus, unequip removes, dedup with feat_ids, COMMON no bonus, 36-item count). **test_armor_equip.gd/.tscn** updated for 36-item count. **test_rarity.gd** updated: armor_accessory_all_common now checks all 4 tiers exist (not COMMON-only); granted_ability_ids check narrowed to accessories only; feat_id check verifies COMMON=empty/Rare+=non-empty. **test_equipment.gd** updated: old padded_armor/rough_hide/cloth_robe tests replaced with iron_plate/ring_of_valor_epic/mystic_robe; count updated to 36. **test_armor_equip.gd/.tscn** (7); **test_weapon_equip.gd/.tscn** (7 — on_equip adds to pool, dedup, on_unequip removes, slot preserves on unequip, CSV parse iron_sword, multiple ids round-trip, armor noop). **test_upgraded_ability.gd/.tscn** (6 — upgraded_id default, stub on no-upgrade, round-trip, CSV no upgrade, ability count, never-null). Note: test asserts 60 rows — needs update to 63. test_rarity.gd/.tscn (13); test_pause_menu.gd/.tscn (12); test_hire_roster.gd/.tscn (6); test_recruit_success.gd/.tscn (11); test_recruit_math.gd/.tscn (13); test_armor_mod.gd/.tscn (11); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; `extends SceneTree` tests use `--script`.
 ```
 
 ---
@@ -290,6 +293,7 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-30 | VendorOverlay, MapManager (dev button) | **Vendor Slice 5 — Vendor Overlay UI.** `VendorOverlay.gd` + `VendorOverlay.tscn` (CanvasLayer layer 20). `show_vendor(instance_key)` pulls `GameState.vendor_stocks[key]`. `try_buy(entry)` static method: validates gold ≥ price and not sold; debits gold, flips sold, adds to inventory with `.duplicate()`, saves. Scrollable stock rows: rarity-colored name · stat summary (`_format_stats` + `_stat_abbr`) · gold price · Buy/SOLD. Gold readout and row states rebuild after each purchase. ESC closes. Dev "🛒 Vendor Test" button in MapManager `inv_row` opens `"vendor_weapon"` stock for end-to-end testing. `ui.md` bucket file created. 6 headless tests (`test_vendor_buy.gd/.tscn`). |
 | 2026-04-30 | StockGenerator, GameState.vendor_stocks, MapManager | **Vendor Slice 4 — Stock Manifest + Persistence.** `StockGenerator.gd` (new) — `roll_stock(vendor, seed_int)` returns `Array[{vendor_id, item, price, sold}]`; seeded Fisher-Yates; category filter by `EquipmentData.Slot.keys()[slot].to_lower()`; `PricingFormula.price_for()` per entry. `RewardGenerator._eq_to_dict/_con_to_dict` → public `eq_to_dict/con_to_dict`. `GameState.vendor_stocks: Dictionary = {}` — CITY keyed by vendor_id, WORLD keyed by node_id; wired into `save()`/`load_save()`/`reset()`; `regen_world_vendor_stocks()` added (WORLD-only regen, future boss-cycle trigger). `MapManager._generate_vendor_stocks()` called after `_assign_boss_type()` in `_ready()`; no-op if already populated (loaded save); handles old-save migration. Seed formula: CITY `hash(str(map_seed)+"::"+vendor_id)`; WORLD pick `posmod(hash(str(map_seed)+node_id), count)`; WORLD seed `hash(str(map_seed)+"::"+node_id)`. 7 headless tests. Fixed 6 pre-existing GDScript warnings (RewardGenerator, MapManager, BenchSwapPanel, PartySheet). |
 | 2026-04-30 | VendorData, VendorLibrary, vendors.csv | **Vendor Slice 3 — VendorLibrary Data Set.** `VendorData.gd` resource (`vendor_id`, `display_name`, `flavor`, `category_pool: Array[String]`, `stock_count: int`, `scope: String`). `vendors.csv` — 7 seed rows (4 CITY, 3 WORLD). `VendorLibrary.gd` — BackgroundLibrary shape; `get_vendor()` never-null stub; `all_vendors()`; `vendors_by_scope(scope)` for Slice 4; `reload()`. `economy.md` bucket file created; `map.md` updated. 17 headless tests (`test_vendor_library.gd/.tscn`). |
 | 2026-04-29 | RewardGenerator, GameState, MapManager, CombatManager3D, EndCombatScreen | **Vendor Slice 1 — Currency Reward Channel.** `RewardGenerator.gold_drop(ring, threat, party_avg_level)` added: formula is `(RING_BASE[ring] + 0.15 * threat + 3.0 * avg_level) * randf_range(0.9, 1.1)`, clamped to ≥ 1. RING_BASE: outer 30, middle 20, inner 12. `GameState.current_combat_ring: String = ""` added as a transient (NOT serialized) field. `MapManager._enter_current_node()` now sets `current_combat_ring` alongside `current_combat_node_id` using existing `_get_ring()`. `CombatManager3D._calc_gold_reward()` computes ring-scaled gold, adds to `GameState.gold` before saving, and passes amount to `EndCombatScreen.show_victory(items, gold)`. `EndCombatScreen.show_victory()` signature extended with `gold_amount: int = 0`; displays `"+X Gold (Total: Y)"` line in Color(0.90, 0.80, 0.30) above item cards. 7 headless tests added (`test_gold_reward.gd/.tscn`). |
