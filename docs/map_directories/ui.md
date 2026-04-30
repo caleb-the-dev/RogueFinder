@@ -57,6 +57,13 @@ overlay.closed.connect(_on_vendor_closed)
 
 Slice 6 will wire this into MapManager (VENDOR node entry) and BadurgaManager (city shop stalls). The Slice 5 dev button in MapManager opens `"vendor_weapon"` for end-to-end testing.
 
+### Gotchas
+
+- **Overlay frees itself on close** — `_on_close()` calls `queue_free()`. The caller must re-instantiate for a second open; it cannot call `show_vendor()` again on the same instance after closing. Slice 6 should create a fresh instance each time the vendor node is entered.
+- **`try_buy` modifies the entry dict in-place** — `entry["sold"] = true` mutates the Dictionary stored in `GameState.vendor_stocks`. This is intentional — the sold state persists across reopens without additional save plumbing. Do not pass a copy to `try_buy`.
+- **Closed emitted before `queue_free()`** — the `closed` signal fires while the overlay is still alive. Signal handlers can safely read overlay state; they must not `queue_free()` it again.
+- **Empty stock key** — if `instance_key` is not in `GameState.vendor_stocks`, `_stock` will be `[]` and the overlay shows "No stock available." with the VendorLibrary stub name. Not an error; Slice 6 should guard against calling `show_vendor` before stocks are generated.
+
 ### Dependencies
 
 ```
