@@ -1,6 +1,6 @@
 # Economy System
 
-> Covers gold generation, pricing, vendor data layer, and stock manifest generation. Vendor UI (VendorScene) is Slice 5 and not yet built.
+> Covers gold generation, pricing, vendor data layer, stock manifest generation, and the vendor shop overlay UI. Slice 6 (wire-up to map VENDOR nodes + Badurga stalls) is not yet built.
 
 ---
 
@@ -10,10 +10,11 @@
 |--------|--------|
 | RewardGenerator — `gold_drop()` | ✅ Active (Vendor Slice 1) |
 | PricingFormula — `price_for()` | ✅ Active (Vendor Slice 2) |
-| VendorLibrary / VendorData | ✅ Active (Vendor Slice 3 — data layer only; no UI yet) |
+| VendorLibrary / VendorData | ✅ Active (Vendor Slice 3 — data layer only) |
 | StockGenerator — `roll_stock()` | ✅ Active (Vendor Slice 4) |
 | GameState.vendor_stocks + regen | ✅ Active (Vendor Slice 4) |
-| VendorScene (map VENDOR node UI) | ⏳ Deferred (Vendor Slice 5) |
+| VendorOverlay (modal shop UI) | ✅ Active (Vendor Slice 5) — see `ui.md` |
+| Map VENDOR node + Badurga stall wire-up | ⏳ Deferred (Vendor Slice 6) |
 
 ---
 
@@ -98,6 +99,7 @@ Mirrors BackgroundLibrary shape exactly: lazy cache, never-null get, reload().
 | `tests/test_gold_reward.gd/.tscn` | 7 | gold_drop formula, ring scaling, jitter bounds |
 | `tests/test_vendor_library.gd/.tscn` | 17 | all 7 vendors load; single + pipe category_pool; stub not null; scope filters; reload |
 | `tests/test_vendor_stock.gd/.tscn` | 7 | determinism; seed variance; category filter; mixed pool coverage; stock count; sold-flag JSON round-trip; regen WORLD-only |
+| `tests/test_vendor_buy.gd/.tscn` | 6 | gold debit; rarity preserved; sold-flag flip; insufficient-gold rejection; already-sold rejection; save round-trip |
 
 ---
 
@@ -105,6 +107,7 @@ Mirrors BackgroundLibrary shape exactly: lazy cache, never-null get, reload().
 
 | Date | Change |
 |------|--------|
+| 2026-04-30 | **Vendor Slice 5 — VendorOverlay UI.** `VendorOverlay.gd` + `VendorOverlay.tscn` (CanvasLayer layer 20). `show_vendor(instance_key)` pulls manifest from `GameState.vendor_stocks`. `try_buy(entry)` static method: validates gold/sold, debits gold, flips sold, adds to inventory, saves. Scrollable stock rows with rarity-colored names, stat summary, gold price, Buy/SOLD states. Dev "🛒 Vendor Test" button in MapManager opens `vendor_weapon` stock. 6 headless tests. |
 | 2026-04-30 | **Vendor Slice 4 — Stock Manifest + Persistence.** `StockGenerator.gd` (new — `roll_stock(vendor, seed_int)`; seeded Fisher-Yates; category filter; PricingFormula per entry). `RewardGenerator._eq_to_dict/_con_to_dict` renamed to public `eq_to_dict/con_to_dict`. `GameState.vendor_stocks: Dictionary` added (CITY keyed by vendor_id, WORLD keyed by node_id; save/load/reset wired; `regen_world_vendor_stocks()` method added). `MapManager._generate_vendor_stocks()` populates all stocks on map-gen (no-op if already present — handles old-save migration). 7 headless tests. |
 | 2026-04-30 | **Vendor Slice 3 — VendorLibrary.** `VendorData.gd`, `vendors.csv` (7 seed rows), `VendorLibrary.gd` (BackgroundLibrary shape; `vendors_by_scope()` added). 17 headless tests. |
 | 2026-04-29 | **Vendor Slice 2 — PricingFormula.** `PricingFormula.price_for(item, rng)` — rarity base × jitter, caller-supplied RNG. |

@@ -1310,6 +1310,18 @@ func _build_dev_event_panel() -> void:
 	)
 	inv_row.add_child(give_gold_btn)
 
+	var vendor_test_btn := Button.new()
+	vendor_test_btn.text = "🛒 Vendor Test"
+	vendor_test_btn.custom_minimum_size = Vector2(160.0, 32.0)
+	vendor_test_btn.add_theme_font_size_override("font_size", 13)
+	vendor_test_btn.pressed.connect(func() -> void:
+		_dev_event_panel.visible = false
+		var overlay: VendorOverlay = preload("res://scenes/ui/VendorOverlay.tscn").instantiate()
+		add_child(overlay)
+		overlay.show_vendor("vendor_weapon")
+	)
+	inv_row.add_child(vendor_test_btn)
+
 	var sep_inv := HSeparator.new()
 	vbox.add_child(sep_inv)
 
