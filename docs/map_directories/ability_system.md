@@ -10,7 +10,7 @@ The ability system defines **what a combatant can do on their turn**. Three coll
 
 - `AbilityData` — one ability (identity, shape, cost, effects list).
 - `EffectData` — one effect inside an ability (the actual math).
-- `AbilityLibrary` — static factory that builds 42 predefined abilities.
+- `AbilityLibrary` — CSV-native loader with 63 unique abilities.
 
 One QTE fires per ability. The resulting `multiplier` float is shared across every effect in the ability's `effects` array.
 
@@ -134,7 +134,9 @@ One QTE fires per ability. The resulting `multiplier: float` is shared across al
 
 CSV-native lazy-loaded class. Same pattern as all other data libraries. `ABILITIES` const dict removed; data now sourced from `abilities.csv`. Effects column stores a JSON array — each object has `type` (string), `base_value` (int), and type-specific optional keys (`pool`, `stat`, `move`, `force`).
 
-### Defined Abilities (66)
+### Defined Abilities (63)
+
+> **Count note:** 63 unique CSV rows. `stone_guard`, `guard`, and `divine_ward` appear in two organizational sections each (ancestry/base/class-pool AND armor families) — they are single abilities used in both contexts, not duplicates.
 
 Rows are grouped by origin; all share the same CSV format and `get_ability()` lookup.
 
@@ -178,7 +180,7 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 | `venom_bite` | Venom Bite | Spider | DEX | 2 | HARM 3 HP + DEBUFF 1 DEX |
 | `claw_swipe` | Claw Swipe | Dragon | STR | 2 | ARC HARM 5 HP |
 
-#### Kindred Ancestry Abilities (12) — in kindred `ability_pool` (not granted at creation)
+#### Kindred Ancestry Abilities (14) — in kindred `ability_pool` (not granted at creation)
 
 | ID | Name | Attr | Cost | Effects |
 |----|------|------|------|---------|
@@ -234,7 +236,7 @@ Each base ability is linked to its upgrade via `upgraded_id`. These are pool-onl
 | `divine_ward` | Divine Ward | WIL | 2 | BUFF 2 MAGIC_ARMOR_MOD | `greater_ward` |
 | `greater_ward` | Greater Ward | WIL | 2 | BUFF 3 MAGIC_ARMOR_MOD | — |
 
-#### Class Pool Additions (6) — added this session for Prowler / Warden pools
+#### Class Pool Additions (6) — added for Prowler / Warden pools (2026-04-26)
 
 | ID | Name | Attr | Cost | Range | Targets | Effects |
 |----|------|------|------|-------|---------|---------|

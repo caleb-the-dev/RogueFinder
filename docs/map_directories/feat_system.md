@@ -75,9 +75,9 @@ Pools are 10 feats each with ~50% overlap. See `class_system.md` for full per-cl
 | `arcane_focus` | Arcane Focus | cognition:2 | Arcanist |
 | `mana_well` | Mana Well | willpower:1 | Arcanist, Prowler, Warden |
 | `studied_reflexes` | Studied Reflexes | cognition:1 | Arcanist |
-| `iron_guard` | Iron Guard | armor_defense:2 | Vanguard |
+| `iron_guard` | Iron Guard | physical_armor:2 | Vanguard |
 | `stalwart` | Stalwart | vitality:1 | Vanguard, Arcanist, Warden |
-| `shield_discipline` | Shield Discipline | armor_defense:1 | Vanguard, Warden |
+| `shield_discipline` | Shield Discipline | physical_armor:1 | Vanguard, Warden |
 | `iron_constitution` | Iron Constitution | vitality:2 | Vanguard, Warden |
 | `combat_mastery` | Combat Mastery | strength:1 | Vanguard, Prowler |
 | `spell_memory` | Spell Memory | cognition:1 | Arcanist, Warden |
@@ -85,7 +85,7 @@ Pools are 10 feats each with ~50% overlap. See `class_system.md` for full per-cl
 | `relentless_assault` | Relentless Assault | strength:1 | Vanguard, Prowler |
 | `arcane_resilience` | Arcane Resilience | vitality:1 | Arcanist, Warden |
 | `iron_will` | Iron Will | willpower:2 | Arcanist, Prowler, Warden |
-| `veteran_instinct` | Veteran Instinct | armor_defense:1 | Vanguard, Warden |
+| `veteran_instinct` | Veteran Instinct | physical_armor:1 | Vanguard, Warden |
 
 ### Background Feats (18)
 
@@ -124,11 +124,12 @@ Feat stat bonuses apply identically to equipment bonuses — flat additions to d
 
 | Stat key | Affects derived stat |
 |----------|---------------------|
-| `strength` | `attack` (+1 per point) |
-| `dexterity` | `speed` (+1 per point) |
+| `strength` | `effective_stat("strength")` — scales STR-based HARM abilities |
+| `dexterity` | no derived stat currently; DEX reserved for future dodge/evasion |
 | `willpower` | `energy_regen` (+1 per point) and `energy_max` (+1 per point) |
 | `vitality` | `hp_max` (+1 per point) and `energy_max` (+1 per point) |
-| `armor_defense` | `defense` (+1 per point) |
+| `physical_armor` | `physical_defense` (+1 per point) |
+| `magic_armor` | `magic_defense` (+1 per point) |
 | `cognition` | no derived stat yet; bonus compiles and returns 0 |
 
 **These are flat bonuses to the derived result, not to the base attribute.** A `vitality:1` feat adds +1 to `hp_max` and +1 to `energy_max`, not +6 to `hp_max`. This matches how `_equip_bonus("vitality")` behaves.
