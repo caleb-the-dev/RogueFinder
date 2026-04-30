@@ -1392,14 +1392,12 @@ func _process_enemy_actions() -> void:
 		if not enemy.is_alive:
 			continue
 
-		# --- 1. Target selection ---
-		var targets: Array[Unit3D] = []
-		for pu in _player_units:
-			if pu.is_alive:
-				targets.append(pu)
-		if targets.is_empty():
+		# --- 1. Movement heuristic target (random hostile — used only for greedy stride) ---
+		# EnemyAI picks the real action target after movement; this is just a positioning proxy.
+		var move_hostiles: Array[Unit3D] = _player_units_alive()
+		if move_hostiles.is_empty():
 			break
-		var target: Unit3D = targets[randi() % targets.size()]
+		var move_target: Unit3D = move_hostiles[randi() % move_hostiles.size()]
 
 		# --- 2. Consumable use (50% chance when HP < 50%) ---
 		if enemy.data.consumable != "":
@@ -1416,14 +1414,14 @@ func _process_enemy_actions() -> void:
 				enemy.data.consumable = ""
 				enemy.show_action_text(con.consumable_name)
 
-		# --- 3. Movement (Stride) — greedy Manhattan minimization ---
+		# --- 3. Movement (Stride) — greedy Manhattan minimization toward move_target ---
 		if enemy.remaining_move > 0:
 			var move_cells: Array[Vector2i] = _grid.get_move_range(enemy.grid_pos, enemy.remaining_move)
 			var best_cell: Vector2i = enemy.grid_pos
-			var best_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
-					+ abs(enemy.grid_pos.y - target.grid_pos.y)
+			var best_dist: int = abs(enemy.grid_pos.x - move_target.grid_pos.x) \
+					+ abs(enemy.grid_pos.y - move_target.grid_pos.y)
 			for cell in move_cells:
-				var dist: int = abs(cell.x - target.grid_pos.x) + abs(cell.y - target.grid_pos.y)
+				var dist: int = abs(cell.x - move_target.grid_pos.x) + abs(cell.y - move_target.grid_pos.y)
 				if dist < best_dist:
 					best_dist = dist
 					best_cell = cell
@@ -1448,31 +1446,17 @@ func _process_enemy_actions() -> void:
 						await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
 						continue
 
-		# --- 4. Ability selection ---
-		var post_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
-				+ abs(enemy.grid_pos.y - target.grid_pos.y)
-		var affordable: Array[AbilityData] = []
-		for ability_id: String in enemy.data.abilities:
-			if ability_id == "":
-				continue
-			var ab: AbilityData = AbilityLibrary.get_ability(ability_id)
-			if enemy.current_energy < ab.energy_cost:
-				continue
-			if ab.applicable_to != AbilityData.ApplicableTo.ENEMY \
-					and ab.applicable_to != AbilityData.ApplicableTo.ANY:
-				continue
-			# SELF shape always reaches the caster — skip distance gate
-			if ab.target_shape != AbilityData.TargetShape.SELF \
-					and ab.tile_range != -1 and post_dist > ab.tile_range:
-				continue
-			affordable.append(ab)
-
-		if affordable.is_empty():
+		# --- 4. EnemyAI: role-driven target + ability selection ---
+		var pick: Dictionary = EnemyAI.choose_action(
+			enemy,
+			_enemy_units_alive_excluding(enemy),
+			_player_units_alive(),
+			_grid)
+		if pick.get("target") == null or pick.get("ability") == null:
 			await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
 			continue
-
-		# --- 5. Execute ability ---
-		var chosen: AbilityData = affordable[randi() % affordable.size()]
+		var target: Unit3D  = pick["target"]
+		var chosen: AbilityData = pick["ability"]
 		enemy.spend_energy(chosen.energy_cost)
 		enemy.show_action_text(chosen.ability_name)
 
@@ -1538,6 +1522,22 @@ func _process_enemy_actions() -> void:
 			return
 
 		await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
+
+## Returns all living player-side units. Used by EnemyAI and the movement heuristic.
+func _player_units_alive() -> Array[Unit3D]:
+	var result: Array[Unit3D] = []
+	for u: Unit3D in _player_units:
+		if u.is_alive:
+			result.append(u)
+	return result
+
+## Returns all living enemy-side units excluding the given unit. Used by EnemyAI.
+func _enemy_units_alive_excluding(self_enemy: Unit3D) -> Array[Unit3D]:
+	var result: Array[Unit3D] = []
+	for u: Unit3D in _enemy_units:
+		if u.is_alive and u != self_enemy:
+			result.append(u)
+	return result
 
 ## Picks the AoE origin cell that maximizes living player units hit (random tiebreak).
 ## For RADIAL, scans all cells within tile_range of the caster.

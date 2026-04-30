@@ -17,6 +17,9 @@ var grid_pos: Vector2i  = Vector2i.ZERO
 var remaining_move: int = 0
 var has_acted: bool     = false
 var is_alive: bool      = true
+## Set to "force_random" by the future Confused status condition to bypass EnemyAI role-walk.
+## Transient — never serialized; cleared when combat resets.
+var ai_override: String = ""
 
 ## Applied stat effects — populated by CombatManager3D._apply_stat_delta().
 ## Each entry: { "display_name": String, "stat": int, "delta": int }
