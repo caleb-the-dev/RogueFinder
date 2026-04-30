@@ -1,6 +1,6 @@
 # System: UI Overlays
 
-> Last updated: 2026-04-30 (Vendor Slice 5 — VendorOverlay)
+> Last updated: 2026-04-30 (Vendor Slice 6 — VendorOverlay wired to map nodes + Badurga; blocks_pause group)
 
 Covers standalone modal overlays that don't belong to a single game system bucket. Combat HUD (UnitInfoBar, StatPanel, CombatActionPanel, EndCombatScreen) is documented in `hud_system.md`. PartySheet is in `party_sheet.md`. Hire Roster is in `map_scene.md`.
 
@@ -55,14 +55,15 @@ overlay.show_vendor(instance_key)   # "vendor_weapon" for CITY; node_id for WORL
 overlay.closed.connect(_on_vendor_closed)
 ```
 
-Slice 6 will wire this into MapManager (VENDOR node entry) and BadurgaManager (city shop stalls). The Slice 5 dev button in MapManager opens `"vendor_weapon"` for end-to-end testing.
+**MapManager** instantiates fresh per VENDOR node visit, tracks it as `_vendor_overlay`, and connects `closed` to mark the node cleared + save. **BadurgaManager** calls `_open_vendor_stall(vendor_id)` for each of the 4 vendor stall buttons (no-op needed on close — Badurga scene stays live underneath).
 
 ### Gotchas
 
 - **Overlay frees itself on close** — `_on_close()` calls `queue_free()`. The caller must re-instantiate for a second open; it cannot call `show_vendor()` again on the same instance after closing. Slice 6 should create a fresh instance each time the vendor node is entered.
 - **`try_buy` modifies the entry dict in-place** — `entry["sold"] = true` mutates the Dictionary stored in `GameState.vendor_stocks`. This is intentional — the sold state persists across reopens without additional save plumbing. Do not pass a copy to `try_buy`.
 - **Closed emitted before `queue_free()`** — the `closed` signal fires while the overlay is still alive. Signal handlers can safely read overlay state; they must not `queue_free()` it again.
-- **Empty stock key** — if `instance_key` is not in `GameState.vendor_stocks`, `_stock` will be `[]` and the overlay shows "No stock available." with the VendorLibrary stub name. Not an error; Slice 6 should guard against calling `show_vendor` before stocks are generated.
+- **Empty stock key** — if `instance_key` is not in `GameState.vendor_stocks`, `_stock` will be `[]` and the overlay shows "No stock available." with the VendorLibrary stub name. `MapManager._generate_vendor_stocks()` is additive and runs on every map load, so this should not occur in normal play.
+- **blocks_pause group** — `VendorOverlay` joins the `"blocks_pause"` group on `_ready()`. While any member of this group is visible, `PauseMenuManager` hides the ☰ button and ignores ESC, preventing the pause menu from bleeding over the shop overlay.
 
 ### Dependencies
 
@@ -88,4 +89,5 @@ VendorOverlay
 
 | Date | Change |
 |------|--------|
+| 2026-04-30 | **Vendor Slice 6 — Wire-up.** VendorOverlay wired to map VENDOR nodes (MapManager `_enter_current_node` VENDOR branch; `_vendor_overlay` ref; clears node on close) and all 4 Badurga stalls (`_open_vendor_stall`). Dev test button removed. `add_to_group("blocks_pause")` added — PauseMenuManager hides ☰ and skips ESC while overlay is visible. |
 | 2026-04-30 | **Vendor Slice 5 — VendorOverlay.** `VendorOverlay.gd` + `VendorOverlay.tscn` (layer 20 modal). `show_vendor(instance_key)` API. `try_buy(entry)` static transaction method. Scrollable stock rows with rarity colors, stat summary, gold price, Buy/SOLD states. Dev test button in MapManager. 6 headless tests. |

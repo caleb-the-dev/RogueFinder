@@ -5,15 +5,24 @@ extends Node2D
 
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 
-const SECTIONS: Array = [
-	["Party Management",                     "party_management"],
-	["Hire Roster",                          "hire_roster"],
-	["The Broken Compass  [Tavern]",         "tavern"],
-	["Bulletin Board",                       "bulletin"],
-	["Ironmonger's Stall  [Weapons]",        "vendor_weapon"],
-	["Seamstress & Leatherworks  [Armor]",   "vendor_armor"],
-	["The Curio Dealer  [Accessories]",      "vendor_accessory"],
-	["Herbalist's Cart  [Consumables]",      "vendor_consumable"],
+## Left column: party/hire + coming-soon stubs
+const LEFT_SECTIONS: Array = [
+	["Party Management", "party_management"],
+	["Hire Roster",      "hire_roster"],
+]
+
+## Right column: live vendor stalls
+const VENDOR_SECTIONS: Array = [
+	["Ironmonger's Stall  [Weapons]",       "vendor_weapon"],
+	["Seamstress & Leatherworks  [Armor]",  "vendor_armor"],
+	["The Curio Dealer  [Accessories]",     "vendor_accessory"],
+	["Herbalist's Cart  [Consumables]",     "vendor_consumable"],
+]
+
+## Coming-soon stubs shown in the left column (disabled)
+const STUB_SECTIONS: Array = [
+	["The Broken Compass  [Tavern]"],
+	["Bulletin Board"],
 ]
 
 const SLOT_CONSUMABLE: int = 99
@@ -64,6 +73,16 @@ func _ready() -> void:
 	_add_section_buttons()
 	_add_return_button()
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("ui_cancel"):
+		return
+	if _overlay_layer != null and is_instance_valid(_overlay_layer) and _overlay_layer.visible:
+		_close_party_management()
+		get_viewport().set_input_as_handled()
+	elif _hire_layer != null and is_instance_valid(_hire_layer) and _hire_layer.visible:
+		_close_hire_roster()
+		get_viewport().set_input_as_handled()
+
 func _process(_delta: float) -> void:
 	var dragging: bool = get_viewport().gui_is_dragging()
 
@@ -113,24 +132,83 @@ func _add_title() -> void:
 	add_child(subtitle)
 
 func _add_section_buttons() -> void:
-	var btn_size := Vector2(480.0, 54.0)
-	var spacing := 8.0
-	var start_y := 180.0
-	var x := (VIEWPORT_SIZE.x - btn_size.x) * 0.5
+	var content_top: float = 175.0
 
-	for i in range(SECTIONS.size()):
-		var entry: Array = SECTIONS[i]
-		var label_text: String = entry[0]
-		var section_id: String = entry[1]
+	## --- Left column: Party Management (large) + Hire Roster + coming-soon stubs ---
+	var lx: float = 80.0
+	var lw: float = 430.0
 
-		var btn := Button.new()
-		btn.text = label_text
-		btn.custom_minimum_size = btn_size
-		btn.size = btn_size
-		btn.position = Vector2(x, start_y + i * (btn_size.y + spacing))
-		btn.add_theme_font_size_override("font_size", 18)
-		btn.pressed.connect(_on_section_pressed.bind(section_id))
-		add_child(btn)
+	var party_btn := Button.new()
+	party_btn.text = "Party Management"
+	party_btn.custom_minimum_size = Vector2(lw, 150.0)
+	party_btn.size = Vector2(lw, 150.0)
+	party_btn.position = Vector2(lx, content_top)
+	party_btn.add_theme_font_size_override("font_size", 24)
+	party_btn.pressed.connect(_on_section_pressed.bind("party_management"))
+	add_child(party_btn)
+
+	var hire_btn := Button.new()
+	hire_btn.text = "Hire Roster"
+	hire_btn.custom_minimum_size = Vector2(lw, 86.0)
+	hire_btn.size = Vector2(lw, 86.0)
+	hire_btn.position = Vector2(lx, content_top + 162.0)
+	hire_btn.add_theme_font_size_override("font_size", 20)
+	hire_btn.pressed.connect(_on_section_pressed.bind("hire_roster"))
+	add_child(hire_btn)
+
+	# Coming-soon section header
+	var stub_hdr := Label.new()
+	stub_hdr.text = "— Coming Soon —"
+	stub_hdr.position = Vector2(lx, content_top + 264.0)
+	stub_hdr.size = Vector2(lw, 24.0)
+	stub_hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stub_hdr.add_theme_font_size_override("font_size", 11)
+	stub_hdr.add_theme_color_override("font_color", Color(0.45, 0.43, 0.38))
+	add_child(stub_hdr)
+
+	var stub_y: float = content_top + 292.0
+	for stub: Array in STUB_SECTIONS:
+		var sbtn := Button.new()
+		sbtn.text = stub[0]
+		sbtn.custom_minimum_size = Vector2(lw, 46.0)
+		sbtn.size = Vector2(lw, 46.0)
+		sbtn.position = Vector2(lx, stub_y)
+		sbtn.add_theme_font_size_override("font_size", 14)
+		sbtn.disabled = true
+		sbtn.modulate = Color(1.0, 1.0, 1.0, 0.45)
+		add_child(sbtn)
+		stub_y += 54.0
+
+	## Vertical divider between columns
+	var div := ColorRect.new()
+	div.color = Color(0.35, 0.30, 0.22, 0.50)
+	div.size = Vector2(1.0, 420.0)
+	div.position = Vector2(lx + lw + 19.0, content_top)
+	add_child(div)
+
+	## --- Right column: vendor stalls ---
+	var rx: float = lx + lw + 40.0
+	var rw: float = VIEWPORT_SIZE.x - rx - 80.0
+
+	var shops_hdr := Label.new()
+	shops_hdr.text = "SHOPS"
+	shops_hdr.position = Vector2(rx, content_top - 22.0)
+	shops_hdr.size = Vector2(rw, 22.0)
+	shops_hdr.add_theme_font_size_override("font_size", 12)
+	shops_hdr.add_theme_color_override("font_color", Color(0.65, 0.60, 0.48))
+	add_child(shops_hdr)
+
+	var vy: float = content_top
+	for entry: Array in VENDOR_SECTIONS:
+		var vbtn := Button.new()
+		vbtn.text = entry[0]
+		vbtn.custom_minimum_size = Vector2(rw, 80.0)
+		vbtn.size = Vector2(rw, 80.0)
+		vbtn.position = Vector2(rx, vy)
+		vbtn.add_theme_font_size_override("font_size", 18)
+		vbtn.pressed.connect(_on_section_pressed.bind(entry[1]))
+		add_child(vbtn)
+		vy += 92.0
 
 func _add_return_button() -> void:
 	var btn := Button.new()
@@ -154,7 +232,15 @@ func _on_section_pressed(section_id: String) -> void:
 	if section_id == "hire_roster":
 		_open_hire_roster()
 		return
+	if section_id.begins_with("vendor_"):
+		_open_vendor_stall(section_id)
+		return
 	print("[Badurga] ", section_id, " not yet implemented")
+
+func _open_vendor_stall(vendor_id: String) -> void:
+	var overlay: VendorOverlay = preload("res://scenes/ui/VendorOverlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.show_vendor(vendor_id)
 
 func _on_return_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/map/MapScene.tscn")

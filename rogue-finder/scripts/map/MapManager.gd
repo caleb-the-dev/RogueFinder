@@ -71,6 +71,7 @@ var _is_dev_event: bool = false
 var _dev_event_panel: CanvasLayer = null
 var _add_item_panel: CanvasLayer = null
 var _add_item_list: VBoxContainer = null   ## cached child of _add_item_panel; rebuilt on every show
+var _vendor_overlay: VendorOverlay = null
 var _threat_fill: ColorRect = null
 var _threat_pct_lbl: Label = null
 
@@ -113,6 +114,8 @@ func _input(event: InputEvent) -> void:
 	if _dev_event_panel != null and _dev_event_panel.visible:
 		return
 	if _add_item_panel != null and _add_item_panel.visible:
+		return
+	if _vendor_overlay != null and is_instance_valid(_vendor_overlay) and _vendor_overlay.visible:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
@@ -282,27 +285,31 @@ func _assign_boss_type() -> void:
 	_node_map[boss_id]["node_type"] = "BOSS"
 	GameState.save()
 
-## Pre-rolls all vendor stock manifests on a fresh run. No-op if already present
-## (loaded save) or if map_seed is not yet set. Handles old-save migration by
-## populating on any map load where vendor_stocks is still empty.
+## Fills in any missing vendor stock entries. Additive: entries already in
+## vendor_stocks (from a loaded save) are left untouched. This handles both
+## fresh runs (all entries missing) and old-save migration (partial data).
 func _generate_vendor_stocks() -> void:
-	if not GameState.vendor_stocks.is_empty():
-		return
-	# CITY vendors — fixed per run, seeded by map_seed + vendor_id
+	var needs_save := false
+	# CITY vendors — one entry per vendor_id
 	for vendor: VendorData in VendorLibrary.vendors_by_scope("CITY"):
-		var seed_int: int = hash(str(GameState.map_seed) + "::" + vendor.vendor_id)
-		GameState.vendor_stocks[vendor.vendor_id] = StockGenerator.roll_stock(vendor, seed_int)
-	# WORLD VENDOR nodes — vendor chosen deterministically from hash(map_seed + node_id)
+		if not GameState.vendor_stocks.has(vendor.vendor_id):
+			var seed_int: int = hash(str(GameState.map_seed) + "::" + vendor.vendor_id)
+			GameState.vendor_stocks[vendor.vendor_id] = StockGenerator.roll_stock(vendor, seed_int)
+			needs_save = true
+	# WORLD VENDOR nodes — one entry per node_id
 	var world_vendors: Array[VendorData] = VendorLibrary.vendors_by_scope("WORLD")
 	if not world_vendors.is_empty():
 		for node_id: String in GameState.node_types.keys():
 			if GameState.node_types[node_id] != "VENDOR":
 				continue
-			var vendor_idx: int = posmod(hash(str(GameState.map_seed) + node_id), world_vendors.size())
-			var vendor: VendorData = world_vendors[vendor_idx]
-			var seed_int: int = hash(str(GameState.map_seed) + "::" + node_id)
-			GameState.vendor_stocks[node_id] = StockGenerator.roll_stock(vendor, seed_int)
-	GameState.save()
+			if not GameState.vendor_stocks.has(node_id):
+				var vendor_idx: int = posmod(hash(str(GameState.map_seed) + node_id), world_vendors.size())
+				var vendor: VendorData = world_vendors[vendor_idx]
+				var seed_int: int = hash(str(GameState.map_seed) + "::" + node_id)
+				GameState.vendor_stocks[node_id] = StockGenerator.roll_stock(vendor, seed_int)
+				needs_save = true
+	if needs_save:
+		GameState.save()
 
 # Seeded Fisher-Yates shuffle of each name pool; writes labels directly into _node_map dicts.
 # Called on every load — names are not saved, they regenerate identically from map_seed.
@@ -1014,7 +1021,9 @@ func _on_node_clicked(node_id: String) -> void:
 	if _drag_moved:
 		return
 	if node_id == GameState.player_node_id:
-		if _node_prompt == null and (_event_manager == null or not _event_manager.visible):
+		if _node_prompt == null \
+				and (_event_manager == null or not _event_manager.visible) \
+				and (_vendor_overlay == null or not is_instance_valid(_vendor_overlay) or not _vendor_overlay.visible):
 			_enter_current_node()
 		return
 	if not GameState.is_adjacent_to_player(node_id, _adjacency):
@@ -1040,6 +1049,19 @@ func _enter_current_node() -> void:
 			var ring := _get_ring(GameState.player_node_id)
 			var event_data := EventSelector.pick_for_node(ring)
 			_event_manager.show_event(event_data)
+		"VENDOR":
+			var overlay: VendorOverlay = preload("res://scenes/ui/VendorOverlay.tscn").instantiate()
+			_vendor_overlay = overlay
+			add_child(overlay)
+			var vid: String = GameState.player_node_id
+			overlay.closed.connect(func() -> void:
+				_vendor_overlay = null
+				if not GameState.cleared_nodes.has(vid):
+					GameState.cleared_nodes.append(vid)
+				GameState.save()
+				_refresh_all_node_visuals()
+			)
+			overlay.show_vendor(vid)
 		_:
 			GameState.pending_node_type = node_type
 			get_tree().change_scene_to_file("res://scenes/misc/NodeStub.tscn")
@@ -1309,18 +1331,6 @@ func _build_dev_event_panel() -> void:
 		GameState.save()
 	)
 	inv_row.add_child(give_gold_btn)
-
-	var vendor_test_btn := Button.new()
-	vendor_test_btn.text = "🛒 Vendor Test"
-	vendor_test_btn.custom_minimum_size = Vector2(160.0, 32.0)
-	vendor_test_btn.add_theme_font_size_override("font_size", 13)
-	vendor_test_btn.pressed.connect(func() -> void:
-		_dev_event_panel.visible = false
-		var overlay: VendorOverlay = preload("res://scenes/ui/VendorOverlay.tscn").instantiate()
-		add_child(overlay)
-		overlay.show_vendor("vendor_weapon")
-	)
-	inv_row.add_child(vendor_test_btn)
 
 	var sep_inv := HSeparator.new()
 	vbox.add_child(sep_inv)

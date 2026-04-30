@@ -16,3 +16,4 @@ mass_grave,Fresh Mound,"The ground here has been recently turned. The mound is t
 ember_idol,Ember Idol,A stone figure the size of a child stands in a clearing. Its carved eyes glow faintly. Not with fire. With something older.,inner
 wandering_sellsword,Wandering Sellsword,"A grizzled sellsword on the road flags you down. Her last contract ended badly; she's looking for new blood.",outer|middle
 skeletal_wanderer,Skeletal Wanderer,"An animate skeleton crouches at the edge of a ruined shrine, bones polished smooth by long years. It makes no move to attack — just watches.",middle|inner
+road_deal,Road Merchant,"A merchant steps into your path, holding up a well-stocked pack. 'One-time price,' he says. 'Won't find better on the road.'",outer|middle|inner

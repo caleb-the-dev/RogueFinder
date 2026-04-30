@@ -158,6 +158,10 @@ A `Theme` with a `StyleBoxFlat` for `TooltipPanel` (dark bg, gold border) is set
 
 `MapManager._input()` has an early-return guard: `if _party_sheet != null and _party_sheet.visible: return`. Required because `MapManager` uses `_input()` (not `_unhandled_input()`); without this guard, map pan/zoom fires through the CanvasLayer overlay.
 
+`PartySheet._unhandled_input()` intercepts `ui_cancel` (ESC) while visible, calls `hide_sheet()`, and marks input handled. This ensures ESC closes the party sheet rather than opening the pause menu.
+
+`PartySheet` joins the `"blocks_pause"` group on `_ready()`. `PauseMenuManager` queries this group each `_process` tick to hide its ☰ button and on each ESC keypress to skip opening the pause menu while any member of the group is visible.
+
 ---
 
 ## Level-Up Overlay (CanvasLayer layer 25)
@@ -196,6 +200,7 @@ Opened from the "Level Up! (N)" button in a member card. Runs above the party sh
 
 | Date | Session | What changed |
 |---|---|---|
+| 2026-04-30 | Vendor Slice 6 | **Gold readout in header.** `_build_header()` now adds a gold-colored "GP: X" `Label` (font_size 16, `Color(0.90, 0.80, 0.30)`, right-aligned at x=VIEWPORT_W−210) between the hint text and the ✕ Close button. Reads `GameState.gold` at rebuild time (always current since sheet is rebuilt on every open). ESC now closes the sheet via `_unhandled_input`. Joined `"blocks_pause"` group so the pause menu ☰ button hides while the sheet is open. |
 | 2026-04-29 | Accessory Tier Families (Slice 5) | **Equipment tooltips show feat + ability.** Bag item tooltip, equipped slot tooltip, and drag compare panel now include `[Ability] <name>` and `[Feat] <name> (<stat> +N)` lines when the item has `granted_ability_ids` or `feat_id`. New helpers: `_feat_str(eq)`, `_granted_abilities_str(eq)`. Compare panel: ability lines in green, feat lines in purple. |
 | 2026-04-29 | ATK stat removal | **ATK column removed from derived stats row.** There is no attack stat — ability damage scales from the caster's relevant attribute (STR/DEX/COG) directly. Derived stats row is now 5 cols: P.Def / M.Def / Speed / EN Max / Regen. STR tooltip updated from "Used in attack formulas" to "Scales STR-based abilities. Contributes to HARM damage." |
 | 2026-04-29 | Accessory Tier Families (Slice 5) | **Derived stats expanded from 4 to 6 columns.** TOP-RIGHT derived row added Atk + Regen (was Speed/P.Def/M.Def/EN Max). Value font_size reduced 14→13. Energy Regen previously invisible — now visible and updates on equip. (Atk subsequently removed in the same session.) |

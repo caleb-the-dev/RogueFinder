@@ -28,6 +28,7 @@ var _bench_picker_centering: Control = null
 func _ready() -> void:
 	layer = 10
 	visible = false
+	add_to_group("blocks_pause")
 	_build_ui()
 
 func _build_ui() -> void:
@@ -298,6 +299,8 @@ static func evaluate_condition(condition: String, party: Array[CombatantData]) -
 
 	var form: String = parts[0]
 	match form:
+		"has_gold":
+			return GameState.gold >= int(parts[1])
 		"stat_ge":
 			if parts.size() < 3:
 				push_warning("EventManager: malformed stat_ge condition '%s' — failing open" % condition)
@@ -411,6 +414,8 @@ static func dispatch_effect(effect: Dictionary, party: Array[CombatantData],
 			t.current_hp = mini(t.hp_max, t.current_hp + int(effect.get("value", 0)))
 		"xp_grant":
 			print("[EventEffect] xp_grant %d — stub" % int(effect.get("value", 0)))
+		"gold_change":
+			GameState.gold = maxi(0, GameState.gold + int(effect.get("value", 0)))
 		"threat_delta":
 			GameState.threat_level = clampf(
 				GameState.threat_level + float(int(effect.get("value", 0))) / 100.0,
