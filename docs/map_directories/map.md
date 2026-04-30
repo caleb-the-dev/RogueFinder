@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-30 (Vendor Slice 6 — full vendor loop live; blocks_pause ESC pattern; GP gold header in PartySheet; Badurga 2-column layout; additive stock generation) |
+| last_updated | 2026-04-30 (Enemy AI Slice 1 — ArchetypeData.Role enum + archetypes.csv role column + ArchetypeLibrary._parse_role() + enemy_ai.md bucket) |
 | last_groomed | 2026-04-29 |
-| sessions_since_groom | 5 |
+| sessions_since_groom | 6 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -25,6 +25,7 @@
 |--------|------------|--------|-------|
 | [Economy — Gold / Pricing / Vendors](economy.md) | `economy.md` | ✅ Active (RewardGenerator.gold_drop() · PricingFormula.price_for() · VendorLibrary 7 seed vendors · StockGenerator.roll_stock() · GameState.vendor_stocks save/load · gold_change event effect · has_gold condition · full vendor loop live) | Data |
 | [UI Overlays — VendorOverlay](ui.md) | `ui.md` | ✅ Active (VendorOverlay layer 20 — show_vendor / try_buy; wired to map VENDOR nodes + all 4 Badurga stalls; blocks_pause group) | Presentation |
+| [Enemy AI](enemy_ai.md) | `enemy_ai.md` | 🔧 In Progress (Slice 1 done — Role data layer; Slices 2–3 target + ability selection planned) | Core |
 | [Combat Manager](combat_manager.md) | `combat_manager.md` | ✅ Active (3D) + Legacy (2D) | Core |
 | [Grid System](grid_system.md) | `grid_system.md` | ✅ Active (3D) + Legacy (2D) | Core |
 | [Unit System](unit_system.md) | `unit_system.md` | ✅ Active (3D) + Legacy (2D) | Core |

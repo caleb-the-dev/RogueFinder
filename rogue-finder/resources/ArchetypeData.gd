@@ -7,9 +7,13 @@ extends Resource
 ##
 ## Numeric range fields are [min, max] — ArchetypeLibrary.create() rolls within them.
 
+## --- Role ---
+enum Role { ATTACKER = 0, HEALER = 1, SUPPORTER = 2, DEBUFFER = 3, CONTROLLER = 4 }
+
 @export var archetype_id:    String        = ""
 @export var unit_class:      String        = ""
 @export var kindred:         String        = ""
+@export var role:            Role          = Role.ATTACKER
 @export var backgrounds:     Array[String] = []
 @export var abilities:       Array[String] = []  # exactly 4; "" = empty slot
 @export var pool_extras:     Array[String] = []

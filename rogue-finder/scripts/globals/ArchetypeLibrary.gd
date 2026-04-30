@@ -182,6 +182,8 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray, row_
 				archetype.artwork_idle = val
 			"artwork_attack":
 				archetype.artwork_attack = val
+			"role":
+				archetype.role = _parse_role(val)
 			"hire_cost":
 				archetype.hire_cost = int(val)
 			"notes":
@@ -218,3 +220,12 @@ static func _split_pipe_float(val: String) -> Array[float]:
 	result.append(float(parts[0]))
 	result.append(float(parts[1]))
 	return result
+
+static func _parse_role(val: String) -> ArchetypeData.Role:
+	match val.to_lower():
+		"attacker":   return ArchetypeData.Role.ATTACKER
+		"healer":     return ArchetypeData.Role.HEALER
+		"supporter":  return ArchetypeData.Role.SUPPORTER
+		"debuffer":   return ArchetypeData.Role.DEBUFFER
+		"controller": return ArchetypeData.Role.CONTROLLER
+		_:            return ArchetypeData.Role.ATTACKER
