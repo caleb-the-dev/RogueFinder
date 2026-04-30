@@ -177,6 +177,10 @@ func _setup_test_room_units() -> void:
 			_spawn_test_room(_armor_mod_player_defs(), _armor_mod_enemy_defs())
 		"recruit_test":
 			_spawn_test_room(_recruit_test_player_defs(), _recruit_test_enemy_defs())
+		"ai_roles":
+			_spawn_test_room(_ai_roles_player_defs(), _ai_roles_enemy_defs())
+		"ai_crit_heal":
+			_spawn_test_room(_ai_crit_heal_player_defs(), _ai_crit_heal_enemy_defs())
 		_:
 			_spawn_test_room(_armor_showcase_player_defs(), _armor_showcase_enemy_defs())
 
@@ -424,6 +428,138 @@ func _recruit_test_enemy_defs() -> Array[Dictionary]:
 			"phys_arm": 0, "magic_arm": 0,
 			"abilities": ["strike", "heavy_strike", "shove", "sweep"],
 			"qte": 0.05, "hp": 1,
+		},
+	]
+
+## --- AI Roles scenario ---
+## Three distinct-role enemies so every role-preference branch is observable in one fight.
+## Alchemist (HEALER) heals teammates. Cave spider (DEBUFFER) webs players. Elite guard (CONTROLLER) shoves/yanks.
+## Player team is deliberately squishy so healer logic triggers quickly.
+
+func _ai_roles_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			"name": "Toma", "archetype": "RogueFinder", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 6, "cog": 4, "wil": 4, "vit": 4,
+			"phys_arm": 2, "magic_arm": 2,
+			"abilities": ["slipshot", "quick_shot", "backstab", "disengage"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Dryn", "archetype": "test_ally", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": true,
+			"str": 7, "dex": 2, "cog": 2, "wil": 3, "vit": 5,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Sevi", "archetype": "test_ally", "kindred": "Gnome",
+			"class": "arcanist", "is_player": true,
+			"str": 2, "dex": 4, "cog": 7, "wil": 5, "vit": 3,
+			"phys_arm": 1, "magic_arm": 3,
+			"abilities": ["arcane_bolt", "acid_splash", "smoke_bomb", "fireball"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_roles_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## ATTACKER — hits hard, no frills. Validates HARM preference path.
+			"name": "Grunt", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 7, "dex": 2, "cog": 2, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.3,
+		},
+		{
+			## HEALER — has healing_draught (SELF MEND) + acid_splash (HARM).
+			## Will prefer MEND when its own HP dips below 70%, HARM otherwise.
+			"name": "Alchemist", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 4, "cog": 7, "wil": 6, "vit": 4,
+			"phys_arm": 1, "magic_arm": 4,
+			"abilities": ["healing_draught", "acid_splash", "smoke_bomb", "fire_breath"],
+			"qte": 0.6,
+		},
+		{
+			## DEBUFFER — web_shot (DEBUFF) leads over venom_bite (HARM).
+			## Also has smoke_bomb (DEBUFF AoE) to show preference hold on AoE DEBUFF.
+			"name": "Cave Spider", "archetype": "cave_spider", "kindred": "Spider",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 7, "cog": 6, "wil": 4, "vit": 3,
+			"phys_arm": 1, "magic_arm": 2,
+			"abilities": ["web_shot", "venom_bite", "smoke_bomb", "acid_splash"],
+			"qte": 0.6,
+		},
+	]
+
+## --- AI Critical-Heal scenario ---
+## Alchemist (HEALER) + two allies. One ally starts at 5% HP so the critical-heal
+## override fires immediately on the alchemist's first turn regardless of role preference.
+## Player team is slow/tanky to keep the alchemist alive long enough to observe healing.
+
+func _ai_crit_heal_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			"name": "Stonehide", "archetype": "RogueFinder", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 6, "vit": 8,
+			"phys_arm": 7, "magic_arm": 3,
+			"abilities": ["bless", "shield_bash", "taunt", "steadfast"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Ironback", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 5, "vit": 8,
+			"phys_arm": 7, "magic_arm": 2,
+			"abilities": ["shield_bash", "sweep", "guard", "yank"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Crossbow", "archetype": "test_ally", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 6, "cog": 4, "wil": 4, "vit": 4,
+			"phys_arm": 2, "magic_arm": 2,
+			"abilities": ["quick_shot", "piercing_shot", "disengage", "backstab"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_crit_heal_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## HEALER with heal_burst (MEND/ALLY/RADIAL, range=2) — will use it immediately
+			## on "Near-Dead Grunt" below because that ally is below 15% HP on turn 1.
+			"name": "Alchemist", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 4, "cog": 7, "wil": 6, "vit": 4,
+			"phys_arm": 1, "magic_arm": 4,
+			"abilities": ["heal_burst", "healing_draught", "acid_splash", "fire_breath"],
+			"qte": 0.7,
+		},
+		{
+			## Near-dead attacker — only 1 HP. Critical-heal target on turn 1.
+			"name": "Near-Dead Grunt", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 6, "dex": 2, "cog": 2, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.3, "hp": 1,
+		},
+		{
+			## Healthy attacker — validates that the healer ignores the healthy ally
+			## and targets the critical one instead.
+			"name": "Healthy Grunt", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 6, "dex": 2, "cog": 2, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.3,
 		},
 	]
 
