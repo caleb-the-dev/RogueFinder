@@ -81,12 +81,17 @@ static func choose_action(
 ## primary effect type that passes the situational filter. Returns the first valid
 ## {target, ability} pair. Returns {null, null} if no candidate qualifies.
 ##
-## "First valid" is intentional for Slice 2. Slice 3 adds scoring within each bucket.
+## Two-pass within each bucket: abilities NOT matching last_ability_id are tried first;
+## last-used ability is the fallback. This prevents turn-to-turn spam when alternatives
+## exist. Slice 3 replaces this with full scoring.
 static func _try_effect_type(
 		enemy: Unit3D,
 		allies: Array[Unit3D],
 		hostiles: Array[Unit3D],
 		effect_type: int) -> Dictionary:
+	# Collect bucket candidates, separating last-used from fresh options.
+	var fresh: Array[AbilityData] = []
+	var last_used: Array[AbilityData] = []
 	for ability_id: String in enemy.data.abilities:
 		if ability_id == "":
 			continue
@@ -98,6 +103,12 @@ static func _try_effect_type(
 			continue
 		if enemy.current_energy < ab.energy_cost:
 			continue
+		if ability_id == enemy.last_ability_id:
+			last_used.append(ab)
+		else:
+			fresh.append(ab)
+	# Try fresh options first, fall back to last-used only if nothing else works.
+	for ab: AbilityData in fresh + last_used:
 		if not _is_situationally_useful(ab, enemy, allies, hostiles):
 			continue
 		var target: Unit3D = _pick_target(ab, enemy, allies, hostiles)

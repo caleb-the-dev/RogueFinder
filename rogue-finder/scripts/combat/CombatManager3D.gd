@@ -1593,6 +1593,7 @@ func _process_enemy_actions() -> void:
 			continue
 		var target: Unit3D  = pick["target"]
 		var chosen: AbilityData = pick["ability"]
+		enemy.last_ability_id = chosen.ability_id
 		enemy.spend_energy(chosen.energy_cost)
 		enemy.show_action_text(chosen.ability_name)
 

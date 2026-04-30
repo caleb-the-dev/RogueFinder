@@ -20,6 +20,10 @@ var is_alive: bool      = true
 ## Set to "force_random" by the future Confused status condition to bypass EnemyAI role-walk.
 ## Transient — never serialized; cleared when combat resets.
 var ai_override: String = ""
+## Last ability_id used by this unit. EnemyAI deprioritizes it within its effect-type bucket
+## so the AI cycles through options rather than spamming the same move every turn.
+## Transient — intentionally NOT reset in reset_turn(); must persist across turns.
+var last_ability_id: String = ""
 
 ## Applied stat effects — populated by CombatManager3D._apply_stat_delta().
 ## Each entry: { "display_name": String, "stat": int, "delta": int }
