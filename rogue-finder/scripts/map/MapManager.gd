@@ -92,6 +92,7 @@ func _ready() -> void:
 	_build_edge_data()
 	_build_adjacency()
 	_assign_boss_type()
+	_generate_vendor_stocks()
 	_party_sheet = PartySheet.new()
 	add_child(_party_sheet)
 	_event_manager = preload("res://scenes/events/EventScene.tscn").instantiate()
@@ -279,6 +280,28 @@ func _assign_boss_type() -> void:
 	var boss_id := candidates[0]
 	GameState.node_types[boss_id] = "BOSS"
 	_node_map[boss_id]["node_type"] = "BOSS"
+	GameState.save()
+
+## Pre-rolls all vendor stock manifests on a fresh run. No-op if already present
+## (loaded save) or if map_seed is not yet set. Handles old-save migration by
+## populating on any map load where vendor_stocks is still empty.
+func _generate_vendor_stocks() -> void:
+	if not GameState.vendor_stocks.is_empty():
+		return
+	# CITY vendors — fixed per run, seeded by map_seed + vendor_id
+	for vendor: VendorData in VendorLibrary.vendors_by_scope("CITY"):
+		var seed_int: int = hash(str(GameState.map_seed) + "::" + vendor.vendor_id)
+		GameState.vendor_stocks[vendor.vendor_id] = StockGenerator.roll_stock(vendor, seed_int)
+	# WORLD VENDOR nodes — vendor chosen deterministically from hash(map_seed + node_id)
+	var world_vendors: Array[VendorData] = VendorLibrary.vendors_by_scope("WORLD")
+	if not world_vendors.is_empty():
+		for node_id: String in GameState.node_types.keys():
+			if GameState.node_types[node_id] != "VENDOR":
+				continue
+			var vendor_idx: int = posmod(hash(str(GameState.map_seed) + node_id), world_vendors.size())
+			var vendor: VendorData = world_vendors[vendor_idx]
+			var seed_int: int = hash(str(GameState.map_seed) + "::" + node_id)
+			GameState.vendor_stocks[node_id] = StockGenerator.roll_stock(vendor, seed_int)
 	GameState.save()
 
 # Seeded Fisher-Yates shuffle of each name pool; writes labels directly into _node_map dicts.
