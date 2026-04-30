@@ -1010,6 +1010,7 @@ func _enter_current_node() -> void:
 	match node_type:
 		"COMBAT", "BOSS":
 			GameState.current_combat_node_id = GameState.player_node_id
+			GameState.current_combat_ring = _get_ring(GameState.player_node_id)
 			get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
 		"CITY":
 			get_tree().change_scene_to_file("res://scenes/city/BadurgaScene.tscn")

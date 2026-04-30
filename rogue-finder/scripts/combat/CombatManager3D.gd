@@ -1636,6 +1636,22 @@ func _check_win_lose() -> void:
 	elif not any_player_alive:
 		_end_combat(false)
 
+## --- Gold Reward ---
+
+## Computes gold drop for a player victory. Skips dead party members when averaging level,
+## matching how grant_xp() treats the party so the two systems stay in sync.
+func _calc_gold_reward() -> int:
+	var living: Array = GameState.party.filter(
+		func(pc: CombatantData) -> bool: return not pc.is_dead)
+	var avg_level: int = 1
+	if not living.is_empty():
+		var total: int = 0
+		for pc: CombatantData in living:
+			total += pc.level
+		avg_level = roundi(float(total) / float(living.size()))
+	var threat_int: int = roundi(GameState.threat_level * 100.0)
+	return RewardGenerator.gold_drop(GameState.current_combat_ring, threat_int, avg_level)
+
 func _end_combat(player_won: bool) -> void:
 	state = CombatState.WIN if player_won else CombatState.LOSE
 	_stat_panel.hide_panel()
@@ -1675,8 +1691,10 @@ func _end_combat(player_won: bool) -> void:
 				unit.data.current_hp = 1
 				unit.data.current_energy = 0
 		GameState.grant_xp(15)
+		var gold: int = _calc_gold_reward()
+		GameState.gold += gold
 		GameState.save()
-		_end_combat_screen.show_victory(RewardGenerator.roll(3))
+		_end_combat_screen.show_victory(RewardGenerator.roll(3), gold)
 	else:
 		# All player units died — run is over. Mark PC as dead, capture stats, show overlay.
 		for unit in _player_units:

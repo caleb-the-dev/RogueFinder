@@ -272,7 +272,7 @@ func get_feat_stat_bonus(stat: String) -> int:
     return total
 ```
 
-This method is already called in all 7 derived stats (hp_max, energy_max, energy_regen, physical_defense, magic_defense, attack, and any speed-keyed future feats) — no call site changes needed.
+This method is already called in all 6 derived stats (hp_max, energy_max, energy_regen, physical_defense, magic_defense, and `effective_stat()` for HARM damage) — no call site changes needed.
 
 ---
 

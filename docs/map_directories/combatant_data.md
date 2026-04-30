@@ -40,7 +40,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 
 **Fixed per archetype:** `kindred`, `unit_class`, `artwork_idle`, `artwork_attack`, `abilities`, `ability_pool` (starting set).
 
-**Randomized per instance (within archetype ranges):** `background`, all five core attributes, `armor_defense`, `qte_resolution`.
+**Randomized per instance (within archetype ranges):** `background`, all five core attributes, `physical_armor`, `magic_armor`, `qte_resolution`.
 
 ---
 
@@ -182,15 +182,19 @@ func get_temperament_stat_bonus(stat: String) -> int
 | Half-Orc | 2 → 3 | +12 | strength:1 | 26–62 (VIT 1–10) |
 | Gnome | 4 → 5 | +2 | cognition:1 | 16–52 (VIT 1–10) |
 | Dwarf | 1 → 2 | +8 | **physical_armor:2** | 22–58 (VIT 1–10) |
+| Skeleton | 0 → 1 | +4 | **physical_armor:2** | 18–54 (VIT 1–10) |
+| Giant Rat | 4 → 5 | +3 | dexterity:2 | 17–53 (VIT 1–10) |
+| Spider | 2 → 3 | +4 | dexterity:1 | 18–54 (VIT 1–10) |
+| Dragon | 0 → 1 | +15 | strength:2 | 29–65 (VIT 1–10) |
 | Unknown / empty | 0 → 1 | 0 | — | safe default, no crash |
 
-> Dwarf's kindred stat bonus was renamed from `armor_defense:2` → `physical_armor:2` this session. All derived stat lookups use `get_kindred_stat_bonus("physical_armor")`.
+> See `kindreds.csv` for authoritative values — the HP range estimates above assume base VIT 1–10 × 4 + kindred hp_bonus only. Actual in-game ranges vary with class/equip/feat bonuses.
 
 ---
 
 ## ArchetypeLibrary
 
-### Defined Archetypes (5)
+### Defined Archetypes (9)
 
 | ID | Class | Kindred | STR | DEX | COG | WIL | VIT | Phys Armor | Magic Armor | Abilities | Consumable |
 |----|-------|---------|-----|-----|-----|-----|-----|-----------|------------|-----------|------------|
@@ -199,8 +203,12 @@ func get_temperament_stat_bonus(stat: String) -> int
 | `grunt` | vanguard | Half-Orc | 5–9 | 1–4 | 1–3 | 1–4 | 4–8 | 4–7 | 1–2 | heavy_strike, shove, sweep, taunt | — |
 | `alchemist` | arcanist | Gnome | 1–3 | 2–6 | 6–10 | 4–8 | 2–5 | 1–2 | 3–6 | smoke_bomb, fire_breath, acid_splash, healing_draught | `healing_potion` |
 | `elite_guard` | warden | Dwarf | 4–8 | 2–6 | 2–5 | 4–8 | 4–8 | 6–9 | 2–4 | shield_bash, yank, windblast, sweep | — |
+| `skeleton_warrior` | vanguard | Skeleton | — | — | — | — | — | phys-heavy | — | bone_strike, stone_guard, grim_endurance, death_rattle | — |
+| `rat_scrapper` | prowler | Giant Rat | — | — | — | — | — | low | — | gnaw, scatter, pack_instinct, quick_shot | — |
+| `cave_spider` | prowler | Spider | — | — | — | — | — | low | — | venom_bite, web_shot, skitter, acid_splash | — |
+| `young_dragon` | vanguard | Dragon | — | — | — | — | — | high | high | claw_swipe, draconic_breath, scales_up, sweep | — |
 
-Design intent: grunt = physical tank, alchemist = magic-hardened, elite_guard = physical fortress. See `archetypes.csv` for authoritative values.
+Design intent: grunt = physical tank, alchemist = magic-hardened, elite_guard = physical fortress. See `archetypes.csv` for authoritative stat ranges — kindred-template archetypes (bottom 4) have no fixed backgrounds.
 
 ### Schema (archetypes.csv columns)
 
@@ -268,7 +276,7 @@ static func reload() -> void                             # cache-clear for tests
 | 2026-04-29 | **Speed formula — dex passthrough severed.** `speed` computed property simplified from `1 + kindred_speed_bonus + [dex sources × 6]` to `1 + KindredLibrary.get_speed_bonus(kindred)`. All dexterity-keyed contributions (equip, feat, class, kindred stat_bonuses, bg, temperament) removed from speed. DEX is now fully inert until the future dodge/evasion system is built. `dexterity` attribute row updated in docs. `test_class_stat_bonus.gd` + `test_temperament.gd` updated to assert DEX has zero speed effect. |
 | 2026-04-28 | **Follower Slice 6 — hire_cost + kindred name pool expansion.** `ArchetypeData.hire_cost: int = 0` added. `archetypes.csv` gained `hire_cost` column (RogueFinder=0, grunts=20, others 25–60). `ArchetypeLibrary._row_to_data()` parses it as `int(val)`. `kindreds.csv` name pools expanded from 6 to 22 names per kindred. `BadurgaManager._create_hire_candidate(arch, rng)` added — seeded parallel to `create()`, produces deterministic `CombatantData` so hire card and bench match exactly. |
 | 2026-04-28 | **ArchetypeLibrary.create() empty-backgrounds guard.** `randi_range(0, bgs.size()-1)` on an empty array caused a crash (manifested on `skeleton_warrior` and `rat_scrapper` archetypes, both of which have no backgrounds column value). Fixed: `data.background = bgs[...] if not bgs.is_empty() else ""`. These archetypes now work as followers; their `background` field will be `""` at runtime. |
-| 2026-04-27 | **Temperament system.** Added `temperament_id: String = ""` to Identity section (`@export`, serialized). Added `get_temperament_stat_bonus(stat)` method: `+1` for boosted_stat, `-1` for hindered_stat, `0` otherwise. Wired into `hp_max`, `energy_max`, `energy_regen`, and `attack` as a sixth flat bonus source. (**Not** `speed` — dex passthrough severed 2026-04-29; see below.) Derived stat formulas for `physical_defense` / `magic_defense` are NOT affected (those use armor stat keys, not core attributes). Depends on `TemperamentLibrary`. |
+| 2026-04-27 | **Temperament system.** Added `temperament_id: String = ""` to Identity section (`@export`, serialized). Added `get_temperament_stat_bonus(stat)` method: `+1` for boosted_stat, `-1` for hindered_stat, `0` otherwise. Wired into `hp_max`, `energy_max`, `energy_regen`, and `effective_stat()` as a sixth flat bonus source — so temperament attribute bonuses affect HARM damage for matching abilities. (**Not** `speed` — dex passthrough severed 2026-04-29; see below.) Derived stat formulas for `physical_defense` / `magic_defense` are NOT affected (those use armor stat keys, not core attributes). Depends on `TemperamentLibrary`. |
 | 2026-04-27 | **Armor mod — runtime BUFF/DEBUFF lane.** Added two transient fields: `physical_armor_mod: int = 0` and `magic_armor_mod: int = 0`. Both are plain `var` (NOT `@export`) — never serialized; combat state is transient. `physical_defense` / `magic_defense` formulas extended to include the mod field as the sixth source (after base, equip, feat, class, kindred, bg). Snapshotted by `CombatManager3D._setup_units()` (and `_setup_test_room_units()`) in `_attr_snapshots` and restored in `_end_combat()` so mid-combat changes never bleed into the next combat. Powering `stone_guard` (Dwarf kindred — `+2 PHYSICAL_ARMOR_MOD`) and `divine_ward` (Warden pool — `+2 MAGIC_ARMOR_MOD`); both were no-ops before this session. |
 | 2026-04-27 | **Dual armor system.** Removed `armor_defense: int` and `defense` computed property. Added `physical_armor: int = 3` + `magic_armor: int = 2` (both serialized). Added `physical_defense` + `magic_defense` computed properties, each summing five bonus sources with stat keys `"physical_armor"` / `"magic_armor"`. `archetypes.csv` `armor_range` column replaced by `physical_armor_range` + `magic_armor_range`. `ArchetypeData` gained two new range fields. Dwarf kindred stat_bonuses renamed `armor_defense:2` → `physical_armor:2`. feats.csv + equipment.csv armor bonus keys renamed accordingly. `CharacterCreationManager._build_pc()` seeds `physical_armor=3, magic_armor=2`. `GameState` serialization updated; old saves migrate `armor_defense` value to both lanes. |
 | 2026-04-27 | **XP + Level-Up system.** Added three persistent fields: `level: int = 1`, `xp: int = 0`, `pending_level_ups: int = 0`. All three serialized/deserialized in `GameState._serialize_combatant()` / `_deserialize_combatant()`; old saves default to `level=1, xp=0, pending=0`. `ability_pool` clarification: this field stores the PC's **owned** abilities (superset of the 4 active slots). Level-up picks append to it; the source draw pool is derived at pick-time from `ClassLibrary + KindredLibrary - owned`. |

@@ -44,6 +44,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `node_types` | `Dictionary` | `{}` | Maps node id → type string (e.g. `"COMBAT"`, `"BOSS"`, `"CITY"`). Populated by `MapManager._assign_node_types()` on first run; restored from save on subsequent loads. **Saved to disk.** |
 | `pending_node_type` | `String` | `""` | Consumed by `NodeStub._ready()` on scene entry to know which stub to display. Set by `MapManager._enter_current_node()` for non-combat/non-city nodes. **NOT saved to disk.** |
 | `current_combat_node_id` | `String` | `""` | Set by `MapManager._enter_current_node()` immediately before transitioning to `CombatScene3D`. Read by `EndCombatScreen._on_reward_chosen()` to know which node to append to `cleared_nodes`. **NOT saved to disk** (transient handoff, like `pending_node_type`). |
+| `current_combat_ring` | `String` | `""` | Set by `MapManager._enter_current_node()` alongside `current_combat_node_id` when entering a COMBAT or BOSS node. Value is `"inner"`, `"middle"`, or `"outer"` (from `_get_ring()`). Read by `CombatManager3D._calc_gold_reward()` at combat end to scale the gold drop. **NOT saved to disk.** |
 | `cleared_nodes` | `Array[String]` | `[]` | Nodes where the player completed combat AND collected a reward. Show a `✗` stamp on the map; traversable as pass-through. **Saved to disk.** |
 | `threat_level` | `float` | `0.0` | Run-wide danger gauge. Range 0.0–1.0 (0%–100%). Incremented by MapManager on both travel (+0.05) and node entry (+0.05); capped at 1.0 via `minf()`. Reset to `0.0` by EndCombatScreen when a BOSS node is defeated. Displayed as a vertical bar in the map HUD. **Saved to disk.** |
 | `used_event_ids` | `Array[String]` | `[]` | Event ids already drawn this run. Appended to by `EventSelector.pick_for_node()` whenever an EVENT node is entered. Used to filter the candidate pool so the same event doesn't repeat until all ring events are exhausted. **Saved to disk.** |
@@ -108,7 +109,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 
 **What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, **encountered archetypes**, **recruited archetypes**, party roster, **bench roster** (all CombatantData fields, same format as party), inventory, **gold**.
 
-Note: `pending_node_type` and `current_combat_node_id` are **not** saved — they are transient handoffs consumed within a single scene transition.
+Note: `pending_node_type`, `current_combat_node_id`, and `current_combat_ring` are **not** saved — they are transient handoffs consumed within a single scene transition.
 
 **Deferred (Stage 2+):** combat state, faction reputation.
 
@@ -162,6 +163,7 @@ None currently.
 
 | Date | Change |
 |---|---|
+| 2026-04-29 | **Vendor Slice 1 — `current_combat_ring` transient field.** `current_combat_ring: String = ""` added as a transient (NOT serialized) field. Set by `MapManager._enter_current_node()` when entering COMBAT or BOSS nodes (using existing `_get_ring()`). Read by `CombatManager3D._calc_gold_reward()` to scale the gold drop formula. Cleared in `reset()`. |
 | 2026-04-28 | **Rarity Foundation (Slice 1) — inventory dict + release_from_bench.** `inventory` dict shape extended with `rarity: int` key — all `add_to_inventory` call sites (RewardGenerator, PartySheet, GameState, BadurgaManager, MapManager) now include it. Old saves without the key default to `0` (COMMON). `release_from_bench()` deequip pushes now include `"rarity": eq.rarity` so returning gear retains its color treatment in the bag. |
 | 2026-04-28 | **Pause Menu — recruited_archetypes + add_to_bench hookpoint.** `recruited_archetypes: Array[String]` added; wired into `save()` (key `"recruited_archetypes"`), `load_save()` (typed-array pattern, old saves default `[]`), `reset()`. `record_recruited_archetype(id)` added (dedup, no save). `add_to_bench()` now calls `record_recruited_archetype()` — single hookpoint for all follower paths. |
 | 2026-04-28 | **Follower Slice 6 — City Hire Channel: gold field.** `gold: int = 0` added to `GameState`. Wired into `save()` (key `"gold"`), `load_save()` (`int(parsed.get("gold", 0))` — old saves default 0), and `reset()` (`gold = 0`). `BadurgaManager._on_hire_pressed()` deducts `gold` on hire and restores it on Cancel. MapManager dev menu "Give Gold +100" button calls `GameState.gold += 100; GameState.save()`. |
