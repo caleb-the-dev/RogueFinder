@@ -247,16 +247,16 @@ static func _stat_list(c: CombatantData) -> Array:
 
 ## Portrait TextureRect using artwork_idle if set, otherwise the placeholder icon.
 static func _portrait_rect(size: Vector2, c: CombatantData) -> TextureRect:
-	var tr := TextureRect.new()
+	var rect := TextureRect.new()
 	var arch: ArchetypeData = ArchetypeLibrary.get_archetype(c.archetype_id)
 	if arch.artwork_idle != "":
-		tr.texture = load(arch.artwork_idle)
+		rect.texture = load(arch.artwork_idle)
 	else:
-		tr.texture = load("res://icon.svg")
-	tr.custom_minimum_size = size
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-	return tr
+		rect.texture = load("res://icon.svg")
+	rect.custom_minimum_size = size
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	return rect
 
 
 static func _lbl(parent: Control, text: String, font_size: int, color: Color) -> void:

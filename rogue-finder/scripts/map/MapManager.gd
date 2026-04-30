@@ -953,9 +953,8 @@ func _dismiss_prompt() -> void:
 		_node_prompt.queue_free()
 	_node_prompt = null
 
-func _on_prompt_enter(node_id: String) -> void:
+func _on_prompt_enter(_node_id: String) -> void:
 	_dismiss_prompt()
-	# node_id == GameState.player_node_id at this point
 	_enter_current_node()
 
 func _on_prompt_pass() -> void:

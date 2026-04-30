@@ -769,19 +769,19 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 			slot_btn.add_theme_color_override("font_color", Color(0.42, 0.40, 0.38))
 
 		if not is_dead:
+			var cap_idx: int = member_idx
+			var cap_sf: String = slot_field
 			if slot_type == SLOT_CONSUMABLE and member.consumable != "":
-				var mi: int = member_idx
 				slot_btn.gui_input.connect(func(ev: InputEvent) -> void:
 					if ev is InputEventMouseButton \
 							and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
-						_unequip_consumable(mi)
+						_unequip_consumable(cap_idx)
 				)
 			elif slot_type != SLOT_CONSUMABLE and eq != null:
-				var mi: int = member_idx; var sf: String = slot_field
 				slot_btn.gui_input.connect(func(ev: InputEvent) -> void:
 					if ev is InputEventMouseButton \
 							and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
-						_unequip_item(mi, sf)
+						_unequip_item(cap_idx, cap_sf)
 				)
 
 		var st: int = slot_type; var mi: int = member_idx; var sf: String = slot_field

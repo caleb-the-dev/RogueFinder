@@ -72,12 +72,12 @@ static func roll(count: int) -> Array:
 ## Weighted pick across configured rarity tiers (all 100 weight, no redistribution).
 ## Falls back to COMMON in callers when the rolled tier bucket is empty.
 static func _roll_rarity() -> int:
-	var roll: int = randi() % 100
+	var r: int = randi() % 100
 	var acc: int = 0
 	for tier in [EquipmentData.Rarity.COMMON, EquipmentData.Rarity.RARE,
 				 EquipmentData.Rarity.EPIC, EquipmentData.Rarity.LEGENDARY]:
 		acc += RARITY_WEIGHTS[tier]
-		if roll < acc:
+		if r < acc:
 			return tier
 	return EquipmentData.Rarity.COMMON
 
