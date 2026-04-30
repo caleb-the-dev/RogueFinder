@@ -72,6 +72,12 @@ var _cmp_incoming: String        = ""
 func _ready() -> void:
 	layer = 20
 	visible = false
+	add_to_group("blocks_pause")
+
+func _unhandled_input(event: InputEvent) -> void:
+	if visible and event.is_action_pressed("ui_cancel"):
+		hide_sheet()
+		get_viewport().set_input_as_handled()
 
 func _process(_delta: float) -> void:
 	if _drag_compare_panel != null and is_instance_valid(_drag_compare_panel) \
@@ -156,6 +162,17 @@ func _build_header(parent: Control) -> void:
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.add_theme_color_override("font_color", Color(0.55, 0.52, 0.46))
 	parent.add_child(hint)
+
+	# Gold readout — right of header, left of close button
+	var gold_lbl := Label.new()
+	gold_lbl.text = "GP: %d" % GameState.gold
+	gold_lbl.size = Vector2(110.0, 28.0)
+	gold_lbl.position = Vector2(VIEWPORT_W - 210.0, 8.0)
+	gold_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	gold_lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	gold_lbl.add_theme_font_size_override("font_size", 16)
+	gold_lbl.add_theme_color_override("font_color", Color(0.90, 0.80, 0.30))
+	parent.add_child(gold_lbl)
 
 	var close_btn := Button.new()
 	close_btn.text = "✕ Close"

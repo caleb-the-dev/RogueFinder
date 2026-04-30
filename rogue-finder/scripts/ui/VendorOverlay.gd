@@ -23,6 +23,7 @@ var _scroll_vbox: VBoxContainer
 func _ready() -> void:
 	layer = 20
 	visible = false
+	add_to_group("blocks_pause")
 	_build_ui()
 
 func _unhandled_input(event: InputEvent) -> void:

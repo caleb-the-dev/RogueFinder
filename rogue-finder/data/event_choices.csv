@@ -50,3 +50,5 @@ wandering_sellsword,1,Not interested.,,[],"She shrugs and turns back toward the 
 skeletal_wanderer,0,Let it follow.,,"[{""type"":""recruit_follower"",""archetype_id"":""skeleton_warrior"",""name"":""Rattle""}]","The skeleton rises and falls into step at the back of the group without a word."
 skeletal_wanderer,1,Destroy it.,,"[{""type"":""harm"",""target"":""PC"",""value"":4}]","The bones resist more than they should. Your hand aches."
 skeletal_wanderer,2,Leave it be.,,[],"It watches until you are out of sight."
+road_deal,0,Pay the asking price (25 gold),has_gold:25,"[{""type"":""gold_change"",""value"":-25},{""type"":""item_gain"",""item_id"":""healing_potion""}]","The merchant hands over the goods without ceremony. Worth it."
+road_deal,1,Move on.,,[],"You pass without slowing. The merchant watches you go."

@@ -50,7 +50,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	if _menu_btn != null:
-		_menu_btn.visible = not _is_open and _is_pauseable_scene()
+		_menu_btn.visible = not _is_open and _is_pauseable_scene() and not _is_overlay_blocking()
 
 ## --- Input ---
 
@@ -63,7 +63,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key.keycode != KEY_ESCAPE:
 		return
 	if not _is_open:
-		if _is_pauseable_scene():
+		if _is_pauseable_scene() and not _is_overlay_blocking():
 			open_menu()
 			get_viewport().set_input_as_handled()
 		return
@@ -80,6 +80,14 @@ func _on_menu_btn_pressed() -> void:
 		open_menu()
 
 ## --- Scene Gate ---
+
+## Returns true when a full-screen overlay (e.g. PartySheet) is open and
+## manages its own ESC, so the pause menu should stay out of the way.
+func _is_overlay_blocking() -> bool:
+	for node: Node in get_tree().get_nodes_in_group("blocks_pause"):
+		if node is CanvasLayer and (node as CanvasLayer).visible:
+			return true
+	return false
 
 func _is_pauseable_scene() -> bool:
 	var scene := get_tree().current_scene
