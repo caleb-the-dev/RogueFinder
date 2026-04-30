@@ -33,6 +33,30 @@ var run_summary: Dictionary = {}      # populated before run-end transition; cle
 
 var gold: int = 0
 
+## --- Vendor Stocks ---
+## Pre-rolled per-vendor manifests. Keyed by instance_key:
+##   CITY vendors → vendor_id (e.g. "vendor_weapon")
+##   WORLD vendors → node_id  (e.g. "node_o3")
+## Each value is Array of { vendor_id, item, price, sold }.
+## Populated by MapManager._generate_vendor_stocks() on map-gen; never re-rolled mid-run.
+var vendor_stocks: Dictionary = {}
+
+## Regenerates ONLY WORLD vendor stocks (keyed by VENDOR node_ids in node_types).
+## CITY stocks (keyed by vendor_id) are left untouched.
+## Future map-reset cycle (every 3 boss wins) will call this — trigger not wired yet.
+func regen_world_vendor_stocks() -> void:
+	var world_vendors: Array[VendorData] = VendorLibrary.vendors_by_scope("WORLD")
+	if world_vendors.is_empty():
+		return
+	for node_id: String in node_types.keys():
+		if node_types[node_id] != "VENDOR":
+			continue
+		var vendor_idx: int = posmod(hash(str(map_seed) + node_id), world_vendors.size())
+		var vendor: VendorData = world_vendors[vendor_idx]
+		var seed_int: int = hash(str(map_seed) + "::" + node_id)
+		vendor_stocks[node_id] = StockGenerator.roll_stock(vendor, seed_int)
+	save()
+
 ## --- Followers / Bench ---
 ## Followers captured in combat. Saved to disk via save()/load_save().
 
@@ -160,8 +184,9 @@ func save() -> void:
 		"recruited_archetypes":  recruited_archetypes,
 		"party": party_data,
 		"bench": bench.map(func(f: CombatantData) -> Dictionary: return _serialize_combatant(f)),
-		"inventory": inventory,
-		"gold": gold,
+		"inventory":      inventory,
+		"gold":           gold,
+		"vendor_stocks":  vendor_stocks,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data, "\t"))
@@ -237,6 +262,17 @@ func load_save() -> bool:
 		if entry is Dictionary:
 			inventory.append(entry)
 	gold = int(parsed.get("gold", 0))
+	vendor_stocks = {}
+	var raw_stocks = parsed.get("vendor_stocks", {})
+	if raw_stocks is Dictionary:
+		for key: String in raw_stocks.keys():
+			var raw_arr = raw_stocks[key]
+			if raw_arr is Array:
+				var arr: Array = []
+				for entry in raw_arr:
+					if entry is Dictionary:
+						arr.append(entry)
+				vendor_stocks[key] = arr
 	return true
 
 func _deserialize_combatant(dict: Dictionary) -> CombatantData:
@@ -394,3 +430,4 @@ func reset() -> void:
 	run_summary = {}
 	inventory = []
 	gold = 0
+	vendor_stocks = {}

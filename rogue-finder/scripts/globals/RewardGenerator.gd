@@ -39,13 +39,13 @@ static func roll(count: int) -> Array:
 	for eq: EquipmentData in EquipmentLibrary.all_equipment():
 		if not eq_buckets.has(eq.rarity):
 			eq_buckets[eq.rarity] = []
-		(eq_buckets[eq.rarity] as Array).append(_eq_to_dict(eq))
+		(eq_buckets[eq.rarity] as Array).append(eq_to_dict(eq))
 
 	# Consumables land in the COMMON bucket
 	if not eq_buckets.has(EquipmentData.Rarity.COMMON):
 		eq_buckets[EquipmentData.Rarity.COMMON] = []
 	for c: ConsumableData in ConsumableLibrary.all_consumables():
-		(eq_buckets[EquipmentData.Rarity.COMMON] as Array).append(_con_to_dict(c))
+		(eq_buckets[EquipmentData.Rarity.COMMON] as Array).append(con_to_dict(c))
 
 	var result: Array = []
 	var used_ids: Dictionary = {}
@@ -72,16 +72,17 @@ static func roll(count: int) -> Array:
 ## Weighted pick across configured rarity tiers (all 100 weight, no redistribution).
 ## Falls back to COMMON in callers when the rolled tier bucket is empty.
 static func _roll_rarity() -> int:
-	var roll: int = randi() % 100
+	var r: int = randi() % 100
 	var acc: int = 0
 	for tier in [EquipmentData.Rarity.COMMON, EquipmentData.Rarity.RARE,
 				 EquipmentData.Rarity.EPIC, EquipmentData.Rarity.LEGENDARY]:
 		acc += RARITY_WEIGHTS[tier]
-		if roll < acc:
+		if r < acc:
 			return tier
 	return EquipmentData.Rarity.COMMON
 
-static func _eq_to_dict(eq: EquipmentData) -> Dictionary:
+## Public helpers — used by StockGenerator to build item dicts without duplication.
+static func eq_to_dict(eq: EquipmentData) -> Dictionary:
 	return {
 		"id":          eq.equipment_id,
 		"name":        eq.equipment_name,
@@ -90,7 +91,7 @@ static func _eq_to_dict(eq: EquipmentData) -> Dictionary:
 		"rarity":      eq.rarity,
 	}
 
-static func _con_to_dict(c: ConsumableData) -> Dictionary:
+static func con_to_dict(c: ConsumableData) -> Dictionary:
 	return {
 		"id":          c.consumable_id,
 		"name":        c.consumable_name,
