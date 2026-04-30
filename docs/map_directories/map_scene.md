@@ -1,6 +1,6 @@
 # System: Map Scene
 
-> Last updated: 2026-04-30 (Vendor Slice 5 — "🛒 Vendor Test" dev button added to INVENTORY section; opens VendorOverlay for vendor_weapon)
+> Last updated: 2026-04-30 (Vendor Slice 6 — VENDOR node routing live; _generate_vendor_stocks additive; _vendor_overlay state var; dev test button removed)
 
 ---
 
@@ -150,7 +150,7 @@ Guards cleared nodes first — returns immediately if `GameState.cleared_nodes.h
 | `COMBAT` or `BOSS` | Sets `GameState.current_combat_node_id`, then `change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")` |
 | `CITY` | `change_scene_to_file("res://scenes/city/BadurgaScene.tscn")` |
 | `EVENT` | Calls `_get_ring(player_node_id)` → `EventSelector.pick_for_node(ring)` → `_event_manager.show_event(event_data)`. Does NOT change scene. |
-| `VENDOR` | Sets `GameState.pending_node_type`, then `change_scene_to_file("res://scenes/misc/NodeStub.tscn")` |
+| `VENDOR` | Instantiates `VendorOverlay` as a child, stores ref as `_vendor_overlay`, calls `show_vendor(player_node_id)`. On `closed` signal: appends node_id to `GameState.cleared_nodes`, calls `GameState.save()`, refreshes node visuals. |
 
 "Keep Moving" from the node prompt avoids the entry increment (player never calls `_enter_current_node()`).
 
@@ -311,7 +311,8 @@ Accessed via the `"Dev Menu"` button in the map UI chrome (bottom-right). Not pa
 - **`GameState.reset()` must stay in sync with GameState fields** — debug delete-save calls `reset()` before reload. New persistent fields need `reset()` additions.
 - **Type icons use `MOUSE_FILTER_IGNORE`** — or they intercept mouse events and prevent button presses.
 - **`node_types` is saved by `_assign_boss_type()`, not `_assign_node_types()`** — on reload both steps skip (non-empty dict / `"BOSS"` already assigned).
-- **`_generate_vendor_stocks()` is a no-op if `GameState.vendor_stocks` is already populated** — this is how loaded saves skip re-rolling. Old saves without vendor_stocks default to `{}` and get populated on the next map load. Never call this before `_assign_boss_type()` — node_types must be finalized so VENDOR node iteration is correct.
+- **`_generate_vendor_stocks()` is additive** — it only fills missing keys. Already-populated entries (from a loaded save) are left untouched. This handles both fresh runs (all keys missing) and old-save migration (partial data). Safe to call any time after `_assign_boss_type()` (node_types must be finalized). Calls `GameState.save()` only when at least one entry was added.
+- **`_vendor_overlay` ref** — holds the live `VendorOverlay` instance while a VENDOR node is open; set to `null` in the `closed` callback. Guards in `_input()` and `_on_node_clicked()` check `is_instance_valid(_vendor_overlay)` before reading `.visible` — safe against the instance being freed mid-frame.
 - **Node labels and `stamp_added` flags are NOT saved** — labels regenerate from `map_seed`; stamp flags are per-session only.
 - **`map_seed` must be set before `_build_node_data()`** — moved to `_ready()` so names and edges share the same seed.
 - **`hover_style` snapshot** — built once from `normal_style`, not refreshed when `_refresh_all_node_visuals()` darkens the base. Known, accepted.
@@ -331,8 +332,9 @@ Accessed via the `"Dev Menu"` button in the map UI chrome (bottom-right). Not pa
 | Date | Session | What changed |
 |---|---|---|
 | 2026-04-23 | S28 | Doc split — PartySheet section moved to `party_sheet.md`. No `MapManager` behavior change. |
-| 2026-04-30 | Vendor Slice 5 | **Dev panel INVENTORY section: "🛒 Vendor Test" button added (4th button in `inv_row`).** Instantiates `VendorOverlay.tscn`, adds as a child of MapManager, calls `show_vendor("vendor_weapon")`. Exercises the full Slice 1–5 vendor stack end-to-end. Will be removed when Slice 6 wires the real entry points. |
-| 2026-04-30 | Vendor Slice 4 | **`_generate_vendor_stocks()` added to `_ready()` after `_assign_boss_type()`.** Populates `GameState.vendor_stocks` for all CITY vendors (keyed by vendor_id) and all WORLD VENDOR nodes (keyed by node_id) on fresh runs and old-save migration. No-op when `vendor_stocks` is already populated. Calls `GameState.save()` after population. Also: `_on_prompt_enter` `node_id` param renamed to `_node_id` (was unused). |
+| 2026-04-30 | Vendor Slice 6 | **VENDOR node routing live.** `_enter_current_node()` VENDOR branch: instantiates `VendorOverlay`, stores as `_vendor_overlay`, calls `show_vendor(player_node_id)`, marks node cleared + saves on `closed`. `_generate_vendor_stocks()` changed from all-or-nothing to additive (only missing keys generated; saves only if anything was added). `_input()` and `_on_node_clicked()` guards updated to block map interaction while `_vendor_overlay` is visible. Dev "🛒 Vendor Test" button removed. |
+| 2026-04-30 | Vendor Slice 5 | **Dev panel INVENTORY section: "🛒 Vendor Test" button added (4th button in `inv_row`).** Instantiates `VendorOverlay.tscn`, adds as a child of MapManager, calls `show_vendor("vendor_weapon")`. |
+| 2026-04-30 | Vendor Slice 4 | **`_generate_vendor_stocks()` added to `_ready()` after `_assign_boss_type()`.** Populates `GameState.vendor_stocks` for all CITY vendors (keyed by vendor_id) and all WORLD VENDOR nodes (keyed by node_id) on fresh runs and old-save migration. No-op when `vendor_stocks` is already populated. Calls `GameState.save()` after population. |
 | 2026-04-28 | Rarity Foundation | **Add Item modal: rarity color treatment + rarity in inventory dict.** `_refresh_add_item_list()` now includes `"rarity": eq.rarity` in each equipment row dict. Equipment button text colored via `EquipmentData.RARITY_COLORS[row["rarity"]]`. `_on_add_item_selected()` passes `"rarity"` through to `GameState.add_to_inventory()`. All items are COMMON (grey) until Slices 3–5 add higher-tier content. |
 | 2026-04-28 | Follower Slice 6 | **Dev panel: "+ Give Gold +100" button added to INVENTORY section.** Third button in the HBoxContainer row. Increments `GameState.gold` by 100 and saves. |
 | 2026-04-28 | Follower Slice 5 | **Dev panel: Recruit test room + Add Random to Bench.** COMBAT section gained "⊕ Test Room — Recruit" button (sets `test_room_kind = "recruit_test"`). INVENTORY section refactored: two buttons now side-by-side in an HBoxContainer — existing "+ Add Item to Inventory" unchanged; new "⊕ Add Random to Bench" picks a random non-RogueFinder archetype and calls `GameState.add_to_bench()`. |

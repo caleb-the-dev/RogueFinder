@@ -8,7 +8,7 @@
 
 | Layer | Status |
 |---|---|
-| Data library (EventLibrary + CSVs) | ✅ Active (17 events, 53 choice rows, 12 tests) |
+| Data library (EventLibrary + CSVs) | ✅ Active (18 events, 55 choice rows, 12 tests) |
 | BenchSwapPanel (compare UI for bench-full recruit) | ✅ Active — Slice 7 |
 | EventSelector (ring filter + no-repeat) | ✅ Active — Slice 3 (5 tests) |
 | EventScene overlay + EventManager | ✅ Active — Slice 4 (19 tests) |
@@ -104,6 +104,7 @@ Returns `true` if ANY party member satisfies the condition. Supported forms:
 | `feat:ID` | Any member's `feat_ids` array contains ID |
 | `item:ID` | Any entry in `GameState.inventory` has `id == ID` |
 | `bench_not_full` | Bench has fewer than `BENCH_CAP` (9) followers; zero-argument form (no `:`) |
+| `has_gold:N` | `GameState.gold >= N`. True at exact threshold and above. |
 
 Unknown form → `push_warning` + return `true` (fail open — never silently gate a choice).
 
@@ -136,6 +137,7 @@ A choice whose `conditions` array is empty is always enabled (loop never runs).
 | `threat_delta` | `GameState.threat_level = clampf(threat_level + float(value) / 100.0, 0.0, 1.0)` — value is signed int treated as percentage points |
 | `feat_grant` | `_resolve_with_override` → calls `GameState.grant_feat(party.find(target), feat_id)`. Deduplication and save are handled inside `grant_feat()`. |
 | `recruit_follower` | Builds a CombatantData (or uses `prebuilt_follower`), level-matches to `party[0]`, resets xp/pending. If bench full and `bench_release_idx >= 0`: calls `GameState.release_from_bench(idx)` first. Then calls `GameState.add_to_bench(follower)`. push_warning + no-op if bench still full. |
+| `gold_change` | `GameState.gold = maxi(0, gold + value)`. Negative `value` debits gold; clamped to 0 — gold cannot go negative. |
 | `open_vendor` / `open_bench` | **Not dispatched here** — handled in `_on_choice_pressed` as nav effects before dispatch loop runs |
 
 Unknown type → `push_warning` + skip.
@@ -289,6 +291,7 @@ All methods are `static`. No instantiation required.
 
 | Date | Change |
 |---|---|
+| 2026-04-30 | **Vendor Slice 6 — gold_change + has_gold.** `dispatch_effect` gains `gold_change` type (`GameState.gold = maxi(0, gold + value)`; negative value debits, clamped at 0). `evaluate_condition` gains `has_gold:N` form (`GameState.gold >= N`; true at exact threshold). `road_deal` smoke event added (events.csv row 18, 2 choice rows): demonstrates both new paths — pay-25-gold choice gated by `has_gold:25`, gains a `healing_potion`. EventManager joins `"blocks_pause"` group so the ☰ pause button hides and ESC doesn't open the pause menu while an event overlay is live. |
 | 2026-04-28 | **Follower Slice 7 — Bench-swap comparison panel.** `BenchSwapPanel.gd` added (`scripts/ui/`): static builder returning a `Control` tree with left recruit card (64px portrait, archetype, 10-stat grid) and right scrollable bench list (36px portraits, archetype, stat grid with Δ = new recruit − bench member, green/red coloring, Swap → button). Cancel label configurable ("Never Mind" for events, "Lose Recruit" for combat). `dispatch_effect` gains `bench_release_idx: int = -1` and `prebuilt_follower: CombatantData = null` params. `_on_choice_pressed` builds the follower before showing the panel so displayed stats = added stats; cancel restores choice buttons. `CombatManager3D._show_bench_full_modal` replaced with `BenchSwapPanel`. `bench_target_picked(index: int)` signal added. Recruit choices no longer carry `bench_not_full` condition — always available; bench-full triggers the comparison panel instead. 6th headless test added for release+recruit path. |
 | 2026-04-28 | **Follower Slice 5 — Event follower channel.** `recruit_follower` effect added to `dispatch_effect()`: builds a CombatantData from archetype, level-matches to party[0], inserts into bench (no-op + warning when full). `bench_not_full` zero-argument condition added to `evaluate_condition()` (checked before the `:` split). 3 follower-offer events authored: `wandering_sellsword` (outer/middle), `skeletal_wanderer` (middle/inner), `stray_dog` choice 0 upgraded from no-op to live recruit. `ArchetypeLibrary.create()` defensively guards empty `backgrounds` array (empty string instead of crash). events.csv: 17 rows. event_choices.csv: 53 rows. 5 new headless tests (`test_event_follower.gd`). |
 | 2026-04-25 | **Slice 6b — Event revisions.** Post-testing pass: 13 changes to authored events. `wounded_traveler` rewritten as Wandering Medic (healer NPC, not victim). `fallen_signpost` body reworded. `stray_dog` choice 0 changed to recruit placeholder (no-op). `abandoned_campfire` choice 1 label/result clarified. `road_patrol`: "Cite your service" → no-op (was −5% threat); "Take the long way" → +10% threat (was no-op). `mercenary_camp`: dropped COG-gated "Trade information"; "Hire escort" → recruit placeholder no-op. `burned_farmhouse`: tend-to-child → `item_gain lucky_charm` (was heal PC). `river_crossing`: "Turn back" → +10% threat (was no-op). `survivor_in_the_dark` removed entirely. `mass_grave`: dropped COG-gated "Examine carefully"; "Disturb soil" → harm 5 + `item_gain rusted_dagger` (was harm-only). `ember_idol`: dropped `item:lucky_charm`-gated "Leave the charm" choice. Final counts: events.csv 15 rows, event_choices.csv 46 rows. |

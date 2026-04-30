@@ -269,6 +269,8 @@ Consumables all carry `rarity = COMMON` (from `RewardGenerator._con_to_dict`), s
 
 **ESC conflict resolution:** CM3D only marks ESC as handled when it actually does something (cancel recruit mode, deselect a unit). When nothing is selected and mode is IDLE, ESC falls through to PauseMenu. StatPanel ESC is handled inside CM3D's guard block (all input consumed while panel is visible) — PauseMenu never sees those events.
 
+**`blocks_pause` group:** `PauseMenuManager._is_overlay_blocking()` checks `get_tree().get_nodes_in_group("blocks_pause")` for any visible `CanvasLayer` member. If one is found, both the ☰ button visibility check (in `_process`) and the ESC open-menu path (in `_unhandled_input`) are suppressed. Current members of this group: `PartySheet` (layer 20), `VendorOverlay` (layer 20), `EventManager` (layer 10). Any future full-screen overlay that manages its own ESC should call `add_to_group("blocks_pause")` in `_ready()`.
+
 ### Scene / Script
 
 | File | Role |
@@ -328,6 +330,7 @@ Full cards show: archetype name (title-cased), kindred · class (muted), and `Ar
 
 | Date | Change |
 |------|--------|
+| 2026-04-30 | **`blocks_pause` group pattern added.** `_is_overlay_blocking()` helper queries `"blocks_pause"` group; `_process` and `_unhandled_input` skip the ☰ button / ESC when any member CanvasLayer is visible. `PartySheet`, `VendorOverlay`, and `EventManager` all join the group on `_ready()`. |
 | 2026-04-28 | **Fullscreen toggle removed.** CheckBox was rendering as plain non-interactive text (no hover/focus state). Removed `SettingsStore.fullscreen` field, `set_fullscreen()`, the checkbox row from the settings panel, and `_on_fullscreen_toggled()` from PauseMenuManager. 12 tests still pass. |
 | 2026-04-28 | **Pokédex Archetypes Log + recruited_archetypes tracking.** Log rebuilt to show all archetypes with 4 status levels (UNKNOWN/ENCOUNTERED/FOLLOWER/PLAYER). UNKNOWN entries show as dark silhouettes with "???". `GameState.recruited_archetypes` + `record_recruited_archetype()` added — persists Follower status even after bench release. `add_to_bench()` is the single hookpoint. Confirm dialogs added to Main Menu and Exit Game buttons. Party button shifted left (–236 px) to clear ☰ button overlap. ESC handling fixed — `PROCESS_MODE_WHEN_PAUSED` changed to `PROCESS_MODE_ALWAYS` (was never receiving initial ESC to open). CM3D ESC: now only consumed when an action is taken; IDLE+nothing selected falls through to PauseMenu. |
 | 2026-04-28 | **Pause Menu + Archetypes Log initial implementation.** Layer 26 CanvasLayer autoload. ESC gate + ☰ button. Settings panel (volume sliders). Guide stub. Archetypes Log panel (initial version). SettingsStore autoload (`user://settings.json`). `GameState.encountered_archetypes` + `record_archetype()`. `ArchetypeData.notes` parsed. 8 headless tests (now 12 after recruited_archetypes tests added). |
