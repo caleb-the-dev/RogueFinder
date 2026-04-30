@@ -1,6 +1,6 @@
 # Economy System
 
-> Covers gold generation, pricing, and the vendor data layer. Vendor UI (VendorScene) is Slice 4 and not yet built.
+> Covers gold generation, pricing, vendor data layer, and stock manifest generation. Vendor UI (VendorScene) is Slice 5 and not yet built.
 
 ---
 
@@ -40,7 +40,7 @@ Called by `CombatManager3D._calc_gold_reward()` after combat victory. Result add
 static func price_for(item: Dictionary, rng: RandomNumberGenerator) -> int
 ```
 
-Rarity → base price map (COMMON 10, RARE 25, EPIC 60, LEGENDARY 150). Applies ±20% jitter via caller-supplied `rng`. Returns clamped int ≥ 1. Caller supplies the RNG so vendor stock generation can be deterministic from a seed.
+Rarity → base price map (COMMON 10, RARE 40, EPIC 120, LEGENDARY 400). Applies ±10% jitter via caller-supplied `rng`. Returns clamped int ≥ 1. Caller supplies the RNG so vendor stock generation can be deterministic from a seed.
 
 ---
 

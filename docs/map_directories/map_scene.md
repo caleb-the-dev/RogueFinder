@@ -170,7 +170,7 @@ Shown for optional nodes (VENDOR, CITY). A `PanelContainer` anchored to the root
 
 ### `_ready()` order
 
-`load_save` → `init_party` (if empty) → seed `map_seed` (fresh run) → `_build_node_data` (calls `_assign_node_types`) → `_build_edge_data` (captures bridge endpoints) → `_build_adjacency` → `_assign_boss_type` (promotes one outer COMBAT, saves) → instantiate `PartySheet` → instantiate `EventManager` (connect `event_finished` + `event_nav`) → `_build_scene`.
+`load_save` → `init_party` (if empty) → seed `map_seed` (fresh run) → `_build_node_data` (calls `_assign_node_types`) → `_build_edge_data` (captures bridge endpoints) → `_build_adjacency` → `_assign_boss_type` (promotes one outer COMBAT, saves) → `_generate_vendor_stocks` (pre-rolls stock manifests if not already present, saves) → instantiate `PartySheet` → instantiate `EventManager` (connect `event_finished` + `event_nav`) → `_build_scene`.
 
 ---
 
@@ -311,6 +311,7 @@ Accessed via the `"Dev Menu"` button in the map UI chrome (bottom-right). Not pa
 - **`GameState.reset()` must stay in sync with GameState fields** — debug delete-save calls `reset()` before reload. New persistent fields need `reset()` additions.
 - **Type icons use `MOUSE_FILTER_IGNORE`** — or they intercept mouse events and prevent button presses.
 - **`node_types` is saved by `_assign_boss_type()`, not `_assign_node_types()`** — on reload both steps skip (non-empty dict / `"BOSS"` already assigned).
+- **`_generate_vendor_stocks()` is a no-op if `GameState.vendor_stocks` is already populated** — this is how loaded saves skip re-rolling. Old saves without vendor_stocks default to `{}` and get populated on the next map load. Never call this before `_assign_boss_type()` — node_types must be finalized so VENDOR node iteration is correct.
 - **Node labels and `stamp_added` flags are NOT saved** — labels regenerate from `map_seed`; stamp flags are per-session only.
 - **`map_seed` must be set before `_build_node_data()`** — moved to `_ready()` so names and edges share the same seed.
 - **`hover_style` snapshot** — built once from `normal_style`, not refreshed when `_refresh_all_node_visuals()` darkens the base. Known, accepted.
@@ -330,6 +331,7 @@ Accessed via the `"Dev Menu"` button in the map UI chrome (bottom-right). Not pa
 | Date | Session | What changed |
 |---|---|---|
 | 2026-04-23 | S28 | Doc split — PartySheet section moved to `party_sheet.md`. No `MapManager` behavior change. |
+| 2026-04-30 | Vendor Slice 4 | **`_generate_vendor_stocks()` added to `_ready()` after `_assign_boss_type()`.** Populates `GameState.vendor_stocks` for all CITY vendors (keyed by vendor_id) and all WORLD VENDOR nodes (keyed by node_id) on fresh runs and old-save migration. No-op when `vendor_stocks` is already populated. Calls `GameState.save()` after population. Also: `_on_prompt_enter` `node_id` param renamed to `_node_id` (was unused). |
 | 2026-04-28 | Rarity Foundation | **Add Item modal: rarity color treatment + rarity in inventory dict.** `_refresh_add_item_list()` now includes `"rarity": eq.rarity` in each equipment row dict. Equipment button text colored via `EquipmentData.RARITY_COLORS[row["rarity"]]`. `_on_add_item_selected()` passes `"rarity"` through to `GameState.add_to_inventory()`. All items are COMMON (grey) until Slices 3–5 add higher-tier content. |
 | 2026-04-28 | Follower Slice 6 | **Dev panel: "+ Give Gold +100" button added to INVENTORY section.** Third button in the HBoxContainer row. Increments `GameState.gold` by 100 and saves. |
 | 2026-04-28 | Follower Slice 5 | **Dev panel: Recruit test room + Add Random to Bench.** COMBAT section gained "⊕ Test Room — Recruit" button (sets `test_room_kind = "recruit_test"`). INVENTORY section refactored: two buttons now side-by-side in an HBoxContainer — existing "+ Add Item to Inventory" unchanged; new "⊕ Add Random to Bench" picks a random non-RogueFinder archetype and calls `GameState.add_to_bench()`. |
