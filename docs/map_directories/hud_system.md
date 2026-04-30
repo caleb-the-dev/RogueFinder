@@ -210,6 +210,49 @@ gold = max(1, round(raw))
 
 ---
 
+---
+
+## PricingFormula
+
+Static utility class (`scripts/globals/PricingFormula.gd`). Converts any item dict into a deterministic integer price. Paired with `RewardGenerator` — both live in `globals/` and operate on the same item dict shape.
+
+**Key design rule:** the caller always supplies a `RandomNumberGenerator` instance. No global `randi()` fallback. This lets vendor scenes seed the RNG once per shop refresh so prices are stable within a visit and can't be re-rolled by save-scumming.
+
+### Constants
+
+```gdscript
+const RARITY_BASE_PRICE: Dictionary = {
+    EquipmentData.Rarity.COMMON:     10,
+    EquipmentData.Rarity.RARE:       40,
+    EquipmentData.Rarity.EPIC:      120,
+    EquipmentData.Rarity.LEGENDARY: 400,
+}
+```
+
+### Public API
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `price_for` | `(item: Dictionary, rng: RandomNumberGenerator) -> int` | Returns jittered price ≥ 1 for the given item dict |
+
+### Pricing formula
+
+```
+base = RARITY_BASE_PRICE[item.rarity]   # defaults to COMMON if key absent
+mult = rng.randf_range(0.9, 1.1)
+price = max(1, round(base * mult))
+```
+
+Consumables all carry `rarity = COMMON` (from `RewardGenerator._con_to_dict`), so they price at 9–11 gold. Revisit if playtesting makes this feel wrong.
+
+### Recent Changes (PricingFormula)
+
+| Date | Change |
+|------|--------|
+| 2026-04-29 | **Vendor Slice 2 — initial implementation.** `PricingFormula.gd` created. `price_for(item, rng)` method: rarity → base lookup, ±10% jitter, floor 1. 9 headless tests (`test_pricing.gd/.tscn`). |
+
+---
+
 ## MainMenuScene + CharacterCreationScene
 
 > Moved to [`character_creation.md`](character_creation.md).

@@ -1,0 +1,8 @@
+id,display_name,flavor,category_pool,stock_count,scope
+vendor_weapon,Ironmonger's Stall,"Hammers ringing on hot steel.",weapon,5,CITY
+vendor_armor,Seamstress & Leatherworks,"Bolts of cloth and tanned hides.",armor,5,CITY
+vendor_accessory,The Curio Dealer,"Trinkets from a hundred road-towns.",accessory,5,CITY
+vendor_consumable,Herbalist's Cart,"Bottled tinctures and dried roots.",consumable,6,CITY
+road_peddler,Road Peddler,"A weather-beaten cart and a tired mule.",weapon|armor|accessory|consumable,4,WORLD
+wandering_quartermaster,Wandering Quartermaster,"Surplus from a battle further west.",weapon|armor,4,WORLD
+apothecary_caravan,Apothecary Caravan,"Roving healers with wares to spare.",consumable|accessory,5,WORLD

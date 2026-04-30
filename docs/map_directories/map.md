@@ -8,9 +8,9 @@
 
 | Field | Value |
 |---|---|
-| last_updated | 2026-04-29 (Vendor Slice 1 — auto-collect gold on combat victory; RewardGenerator.gold_drop(); EndCombatScreen gold line) |
+| last_updated | 2026-04-30 (Vendor Slice 3 — VendorLibrary data layer; VendorData resource; vendors.csv 7 seed rows; vendors_by_scope() helper) |
 | last_groomed | 2026-04-29 |
-| sessions_since_groom | 1 |
+| sessions_since_groom | 2 |
 | groom_trigger | 10 |
 
 > **Grooming rule:** When `sessions_since_groom` reaches `groom_trigger`, run the `map-audit` skill:
@@ -23,12 +23,13 @@
 
 | System | Bucket File | Status | Layer |
 |--------|------------|--------|-------|
+| [Economy — Gold / Pricing / Vendors](economy.md) | `economy.md` | ✅ Active (RewardGenerator.gold_drop() · PricingFormula.price_for() · VendorLibrary 7 seed vendors; VendorScene UI deferred to Slice 4) | Data |
 | [Combat Manager](combat_manager.md) | `combat_manager.md` | ✅ Active (3D) + Legacy (2D) | Core |
 | [Grid System](grid_system.md) | `grid_system.md` | ✅ Active (3D) + Legacy (2D) | Core |
 | [Unit System](unit_system.md) | `unit_system.md` | ✅ Active (3D) + Legacy (2D) | Core |
 | [QTE System — QTEBar + RecruitBar](qte_system.md) | `qte_system.md` | ✅ Active (QTEBar: Slide dodge; RecruitBar: hold-and-release capture) | Core |
 | [Camera System](camera_system.md) | `camera_system.md` | ✅ Active (3D only) | Presentation |
-| [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack; EndCombatScreen shows gold line on victory; RewardGenerator.gold_drop() live) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
+| [HUD System / StatPanel / UnitInfoBar / CombatActionPanel / EndCombatScreen / RewardGenerator / PricingFormula](hud_system.md) | `hud_system.md` | ✅ Active (combat HUD stack; EndCombatScreen shows gold line on victory; RewardGenerator.gold_drop() + PricingFormula.price_for() live) · ⚠️ Legacy HUD.gd kept for 2D | Presentation |
 | [Combatant Data Model + ArchetypeLibrary](combatant_data.md) | `combatant_data.md` | ✅ Active (ArchetypeLibrary CSV-sourced S34; speed = 1 + kindred_bonus only — dex severed; no attack stat — effective_stat() drives HARM) | Data |
 | [Ability System (AbilityData / EffectData / AbilityLibrary)](ability_system.md) | `ability_system.md` | ✅ Active (63 abilities — 22 base + 8 kindred natural attacks + 14 ancestry + 4 class definings + 6 class pool + 6 weapon + 3 armor upgrades; upgraded_id live on weapon + armor base abilities) | Data |
 | [Equipment & Consumables](equipment_system.md) | `equipment_system.md` | ✅ Active (36 equipment items: 12 tiered weapons + 12 tiered armor + 12 tiered accessories (3 STR/COG/VIT families × 4 rarities); 11 consumables; on_equip/on_unequip pool lifecycle live; accessory feat_id applied at read-time via get_feat_stat_bonus()) | Data |
@@ -204,7 +205,9 @@ rogue-finder/
 │   │   ├── KindredLibrary.gd           ← CSV-sourced (res://data/kindreds.csv); 8 kindreds (4 humanoid + 4 non-humanoid)
 │   │   ├── PortraitLibrary.gd          ← CSV-sourced (res://data/portraits.csv); 6 placeholder portraits
 │   │   └── TemperamentLibrary.gd       ← CSV-sourced (res://data/temperaments.csv); 21 temperaments (20 + Even neutral); random_id(rng) helper
+│   │   ├── PricingFormula.gd            ← static price_for(item, rng) helper; rarity→base×jitter; caller-supplied RNG
 │   │   ├── RewardGenerator.gd          ← shuffled reward pool + gold_drop(ring, threat, avg_level) formula
+│   │   ├── VendorLibrary.gd            ← CSV-sourced (res://data/vendors.csv); 7 vendors; vendors_by_scope() helper
 │   │   ├── SettingsStore.gd            ← autoload; user://settings.json; volume prefs (master/music/sfx)
 │   │   └── GameState.gd                ← autoload
 │   ├── map/MapManager.gd
@@ -234,6 +237,7 @@ rogue-finder/
 │   ├── FeatData.gd                     ← one feat (id, name, description, source_type, stat_bonuses, effects)
 │   ├── KindredData.gd                  ← one kindred (speed/HP bonuses + stat_bonuses + starting_ability_id + ability_pool + name_pool; feat_id removed)
 │   ├── TemperamentData.gd              ← one temperament (id, name, boosted_stat, hindered_stat — both empty for neutral "even")
+│   ├── VendorData.gd                   ← one vendor (vendor_id, display_name, flavor, category_pool, stock_count, scope)
 │   ├── PortraitData.gd                 ← one selectable portrait
 │   └── UnitData.gd                     ← legacy (2D only)
 ├── data/
@@ -248,6 +252,7 @@ rogue-finder/
 │   ├── feats.csv                       ← 38 feats (20 class, 18 background); kindred rows removed
 │   ├── kindreds.csv                    ← 8 kindreds (Human/Half-Orc/Gnome/Dwarf/Skeleton/Giant Rat/Spider/Dragon); read via res://data/
 │   ├── temperaments.csv                ← 21 rows; columns: id, name, boosted_stat, hindered_stat; "even" row has empty stats (neutral)
+│   ├── vendors.csv                     ← 7 vendors (4 CITY + 3 WORLD); category_pool pipe-separated; read via res://data/
 │   └── portraits.csv                   ← 6 placeholder portraits; read via res://data/
 ├── scenes/
 │   ├── city/BadurgaScene.tscn
@@ -269,7 +274,7 @@ rogue-finder/
 │       ├── MainMenuScene.tscn          ← entry point (instanced by main.tscn)
 │       ├── PauseMenuScene.tscn         ← minimal (root CanvasLayer + PauseMenuManager script); registered as PauseMenu autoload
 │       └── RunSummaryScene.tscn
-└── tests/                              ← 45 test scripts + 32 scene runners. **test_consumables.gd** updated 2026-04-29 (Slice 6): 5 new item assertions (steel_tonic/quicksilver_draught/clarity_brew/iron_word/heartroot_tonic — each checks BUFF, base_value==1, correct target_stat) + total count assertion (11). **test_accessory_feat.gd/.tscn** added 2026-04-29 (5 assertions — Rare accessory adds feat stat bonus, unequip removes, dedup with feat_ids, COMMON no bonus, 36-item count). **test_armor_equip.gd/.tscn** updated for 36-item count. **test_rarity.gd** updated: armor_accessory_all_common now checks all 4 tiers exist (not COMMON-only); granted_ability_ids check narrowed to accessories only; feat_id check verifies COMMON=empty/Rare+=non-empty. **test_equipment.gd** updated: old padded_armor/rough_hide/cloth_robe tests replaced with iron_plate/ring_of_valor_epic/mystic_robe; count updated to 36. **test_armor_equip.gd/.tscn** (7); **test_weapon_equip.gd/.tscn** (7 — on_equip adds to pool, dedup, on_unequip removes, slot preserves on unequip, CSV parse iron_sword, multiple ids round-trip, armor noop). **test_upgraded_ability.gd/.tscn** (6 — upgraded_id default, stub on no-upgrade, round-trip, CSV no upgrade, ability count, never-null). Note: test asserts 60 rows — needs update to 63. test_rarity.gd/.tscn (13); test_pause_menu.gd/.tscn (12); test_hire_roster.gd/.tscn (6); test_recruit_success.gd/.tscn (11); test_recruit_math.gd/.tscn (13); test_armor_mod.gd/.tscn (11); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; `extends SceneTree` tests use `--script`.
+└── tests/                              ← 47 test scripts + 34 scene runners. **test_consumables.gd** updated 2026-04-29 (Slice 6): 5 new item assertions (steel_tonic/quicksilver_draught/clarity_brew/iron_word/heartroot_tonic — each checks BUFF, base_value==1, correct target_stat) + total count assertion (11). **test_accessory_feat.gd/.tscn** added 2026-04-29 (5 assertions — Rare accessory adds feat stat bonus, unequip removes, dedup with feat_ids, COMMON no bonus, 36-item count). **test_armor_equip.gd/.tscn** updated for 36-item count. **test_rarity.gd** updated: armor_accessory_all_common now checks all 4 tiers exist (not COMMON-only); granted_ability_ids check narrowed to accessories only; feat_id check verifies COMMON=empty/Rare+=non-empty. **test_equipment.gd** updated: old padded_armor/rough_hide/cloth_robe tests replaced with iron_plate/ring_of_valor_epic/mystic_robe; count updated to 36. **test_armor_equip.gd/.tscn** (7); **test_weapon_equip.gd/.tscn** (7 — on_equip adds to pool, dedup, on_unequip removes, slot preserves on unequip, CSV parse iron_sword, multiple ids round-trip, armor noop). **test_upgraded_ability.gd/.tscn** (6 — upgraded_id default, stub on no-upgrade, round-trip, CSV no upgrade, ability count, never-null). Note: test asserts 60 rows — needs update to 63. test_rarity.gd/.tscn (13); test_pause_menu.gd/.tscn (12); test_hire_roster.gd/.tscn (6); test_recruit_success.gd/.tscn (11); test_recruit_math.gd/.tscn (13); test_armor_mod.gd/.tscn (11); see `tests/test_combatant_data.tscn` for the runner pattern; test_camera_controls.gd (6, extends SceneTree). All `extends Node` tests require a .tscn runner and are invoked with `--headless --path rogue-finder <test>.tscn`; `extends SceneTree` tests use `--script`.
 ```
 
 ---
@@ -280,6 +285,7 @@ Last 3 merged milestones. For full history, see `git log main`; for per-system h
 
 | Date | Area | Note |
 |---|---|---|
+| 2026-04-30 | VendorData, VendorLibrary, vendors.csv | **Vendor Slice 3 — VendorLibrary Data Set.** `VendorData.gd` resource (`vendor_id`, `display_name`, `flavor`, `category_pool: Array[String]`, `stock_count: int`, `scope: String`). `vendors.csv` — 7 seed rows (4 CITY, 3 WORLD). `VendorLibrary.gd` — BackgroundLibrary shape; `get_vendor()` never-null stub; `all_vendors()`; `vendors_by_scope(scope)` for Slice 4; `reload()`. `economy.md` bucket file created; `map.md` updated. 17 headless tests (`test_vendor_library.gd/.tscn`). |
 | 2026-04-29 | RewardGenerator, GameState, MapManager, CombatManager3D, EndCombatScreen | **Vendor Slice 1 — Currency Reward Channel.** `RewardGenerator.gold_drop(ring, threat, party_avg_level)` added: formula is `(RING_BASE[ring] + 0.15 * threat + 3.0 * avg_level) * randf_range(0.9, 1.1)`, clamped to ≥ 1. RING_BASE: outer 30, middle 20, inner 12. `GameState.current_combat_ring: String = ""` added as a transient (NOT serialized) field. `MapManager._enter_current_node()` now sets `current_combat_ring` alongside `current_combat_node_id` using existing `_get_ring()`. `CombatManager3D._calc_gold_reward()` computes ring-scaled gold, adds to `GameState.gold` before saving, and passes amount to `EndCombatScreen.show_victory(items, gold)`. `EndCombatScreen.show_victory()` signature extended with `gold_amount: int = 0`; displays `"+X Gold (Total: Y)"` line in Color(0.90, 0.80, 0.30) above item cards. 7 headless tests added (`test_gold_reward.gd/.tscn`). |
 | 2026-04-29 | CombatantData, CombatManager3D, PartySheet, StatPanel, GAME_BIBLE | **ATK stat removed.** `CombatantData.attack` computed property deleted — there is no separate attack stat. New method `effective_stat(stat: String) -> int` returns raw attribute + all bonus sources (equip/feat/class/kindred/bg/temp). HARM formula in `_run_harm_defenders` changed from `base_value + caster.data.attack` to `base_value + _get_attribute_value(caster, ability.attribute)`, where `_get_attribute_value` now calls `effective_stat()` for each attribute. A STR-based ability scales with effective STR; COG-based with effective COG; etc. PartySheet derived stats row drops from 6 to 5 cols (Atk removed). StatPanel drops the Attack derived stat line. GAME_BIBLE attack resolution section and damage formula updated to match. |
 | 2026-04-29 | consumables.csv, tests/test_consumables.gd | **Consumable Pool Expansion (Slice 6).** 5 new BUFF +1 consumables added to `consumables.csv`: `steel_tonic` (STR), `quicksilver_draught` (DEX), `clarity_brew` (COG), `iron_word` (WIL), `heartroot_tonic` (VIT). Total: 11 consumables. Pure CSV — no GDScript changes. `test_consumables.gd` gained 6 new assertions (5 item tests + count == 11). All 13 tests pass. |
