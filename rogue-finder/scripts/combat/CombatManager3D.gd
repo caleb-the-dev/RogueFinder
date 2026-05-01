@@ -699,14 +699,15 @@ func _ai_finish_blow_player_defs() -> Array[Dictionary]:
 func _ai_finish_blow_enemy_defs() -> Array[Dictionary]:
 	return [
 		{
-			## arcane_bolt range=4 reaches all 3 player positions from (3,3)/(3,5)/(4,4).
-			## Expected damage vs. DYING (magic_arm=2, cog=7): 5+7-2=10. vs. Sturdies (magic_arm=3): 9.
-			## DYING has lowest HP (3) → finishing-blow fires → all pick DYING as target.
+			## No AoE abilities — forces finishing-blow path (AoE-2+ can't fire if no AoE).
+			## arcane_bolt (SINGLE/range=4) + acid_splash (SINGLE, HARM primary) reach all 3 players
+			## from (3,3)/(3,5)/(4,4). Expected dmg vs DYING (magic_arm=2, cog=7): 5+7-2=10.
+			## vs Sturdies (magic_arm=3): 5+7-3=9. DYING is lowest HP → all three target it.
 			"name": "Mage-A", "archetype": "alchemist", "kindred": "Gnome",
 			"class": "arcanist", "is_player": false,
 			"str": 2, "dex": 4, "cog": 7, "wil": 5, "vit": 4,
 			"phys_arm": 1, "magic_arm": 3,
-			"abilities": ["arcane_bolt", "acid_splash", "fireball", "fire_breath"],
+			"abilities": ["arcane_bolt", "acid_splash", "arcane_bolt", "acid_splash"],
 			"qte": 0.4,
 		},
 		{
@@ -714,7 +715,7 @@ func _ai_finish_blow_enemy_defs() -> Array[Dictionary]:
 			"class": "arcanist", "is_player": false,
 			"str": 2, "dex": 4, "cog": 7, "wil": 5, "vit": 4,
 			"phys_arm": 1, "magic_arm": 3,
-			"abilities": ["arcane_bolt", "acid_splash", "fireball", "fire_breath"],
+			"abilities": ["arcane_bolt", "acid_splash", "arcane_bolt", "acid_splash"],
 			"qte": 0.4,
 		},
 		{
@@ -722,7 +723,7 @@ func _ai_finish_blow_enemy_defs() -> Array[Dictionary]:
 			"class": "arcanist", "is_player": false,
 			"str": 2, "dex": 4, "cog": 7, "wil": 5, "vit": 4,
 			"phys_arm": 1, "magic_arm": 3,
-			"abilities": ["arcane_bolt", "acid_splash", "fireball", "fire_breath"],
+			"abilities": ["arcane_bolt", "acid_splash", "arcane_bolt", "acid_splash"],
 			"qte": 0.4,
 		},
 	]
