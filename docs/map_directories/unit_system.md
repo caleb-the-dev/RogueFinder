@@ -104,7 +104,10 @@ CombatManager subscribes to both signals on every unit.
 | `is_alive` | `bool` | `true` | False after HP reaches 0 |
 | `stat_effects` | `Array[Dictionary]` | `[]` | Active buff/debuff records: `{display_name, stat, delta}` |
 | `ai_override` | `String` | `""` | EnemyAI seam — set to `"force_random"` by future Confused condition; bypasses role walk. Transient, not serialized, not cleared in `reset_turn()`. |
-| `last_ability_id` | `String` | `""` | Last ability used by this unit. EnemyAI deprioritizes it within the same effect-type bucket so enemies cycle their moves rather than spamming one ability. Transient, not serialized. **Intentionally NOT cleared in `reset_turn()`** — must persist across turns. |
+| `last_ability_id` | `String` | `""` | Last ability used by this unit. Transient, not serialized. Not cleared in `reset_turn()` — persists across turns. |
+| `active_buff_ability_ids` | `Array[String]` | `[]` | Ability IDs of active BUFF effects on this unit. Appended by `CombatManager3D._apply_non_harm_effects()` on each BUFF resolution. Used by `EnemyAI._pick_best_buff()` for redundancy skip. Transient, not serialized, cleared at `_end_combat()`. |
+| `active_debuff_ability_ids` | `Array[String]` | `[]` | Ability IDs of active DEBUFF effects. Appended on DEBUFF resolution. Used by `EnemyAI._pick_best_debuff()` for redundancy skip. Transient, not serialized, cleared at `_end_combat()`. |
+| `debuff_stat_stacks` | `Dictionary` | `{}` | Maps `int(EffectData.Attribute)` → stack count. Incremented each time a DEBUFF of that stat resolves. Used by `_pick_best_debuff()` to enforce the 3-stack cap per stat per target. Transient, not serialized, cleared at `_end_combat()`. |
 
 ---
 
@@ -174,5 +177,6 @@ The buff ▲ and debuff ▼ billboard indicators are refreshed after every `add_
 
 | Date | Change |
 |---|---|
+| 2026-05-01 | Added buff/debuff tracker fields for Enemy AI Slice 3: `active_buff_ability_ids: Array[String]`, `active_debuff_ability_ids: Array[String]`, `debuff_stat_stacks: Dictionary`. All transient, not serialized. Populated by `CombatManager3D._apply_non_harm_effects()` on BUFF/DEBUFF resolution; consumed by `EnemyAI._pick_best_buff/debuff()` for redundancy/stack-cap checks. All three cleared in `_end_combat()` alongside snapshot restore. |
 | 2026-05-01 | Added `ai_override: String = ""` and `last_ability_id: String = ""` — both transient, not serialized, not saved. `last_ability_id` intentionally excluded from `reset_turn()` so EnemyAI can read it across consecutive turns. |
 | 2026-04-19 | `setup()` changed to seed `current_hp` from `data.current_hp` and `current_energy` from `data.current_energy` (was `hp_max` / `energy_max`). Units now enter combat at their last saved HP, not always full. |
