@@ -24,6 +24,18 @@ var ai_override: String = ""
 ## so the AI cycles through options rather than spamming the same move every turn.
 ## Transient — intentionally NOT reset in reset_turn(); must persist across turns.
 var last_ability_id: String = ""
+## Ability IDs whose BUFF effect is currently active on this unit.
+## Used by EnemyAI to skip redundant BUFF applications.
+## Transient — not serialized; cleared at combat end via _end_combat().
+var active_buff_ability_ids: Array[String] = []
+## Ability IDs whose DEBUFF effect is currently active on this unit.
+## Used by EnemyAI to skip redundant DEBUFF applications.
+## Transient — not serialized; cleared at combat end via _end_combat().
+var active_debuff_ability_ids: Array[String] = []
+## Maps AbilityData.Attribute int → stack count for DEBUFF effects.
+## EnemyAI enforces a 3-stack cap per stat to prevent infinite debuff spirals.
+## Transient — not serialized; cleared at combat end via _end_combat().
+var debuff_stat_stacks: Dictionary = {}
 
 ## Applied stat effects — populated by CombatManager3D._apply_stat_delta().
 ## Each entry: { "display_name": String, "stat": int, "delta": int }

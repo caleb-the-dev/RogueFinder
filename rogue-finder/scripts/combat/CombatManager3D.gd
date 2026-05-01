@@ -1096,8 +1096,16 @@ func _apply_non_harm_effects(ability: AbilityData, caster: Unit3D, target: Unit3
 				target.heal(heal)
 			EffectData.EffectType.BUFF:
 				_apply_stat_delta(target, effect.target_stat, maxi(1, effect.base_value))
+				# Track for EnemyAI redundancy detection — one entry per ability, not per application.
+				if not target.active_buff_ability_ids.has(ability.ability_id):
+					target.active_buff_ability_ids.append(ability.ability_id)
 			EffectData.EffectType.DEBUFF:
 				_apply_stat_delta(target, effect.target_stat, -maxi(1, effect.base_value))
+				# Track for EnemyAI redundancy detection and 3-stack cap.
+				if not target.active_debuff_ability_ids.has(ability.ability_id):
+					target.active_debuff_ability_ids.append(ability.ability_id)
+				var stat_key: int = int(effect.target_stat)
+				target.debuff_stat_stacks[stat_key] = target.debuff_stat_stacks.get(stat_key, 0) + 1
 			EffectData.EffectType.FORCE:
 				_apply_force(caster, target, effect, blast_origin)
 			EffectData.EffectType.HARM, EffectData.EffectType.TRAVEL:
@@ -1368,11 +1376,7 @@ func _handle_shape_hover() -> void:
 ## Returns the cardinal direction from `from` to `to`, snapping to the dominant axis.
 ## e.g. (3, 1) → (1, 0);  (1, 3) → (0, 1)
 func _cardinal_direction(from: Vector2i, to: Vector2i) -> Vector2i:
-	var diff := to - from
-	if abs(diff.x) >= abs(diff.y):
-		return Vector2i(sign(diff.x), 0)
-	else:
-		return Vector2i(0, sign(diff.y))
+	return EnemyAI._cardinal_direction_static(from, to)
 
 ## Returns every grid cell covered by the ability's shape, given caster and aim positions.
 ## RADIAL: diamond ≤ 2 Manhattan from origin. Without passthrough, only pure cardinal
@@ -1382,64 +1386,9 @@ func _cardinal_direction(from: Vector2i, to: Vector2i) -> Vector2i:
 ## CONE:   stem (1) → 3-wide crossbar (2) → 5-wide back row (3). Without passthrough,
 ##         a unit at the stem blocks depth 2 and 3.
 ## LINE:   straight ray up to tile_range; stops at first unit unless passthrough.
+## Logic lives in EnemyAI._get_shape_cells_static; this is a thin wrapper.
 func _get_shape_cells(caster_pos: Vector2i, origin_pos: Vector2i, ability: AbilityData) -> Array[Vector2i]:
-	var cells: Array[Vector2i] = []
-	match ability.target_shape:
-		AbilityData.TargetShape.RADIAL:
-			var radius: int = 2  # fixed by design spec ("5 wide × 5 tall" diamond)
-			for dx in range(-radius, radius + 1):
-				for dy in range(-radius, radius + 1):
-					if abs(dx) + abs(dy) > radius:
-						continue
-					var cell := Vector2i(origin_pos.x + dx, origin_pos.y + dy)
-					if not _grid.is_valid(cell):
-						continue
-					# Without passthrough, only pure cardinal distance-2 cells can be blocked
-					# (a unit directly between the origin and that cell stops the blast).
-					# Diagonal distance-2 cells have no clean intermediate — never blocked.
-					if not ability.passthrough and abs(dx) + abs(dy) == 2 \
-							and (dx == 0 or dy == 0):
-						var mid := Vector2i(origin_pos.x + sign(dx), origin_pos.y + sign(dy))
-						if _grid.is_occupied(mid):
-							continue
-					cells.append(cell)
-		AbilityData.TargetShape.ARC:
-			# 3-cell sweep: left-of-root, root, right-of-root — all at distance 1.
-			var dir: Vector2i  = _cardinal_direction(caster_pos, origin_pos)
-			var root: Vector2i = caster_pos + dir
-			var perp: Vector2i = Vector2i(dir.y, dir.x)
-			for c: Vector2i in [root - perp, root, root + perp]:
-				if _grid.is_valid(c):
-					cells.append(c)
-		AbilityData.TargetShape.CONE:
-			# Expanding shape: stem (d1), 3-wide crossbar (d2), 5-wide back row (d3).
-			# Without passthrough, a unit at d1 blocks d2 and d3.
-			var dir: Vector2i  = _cardinal_direction(caster_pos, origin_pos)
-			var perp: Vector2i = Vector2i(dir.y, dir.x)
-			var d1: Vector2i   = caster_pos + dir
-			var d2: Vector2i   = d1 + dir
-			var d3: Vector2i   = d2 + dir
-			if _grid.is_valid(d1):
-				cells.append(d1)
-			if ability.passthrough or not _grid.is_occupied(d1):
-				for c: Vector2i in [d2 - perp, d2, d2 + perp]:
-					if _grid.is_valid(c):
-						cells.append(c)
-				for c: Vector2i in [d3 - perp * 2, d3 - perp, d3, d3 + perp, d3 + perp * 2]:
-					if _grid.is_valid(c):
-						cells.append(c)
-		AbilityData.TargetShape.LINE:
-			var dir := _cardinal_direction(caster_pos, origin_pos)
-			var cur := caster_pos + dir
-			var steps: int = 0
-			var limit: int = ability.tile_range if ability.tile_range != -1 else 999
-			while _grid.is_valid(cur) and steps < limit:
-				cells.append(cur)
-				if _grid.is_occupied(cur) and not ability.passthrough:
-					break  # blocked by a unit; stop unless passthrough
-				cur = cur + dir
-				steps += 1
-	return cells
+	return EnemyAI._get_shape_cells_static(caster_pos, origin_pos, ability, _grid)
 
 ## Filters a cell list to living units that match the ability's applicable_to.
 func _get_units_in_cells(cells: Array[Vector2i], applicable_to: AbilityData.ApplicableTo) -> Array[Unit3D]:
@@ -1528,12 +1477,16 @@ func _process_enemy_actions() -> void:
 		if not enemy.is_alive:
 			continue
 
-		# --- 1. Movement heuristic target (random hostile — used only for greedy stride) ---
+		# --- 1. Movement heuristic target (role-aware — used only for greedy stride) ---
 		# EnemyAI picks the real action target after movement; this is just a positioning proxy.
+		# HEALER/SUPPORTER strides toward the lowest-HP ally below 70% HP; all others toward nearest hostile.
 		var move_hostiles: Array[Unit3D] = _player_units_alive()
 		if move_hostiles.is_empty():
 			break
-		var move_target: Unit3D = move_hostiles[randi() % move_hostiles.size()]
+		var move_target: Unit3D = EnemyAI.pick_stride_target(
+			enemy,
+			_enemy_units_alive_excluding(enemy),
+			move_hostiles)
 
 		# --- 2. Consumable use (50% chance when HP < 50%) ---
 		if enemy.data.consumable != "":
@@ -1677,58 +1630,9 @@ func _enemy_units_alive_excluding(self_enemy: Unit3D) -> Array[Unit3D]:
 	return result
 
 ## Picks the AoE origin cell that maximizes living player units hit (random tiebreak).
-## For RADIAL, scans all cells within tile_range of the caster.
-## For CONE/ARC/LINE, tests the 4 cardinal roots adjacent to the caster.
+## Logic lives in EnemyAI.pick_best_aoe_origin; this is a thin wrapper.
 func _pick_best_aoe_origin(enemy: Unit3D, ability: AbilityData) -> Vector2i:
-	var candidates: Array[Vector2i] = []
-	var caster_pos: Vector2i = enemy.grid_pos
-
-	match ability.target_shape:
-		AbilityData.TargetShape.RADIAL:
-			var limit: int = ability.tile_range if ability.tile_range != -1 else 999
-			for row in range(Grid3D.ROWS):
-				for col in range(Grid3D.COLS):
-					var cell := Vector2i(col, row)
-					var dist: int = abs(cell.x - caster_pos.x) + abs(cell.y - caster_pos.y)
-					if dist <= limit:
-						candidates.append(cell)
-		_:  # CONE, ARC, LINE — try each of the 4 cardinal roots
-			for dir: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-				var cell := caster_pos + dir
-				if _grid.is_valid(cell):
-					candidates.append(cell)
-
-	if candidates.is_empty():
-		return caster_pos
-
-	var best: Array[Vector2i] = []
-	var best_count: int = -1
-	for cand in candidates:
-		var cells: Array[Vector2i] = _get_shape_cells(caster_pos, cand, ability)
-		var count: int = 0
-		for cell in cells:
-			var obj: Object = _grid.get_unit_at(cell)
-			if obj is Unit3D:
-				var u := obj as Unit3D
-				if not u.is_alive:
-					continue
-				# Count from the caster's perspective: ENEMY means the opposing side (players)
-				match ability.applicable_to:
-					AbilityData.ApplicableTo.ENEMY:
-						if u.data.is_player_unit:
-							count += 1
-					AbilityData.ApplicableTo.ANY:
-						count += 1
-					AbilityData.ApplicableTo.ALLY:
-						if not u.data.is_player_unit:
-							count += 1
-		if count > best_count:
-			best_count = count
-			best = [cand]
-		elif count == best_count:
-			best.append(cand)
-
-	return best[randi() % best.size()]
+	return EnemyAI.pick_best_aoe_origin(enemy.grid_pos, ability, _grid)
 
 ## --- Hazard Damage ---
 
@@ -1808,6 +1712,14 @@ func _end_combat(player_won: bool) -> void:
 			unit.data.willpower          = snap["willpower"]
 			unit.data.physical_armor_mod = snap.get("physical_armor_mod", 0)
 			unit.data.magic_armor_mod    = snap.get("magic_armor_mod",    0)
+
+	# Clear transient tracker fields on all units — these are combat-scoped and must not bleed.
+	for unit: Unit3D in _player_units + _enemy_units:
+		unit.active_buff_ability_ids.clear()
+		unit.active_debuff_ability_ids.clear()
+		unit.debuff_stat_stacks.clear()
+		unit.last_ability_id = ""
+		unit.ai_override = ""
 
 	# Test room: skip all GameState mutations and return to the map after a brief pause.
 	if GameState.test_room_mode:
