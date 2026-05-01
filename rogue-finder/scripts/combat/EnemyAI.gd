@@ -39,6 +39,17 @@ const CRIT_HEAL_THRESHOLD: float  = 0.15
 ## Ally HP fraction below which MEND is considered situationally useful (any ally HP < 70%).
 const MEND_USEFUL_THRESHOLD: float = 0.70
 
+## Processing order for _process_enemy_actions — lower = acts first.
+## Support roles stride before damage dealers so they reach allies / debuff targets
+## before ATTACKER/CONTROLLER movement blocks their paths.
+const MOVE_PRIORITY: Dictionary = {
+	1: 0,  # HEALER
+	2: 1,  # SUPPORTER
+	3: 2,  # DEBUFFER
+	0: 3,  # ATTACKER
+	4: 4,  # CONTROLLER
+}
+
 ## ======================================================
 ## --- Public API ---
 ## ======================================================
@@ -156,6 +167,75 @@ static func pick_best_aoe_origin(
 			best.append(cand)
 
 	return best[randi() % best.size()]
+
+## For CONTROLLER role: picks the stride cell that maximizes FORCE push quality.
+## Evaluates both the enemy's current position and every reachable stride cell, then returns
+## the cell from which FORCE would score best (hazard > edge > isolation).
+## Returns enemy.grid_pos when already optimally placed or no FORCE ability is affordable.
+static func pick_force_stride_cell(
+		enemy: Unit3D,
+		hostiles: Array[Unit3D],
+		move_cells: Array[Vector2i],
+		grid: Grid3D) -> Vector2i:
+	if grid == null or hostiles.is_empty():
+		return enemy.grid_pos
+
+	# Collect affordable FORCE abilities with their displacement effect
+	var force_entries: Array[Dictionary] = []  # [{ab: AbilityData, eff: EffectData}]
+	for ability_id: String in enemy.data.abilities:
+		if ability_id == "":
+			continue
+		var ab: AbilityData = AbilityLibrary.get_ability(ability_id)
+		if ab.effects.is_empty() or enemy.current_energy < ab.energy_cost:
+			continue
+		if int(ab.effects[0].effect_type) != 2:  # primary effect must be FORCE
+			continue
+		for eff: EffectData in ab.effects:
+			if int(eff.effect_type) == 2:
+				force_entries.append({"ab": ab, "eff": eff})
+				break
+
+	if force_entries.is_empty():
+		return enemy.grid_pos
+
+	var best_cell: Vector2i = enemy.grid_pos
+	var best_score: int = -1
+
+	# Include current position first — ties go to staying put (no unnecessary movement)
+	var candidates: Array[Vector2i] = [enemy.grid_pos]
+	candidates.append_array(move_cells)
+
+	for cell: Vector2i in candidates:
+		for entry: Dictionary in force_entries:
+			var ab: AbilityData       = entry["ab"]
+			var force_eff: EffectData = entry["eff"]
+			for h: Unit3D in hostiles:
+				if not h.is_alive:
+					continue
+				if not _is_in_range(ab, cell, h.grid_pos):
+					continue
+				var dest: Vector2i = _compute_force_dest(cell, h.grid_pos, force_eff, grid)
+				if dest == h.grid_pos:
+					continue  # blocked — no movement possible
+				var dir: Vector2i = _force_push_dir(cell, h.grid_pos, force_eff)
+				var score: int = 0
+				if grid.is_hazard(dest):
+					score = 3
+				elif not grid.is_valid(dest + dir):
+					score = 2
+				else:
+					var isolation_sum: int = 0
+					for other: Unit3D in hostiles:
+						if other == h or not other.is_alive:
+							continue
+						isolation_sum += abs(dest.x - other.grid_pos.x) + abs(dest.y - other.grid_pos.y)
+					if isolation_sum > 0:
+						score = 1
+				if score > best_score:
+					best_score = score
+					best_cell = cell
+
+	return best_cell
 
 ## ======================================================
 ## --- Private: Effect-type scoring dispatch ---

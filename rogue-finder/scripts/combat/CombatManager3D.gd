@@ -1915,7 +1915,14 @@ func _run_enemy_turn() -> void:
 	_update_status()
 
 func _process_enemy_actions() -> void:
-	for enemy in _enemy_units:
+	# Support roles (HEALER/SUPPORTER/DEBUFFER) stride before ATTACKER/CONTROLLER so they
+	# reach allies and debuff targets before damage dealers block paths.
+	var sorted_enemies: Array[Unit3D] = _enemy_units.duplicate()
+	sorted_enemies.sort_custom(func(a: Unit3D, b: Unit3D) -> bool:
+		var ra: int = int(ArchetypeLibrary.get_archetype(a.data.archetype_id).role)
+		var rb: int = int(ArchetypeLibrary.get_archetype(b.data.archetype_id).role)
+		return EnemyAI.MOVE_PRIORITY.get(ra, 3) < EnemyAI.MOVE_PRIORITY.get(rb, 3))
+	for enemy in sorted_enemies:
 		if not enemy.is_alive:
 			continue
 
@@ -1949,17 +1956,24 @@ func _process_enemy_actions() -> void:
 				enemy.data.consumable = ""
 				enemy.show_action_text(con.consumable_name)
 
-		# --- 3. Movement (Stride) — greedy Manhattan minimization toward move_target ---
+		# --- 3. Movement (Stride) ---
+		# CONTROLLER: stride toward the cell that maximizes FORCE push quality (hazard > edge > isolation).
+		# All other roles: greedy Manhattan minimization toward move_target.
 		if enemy.remaining_move > 0:
 			var move_cells: Array[Vector2i] = _grid.get_move_range(enemy.grid_pos, enemy.remaining_move)
-			var best_cell: Vector2i = enemy.grid_pos
-			var best_dist: int = abs(enemy.grid_pos.x - move_target.grid_pos.x) \
-					+ abs(enemy.grid_pos.y - move_target.grid_pos.y)
-			for cell in move_cells:
-				var dist: int = abs(cell.x - move_target.grid_pos.x) + abs(cell.y - move_target.grid_pos.y)
-				if dist < best_dist:
-					best_dist = dist
-					best_cell = cell
+			var archetype_for_stride: ArchetypeData = ArchetypeLibrary.get_archetype(enemy.data.archetype_id)
+			var best_cell: Vector2i
+			if int(archetype_for_stride.role) == 4:  # CONTROLLER
+				best_cell = EnemyAI.pick_force_stride_cell(enemy, move_hostiles, move_cells, _grid)
+			else:
+				best_cell = enemy.grid_pos
+				var best_dist: int = abs(enemy.grid_pos.x - move_target.grid_pos.x) \
+						+ abs(enemy.grid_pos.y - move_target.grid_pos.y)
+				for cell in move_cells:
+					var dist: int = abs(cell.x - move_target.grid_pos.x) + abs(cell.y - move_target.grid_pos.y)
+					if dist < best_dist:
+						best_dist = dist
+						best_cell = cell
 			if best_cell != enemy.grid_pos:
 				_grid.clear_occupied(enemy.grid_pos)
 				var path: Array[Vector2i] = _grid.find_path(enemy.grid_pos, best_cell, enemy)
