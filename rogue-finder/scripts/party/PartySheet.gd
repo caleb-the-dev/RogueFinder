@@ -69,15 +69,23 @@ var _drag_compare_panel: Control = null
 var _cmp_existing: String        = ""
 var _cmp_incoming: String        = ""
 
+## Active level-up overlay — non-null while a pick is in progress.
+var _level_up_overlay: CanvasLayer = null
+
 func _ready() -> void:
 	layer = 20
 	visible = false
 	add_to_group("blocks_pause")
 
 func _unhandled_input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_cancel"):
-		hide_sheet()
-		get_viewport().set_input_as_handled()
+	if event.is_action_pressed("ui_cancel"):
+		if _level_up_overlay != null and is_instance_valid(_level_up_overlay):
+			_level_up_overlay.queue_free()
+			_level_up_overlay = null
+			get_viewport().set_input_as_handled()
+		elif visible:
+			hide_sheet()
+			get_viewport().set_input_as_handled()
 
 func _process(_delta: float) -> void:
 	if _drag_compare_panel != null and is_instance_valid(_drag_compare_panel) \
@@ -1078,18 +1086,35 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 					else "\n\nDrag onto an ability slot to equip."
 			])
 
+			var is_new: bool = member.new_ability_ids.has(ab_id)
 			var ab_pnl := PanelContainer.new()
 			var sbox := StyleBoxFlat.new()
 			sbox.bg_color = Color(0.28, 0.22, 0.05, 0.70) if is_slotted \
 				else Color(0.12, 0.12, 0.15, 0.80)
-			sbox.border_width_bottom = 1
-			sbox.border_color = Color(0.42, 0.36, 0.12, 0.70) if is_slotted \
-				else Color(0.25, 0.25, 0.30, 0.60)
+			if is_new:
+				sbox.border_width_left = 1; sbox.border_width_right = 1
+				sbox.border_width_top = 1; sbox.border_width_bottom = 1
+				sbox.border_color = Color(0.95, 0.80, 0.20)
+			else:
+				sbox.border_width_bottom = 1
+				sbox.border_color = Color(0.42, 0.36, 0.12, 0.70) if is_slotted \
+					else Color(0.25, 0.25, 0.30, 0.60)
 			sbox.set_corner_radius_all(2)
 			ab_pnl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			ab_pnl.add_theme_stylebox_override("panel", sbox)
 			ab_pnl.tooltip_text = tip
 			abil_container.add_child(ab_pnl)
+			if is_new:
+				var glow_tween := ab_pnl.create_tween()
+				glow_tween.set_loops()
+				glow_tween.tween_property(ab_pnl, "modulate:a", 0.65, 0.45)
+				glow_tween.tween_property(ab_pnl, "modulate:a", 1.0, 0.45)
+				var mi_member: CombatantData = member
+				var mi_ab_id: String = ab_id
+				ab_pnl.mouse_entered.connect(func() -> void:
+					mi_member.new_ability_ids.erase(mi_ab_id)
+					_rebuild()
+				)
 
 			var wide: bool = _abil_views_wide[member_idx]
 			var inner := VBoxContainer.new()
@@ -1551,7 +1576,9 @@ func _start_level_up(pc: CombatantData) -> void:
 
 	var overlay := CanvasLayer.new()
 	overlay.layer = 25
+	overlay.add_to_group("blocks_pause")
 	add_child(overlay)
+	_level_up_overlay = overlay
 
 	var bg := ColorRect.new()
 	bg.color = Color(0.0, 0.0, 0.0, 0.88)
@@ -1622,6 +1649,13 @@ func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 			ab.description,
 			func():
 				pc_ref.ability_pool.append(chosen_id)
+				# Auto-fill the first empty active slot.
+				var empty_slot: int = pc_ref.abilities.find("")
+				if empty_slot >= 0:
+					pc_ref.abilities[empty_slot] = chosen_id
+				# Mark as new so the party sheet shows a glow badge.
+				if not pc_ref.new_ability_ids.has(chosen_id):
+					pc_ref.new_ability_ids.append(chosen_id)
 				_finish_level_up(ov, ct, pc_ref, idx)
 		))
 
@@ -1753,6 +1787,7 @@ func _finish_level_up(overlay: CanvasLayer, content: VBoxContainer,
 		_fill_next_pick(content, overlay, pc, pc_index)
 	else:
 		overlay.queue_free()
+		_level_up_overlay = null
 		_rebuild()
 		level_up_resolved.emit()
 
