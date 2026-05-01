@@ -209,15 +209,18 @@ func _setup_test_room_units() -> void:
 ## board, register attribute snapshots for player units, and connect death signals.
 ## Optional p_pos / e_pos override the default 6-cell layout for scenarios that
 ## need custom positioning (AoE adjacency, edge-push proximity, etc.).
+## Note: parameters typed as Array (not Array[Vector2i]) to avoid a Godot 4.5 bug
+## where omitted typed-array defaults are passed as untyped Array at the call site.
 func _spawn_test_room(
 		player_defs: Array[Dictionary],
 		enemy_defs: Array[Dictionary],
-		p_pos: Array[Vector2i] = [],
-		e_pos: Array[Vector2i] = []) -> void:
+		p_pos: Array = [],
+		e_pos: Array = []) -> void:
 	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
 
-	var player_positions: Array[Vector2i] = p_pos if not p_pos.is_empty() else \
-		[Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)]
+	var player_positions: Array[Vector2i] = [Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)]
+	if not p_pos.is_empty():
+		player_positions.assign(p_pos)
 	for i in player_defs.size():
 		var cd: CombatantData = _make_test_combatant(player_defs[i])
 		var unit: Unit3D = unit_scene.instantiate()
@@ -234,8 +237,9 @@ func _spawn_test_room(
 			"magic_armor_mod":    cd.magic_armor_mod,
 		}
 
-	var enemy_positions: Array[Vector2i] = e_pos if not e_pos.is_empty() else \
-		[Vector2i(6, 3), Vector2i(6, 5), Vector2i(7, 4)]
+	var enemy_positions: Array[Vector2i] = [Vector2i(6, 3), Vector2i(6, 5), Vector2i(7, 4)]
+	if not e_pos.is_empty():
+		enemy_positions.assign(e_pos)
 	for i in enemy_defs.size():
 		var cd: CombatantData = _make_test_combatant(enemy_defs[i])
 		var unit: Unit3D = unit_scene.instantiate()
