@@ -196,8 +196,8 @@ func _setup_test_room_units() -> void:
 			_spawn_test_room(_ai_buff_debuff_player_defs(), _ai_buff_debuff_enemy_defs())
 		"ai_force_edge":
 			_spawn_test_room(_ai_force_edge_player_defs(), _ai_force_edge_enemy_defs(),
-				[Vector2i(5, 8), Vector2i(1, 3), Vector2i(1, 5)],
-				[Vector2i(5, 7), Vector2i(8, 3), Vector2i(8, 5)])
+				[Vector2i(7, 4), Vector2i(1, 3), Vector2i(1, 5)],
+				[Vector2i(5, 5), Vector2i(1, 8), Vector2i(1, 1)])
 		"ai_slice3_mix":
 			_spawn_test_room(_ai_slice3_mix_player_defs(), _ai_slice3_mix_enemy_defs(),
 				[Vector2i(2, 3), Vector2i(2, 4), Vector2i(2, 5)],
@@ -872,16 +872,18 @@ func _ai_buff_debuff_enemy_defs() -> Array[Dictionary]:
 		},
 	]
 
-## --- FORCE Edge Push scenario ---
-## "Edgebound" player starts at (5,8) — one tile from y=9 grid boundary.
-## "Shover" CONTROLLER (elite_guard) starts at (5,7) — adjacent to Edgebound.
-## Turn 1: Shover shoves Edgebound to (5,9). Next step (5,10) is off-grid → edge-push score=2.
-## Watch: Shover ignores the far-away Midfield players and pushes Edgebound to the wall.
+## --- FORCE Lava Push scenario ---
+## "Edgebound" player starts at (7,4) — two tiles north of lava at (7,2).
+## "Shover" CONTROLLER (elite_guard) starts at (5,5) — diagonally placed:
+##   2 grid columns left of the ideal push-alignment cell (7,5).
+## pick_force_stride_cell finds that (7,5) gives score=3 (shove dest=(7,2)=HAZARD)
+## and strides there in one turn. Watch: Shover walks to (7,5) then shoves Edgebound
+## south through (7,3) onto lava at (7,2) — hazard damage fires on Edgebound.
 
 func _ai_force_edge_player_defs() -> Array[Dictionary]:
 	return [
 		{
-			## Near the y=9 edge. Shover at (5,7) is adjacent and will push here.
+			## Two tiles north of lava (7,2). Shover strides to (7,5) to get push alignment.
 			"name": "Edgebound", "archetype": "RogueFinder", "kindred": "Human",
 			"class": "prowler", "is_player": true,
 			"str": 4, "dex": 5, "cog": 4, "wil": 4, "vit": 6,
@@ -911,9 +913,8 @@ func _ai_force_edge_player_defs() -> Array[Dictionary]:
 func _ai_force_edge_enemy_defs() -> Array[Dictionary]:
 	return [
 		{
-			## CONTROLLER at (5,7). shove (FORCE/PUSH/range=1) on Edgebound at (5,8):
-			## push dir=(0,1), dest=(5,9), next=(5,10)=off-grid → edge-push score=2 → fires.
-			## Farther enemies (8,3)/(8,5) cannot reach Midfield players with shove range=1.
+			## CONTROLLER at (5,5). pick_force_stride_cell finds (7,5) → shove on (7,4)
+			## pushes north 2 tiles to (7,2)=HAZARD → score=3. Strides then shoves into lava.
 			"name": "Shover", "archetype": "elite_guard", "kindred": "Dwarf",
 			"class": "vanguard", "is_player": false,
 			"str": 6, "dex": 2, "cog": 3, "wil": 5, "vit": 7,
@@ -922,7 +923,7 @@ func _ai_force_edge_enemy_defs() -> Array[Dictionary]:
 			"qte": 0.6,
 		},
 		{
-			## Far fillers — standard position enemies.
+			## Far fillers at (1,8)/(1,1) — too far to interfere with the FORCE demo.
 			"name": "Filler-A", "archetype": "grunt", "kindred": "Half-Orc",
 			"class": "vanguard", "is_player": false,
 			"str": 5, "dex": 2, "cog": 2, "wil": 3, "vit": 5,

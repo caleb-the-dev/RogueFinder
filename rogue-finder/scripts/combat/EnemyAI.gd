@@ -202,7 +202,8 @@ static func pick_force_stride_cell(
 	var best_score: int = -1
 
 	# Include current position first — ties go to staying put (no unnecessary movement)
-	var candidates: Array[Vector2i] = [enemy.grid_pos]
+	var candidates: Array[Vector2i] = []
+	candidates.append(enemy.grid_pos)
 	candidates.append_array(move_cells)
 
 	for cell: Vector2i in candidates:
