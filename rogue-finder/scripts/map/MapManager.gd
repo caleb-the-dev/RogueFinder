@@ -1279,6 +1279,34 @@ func _build_dev_event_panel() -> void:
 	)
 	test_room_row.add_child(recruit_test_btn)
 
+	var ai_test_row := HBoxContainer.new()
+	ai_test_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(ai_test_row)
+
+	var ai_roles_btn := Button.new()
+	ai_roles_btn.text = "🤖 Test Room — AI Roles"
+	ai_roles_btn.custom_minimum_size = Vector2(220.0, 32.0)
+	ai_roles_btn.add_theme_font_size_override("font_size", 13)
+	ai_roles_btn.pressed.connect(func() -> void:
+		_dev_event_panel.visible = false
+		GameState.test_room_mode = true
+		GameState.test_room_kind = "ai_roles"
+		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+	)
+	ai_test_row.add_child(ai_roles_btn)
+
+	var ai_crit_btn := Button.new()
+	ai_crit_btn.text = "🤖 Test Room — AI Crit-Heal"
+	ai_crit_btn.custom_minimum_size = Vector2(220.0, 32.0)
+	ai_crit_btn.add_theme_font_size_override("font_size", 13)
+	ai_crit_btn.pressed.connect(func() -> void:
+		_dev_event_panel.visible = false
+		GameState.test_room_mode = true
+		GameState.test_room_kind = "ai_crit_heal"
+		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+	)
+	ai_test_row.add_child(ai_crit_btn)
+
 	var sep_combat := HSeparator.new()
 	vbox.add_child(sep_combat)
 

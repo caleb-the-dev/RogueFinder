@@ -177,6 +177,10 @@ func _setup_test_room_units() -> void:
 			_spawn_test_room(_armor_mod_player_defs(), _armor_mod_enemy_defs())
 		"recruit_test":
 			_spawn_test_room(_recruit_test_player_defs(), _recruit_test_enemy_defs())
+		"ai_roles":
+			_spawn_test_room(_ai_roles_player_defs(), _ai_roles_enemy_defs())
+		"ai_crit_heal":
+			_spawn_test_room(_ai_crit_heal_player_defs(), _ai_crit_heal_enemy_defs())
 		_:
 			_spawn_test_room(_armor_showcase_player_defs(), _armor_showcase_enemy_defs())
 
@@ -424,6 +428,138 @@ func _recruit_test_enemy_defs() -> Array[Dictionary]:
 			"phys_arm": 0, "magic_arm": 0,
 			"abilities": ["strike", "heavy_strike", "shove", "sweep"],
 			"qte": 0.05, "hp": 1,
+		},
+	]
+
+## --- AI Roles scenario ---
+## Three distinct-role enemies so every role-preference branch is observable in one fight.
+## Alchemist (HEALER) heals teammates. Cave spider (DEBUFFER) webs players. Elite guard (CONTROLLER) shoves/yanks.
+## Player team is deliberately squishy so healer logic triggers quickly.
+
+func _ai_roles_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			"name": "Toma", "archetype": "RogueFinder", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 6, "cog": 4, "wil": 4, "vit": 4,
+			"phys_arm": 2, "magic_arm": 2,
+			"abilities": ["slipshot", "quick_shot", "backstab", "disengage"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Dryn", "archetype": "test_ally", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": true,
+			"str": 7, "dex": 2, "cog": 2, "wil": 3, "vit": 5,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Sevi", "archetype": "test_ally", "kindred": "Gnome",
+			"class": "arcanist", "is_player": true,
+			"str": 2, "dex": 4, "cog": 7, "wil": 5, "vit": 3,
+			"phys_arm": 1, "magic_arm": 3,
+			"abilities": ["arcane_bolt", "acid_splash", "smoke_bomb", "fireball"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_roles_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## ATTACKER — hits hard, no frills. Validates HARM preference path.
+			"name": "Grunt", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 7, "dex": 2, "cog": 2, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.3,
+		},
+		{
+			## HEALER — has healing_draught (SELF MEND) + acid_splash (HARM).
+			## Will prefer MEND when its own HP dips below 70%, HARM otherwise.
+			"name": "Alchemist", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 4, "cog": 7, "wil": 6, "vit": 4,
+			"phys_arm": 1, "magic_arm": 4,
+			"abilities": ["healing_draught", "acid_splash", "smoke_bomb", "fire_breath"],
+			"qte": 0.6,
+		},
+		{
+			## DEBUFFER — web_shot (DEBUFF) leads over venom_bite (HARM).
+			## Also has smoke_bomb (DEBUFF AoE) to show preference hold on AoE DEBUFF.
+			"name": "Cave Spider", "archetype": "cave_spider", "kindred": "Spider",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 7, "cog": 6, "wil": 4, "vit": 3,
+			"phys_arm": 1, "magic_arm": 2,
+			"abilities": ["web_shot", "venom_bite", "smoke_bomb", "acid_splash"],
+			"qte": 0.6,
+		},
+	]
+
+## --- AI Critical-Heal scenario ---
+## Alchemist (HEALER) + two allies. One ally starts at 5% HP so the critical-heal
+## override fires immediately on the alchemist's first turn regardless of role preference.
+## Player team is slow/tanky to keep the alchemist alive long enough to observe healing.
+
+func _ai_crit_heal_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			"name": "Stonehide", "archetype": "RogueFinder", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 6, "vit": 8,
+			"phys_arm": 7, "magic_arm": 3,
+			"abilities": ["bless", "shield_bash", "taunt", "steadfast"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Ironback", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 5, "vit": 8,
+			"phys_arm": 7, "magic_arm": 2,
+			"abilities": ["shield_bash", "sweep", "guard", "yank"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Crossbow", "archetype": "test_ally", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 6, "cog": 4, "wil": 4, "vit": 4,
+			"phys_arm": 2, "magic_arm": 2,
+			"abilities": ["quick_shot", "piercing_shot", "disengage", "backstab"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_crit_heal_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## HEALER with heal_burst (MEND/ALLY/RADIAL, range=2) — will use it immediately
+			## on "Near-Dead Grunt" below because that ally is below 15% HP on turn 1.
+			"name": "Alchemist", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 4, "cog": 7, "wil": 6, "vit": 4,
+			"phys_arm": 1, "magic_arm": 4,
+			"abilities": ["heal_burst", "healing_draught", "acid_splash", "fire_breath"],
+			"qte": 0.7,
+		},
+		{
+			## Near-dead attacker — only 1 HP. Critical-heal target on turn 1.
+			"name": "Near-Dead Grunt", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 6, "dex": 2, "cog": 2, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.3, "hp": 1,
+		},
+		{
+			## Healthy attacker — validates that the healer ignores the healthy ally
+			## and targets the critical one instead.
+			"name": "Healthy Grunt", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 6, "dex": 2, "cog": 2, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.3,
 		},
 	]
 
@@ -1392,14 +1528,12 @@ func _process_enemy_actions() -> void:
 		if not enemy.is_alive:
 			continue
 
-		# --- 1. Target selection ---
-		var targets: Array[Unit3D] = []
-		for pu in _player_units:
-			if pu.is_alive:
-				targets.append(pu)
-		if targets.is_empty():
+		# --- 1. Movement heuristic target (random hostile — used only for greedy stride) ---
+		# EnemyAI picks the real action target after movement; this is just a positioning proxy.
+		var move_hostiles: Array[Unit3D] = _player_units_alive()
+		if move_hostiles.is_empty():
 			break
-		var target: Unit3D = targets[randi() % targets.size()]
+		var move_target: Unit3D = move_hostiles[randi() % move_hostiles.size()]
 
 		# --- 2. Consumable use (50% chance when HP < 50%) ---
 		if enemy.data.consumable != "":
@@ -1416,14 +1550,14 @@ func _process_enemy_actions() -> void:
 				enemy.data.consumable = ""
 				enemy.show_action_text(con.consumable_name)
 
-		# --- 3. Movement (Stride) — greedy Manhattan minimization ---
+		# --- 3. Movement (Stride) — greedy Manhattan minimization toward move_target ---
 		if enemy.remaining_move > 0:
 			var move_cells: Array[Vector2i] = _grid.get_move_range(enemy.grid_pos, enemy.remaining_move)
 			var best_cell: Vector2i = enemy.grid_pos
-			var best_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
-					+ abs(enemy.grid_pos.y - target.grid_pos.y)
+			var best_dist: int = abs(enemy.grid_pos.x - move_target.grid_pos.x) \
+					+ abs(enemy.grid_pos.y - move_target.grid_pos.y)
 			for cell in move_cells:
-				var dist: int = abs(cell.x - target.grid_pos.x) + abs(cell.y - target.grid_pos.y)
+				var dist: int = abs(cell.x - move_target.grid_pos.x) + abs(cell.y - move_target.grid_pos.y)
 				if dist < best_dist:
 					best_dist = dist
 					best_cell = cell
@@ -1448,31 +1582,18 @@ func _process_enemy_actions() -> void:
 						await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
 						continue
 
-		# --- 4. Ability selection ---
-		var post_dist: int = abs(enemy.grid_pos.x - target.grid_pos.x) \
-				+ abs(enemy.grid_pos.y - target.grid_pos.y)
-		var affordable: Array[AbilityData] = []
-		for ability_id: String in enemy.data.abilities:
-			if ability_id == "":
-				continue
-			var ab: AbilityData = AbilityLibrary.get_ability(ability_id)
-			if enemy.current_energy < ab.energy_cost:
-				continue
-			if ab.applicable_to != AbilityData.ApplicableTo.ENEMY \
-					and ab.applicable_to != AbilityData.ApplicableTo.ANY:
-				continue
-			# SELF shape always reaches the caster — skip distance gate
-			if ab.target_shape != AbilityData.TargetShape.SELF \
-					and ab.tile_range != -1 and post_dist > ab.tile_range:
-				continue
-			affordable.append(ab)
-
-		if affordable.is_empty():
+		# --- 4. EnemyAI: role-driven target + ability selection ---
+		var pick: Dictionary = EnemyAI.choose_action(
+			enemy,
+			_enemy_units_alive_excluding(enemy),
+			_player_units_alive(),
+			_grid)
+		if pick.get("target") == null or pick.get("ability") == null:
 			await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
 			continue
-
-		# --- 5. Execute ability ---
-		var chosen: AbilityData = affordable[randi() % affordable.size()]
+		var target: Unit3D  = pick["target"]
+		var chosen: AbilityData = pick["ability"]
+		enemy.last_ability_id = chosen.ability_id
 		enemy.spend_energy(chosen.energy_cost)
 		enemy.show_action_text(chosen.ability_name)
 
@@ -1538,6 +1659,22 @@ func _process_enemy_actions() -> void:
 			return
 
 		await get_tree().create_timer(ENEMY_TURN_DELAY).timeout
+
+## Returns all living player-side units. Used by EnemyAI and the movement heuristic.
+func _player_units_alive() -> Array[Unit3D]:
+	var result: Array[Unit3D] = []
+	for u: Unit3D in _player_units:
+		if u.is_alive:
+			result.append(u)
+	return result
+
+## Returns all living enemy-side units excluding the given unit. Used by EnemyAI.
+func _enemy_units_alive_excluding(self_enemy: Unit3D) -> Array[Unit3D]:
+	var result: Array[Unit3D] = []
+	for u: Unit3D in _enemy_units:
+		if u.is_alive and u != self_enemy:
+			result.append(u)
+	return result
 
 ## Picks the AoE origin cell that maximizes living player units hit (random tiebreak).
 ## For RADIAL, scans all cells within tile_range of the caster.

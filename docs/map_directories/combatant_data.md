@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-29 (ATK stat removed — no separate attack score; HARM now uses ability attribute via effective_stat())
+> Last updated: 2026-04-30 (Enemy AI Slice 1 — ArchetypeData.Role enum added; role field + archetypes.csv column; ArchetypeLibrary._parse_role() helper)
 
 ---
 
@@ -124,6 +124,20 @@ Powering `stone_guard` (Dwarf kindred ancestry — `+2 PHYSICAL_ARMOR_MOD`) and 
 
 ### Enemy-Only
 `qte_resolution: float` — auto-resolve accuracy for enemy QTE simulation (0.0–1.0). See `qte_system.md` Enemy Simulation table.
+
+### ArchetypeData.Role (data foundation — Slice 1)
+`ArchetypeData` carries a `Role` enum and `role: Role` field (default `ATTACKER`).
+Parsed from the `role` column in `archetypes.csv` via `ArchetypeLibrary._parse_role()` (case-insensitive; unknown strings fall back to `ATTACKER`).
+
+| Value | Int | Archetypes |
+|-------|-----|------------|
+| `ATTACKER` | 0 | RogueFinder · archer_bandit · grunt · skeleton_warrior · rat_scrapper · young_dragon |
+| `HEALER` | 1 | alchemist |
+| `SUPPORTER` | 2 | (none yet) |
+| `DEBUFFER` | 3 | cave_spider |
+| `CONTROLLER` | 4 | elite_guard |
+
+**No combat behavior reads this field yet** — wired by Enemy AI Slice 2. See `enemy_ai.md` for the full roadmap.
 
 ---
 
