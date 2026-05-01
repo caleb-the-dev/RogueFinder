@@ -181,16 +181,43 @@ func _setup_test_room_units() -> void:
 			_spawn_test_room(_ai_roles_player_defs(), _ai_roles_enemy_defs())
 		"ai_crit_heal":
 			_spawn_test_room(_ai_crit_heal_player_defs(), _ai_crit_heal_enemy_defs())
+		# --- Slice 3 AI scoring test rooms ---
+		"ai_aoe_bomb":
+			_spawn_test_room(_ai_aoe_bomb_player_defs(), _ai_aoe_bomb_enemy_defs(),
+				[Vector2i(2, 3), Vector2i(2, 4), Vector2i(2, 5)],
+				[Vector2i(3, 4), Vector2i(7, 3), Vector2i(7, 5)])
+		"ai_finish_blow":
+			_spawn_test_room(_ai_finish_blow_player_defs(), _ai_finish_blow_enemy_defs(),
+				[Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)],
+				[Vector2i(3, 3), Vector2i(3, 5), Vector2i(4, 4)])
+		"ai_healer":
+			_spawn_test_room(_ai_healer_player_defs(), _ai_healer_enemy_defs())
+		"ai_buff_debuff":
+			_spawn_test_room(_ai_buff_debuff_player_defs(), _ai_buff_debuff_enemy_defs())
+		"ai_force_edge":
+			_spawn_test_room(_ai_force_edge_player_defs(), _ai_force_edge_enemy_defs(),
+				[Vector2i(5, 8), Vector2i(1, 3), Vector2i(1, 5)],
+				[Vector2i(5, 7), Vector2i(8, 3), Vector2i(8, 5)])
+		"ai_slice3_mix":
+			_spawn_test_room(_ai_slice3_mix_player_defs(), _ai_slice3_mix_enemy_defs(),
+				[Vector2i(2, 3), Vector2i(2, 4), Vector2i(2, 5)],
+				[Vector2i(3, 4), Vector2i(7, 5), Vector2i(7, 3)])
 		_:
 			_spawn_test_room(_armor_showcase_player_defs(), _armor_showcase_enemy_defs())
 
 ## Generic spawner — given two lists of combatant definitions, build the 3v3
 ## board, register attribute snapshots for player units, and connect death signals.
-## Both scenarios share the same 6-cell positional layout.
-func _spawn_test_room(player_defs: Array[Dictionary], enemy_defs: Array[Dictionary]) -> void:
+## Optional p_pos / e_pos override the default 6-cell layout for scenarios that
+## need custom positioning (AoE adjacency, edge-push proximity, etc.).
+func _spawn_test_room(
+		player_defs: Array[Dictionary],
+		enemy_defs: Array[Dictionary],
+		p_pos: Array[Vector2i] = [],
+		e_pos: Array[Vector2i] = []) -> void:
 	var unit_scene: PackedScene = preload("res://scenes/combat/Unit3D.tscn")
 
-	var player_positions: Array[Vector2i] = [Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)]
+	var player_positions: Array[Vector2i] = p_pos if not p_pos.is_empty() else \
+		[Vector2i(1, 3), Vector2i(1, 5), Vector2i(0, 4)]
 	for i in player_defs.size():
 		var cd: CombatantData = _make_test_combatant(player_defs[i])
 		var unit: Unit3D = unit_scene.instantiate()
@@ -207,7 +234,8 @@ func _spawn_test_room(player_defs: Array[Dictionary], enemy_defs: Array[Dictiona
 			"magic_armor_mod":    cd.magic_armor_mod,
 		}
 
-	var enemy_positions: Array[Vector2i] = [Vector2i(6, 3), Vector2i(6, 5), Vector2i(7, 4)]
+	var enemy_positions: Array[Vector2i] = e_pos if not e_pos.is_empty() else \
+		[Vector2i(6, 3), Vector2i(6, 5), Vector2i(7, 4)]
 	for i in enemy_defs.size():
 		var cd: CombatantData = _make_test_combatant(enemy_defs[i])
 		var unit: Unit3D = unit_scene.instantiate()
@@ -560,6 +588,419 @@ func _ai_crit_heal_enemy_defs() -> Array[Dictionary]:
 			"phys_arm": 3, "magic_arm": 1,
 			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
 			"qte": 0.3,
+		},
+	]
+
+## ======================================================
+## --- AI Slice 3 Scoring test rooms ---
+## ======================================================
+
+## --- AoE Bomb scenario ---
+## "Sweepa" grunt ATTACKER starts adjacent to a 3-player column.
+## sweep (ARC/HARM/range=1) covers all 3 cells → AoE-2+ fires → sweep over strike.
+## Watch: Sweepa uses sweep each turn while players stay clustered.
+
+func _ai_aoe_bomb_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			## Dense column so sweep always hits 2-3 of them.
+			"name": "P1-Watch", "archetype": "RogueFinder", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 6, "vit": 8,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["bless", "shield_bash", "guard", "steadfast"],
+			"qte": 0.0,
+		},
+		{
+			"name": "P2-Watch", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 6, "vit": 8,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["bless", "shield_bash", "guard", "steadfast"],
+			"qte": 0.0,
+		},
+		{
+			"name": "P3-Watch", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 6, "vit": 8,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["bless", "shield_bash", "guard", "steadfast"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_aoe_bomb_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## ATTACKER at (3,4) — adjacent to player at (2,4). sweep ARC covers (2,3),(2,4),(2,5):
+			## all 3 players. AoE-2+ score = 3 > 1 → sweep beats strike every turn.
+			"name": "Sweepa", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 7, "dex": 3, "cog": 3, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["sweep", "strike", "heavy_strike", "sweep"],
+			"qte": 0.4,
+		},
+		{
+			## Far filler — doesn't affect the AoE observation.
+			"name": "Filler-A", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 5, "dex": 2, "cog": 2, "wil": 3, "vit": 5,
+			"phys_arm": 2, "magic_arm": 1,
+			"abilities": ["strike", "heavy_strike", "shove", "taunt"],
+			"qte": 0.3,
+		},
+		{
+			"name": "Filler-B", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 5, "dex": 2, "cog": 2, "wil": 3, "vit": 5,
+			"phys_arm": 2, "magic_arm": 1,
+			"abilities": ["strike", "heavy_strike", "shove", "taunt"],
+			"qte": 0.3,
+		},
+	]
+
+## --- Finishing-Blow scenario ---
+## Three ATTACKER mages (arcane_bolt range=4) start at custom positions ~3-4 tiles from the players.
+## Players: one "DYING" at 3 HP + two Sturdies at full HP.
+## Watch: all 3 mages fire arcane_bolt at "DYING — 3HP" ignoring the Sturdies.
+## Finishing-blow logic: lowest-HP reachable hostile → best expected damage on them.
+
+func _ai_finish_blow_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			## Low HP — the finishing-blow magnet. All enemies should focus here first.
+			"name": "DYING — 3HP", "archetype": "RogueFinder", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 4, "cog": 4, "wil": 4, "vit": 6,
+			"phys_arm": 2, "magic_arm": 2,
+			"abilities": ["quick_shot", "backstab", "disengage", "slipshot"],
+			"qte": 0.0, "hp": 3,
+		},
+		{
+			## Full HP tank — should be ignored while DYING is alive.
+			"name": "Sturdy-A", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 4, "dex": 2, "cog": 3, "wil": 5, "vit": 8,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["shield_bash", "guard", "bless", "steadfast"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Sturdy-B", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 4, "dex": 2, "cog": 3, "wil": 5, "vit": 8,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["shield_bash", "guard", "bless", "steadfast"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_finish_blow_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## arcane_bolt range=4 reaches all 3 player positions from (3,3)/(3,5)/(4,4).
+			## Expected damage vs. DYING (magic_arm=2, cog=7): 5+7-2=10. vs. Sturdies (magic_arm=3): 9.
+			## DYING has lowest HP (3) → finishing-blow fires → all pick DYING as target.
+			"name": "Mage-A", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 4, "cog": 7, "wil": 5, "vit": 4,
+			"phys_arm": 1, "magic_arm": 3,
+			"abilities": ["arcane_bolt", "acid_splash", "fireball", "fire_breath"],
+			"qte": 0.4,
+		},
+		{
+			"name": "Mage-B", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 4, "cog": 7, "wil": 5, "vit": 4,
+			"phys_arm": 1, "magic_arm": 3,
+			"abilities": ["arcane_bolt", "acid_splash", "fireball", "fire_breath"],
+			"qte": 0.4,
+		},
+		{
+			"name": "Mage-C", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 4, "cog": 7, "wil": 5, "vit": 4,
+			"phys_arm": 1, "magic_arm": 3,
+			"abilities": ["arcane_bolt", "acid_splash", "fireball", "fire_breath"],
+			"qte": 0.4,
+		},
+	]
+
+## --- Smart Heal scenario ---
+## Alchemist HEALER + "Wounded Grunt" ally (50% HP) + healthy attacker.
+## Watch:
+##   - Alchemist STRIDES toward Wounded Grunt (role-aware stride, not toward players).
+##   - Alchemist then uses heal_burst on Wounded Grunt (closest-fit: only MEND option in range).
+##   - Once ally climbs above 70% HP, alchemist switches to HARM (acid_splash).
+## Standard positions: alchemist at (7,4), wounded at (6,5) → distance=2 ≤ heal_burst range=2.
+
+func _ai_healer_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			## Tanky three — survive many turns so HEALER behavior unfolds gradually.
+			"name": "Tank", "archetype": "RogueFinder", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 6, "vit": 8,
+			"phys_arm": 7, "magic_arm": 3,
+			"abilities": ["bless", "shield_bash", "taunt", "steadfast"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Longbow", "archetype": "test_ally", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 6, "cog": 4, "wil": 4, "vit": 5,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["quick_shot", "piercing_shot", "backstab", "disengage"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Arcanist", "archetype": "test_ally", "kindred": "Gnome",
+			"class": "arcanist", "is_player": true,
+			"str": 2, "dex": 4, "cog": 7, "wil": 5, "vit": 4,
+			"phys_arm": 1, "magic_arm": 4,
+			"abilities": ["arcane_bolt", "fireball", "acid_splash", "staff_bolt"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_healer_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## HEALER at (7,4). heal_burst (ALLY/RADIAL/range=2) can reach Wounded at (6,5)=dist 2.
+			## healing_draught (SELF/MEND) valid when alchemist self < 70%.
+			## Turn 1: MEND → alchemist at 100% HP, self not useful, but ALLY at 50% qualifies.
+			## → heal_burst on Wounded. Alchemist STRIDES toward Wounded first (not players).
+			"name": "Alchemist", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 4, "cog": 7, "wil": 6, "vit": 4,
+			"phys_arm": 1, "magic_arm": 4,
+			"abilities": ["heal_burst", "healing_draught", "acid_splash", "fire_breath"],
+			"qte": 0.7,
+		},
+		{
+			## 50% HP → below 70% MEND threshold → HEALER strides toward this unit and heals it.
+			## hp_max with vit=5: 10+5*4=30. 50% = 15 HP.
+			"name": "Wounded Grunt", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 6, "dex": 2, "cog": 2, "wil": 3, "vit": 5,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["heavy_strike", "shove", "sweep", "taunt"],
+			"qte": 0.3, "hp": 15,
+		},
+		{
+			## Healthy attacker — provides combat pressure so the fight doesn't stall.
+			"name": "Healthy Grunt", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 6, "dex": 2, "cog": 2, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["heavy_strike", "strike", "shove", "sweep"],
+			"qte": 0.3,
+		},
+	]
+
+## --- BUFF Redundancy + DEBUFF Shift scenario ---
+## "Buffer" (HEALER role): counter (SELF BUFF) turn 1, then switches to acid_splash.
+## "Webber" (DEBUFFER role): web_shot one player per turn until all 3 are webbed, then venom_bite.
+## Standard positions. Watch floating indicators: "+STR" once then gone; "-DEX" three times then bites.
+
+func _ai_buff_debuff_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			"name": "Watch-A", "archetype": "RogueFinder", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 5, "cog": 4, "wil": 4, "vit": 6,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["slipshot", "quick_shot", "backstab", "disengage"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Watch-B", "archetype": "test_ally", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 5, "cog": 4, "wil": 4, "vit": 6,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["quick_shot", "backstab", "disengage", "crippling_shot"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Watch-C", "archetype": "test_ally", "kindred": "Human",
+			"class": "vanguard", "is_player": true,
+			"str": 5, "dex": 3, "cog": 3, "wil": 4, "vit": 6,
+			"phys_arm": 4, "magic_arm": 2,
+			"abilities": ["heavy_strike", "sweep", "shove", "taunt"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_buff_debuff_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## HEALER role: MEND first (self at 100% → skip), BUFF second → counter (SELF/BUFF/STR+2).
+			## Turn 1: counter fires. Turn 2+: counter redundant → skips BUFF → HARM → acid_splash.
+			## Watch: "+STR" float on turn 1, acid_splash damage on turn 2 onward.
+			"name": "Buffer", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 3, "dex": 4, "cog": 6, "wil": 6, "vit": 4,
+			"phys_arm": 1, "magic_arm": 3,
+			"abilities": ["counter", "acid_splash", "healing_draught", "fire_breath"],
+			"qte": 0.5,
+		},
+		{
+			## DEBUFFER role: web_shot on highest-HP player. Redundancy rotates through all 3 targets.
+			## After all 3 are webbed, DEBUFF drops → HARM → venom_bite (primary=HARM).
+			## Watch: three "-DEX" floats across three players, then biting damage on turn 4+.
+			"name": "Webber", "archetype": "cave_spider", "kindred": "Spider",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 7, "cog": 6, "wil": 4, "vit": 3,
+			"phys_arm": 1, "magic_arm": 2,
+			"abilities": ["web_shot", "venom_bite", "web_shot", "quick_wit"],
+			"qte": 0.6,
+		},
+		{
+			## Plain ATTACKER — combat pressure so the fight lasts long enough to observe.
+			"name": "Grunt", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 7, "dex": 2, "cog": 2, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["heavy_strike", "strike", "sweep", "shove"],
+			"qte": 0.3,
+		},
+	]
+
+## --- FORCE Edge Push scenario ---
+## "Edgebound" player starts at (5,8) — one tile from y=9 grid boundary.
+## "Shover" CONTROLLER (elite_guard) starts at (5,7) — adjacent to Edgebound.
+## Turn 1: Shover shoves Edgebound to (5,9). Next step (5,10) is off-grid → edge-push score=2.
+## Watch: Shover ignores the far-away Midfield players and pushes Edgebound to the wall.
+
+func _ai_force_edge_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			## Near the y=9 edge. Shover at (5,7) is adjacent and will push here.
+			"name": "Edgebound", "archetype": "RogueFinder", "kindred": "Human",
+			"class": "prowler", "is_player": true,
+			"str": 4, "dex": 5, "cog": 4, "wil": 4, "vit": 6,
+			"phys_arm": 3, "magic_arm": 2,
+			"abilities": ["slipshot", "quick_shot", "backstab", "disengage"],
+			"qte": 0.0,
+		},
+		{
+			## Far from Shover — not in shove range on turn 1.
+			"name": "Midfield-A", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 5, "vit": 7,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["shield_bash", "guard", "bless", "steadfast"],
+			"qte": 0.0,
+		},
+		{
+			"name": "Midfield-B", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 5, "dex": 2, "cog": 3, "wil": 5, "vit": 7,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["shield_bash", "guard", "bless", "steadfast"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_force_edge_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## CONTROLLER at (5,7). shove (FORCE/PUSH/range=1) on Edgebound at (5,8):
+			## push dir=(0,1), dest=(5,9), next=(5,10)=off-grid → edge-push score=2 → fires.
+			## Farther enemies (8,3)/(8,5) cannot reach Midfield players with shove range=1.
+			"name": "Shover", "archetype": "elite_guard", "kindred": "Dwarf",
+			"class": "vanguard", "is_player": false,
+			"str": 6, "dex": 2, "cog": 3, "wil": 5, "vit": 7,
+			"phys_arm": 7, "magic_arm": 2,
+			"abilities": ["shove", "shield_bash", "sweep", "yank"],
+			"qte": 0.6,
+		},
+		{
+			## Far fillers — standard position enemies.
+			"name": "Filler-A", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 5, "dex": 2, "cog": 2, "wil": 3, "vit": 5,
+			"phys_arm": 2, "magic_arm": 1,
+			"abilities": ["strike", "heavy_strike", "shove", "sweep"],
+			"qte": 0.3,
+		},
+		{
+			"name": "Filler-B", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 5, "dex": 2, "cog": 2, "wil": 3, "vit": 5,
+			"phys_arm": 2, "magic_arm": 1,
+			"abilities": ["strike", "heavy_strike", "shove", "sweep"],
+			"qte": 0.3,
+		},
+	]
+
+## --- Slice 3 Full Mix scenario ---
+## Three distinct Slice 3 behaviors in one fight:
+##   Sweepa (3,4): AoE preference — sweep hits the 3-player column at (2,3-5).
+##   Doc (7,5):    HEALER stride + MEND — strides toward Wounded ally at (7,3), heals it.
+##   Webber (7,3): DEBUFFER — webs players one at a time, then switches to HARM.
+## Players at (2,3),(2,4),(2,5) — tight column for the AoE demo.
+## Enemies at (3,4),(7,5),(7,3) — Sweepa close, Doc + Webber on far side.
+
+func _ai_slice3_mix_player_defs() -> Array[Dictionary]:
+	return [
+		{
+			"name": "P1-Column", "archetype": "RogueFinder", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 4, "dex": 2, "cog": 3, "wil": 5, "vit": 8,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["bless", "shield_bash", "guard", "steadfast"],
+			"qte": 0.0,
+		},
+		{
+			"name": "P2-Column", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 4, "dex": 2, "cog": 3, "wil": 5, "vit": 8,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["bless", "shield_bash", "guard", "steadfast"],
+			"qte": 0.0,
+		},
+		{
+			"name": "P3-Column", "archetype": "test_ally", "kindred": "Dwarf",
+			"class": "warden", "is_player": true,
+			"str": 4, "dex": 2, "cog": 3, "wil": 5, "vit": 8,
+			"phys_arm": 6, "magic_arm": 3,
+			"abilities": ["bless", "shield_bash", "guard", "steadfast"],
+			"qte": 0.0,
+		},
+	]
+
+func _ai_slice3_mix_enemy_defs() -> Array[Dictionary]:
+	return [
+		{
+			## ATTACKER at (3,4) — AoE preference: sweep covers (2,3),(2,4),(2,5) → all 3 players.
+			"name": "Sweepa", "archetype": "grunt", "kindred": "Half-Orc",
+			"class": "vanguard", "is_player": false,
+			"str": 7, "dex": 3, "cog": 3, "wil": 3, "vit": 6,
+			"phys_arm": 3, "magic_arm": 1,
+			"abilities": ["sweep", "strike", "heavy_strike", "sweep"],
+			"qte": 0.4,
+		},
+		{
+			## HEALER at (7,5) — strides toward Wounded Webber at (7,3) (dist=2), heals it.
+			## Doc's stride target: Webber at 40% HP < 70% → moves toward (7,3), not toward players.
+			"name": "Doc", "archetype": "alchemist", "kindred": "Gnome",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 4, "cog": 7, "wil": 6, "vit": 4,
+			"phys_arm": 1, "magic_arm": 4,
+			"abilities": ["heal_burst", "acid_splash", "healing_draught", "fire_breath"],
+			"qte": 0.7,
+		},
+		{
+			## DEBUFFER at (7,3) — 40% HP so Doc strides toward it. Webs players one per turn.
+			## hp_max with vit=3: 10+3*4=22. 40% ≈ 9 HP.
+			"name": "Webber", "archetype": "cave_spider", "kindred": "Spider",
+			"class": "arcanist", "is_player": false,
+			"str": 2, "dex": 7, "cog": 6, "wil": 4, "vit": 3,
+			"phys_arm": 1, "magic_arm": 2,
+			"abilities": ["web_shot", "venom_bite", "web_shot", "quick_wit"],
+			"qte": 0.6, "hp": 9,
 		},
 	]
 
@@ -1724,7 +2165,7 @@ func _end_combat(player_won: bool) -> void:
 	# Test room: skip all GameState mutations and return to the map after a brief pause.
 	if GameState.test_room_mode:
 		GameState.test_room_mode = false
-		GameState.test_room_kind = "armor_showcase"  # reset to default for next normal combat
+		GameState.test_room_kind = "armor_showcase"  # reset so normal map combats aren't affected
 		_status_label.text = "TEST ROOM: %s — returning to map..." % ("Victory!" if player_won else "Defeated.")
 		await get_tree().create_timer(2.5).timeout
 		get_tree().change_scene_to_file("res://scenes/map/MapScene.tscn")
