@@ -270,7 +270,7 @@ static func _try_effect_type(
 	match effect_type:
 		0:  return _pick_best_harm(enemy, hostiles, candidates, grid)
 		1:  return _pick_best_mend(enemy, allies, candidates)
-		2:  return _pick_best_force(enemy, hostiles, candidates, grid)
+		2:  pass  # FORCE disabled — pending Slice 4 multi-step positioning planner
 		4:  return _pick_best_buff(enemy, allies, candidates)
 		5:  return _pick_best_debuff(enemy, hostiles, candidates)
 		# TRAVEL (3): enemy TRAVEL is undefined (destination picker is player-only).

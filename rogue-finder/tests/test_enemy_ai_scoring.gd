@@ -219,9 +219,8 @@ func test_debuff_stack_cap() -> void:
 		% (pick.get("ability").ability_id if pick.get("ability") else "null"))
 	print("  PASS test_debuff_stack_cap")
 
-## 9. FORCE off-grid preference: CONTROLLER with shove (FORCE/SINGLE/ENEMY/range=1/push=1).
-##    Hostile at (5,8) — pushing with dir=(0,1) lands at (5,9).
-##    Next step (5,10) is off-grid (Grid3D.ROWS=10 means y 0-9) → score=2 (edge push) → FORCE fires.
+## 9. FORCE disabled: CONTROLLER with shove (FORCE-only) — FORCE is disabled pending Slice 4.
+##    Enemy has no HARM/DEBUFF/BUFF/MEND fallback, so the role walk exhausts → {null, null}.
 func test_force_off_grid_preference() -> void:
 	var grid    := _make_grid()
 	var enemy   := _make_unit("elite_guard", ["shove"], 1.0, 10, 5, 7)
@@ -230,12 +229,8 @@ func test_force_off_grid_preference() -> void:
 
 	var hostiles: Array[Unit3D] = [hostile]
 	var pick: Dictionary = EnemyAI.choose_action(enemy, _no_units(), hostiles, grid)
-	assert(pick.get("ability") != null,
-		"FORCE with edge-push opportunity should pick an ability")
-	assert(int(pick["ability"].effects[0].effect_type) == 2,
-		"Should pick FORCE (shove), got effect type: %d" % int(pick["ability"].effects[0].effect_type))
-	assert(pick.get("target") == hostile,
-		"FORCE should target the edge-adjacent hostile")
+	assert(pick.get("ability") == null,
+		"FORCE is disabled — FORCE-only CONTROLLER should return null (no fallback ability)")
 	print("  PASS test_force_off_grid_preference")
 
 ## 10. FORCE not useful: CONTROLLER with shove, hostile mid-grid (5,4), no hazards, no isolation gain
