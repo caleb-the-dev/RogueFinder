@@ -158,8 +158,8 @@ func test_debuffer_prefers_debuff() -> void:
 		% pick["ability"].ability_id)
 	print("  PASS test_debuffer_prefers_debuff")
 
-## 6. CONTROLLER prefers FORCE: shove (FORCE, range=1) vs strike (HARM, range=1).
-##    Hostile adjacent — both affordable and in range. FORCE should win.
+## 6. CONTROLLER FORCE disabled: shove (FORCE) vs strike (HARM), both in range.
+##    FORCE is disabled pending Slice 4, so CONTROLLER falls through to HARM (strike).
 func test_controller_prefers_force() -> void:
 	# elite_guard = CONTROLLER role
 	var enemy   := _make_unit("elite_guard", ["shove", "strike"], 1.0, 10, 0, 0)
@@ -170,9 +170,9 @@ func test_controller_prefers_force() -> void:
 
 	var pick: Dictionary = EnemyAI.choose_action(enemy, allies, hostiles, null)
 	assert(pick.get("ability") != null,
-		"CONTROLLER with options should pick an ability")
-	assert(int(pick["ability"].effects[0].effect_type) == 2,   # FORCE
-		"CONTROLLER should pick FORCE (shove) over HARM (strike), got: %s" \
+		"CONTROLLER with HARM fallback should pick an ability")
+	assert(int(pick["ability"].effects[0].effect_type) == 0,   # HARM (FORCE disabled)
+		"CONTROLLER should fall through to HARM (strike) when FORCE is disabled, got: %s" \
 		% pick["ability"].ability_id)
 	print("  PASS test_controller_prefers_force")
 

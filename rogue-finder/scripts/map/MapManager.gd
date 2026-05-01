@@ -1307,6 +1307,42 @@ func _build_dev_event_panel() -> void:
 	)
 	ai_test_row.add_child(ai_crit_btn)
 
+	# --- AI Slice 3 scoring test rooms ---
+	var ai_s3_hdr := Label.new()
+	ai_s3_hdr.text = "AI SLICE 3 — SCORING"
+	ai_s3_hdr.add_theme_font_size_override("font_size", 11)
+	ai_s3_hdr.add_theme_color_override("font_color", Color(0.45, 0.75, 1.0))
+	vbox.add_child(ai_s3_hdr)
+
+	var ai_s3_row1 := HBoxContainer.new()
+	ai_s3_row1.add_theme_constant_override("separation", 8)
+	vbox.add_child(ai_s3_row1)
+
+	var _make_ai_s3_btn := func(label: String, kind: String) -> Button:
+		var b := Button.new()
+		b.text = label
+		b.custom_minimum_size = Vector2(220.0, 32.0)
+		b.add_theme_font_size_override("font_size", 12)
+		b.pressed.connect(func() -> void:
+			_dev_event_panel.visible = false
+			GameState.test_room_mode = true
+			GameState.test_room_kind = kind
+			get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+		)
+		return b
+
+	ai_s3_row1.add_child(_make_ai_s3_btn.call("🤖 AoE Bomb", "ai_aoe_bomb"))
+	ai_s3_row1.add_child(_make_ai_s3_btn.call("🤖 Finish Blow", "ai_finish_blow"))
+	ai_s3_row1.add_child(_make_ai_s3_btn.call("🤖 Smart Heal", "ai_healer"))
+
+	var ai_s3_row2 := HBoxContainer.new()
+	ai_s3_row2.add_theme_constant_override("separation", 8)
+	vbox.add_child(ai_s3_row2)
+
+	ai_s3_row2.add_child(_make_ai_s3_btn.call("🤖 Buff/Debuff", "ai_buff_debuff"))
+	ai_s3_row2.add_child(_make_ai_s3_btn.call("🤖 Edge Push", "ai_force_edge"))
+	ai_s3_row2.add_child(_make_ai_s3_btn.call("🤖 Slice 3 Mix", "ai_slice3_mix"))
+
 	var sep_combat := HSeparator.new()
 	vbox.add_child(sep_combat)
 
