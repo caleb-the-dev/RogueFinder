@@ -103,6 +103,8 @@ CombatManager subscribes to both signals on every unit.
 | `has_acted` | `bool` | `false` | Active action used this turn |
 | `is_alive` | `bool` | `true` | False after HP reaches 0 |
 | `stat_effects` | `Array[Dictionary]` | `[]` | Active buff/debuff records: `{display_name, stat, delta}` |
+| `ai_override` | `String` | `""` | EnemyAI seam — set to `"force_random"` by future Confused condition; bypasses role walk. Transient, not serialized, not cleared in `reset_turn()`. |
+| `last_ability_id` | `String` | `""` | Last ability used by this unit. EnemyAI deprioritizes it within the same effect-type bucket so enemies cycle their moves rather than spamming one ability. Transient, not serialized. **Intentionally NOT cleared in `reset_turn()`** — must persist across turns. |
 
 ---
 
@@ -172,4 +174,5 @@ The buff ▲ and debuff ▼ billboard indicators are refreshed after every `add_
 
 | Date | Change |
 |---|---|
+| 2026-05-01 | Added `ai_override: String = ""` and `last_ability_id: String = ""` — both transient, not serialized, not saved. `last_ability_id` intentionally excluded from `reset_turn()` so EnemyAI can read it across consecutive turns. |
 | 2026-04-19 | `setup()` changed to seed `current_hp` from `data.current_hp` and `current_energy` from `data.current_energy` (was `hp_max` / `energy_max`). Units now enter combat at their last saved HP, not always full. |
