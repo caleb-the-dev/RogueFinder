@@ -3,6 +3,10 @@ extends Node2D
 
 ## --- Constants ---
 
+## Flip to true to enter the new autobattler combat scene instead of the legacy 3D grid combat.
+## Slice 7 of the combat pivot will flip this on, rip out the old combat, and remove this constant.
+const USE_AUTOBATTLER_COMBAT: bool = false
+
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const CENTER        := Vector2(640.0, 360.0)
 const ZOOM_MIN      := 0.35
@@ -1042,7 +1046,10 @@ func _enter_current_node() -> void:
 		"COMBAT", "BOSS":
 			GameState.current_combat_node_id = GameState.player_node_id
 			GameState.current_combat_ring = _get_ring(GameState.player_node_id)
-			get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+			if USE_AUTOBATTLER_COMBAT:
+				get_tree().change_scene_to_file("res://scenes/combat/CombatSceneAuto.tscn")
+			else:
+				get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
 		"CITY":
 			get_tree().change_scene_to_file("res://scenes/city/BadurgaScene.tscn")
 		"EVENT":

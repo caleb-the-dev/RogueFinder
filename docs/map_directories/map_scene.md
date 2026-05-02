@@ -1,6 +1,6 @@
 # System: Map Scene
 
-> Last updated: 2026-04-30 (Vendor Slice 6 — VENDOR node routing live; _generate_vendor_stocks additive; _vendor_overlay state var; dev test button removed)
+> Last updated: 2026-05-02 (Combat Pivot Slice 3 — USE_AUTOBATTLER_COMBAT flag; COMBAT/BOSS dispatch gated)
 
 ---
 
@@ -147,7 +147,7 @@ Guards cleared nodes first — returns immediately if `GameState.cleared_nodes.h
 
 | Type | Action |
 |---|---|
-| `COMBAT` or `BOSS` | Sets `GameState.current_combat_node_id`, then `change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")` |
+| `COMBAT` or `BOSS` | Sets `GameState.current_combat_node_id`, then loads combat scene based on `USE_AUTOBATTLER_COMBAT` flag: `false` → `CombatScene3D.tscn`; `true` → `CombatSceneAuto.tscn` |
 | `CITY` | `change_scene_to_file("res://scenes/city/BadurgaScene.tscn")` |
 | `EVENT` | Calls `_get_ring(player_node_id)` → `EventSelector.pick_for_node(ring)` → `_event_manager.show_event(event_data)`. Does NOT change scene. |
 | `VENDOR` | Instantiates `VendorOverlay` as a child, stores ref as `_vendor_overlay`, calls `show_vendor(player_node_id)`. On `closed` signal: appends node_id to `GameState.cleared_nodes`, calls `GameState.save()`, refreshes node visuals. |
@@ -332,6 +332,7 @@ Accessed via the `"Dev Menu"` button in the map UI chrome (bottom-right). Not pa
 | Date | Session | What changed |
 |---|---|---|
 | 2026-04-23 | S28 | Doc split — PartySheet section moved to `party_sheet.md`. No `MapManager` behavior change. |
+| 2026-05-02 | Combat Pivot Slice 3 | **`USE_AUTOBATTLER_COMBAT` flag added.** `const USE_AUTOBATTLER_COMBAT: bool = false` at the top of MapManager constants. COMBAT/BOSS branch of `_enter_current_node()` now gates on the flag: `false` (default) → loads `CombatScene3D.tscn` as before; `true` → loads `CombatSceneAuto.tscn`. Also sets `current_combat_ring` in the same branch. No other behavior changes. |
 | 2026-04-30 | Vendor Slice 6 | **VENDOR node routing live.** `_enter_current_node()` VENDOR branch: instantiates `VendorOverlay`, stores as `_vendor_overlay`, calls `show_vendor(player_node_id)`, marks node cleared + saves on `closed`. `_generate_vendor_stocks()` changed from all-or-nothing to additive (only missing keys generated; saves only if anything was added). `_input()` and `_on_node_clicked()` guards updated to block map interaction while `_vendor_overlay` is visible. Dev "🛒 Vendor Test" button removed. |
 | 2026-04-30 | Vendor Slice 5 | **Dev panel INVENTORY section: "🛒 Vendor Test" button added (4th button in `inv_row`).** Instantiates `VendorOverlay.tscn`, adds as a child of MapManager, calls `show_vendor("vendor_weapon")`. |
 | 2026-04-30 | Vendor Slice 4 | **`_generate_vendor_stocks()` added to `_ready()` after `_assign_boss_type()`.** Populates `GameState.vendor_stocks` for all CITY vendors (keyed by vendor_id) and all WORLD VENDOR nodes (keyed by node_id) on fresh runs and old-save migration. No-op when `vendor_stocks` is already populated. Calls `GameState.save()` after population. |
