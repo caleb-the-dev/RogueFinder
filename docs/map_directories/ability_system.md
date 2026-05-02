@@ -1,6 +1,6 @@
 # System: Ability System
 
-> Last updated: 2026-04-29 (Armor Tier Families Slice 4 — 6 armor abilities added; total 66)
+> Last updated: 2026-05-02 (Combat Pivot Slice 2 — cooldown_max field + cooldown CSV column added; energy_cost retained as legacy)
 
 ---
 
@@ -74,7 +74,8 @@ Parsed from the `damage_type` column in `abilities.csv` by `AbilityLibrary._DAMA
 | `damage_type` | `DamageType` | Which armor lane resists HARM from this ability. `NONE` for non-HARM abilities. |
 | `tile_range` | `int` | 0–10; `-1` = whole map |
 | `passthrough` | `bool` | CONE: crossbar/back not blocked by stem unit. RADIAL: cardinal back cells not blocked. LINE: continues past first unit. |
-| `energy_cost` | `int` | Subtracted from unit energy on use |
+| `energy_cost` | `int` | **Legacy** — subtracted from unit energy by old 3D combat. Retired in Slice 7. |
+| `cooldown_max` | `int` | **Autobattler** — turns until ability can fire again after use. Default 0. Used by new combat (Slice 4+). Migration: cost 1–2 → 2, cost 3–4 → 3, cost 5+ → 5. |
 | `effects` | `Array[EffectData]` | Ordered list; one QTE fires for the whole ability |
 | `description` | `String` | Flavor + mechanic tooltip |
 | `upgraded_id` | `String` | ID of the upgraded form; empty when no upgrade exists. Set on the base row — the upgraded row is a regular ability. |
@@ -283,6 +284,8 @@ static func get_upgraded(base_id: String) -> AbilityData
 
 ## Key Patterns & Gotchas
 
+- **`energy_cost` and `cooldown_max` coexist until Slice 7** — `energy_cost` drives the old 3D combat; `cooldown_max` drives the new autobattler (Slice 4+). Do not remove `energy_cost` before the Slice 7 cutover. Both fields parse from CSV (`cost` → `energy_cost`, `cooldown` → `cooldown_max`).
+- **`cooldown_max` migration table:** cost 0 → cooldown 0, cost 1–2 → cooldown 2, cost 3–4 → cooldown 3, cost 5+ → cooldown 5. All 63 abilities migrated in Slice 2.
 - **`get_ability()` never returns null** — safe to call without nil checks. Unknown IDs return a stub AbilityData with `ability_id = "unknown"` and `damage_type = DamageType.NONE`.
 - **`get_upgraded()` stub differs from `get_ability()` stub** — when `upgraded_id` is empty or unresolvable, `get_upgraded()` returns a blank `AbilityData.new()` with `ability_id == ""` (not `"unknown"`). Callers checking for "no upgrade available" should test `result.ability_id == ""`, not `result == null`.
 - **One QTE per ability, not per effect** — `AbilityData.effects` can contain multiple entries (e.g. `acid_splash`: HARM + DEBUFF); they all receive the same `multiplier`.
@@ -296,6 +299,7 @@ static func get_upgraded(base_id: String) -> AbilityData
 
 | Date | Change |
 |---|---|
+| 2026-05-02 | **Combat Pivot Slice 2 — cooldown field.** `AbilityData` gained `@export var cooldown_max: int = 0` (next to `energy_cost`; both fields coexist until Slice 7). `abilities.csv` gained a `cooldown` column after `cost`; all 63 rows populated per migration table (cost 1–2 → 2, 3–4 → 3, 5+ → 5, 0 → 0). `AbilityLibrary._row_to_data()` gained `"cooldown"` match case → sets `a.cooldown_max`. `energy_cost` untouched — old combat unaffected. 3 headless tests added (`test_cooldown_field.gd`). |
 | 2026-04-29 | **Armor Tier Families (Slice 4).** 6 new armor abilities added: `stone_guard` / `divine_ward` / `guard` (3 existing) gained `upgraded_id` links to `fortified_guard` / `greater_ward` / `enhanced_guard` (3 new). Upgraded forms are plain BUFF abilities with `base_value` bumped by +1 (2→3). All are SELF-target BUFF, cost 2, NONE damage_type. Total abilities: 60→66. |
 | 2026-04-28 | **Weapon Tier Families (Slice 3).** 6 new weapon abilities added to `abilities.csv`: `blade_strike` (STR base, upgraded_id=heavy_blade_strike), `heavy_blade_strike` (STR upgraded), `quick_draw` (DEX base, upgraded_id=aimed_draw), `aimed_draw` (DEX upgraded), `staff_bolt` (COG base, upgraded_id=empowered_bolt), `empowered_bolt` (COG upgraded). All are HARM-only with the appropriate `DamageType` (PHYSICAL or MAGIC). Total abilities: 54→60. |
 | 2026-04-28 | **Upgraded ability data layer (Rarity Slice 2).** `AbilityData` gained `upgraded_id: String = ""`. `AbilityLibrary` parses the new CSV column and exposes `get_upgraded(base_id)` — returns the linked ability or a blank stub; never null. `abilities.csv` gained the `upgraded_id` column (all 54 rows empty — content comes in Slices 3–5). 6 headless tests added. |
