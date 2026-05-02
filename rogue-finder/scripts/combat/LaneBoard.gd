@@ -64,8 +64,8 @@ func get_side_of(unit: CombatantData) -> String:
 ## Returns up to 2 units in lanes adjacent to `lane` on the given `side`.
 func get_adjacent_lane_units(lane: int, side: String) -> Array[CombatantData]:
 	var result: Array[CombatantData] = []
-	for offset in [-1, 1]:
-		var l := lane + offset
+	for offset: int in [-1, 1]:
+		var l: int = lane + offset
 		if l >= 0 and l < LANE_COUNT:
 			var u := get_unit(l, side)
 			if u != null:
