@@ -626,12 +626,13 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 		parent.add_child(dval)
 	tr_y += 36.0
 
-	# Base attributes — 5 columns. [abbr, stat_key, base_value, tooltip]
+	# Base attributes — 6 columns. [abbr, stat_key, base_value, tooltip]
 	var attr_defs: Array = [
 		["STR", "strength",  member.strength,  "Strength\nScales STR-based abilities. Contributes to HARM damage."],
 		["DEX", "dexterity", member.dexterity, "Dexterity\nReserved for future dodge/evasion."],
 		["COG", "cognition", member.cognition, "Cognition\nIntelligence. Reserved for future ability cost scaling."],
 		["WIL", "willpower", member.willpower, "Willpower\nEnergy Regen = 2 + WIL energy restored each turn."],
+		["SPD", "spd",       member.spd,       "Speed\nDrives turn countdown in autobattler. = spd + kindred bonus."],
 		["VIT", "vitality",  member.vitality,  "Vitality\nHP Max = 10 + VIT×4.  Energy Max = 5 + VIT."],
 	]
 	var acol_w: float = tr_w / float(attr_defs.size())
@@ -1873,6 +1874,7 @@ func _stat_abbr(stat: String) -> String:
 		"cognition":     return "COG"
 		"willpower":     return "WIL"
 		"vitality":      return "VIT"
+		"spd":           return "SPD"
 		"physical_armor": return "P.DEF"
 		"magic_armor":    return "M.DEF"
 		_: return stat.substr(0, 3).to_upper()
