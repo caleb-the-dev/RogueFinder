@@ -1,6 +1,12 @@
 # System: Combat Manager
 
-> Last updated: 2026-04-29 (ATK stat removed — HARM formula now uses ability.attribute via effective_stat(); _get_attribute_value updated)
+> Last updated: 2026-05-02 (Combat Pivot Slice 3 — CombatManagerAuto + LaneBoard + PlacementOverlay skeletons; USE_AUTOBATTLER_COMBAT flag in MapManager)
+
+---
+
+## Coexistence Strategy (Combat Pivot)
+
+The old combat (CombatManager3D) and new autobattler (CombatManagerAuto) **coexist until Slice 7**. `MapManager.USE_AUTOBATTLER_COMBAT: bool = false` is the feature flag — flip it to `true` to load `CombatSceneAuto.tscn` instead of `CombatScene3D.tscn`. Default is `false`; old combat runs by default. Slice 7 will flip it permanently, rip out 3D combat, and remove the constant.
 
 ---
 
@@ -16,10 +22,48 @@ Does **NOT** own: grid math (see `grid_system.md`), unit visuals/HP state (see `
 
 | File | Scene | Role |
 |------|-------|------|
-| `scripts/combat/CombatManager3D.gd` | `scenes/combat/CombatScene3D.tscn` | **Active** — 3D state machine |
+| `scripts/combat/CombatManager3D.gd` | `scenes/combat/CombatScene3D.tscn` | **Active** — 3D tactical grid state machine |
+| `scripts/combat/CombatManagerAuto.gd` | `scenes/combat/CombatSceneAuto.tscn` | **Skeleton** — autobattler (Slice 3); no tick loop yet; `class_name CombatManagerAuto` |
+| `scripts/combat/LaneBoard.gd` | — | **Active data layer** — 3-lane × 2-side board; `class_name LaneBoard extends RefCounted`; used by CombatManagerAuto |
+| `scripts/ui/PlacementOverlay.gd` | `scenes/ui/PlacementOverlay.tscn` | **Skeleton** — pre-fight lane assignment; `class_name PlacementOverlay extends CanvasLayer`; layer 22 |
 | `scripts/combat/CombatManager.gd` | `scenes/combat/CombatScene.tscn` | Legacy 2D — reference only |
 
-`CombatScene3D.tscn` is the active combat scene. Reached via `MainMenuScene` → `MapScene` → node click → `change_scene_to_file()`. `main.tscn` loads `MainMenuScene.tscn`.
+`CombatScene3D.tscn` is the active combat scene (flag false). `CombatSceneAuto.tscn` loads when flag true — currently just prints ready message, exits cleanly via PauseMenu ESC. Reached via `MainMenuScene` → `MapScene` → node click → `change_scene_to_file()`. `main.tscn` loads `MainMenuScene.tscn`.
+
+---
+
+## LaneBoard API
+
+`LaneBoard` is a pure-data `RefCounted` — no Node, no scene. Holds `CombatantData` references by (lane_index, side).
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `place` | `(unit: CombatantData, lane: int, side: String)` | Stores unit in slot; last-write-wins (no occupancy check) |
+| `remove` | `(lane: int, side: String)` | Clears slot to null |
+| `get_unit` | `(lane: int, side: String) -> CombatantData` | Returns unit or null; returns null for out-of-range lane |
+| `get_opposite` | `(unit: CombatantData) -> CombatantData` | Finds unit's lane, returns the unit directly across; null if not on board |
+| `get_lane_of` | `(unit: CombatantData) -> int` | Returns lane index 0–2, or -1 if not on board |
+| `get_side_of` | `(unit: CombatantData) -> String` | Returns "ally" / "enemy" / "" |
+| `get_adjacent_lane_units` | `(lane: int, side: String) -> Array[CombatantData]` | Up to 2 non-null units in lanes ±1 |
+| `get_all_on_side` | `(side: String) -> Array[CombatantData]` | All non-null units on one side |
+| `is_side_wiped` | `(side: String) -> bool` | True if all units on that side have `current_hp ≤ 0` or are null |
+
+Constants: `LANE_COUNT = 3`, `SIDES = ["ally", "enemy"]`. Sides: `"ally"` = player side, `"enemy"` = enemy side.
+
+**Gotcha:** `place()` is destructive — no occupancy check. Caller is responsible for not double-placing. Slot 0–2 are valid indices; anything else returns null from `get_unit()`.
+
+---
+
+## PlacementOverlay API (Skeleton)
+
+Layer 22 (above PartySheet 20, below PauseMenu 26). Invisible by default (`visible = false`).
+
+| Method/Signal | Description |
+|---|---|
+| `show_placement(party: Array[CombatantData])` | Defaults each unit to lane = its index; sets visible; Slice 4 builds real drag UI |
+| `placement_locked(party_by_lane: Array)` | Emitted when Begin pressed; carries 3-element Array (CombatantData per lane) |
+
+Not wired into CombatManagerAuto yet — Slice 4 connects it.
 
 ---
 
@@ -296,6 +340,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-05-02 | **Combat Pivot Slice 3 — autobattler scaffold.** `CombatManagerAuto.gd` added (`class_name CombatManagerAuto extends Node3D`): skeleton with `board: LaneBoard`, `start_combat(party, enemies)` (default lane placement), `end_combat(victory)`. `CombatSceneAuto.tscn` added (minimal). `LaneBoard.gd` added (`class_name LaneBoard extends RefCounted`): 3-lane × 2-side pure-data board; full API live (see table above). `PlacementOverlay.gd` added (`class_name PlacementOverlay extends CanvasLayer`, layer 22): `show_placement(party)`, `placement_locked` signal — stub, Slice 4 wires it. `MapManager.USE_AUTOBATTLER_COMBAT: bool = false` constant added to top of constants section — gates COMBAT/BOSS scene dispatch. 6 headless tests (`test_lane_board.gd/.tscn`) — all 6 pass. Note: `CombatManagerAuto.gd` is named `Auto` to avoid collision with legacy `CombatManager.gd` (2D, class_name `CombatManager`). |
 | 2026-05-01 | **Enemy AI Slice 3 — within-bucket scoring + move priority + buff/debuff tracker.** `_process_enemy_actions()` now sorts `_enemy_units` by `EnemyAI.MOVE_PRIORITY` before iterating (HEALER=0 → CONTROLLER=4). `EnemyAI.pick_stride_target()` replaces random-hostile heuristic for the movement target. FORCE-aware CONTROLLER stride (`pick_force_stride_cell`) is disabled pending Slice 4 — all roles use greedy Manhattan. `_apply_non_harm_effects()` BUFF case: appends `ability.ability_id` to `target.active_buff_ability_ids`. DEBUFF case: appends to `target.active_debuff_ability_ids`, increments `target.debuff_stat_stacks[stat]`. `_end_combat()` clears all 5 transient AI fields on every unit after snapshot restore. `_cardinal_direction()`, `_get_shape_cells()`, and `_pick_best_aoe_origin()` now delegate to EnemyAI statics. `_spawn_test_room()` `p_pos`/`e_pos` params changed from `Array[Vector2i] = []` to `Array = []` + internal `.assign()` (Godot 4.5 typed-array default param bug). `_setup_test_room_units()` dispatcher extended with 6 new Slice 3 AI rooms. `MapManager` dev panel gains "AI SLICE 3 — SCORING" row of 6 buttons. |
 | 2026-05-01 | **Enemy AI Slice 2 — EnemyAI module wired in.** `_process_enemy_actions()` refactored: old randi() target + ability picks replaced with `EnemyAI.choose_action(enemy, allies, hostiles, grid)`. Movement stride still uses a random hostile as a positioning heuristic (suboptimal for HEALER; fix is Slice 3). `enemy.last_ability_id = chosen.ability_id` set after each confirmed pick so EnemyAI can deprioritize repeats next turn. Two new private helpers: `_player_units_alive() -> Array[Unit3D]` and `_enemy_units_alive_excluding(self_enemy) -> Array[Unit3D]`. `_setup_test_room_units()` dispatcher extended: `"ai_roles"` → AI Roles scenario (Grunt/Alchemist/Cave Spider); `"ai_crit_heal"` → AI Crit-Heal scenario (Alchemist with `heal_burst` + Near-Dead Grunt at 1 HP + Healthy Grunt). `_ai_roles_*_defs()` and `_ai_crit_heal_*_defs()` factory methods added. EnemyAI added to Dependencies table. |
 | 2026-04-29 | **Vendor Slice 1 — gold reward on combat victory.** `_calc_gold_reward() -> int` added: averages non-dead party level, converts `threat_level` to 0–100 int, calls `RewardGenerator.gold_drop(ring, threat, avg_level)`. `_end_combat(true)` now calls it and adds result to `GameState.gold` before saving. `show_victory()` now takes `gold_amount: int` as second argument. Gold line displayed in `EndCombatScreen` above item cards using Hire Roster gold color. |
