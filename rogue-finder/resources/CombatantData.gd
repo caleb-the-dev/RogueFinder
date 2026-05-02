@@ -130,6 +130,10 @@ extends Resource
 var physical_armor_mod: int = 0
 var magic_armor_mod:    int = 0
 
+## Ability IDs added since the party sheet was last opened — used for the glow badge.
+## Cleared on hover in the party sheet. Not saved to disk.
+var new_ability_ids: Array[String] = []
+
 ## ======================================================
 ## Derived Stats — computed from core attributes + equipped items + feats
 ## ======================================================

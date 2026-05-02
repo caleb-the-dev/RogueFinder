@@ -1,37 +1,37 @@
 id,name,slot,rarity,stat_bonuses,granted_ability_ids,feat_id,description,notes
-iron_sword,Iron Sword,WEAPON,COMMON,,blade_strike,,A plain iron blade. Free from rust. Free from flourish.,STR family common
-long_sword,Long Sword,WEAPON,RARE,strength:1,blade_strike,,Fuller-ground for leverage. The extra reach adds up.,STR family rare
-war_blade,War Blade,WEAPON,EPIC,strength:1,heavy_blade_strike,,Balanced for punishment. The edge never needed refinement.,STR family epic
-warlords_cleaver,Warlord's Cleaver,WEAPON,LEGENDARY,strength:2,heavy_blade_strike,,Hacked from a fallen champion's grip. Still hungry.,STR family legendary
-crude_bow,Crude Bow,WEAPON,COMMON,,quick_draw,,Bent ash and twine. Reliable if you don't expect much.,DEX family common
-hunters_bow,Hunter's Bow,WEAPON,RARE,dexterity:1,quick_draw,,Recurve cut for field work. The pull is smooth if you know what you're doing.,DEX family rare
-shadow_bow,Shadow Bow,WEAPON,EPIC,dexterity:1,aimed_draw,,Lacquered black. The string barely whispers.,DEX family epic
-longbow,Longbow,WEAPON,LEGENDARY,dexterity:2,aimed_draw,,The draw weight alone disqualifies most. The ones left don't miss.,DEX family legendary
-gnarled_staff,Gnarled Staff,WEAPON,COMMON,,staff_bolt,,Carved from a storm-struck oak. The knots don't matter; the current does.,COG family common
-focusing_wand,Focusing Wand,WEAPON,RARE,cognition:1,staff_bolt,,A conductor for precise intent. Channels thought into impact.,COG family rare
-ley_staff,Ley Staff,WEAPON,EPIC,cognition:1,empowered_bolt,,Taps something old in the earth. The current runs deeper than most realize.,COG family epic
-archmages_focus,Archmage's Focus,WEAPON,LEGENDARY,cognition:1|willpower:1,empowered_bolt,,Shaped from years of accumulated intent. The staff barely contains it.,COG family legendary
-iron_plate,Iron Plate,ARMOR,COMMON,physical_armor:5|magic_armor:1,,,Heavy beaten iron — keeps blows out.,phys family common
-iron_plate_rare,Fitted Plate,ARMOR,RARE,physical_armor:5|magic_armor:1,stone_guard,,The same iron — this time the stance that comes with it matters.,phys family rare
-iron_plate_epic,War Plate,ARMOR,EPIC,physical_armor:7|magic_armor:3,stone_guard,,Forged thick and tested. Doesn't crack.,phys family epic
-iron_plate_legendary,Bulwark Plate,ARMOR,LEGENDARY,physical_armor:7|magic_armor:3,fortified_guard,,Passed down. The dents are from battles the previous owner survived.,phys family legendary
-scale_mail,Scale Mail,ARMOR,COMMON,physical_armor:3|magic_armor:3,,,Overlapping plates — distributes impact more than it stops it.,balanced family common
-scale_mail_rare,Reinforced Scales,ARMOR,RARE,physical_armor:3|magic_armor:3,guard,,The underlay has been tightened. You feel the difference.,balanced family rare
-scale_mail_epic,Dragon Scale,ARMOR,EPIC,physical_armor:5|magic_armor:5,guard,,Harvested and fitted. Resistant to almost everything by default.,balanced family epic
-scale_mail_legendary,Elder Scale Coat,ARMOR,LEGENDARY,physical_armor:5|magic_armor:5,enhanced_guard,,Each plate is a piece of something that outlasted most things.,balanced family legendary
-mystic_robe,Mystic Robe,ARMOR,COMMON,physical_armor:1|magic_armor:5,,,Woven with channeling thread. Won't stop a blade but stops most else.,magic family common
-mystic_robe_rare,Warded Mantle,ARMOR,RARE,physical_armor:1|magic_armor:5,divine_ward,,The ward is built in — you feel it the moment you put it on.,magic family rare
-mystic_robe_epic,Arcane Vestment,ARMOR,EPIC,physical_armor:3|magic_armor:7,divine_ward,,The kind of enchantment that takes years and a particular kind of patience.,magic family epic
-mystic_robe_legendary,Sorcerer's Mantle,ARMOR,LEGENDARY,physical_armor:3|magic_armor:7,greater_ward,,Whatever power it holds — it held it long before you found it.,magic family legendary
-ring_of_valor,Ring of Valor,ACCESSORY,COMMON,strength:1,,,Simple iron band — worn smooth from a fighter's grip.,STR family common
-ring_of_valor_rare,Veteran's Ring,ACCESSORY,RARE,strength:1,,combat_training,The same ring. Now the stance that comes with it matters.,STR family rare
-ring_of_valor_epic,Champion's Ring,ACCESSORY,EPIC,strength:1|vitality:1,,combat_training,Sized for a champion's finger. Proof that they survived.,STR family epic
-ring_of_valor_legendary,Warlord's Signet,ACCESSORY,LEGENDARY,strength:1|vitality:1|willpower:2,,combat_training,Passed through enough hands that the metal holds memory.,STR family legendary
-scholars_amulet,Scholar's Amulet,ACCESSORY,COMMON,cognition:1,,,A small lens on a chain. Helps with focus more than it looks.,COG family common
-scholars_amulet_rare,Seeker's Amulet,ACCESSORY,RARE,cognition:1,,analytical_mind,The inscription slows the eye down. That's the point.,COG family rare
-scholars_amulet_epic,Sage's Amulet,ACCESSORY,EPIC,cognition:1|willpower:1,,analytical_mind,Two disciplines in one setting — thought and endurance.,COG family epic
-scholars_amulet_legendary,Arcanist's Totem,ACCESSORY,LEGENDARY,cognition:1|willpower:1|vitality:2,,analytical_mind,Old enough that it predates the school that named it.,COG family legendary
-iron_bracers,Iron Bracers,ACCESSORY,COMMON,vitality:1,,,Hammered flat and strapped tight. Nothing more needed.,VIT family common
-iron_bracers_rare,Hardened Bracers,ACCESSORY,RARE,vitality:1,,hearty_constitution,The extra weight teaches the body to carry more.,VIT family rare
-iron_bracers_epic,Warden's Bracers,ACCESSORY,EPIC,vitality:1|strength:1,,hearty_constitution,Thicker at the forearm. Built for weight.,VIT family epic
-iron_bracers_legendary,Unbroken Vambraces,ACCESSORY,LEGENDARY,vitality:1|strength:1|dexterity:2,,hearty_constitution,No dents — not from lack of use but from not staying dented.,VIT family legendary
+iron_sword,Iron Sword,WEAPON,COMMON,,blade_strike,,Grants Blade Strike.,STR family common
+long_sword,Long Sword,WEAPON,RARE,strength:1,blade_strike,,+1 STR. Grants Blade Strike.,STR family rare
+war_blade,War Blade,WEAPON,EPIC,strength:1,heavy_blade_strike,,+1 STR. Grants Heavy Blade Strike.,STR family epic
+warlords_cleaver,Warlord's Cleaver,WEAPON,LEGENDARY,strength:2,heavy_blade_strike,,+2 STR. Grants Heavy Blade Strike.,STR family legendary
+crude_bow,Crude Bow,WEAPON,COMMON,,quick_draw,,Grants Quick Draw.,DEX family common
+hunters_bow,Hunter's Bow,WEAPON,RARE,dexterity:1,quick_draw,,+1 DEX. Grants Quick Draw.,DEX family rare
+shadow_bow,Shadow Bow,WEAPON,EPIC,dexterity:1,aimed_draw,,+1 DEX. Grants Aimed Draw.,DEX family epic
+longbow,Longbow,WEAPON,LEGENDARY,dexterity:2,aimed_draw,,+2 DEX. Grants Aimed Draw.,DEX family legendary
+gnarled_staff,Gnarled Staff,WEAPON,COMMON,,staff_bolt,,Grants Staff Bolt.,COG family common
+focusing_wand,Focusing Wand,WEAPON,RARE,cognition:1,staff_bolt,,+1 COG. Grants Staff Bolt.,COG family rare
+ley_staff,Ley Staff,WEAPON,EPIC,cognition:1,empowered_bolt,,+1 COG. Grants Empowered Bolt.,COG family epic
+archmages_focus,Archmage's Focus,WEAPON,LEGENDARY,cognition:1|willpower:1,empowered_bolt,,+1 COG +1 WIL. Grants Empowered Bolt.,COG family legendary
+iron_plate,Iron Plate,ARMOR,COMMON,physical_armor:5|magic_armor:1,,,High physical armor. Low magic armor.,phys family common
+iron_plate_rare,Fitted Plate,ARMOR,RARE,physical_armor:5|magic_armor:1,stone_guard,,High physical armor. Low magic armor. Grants Stone Guard.,phys family rare
+iron_plate_epic,War Plate,ARMOR,EPIC,physical_armor:7|magic_armor:3,stone_guard,,High physical armor. Grants Stone Guard.,phys family epic
+iron_plate_legendary,Bulwark Plate,ARMOR,LEGENDARY,physical_armor:7|magic_armor:3,fortified_guard,,High physical armor. Grants Fortified Guard.,phys family legendary
+scale_mail,Scale Mail,ARMOR,COMMON,physical_armor:3|magic_armor:3,,,Balanced physical and magic armor.,balanced family common
+scale_mail_rare,Reinforced Scales,ARMOR,RARE,physical_armor:3|magic_armor:3,guard,,Balanced physical and magic armor. Grants Guard.,balanced family rare
+scale_mail_epic,Dragon Scale,ARMOR,EPIC,physical_armor:5|magic_armor:5,guard,,High balanced armor. Grants Guard.,balanced family epic
+scale_mail_legendary,Elder Scale Coat,ARMOR,LEGENDARY,physical_armor:5|magic_armor:5,enhanced_guard,,High balanced armor. Grants Enhanced Guard.,balanced family legendary
+mystic_robe,Mystic Robe,ARMOR,COMMON,physical_armor:1|magic_armor:5,,,Low physical armor. High magic armor.,magic family common
+mystic_robe_rare,Warded Mantle,ARMOR,RARE,physical_armor:1|magic_armor:5,divine_ward,,Low physical armor. High magic armor. Grants Divine Ward.,magic family rare
+mystic_robe_epic,Arcane Vestment,ARMOR,EPIC,physical_armor:3|magic_armor:7,divine_ward,,High magic armor. Grants Divine Ward.,magic family epic
+mystic_robe_legendary,Sorcerer's Mantle,ARMOR,LEGENDARY,physical_armor:3|magic_armor:7,greater_ward,,High magic armor. Grants Greater Ward.,magic family legendary
+ring_of_valor,Ring of Valor,ACCESSORY,COMMON,strength:1,,,+1 STR.,STR family common
+ring_of_valor_rare,Veteran's Ring,ACCESSORY,RARE,strength:1,,combat_training,+1 STR. Passive feat: +1 STR.,STR family rare
+ring_of_valor_epic,Champion's Ring,ACCESSORY,EPIC,strength:1|vitality:1,,combat_training,+1 STR +1 VIT. Passive feat: +1 STR.,STR family epic
+ring_of_valor_legendary,Warlord's Signet,ACCESSORY,LEGENDARY,strength:1|vitality:1|willpower:2,,combat_training,+1 STR +1 VIT +2 WIL. Passive feat: +1 STR.,STR family legendary
+scholars_amulet,Scholar's Amulet,ACCESSORY,COMMON,cognition:1,,,+1 COG.,COG family common
+scholars_amulet_rare,Seeker's Amulet,ACCESSORY,RARE,cognition:1,,analytical_mind,+1 COG. Passive feat: +2 COG.,COG family rare
+scholars_amulet_epic,Sage's Amulet,ACCESSORY,EPIC,cognition:1|willpower:1,,analytical_mind,+1 COG +1 WIL. Passive feat: +2 COG.,COG family epic
+scholars_amulet_legendary,Arcanist's Totem,ACCESSORY,LEGENDARY,cognition:1|willpower:1|vitality:2,,analytical_mind,+1 COG +1 WIL +2 VIT. Passive feat: +2 COG.,COG family legendary
+iron_bracers,Iron Bracers,ACCESSORY,COMMON,vitality:1,,,+1 VIT.,VIT family common
+iron_bracers_rare,Hardened Bracers,ACCESSORY,RARE,vitality:1,,hearty_constitution,+1 VIT. Passive feat: +1 VIT.,VIT family rare
+iron_bracers_epic,Warden's Bracers,ACCESSORY,EPIC,vitality:1|strength:1,,hearty_constitution,+1 VIT +1 STR. Passive feat: +1 VIT.,VIT family epic
+iron_bracers_legendary,Unbroken Vambraces,ACCESSORY,LEGENDARY,vitality:1|strength:1|dexterity:2,,hearty_constitution,+1 VIT +1 STR +2 DEX. Passive feat: +1 VIT.,VIT family legendary
