@@ -166,6 +166,8 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray,
 				a.passthrough = (val == "true")
 			"cost":
 				a.energy_cost = int(val)
+			"cooldown":
+				a.cooldown_max = int(val)
 			"description":
 				a.description = val
 			"effects":
