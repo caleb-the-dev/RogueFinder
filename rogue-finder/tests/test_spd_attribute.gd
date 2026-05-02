@@ -5,6 +5,7 @@ func _ready() -> void:
 	test_spd_default()
 	test_spd_serializes()
 	test_kindred_spd_bonus_applies()
+	test_kindred_library_returns_spd_bonus()
 	print("=== All SPD tests passed ===")
 
 func test_spd_default() -> void:
@@ -25,3 +26,9 @@ func test_kindred_spd_bonus_applies() -> void:
 	var eff := d.effective_stat("spd")
 	assert(eff >= d.spd, "effective_stat(spd) should be at least raw spd")
 	print("  PASS test_kindred_spd_bonus_applies")
+
+func test_kindred_library_returns_spd_bonus() -> void:
+	assert(KindredLibrary.get_stat_bonus("Spider", "spd") == 3, "Spider should have spd +3")
+	assert(KindredLibrary.get_stat_bonus("Skeleton", "spd") == -1, "Skeleton should have spd -1")
+	assert(KindredLibrary.get_stat_bonus("Human", "spd") == 0, "Human should have spd 0")
+	print("  PASS test_kindred_library_returns_spd_bonus")
