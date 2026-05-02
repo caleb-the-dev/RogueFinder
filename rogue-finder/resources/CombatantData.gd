@@ -131,6 +131,14 @@ extends Resource
 var physical_armor_mod: int = 0
 var magic_armor_mod:    int = 0
 
+## --- Transient autobattler state (NOT serialized) ---
+## countdown_current ticks down each combat tick; when 0, the unit acts.
+## countdown_max is computed from effective_stat("spd") at combat start.
+## cooldowns tracks per-slot cooldown remaining (one entry per slot, 3 slots).
+var countdown_current: int = 0
+var countdown_max:     int = 0
+var cooldowns:         Array[int] = [0, 0, 0]
+
 ## Ability IDs added since the party sheet was last opened — used for the glow badge.
 ## Cleared on hover in the party sheet. Not saved to disk.
 var new_ability_ids: Array[String] = []
