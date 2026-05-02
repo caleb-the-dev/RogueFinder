@@ -20,7 +20,7 @@ Caleb's earlier GMS2 RogueFinder prototype validated a faster turn-tick autobatt
 | Pillar | Was | Becomes |
 |---|---|---|
 | Genre | Tactical grid (Into the Breach-shape) | Autobattler turn-tick (Wildfrost-shape) |
-| Grid | 10×10 cells with movement, knockback, AoE shapes | 3 lanes × 2 deep per side (12 cells total), positions locked at fight start |
+| Grid | 10×10 cells with movement, knockback, AoE shapes | 3 lanes flat per side (6 cells total), positions locked at fight start. Add front/back depth post-slice if play-test calls for it. |
 | Resolution | Team-based initiative; player drives all 3 units | Per-unit countdown; AI picks ability per unit; player intervenes via consumable only |
 | Cost economy | Energy (per-character pool, regen per turn) | Per-ability cooldown; energy stat retires |
 | Ability slots | 4 per character | 3 per character; slot 0 = weapon-locked HARM |
@@ -44,18 +44,16 @@ Two timers per unit:
 ```
 On unit's turn (countdown reaches 0):
   available = [ab for ab in slots if ab.cooldown_remaining == 0]
-  if available is empty: skip turn (or fire weapon ability if always-on-cd-0)
+  if available is empty: skip turn (rare — slot 0 weapon ability has cooldown 2 max)
   picked = ai_pick(available, role, hostiles, allies)
   fire(picked)
   picked.cooldown_remaining = picked.cooldown_max
   unit.countdown_current = unit.countdown_max
-  process_unit_turn_status_ticks(unit)  # DoT/HoT/duration decrements
 ```
 
 Each tick of combat:
 - All `countdown_current` values decrement by 1
 - All `cooldown_remaining` values decrement by 1
-- DoT/HoT effects are NOT processed here — they tick on each affected unit's *own* turn
 
 **Tiebreak when multiple units hit 0 same tick:** higher SPD acts first; if still tied, deterministic by unit ID order.
 
@@ -74,7 +72,7 @@ countdown_max = clamp(8 - SPD, 2, 12)
 | 6 | 2 |
 | 8+ (clamp) | 2 |
 
-Locked once derived at combat start. Status effects (`HASTE`, `SLOW`) modify `countdown_current` directly, not `countdown_max`.
+Locked once derived at combat start. Post-slice status effects (HASTE/SLOW), if added, will modify `countdown_current` directly, not `countdown_max`.
 
 ### Energy System Retirement
 
@@ -94,45 +92,44 @@ All 63 abilities migrate. Weapon-granted slot-0 abilities sit at cooldown 2.
 
 ## Layout
 
-3 lanes × 2 deep per side. 12 cells total (6 ally + 6 enemy).
+3 lanes flat per side. 6 cells total (3 ally + 3 enemy).
 
 ```
        LANE 1   LANE 2   LANE 3
       ┌───────┬───────┬───────┐
- B    │       │       │       │   ← back  (your side)
- F    │       │       │       │   ← front (your side)
+      │       │       │       │   ← your side
 ══════╪═══════╪═══════╪═══════╪══   neutral line
- F    │       │       │       │   ← front (enemy)
- B    │       │       │       │   ← back  (enemy)
+      │       │       │       │   ← enemy side
       └───────┴───────┴───────┘
 ```
 
 ### Pre-fight Placement
 
-Before combat begins: drag your 3 active units onto your 6 cells. Each unit lands in a single (lane, row) position. Stacking forbidden — each cell holds at most 1 unit. Placement is meaningful build expression — front-row tanks soak; back-row casters are protected unless flanked; lane assignment determines which abilities can reach.
+Before combat begins: drag your 3 active units onto your 3 lanes. Each unit lands in one lane. Stacking forbidden — each lane holds exactly 1 unit per side. Placement expression: lane assignment determines which abilities can reach (e.g., a `same_lane` HARM ability hits whoever's directly across). Same-lane match-ups are the core positioning consideration.
 
-Default placement on first combat: lane 1 / lane 2 / lane 3, all back row. Player drags to adjust. Subsequent combats default to last-used positions for the same units.
+Default placement on first combat: party-order to lane 1/2/3. Player drags to adjust. Subsequent combats default to last-used lane assignments for the same units.
 
 ### Targeting Shapes
 
-Abilities target by lane + row rules. The 10×10 shapes (cone, line of N, plus) retire in favor of:
+Abilities target by lane rules. The 10×10 shapes (cone, line of N, plus) retire in favor of:
 
 | Shape | Description |
 |---|---|
-| `single` | one target by rule (front-of-lane / lowest-HP / highest-threat) |
-| `same_lane` | all targets in caster's lane |
-| `adjacent_lane` | lanes ± 1 |
-| `all_lanes` | every lane |
-| `front_row` | enemy front cells only |
-| `back_row` | enemy back cells only (requires reach or empty front) |
+| `single` | one target by rule (same-lane opposite / lowest-HP / highest-threat) |
+| `same_lane` | the target directly across in the same lane |
+| `adjacent_lane` | the targets in lanes ± 1 from caster |
+| `all_lanes` | every enemy |
 | `self` / `ally` / `all_allies` | non-hostile targeting |
-| `same_row_allies` | ally row (front or back) |
 
 `AbilityData.target_shape` already exists. The shape enum updates to the new vocabulary; old shapes retire.
 
 ### Hazards — Deferred
 
-Cell-level hazards (lava, caltrops, regen tiles) are designed but **deferred for the vert slice.** The MVP grid is empty. Add hazards later if combat needs more variety.
+Lane-wide hazards (e.g. "lane 2 burns for 1 damage per tick") are designed but **deferred for the vert slice.** The MVP grid is empty. Add hazards later if combat needs more variety. If front/back depth lands post-slice, hazards can move to per-cell.
+
+### Front/Back Depth — Deferred
+
+The front/back row dimension (3 lanes × 2 deep) is **deferred for the vert slice.** Test the flat 3×1 layout first; add depth back as a post-slice feature if the slice plays well but feels too positionally thin. This decision was made to get a playable slice as fast as possible.
 
 ---
 
@@ -169,38 +166,13 @@ The auto-granted "defining ability" concept (Tower Slam = Bastion, Arcane Bolt =
 
 Defining abilities can return as a feature later if classes feel under-differentiated after the slice plays. Don't pre-build for it now.
 
-### Status Effects (in scope, from backlog)
+### Status Effects + Countdown Manipulation — Deferred
 
-New EffectType values:
+DoTs (BURN, POISON, BLEED), HoTs (REGEN), control effects (STUN, SILENCE), countdown buffs/debuffs (HASTE, SLOW), and the `COUNTDOWN_MOD` EffectType are all **deferred for the vert slice.** They were designed in this brainstorm session but pulled from the slice scope to test whether the core autobattler shape (countdown ticking + per-ability cooldown rotation + lane targeting + consumable interject) feels right *before* layering depth on top.
 
-| Type | Behavior |
-|---|---|
-| `BURN` (DoT) | N damage at start of unit's turn for K turns |
-| `POISON` (DoT) | N damage at end of unit's turn for K turns |
-| `BLEED` (DoT) | N damage when unit fires its next ability for K turns |
-| `REGEN` (HoT) | N heal at start of unit's turn for K turns |
-| `STUN` | countdown reset to `countdown_max + N` on next reset (skip turn-or-two) |
-| `SILENCE` | unit acts but only fires slot 0 (no choice from cooldown set) for K turns |
-| `HASTE` | `countdown_current` reduced by N once per turn for K turns |
-| `SLOW` | `countdown_current` increased by N once per turn for K turns |
+Vert slice abilities use only the existing EffectTypes: HARM / MEND / BUFF / DEBUFF (with stat targets that are already in the schema). FORCE and TRAVEL retire as planned. No new EffectTypes added.
 
-Status effects stored on `Unit3D.active_status_effects: Array[Dictionary]`. Each entry: `{type, duration_remaining, value, source_ability_id}`. Cleared at `_end_combat()` (no carry-over between fights).
-
-### Countdown Manipulation (in scope)
-
-New EffectType: `COUNTDOWN_MOD`. Modifies the target's `countdown_current` directly, bounded to `[0, countdown_max + 5]`.
-
-- Negative value = haste (subtract from countdown, target acts sooner)
-- Positive value = slow (add to countdown, target acts later)
-
-Specific ability patterns to author:
-
-| Ability | Effect |
-|---|---|
-| **Frostbind** (Mystic) | enemy COUNTDOWN_MOD +3 |
-| **Haste** (Warden) | ally COUNTDOWN_MOD −2 |
-| **Snap Strike** (Outlaw) | self COUNTDOWN_MOD −5 (act again immediately) |
-| **Stun Hammer** (Bastion) | enemy COUNTDOWN_MOD +countdown_max (skip next turn) |
+If the slice play-tests well, status effects + countdown manipulation are the first post-slice additions. The mechanical shape they would take is captured in the original brainstorm transcript and can be re-spec'd cleanly when needed.
 
 ---
 
@@ -236,7 +208,6 @@ The future WIL → CHA rename is out of scope for this spec.
 | Add | `spd: int` (defaults to 4 like other attrs; serialized) |
 | Add | `countdown_current: int` (transient, not serialized) |
 | Add | `countdown_max: int` (transient, computed at combat start) |
-| Add | `active_status_effects: Array[Dictionary]` (transient) |
 | Remove | `energy: int`, `energy_max: int`, `energy_regen: int` |
 | Remove | `speed: int` computed property (replaced by `spd` attribute) |
 
@@ -265,17 +236,15 @@ Role preference table:
 | TANK | HARM > BUFF (self) > DEBUFF |
 | HEALER | MEND (low-HP ally) > BUFF (ally) > HARM |
 | SUPPORTER | BUFF (ally) > DEBUFF > MEND > HARM |
-| CONTROLLER | DEBUFF > COUNTDOWN_MOD slow > HARM |
+| CONTROLLER | DEBUFF > HARM |
 
 Per-ability targeting rule (simple — no scoring):
 
-- HARM single → front-of-lane in caster's reach; fall back to back-row if front empty
-- HARM lane / adjacent / all_lanes → first valid target by rule, no scoring
+- HARM single → opposite-lane target; fall back to nearest non-empty lane if opposite is empty
+- HARM same_lane / adjacent / all_lanes → first valid target by rule, no scoring
 - MEND → lowest-HP ally in valid range
 - BUFF → first non-redundant ally
 - DEBUFF → first non-already-debuffed enemy
-- COUNTDOWN_MOD slow → enemy with lowest `countdown_current`
-- COUNTDOWN_MOD haste → ally about to act (lowest `countdown_current` ally)
 
 Critical-heal override (today's HEALER 15%-HP override) **retires** for vert slice. HEALER role just runs its preference list; lowest-HP ally is the natural pick.
 
@@ -318,12 +287,12 @@ These systems require **zero changes** for the pivot:
 ## What Gets Ripped Out
 
 - `CombatManager3D` — combat loop replaced; movement, QTE pipeline, initiative all gone
-- `Grid3D` — 10×10 cell math retires (replaced by 3×2 lane data structure)
+- `Grid3D` — 10×10 cell math retires (replaced by simple 3-lane data structure: lane 1 / lane 2 / lane 3 per side)
 - `QTEBar.gd` — retires entirely
 - `EnemyAI.gd` (Slice 2 + 3 work) — most of it retires; small priority-list module replaces
 - Energy fields and logic across `CombatantData`, ability dispatch, save/load
 - TRAVEL effect type — retires (no movement)
-- FORCE effect type — retires for now (could return later as row-swap or COUNTDOWN_MOD wrapper)
+- FORCE effect type — retires for now (could return later as a lane-swap effect or via the deferred COUNTDOWN_MOD)
 - AoE shape rendering on grid — retires
 - All CombatManager3D-tied test rooms — retire (test scaffolding pattern stays; rewrite rooms for new model)
 - Existing enemy AI scoring tests — retire (replaced by new simpler tests)
@@ -338,27 +307,21 @@ These systems require **zero changes** for the pivot:
 
 - New `CombatManager` autoload (or scene script) for turn-tick autobattler — lean, likely <500 lines
 - New `CountdownTracker` module (per-unit countdown, per-ability cooldown management)
-- New `StatusEffectProcessor` (DoT/HoT/stun/silence/haste/slow ticking + duration decrement)
 - New `EnemyAI.gd` priority-list selector (likely <100 lines)
 - New SPD attribute across `CombatantData`, character creation slot wheels, temperaments CSV, kindreds CSV
-- New EffectTypes: `BURN`, `POISON`, `BLEED`, `REGEN`, `STUN`, `SILENCE`, `HASTE`, `SLOW`, `COUNTDOWN_MOD`
-- New combat scene layout (3 lanes × 4-cell-deep 3D presentation)
-- New pre-fight placement UI (drag your 3 onto your 6 cells)
+- New combat scene layout (3 lanes flat 3D presentation, 6 cells total)
+- New pre-fight placement UI (drag your 3 active units onto your 3 lanes)
 - Migration logic for old saves (drop energy fields, derive SPD)
-- Headless tests for: countdown decrement, cooldown decrement, AI pick from off-cooldown set, status effect application/expiration, countdown manipulation, lane targeting, placement validation
+- Headless tests for: countdown decrement, cooldown decrement, AI pick from off-cooldown set, lane targeting, placement validation
 
 ---
 
 ## Open Questions / TBD
 
-- **Pre-fight placement UI** — quick wireframe needed before implementation. Mocked: 3 active party portraits sit above an empty 3×2 grid; drag-and-drop. Auto-restore last placement on subsequent combats.
+- **Pre-fight placement UI** — quick wireframe needed before implementation. Mocked: 3 active party portraits sit above an empty 3-slot lane row; drag-and-drop. Auto-restore last placement on subsequent combats.
 - **Cooldown tuning** — initial values are a starting point. Likely need iteration after first playable build.
 - **Consumable punch-up** — current consumables may feel weak as sole agency. Defer until first play-test, then re-tune.
-- **Hazards** — deferred for vert slice. Add when combat feels too samey.
 - **Enemy ability count** — current archetypes have multi-ability kits. May simplify to "1 HARM + 1 utility" max for vert slice instead of full pool. Decide during implementation.
-- **Defining class ability** — dropped for vert slice. Re-evaluate after play-test if classes feel under-differentiated.
-- **Stance + class-button** — deferred. Re-evaluate after play-test if combat feels too passive.
-- **WIL → CHA rename** — out of scope for this spec.
 
 ---
 
@@ -368,19 +331,31 @@ This is high-level. The full implementation plan is the next document.
 
 1. **SPD attribute foundation** — add field, migrate kindred speed bonuses, character creation UI, save migration
 2. **Cooldown migration** — rename `energy_cost` to `cooldown_max`, retire energy fields, update CSV reads + AbilityLibrary
-3. **Combat scaffold rewrite** — new `CombatManager`, lane-based scene, pre-fight placement UI
+3. **Combat scaffold rewrite** — new `CombatManager`, lane-based scene, pre-fight placement UI (3 lanes flat)
 4. **Countdown engine** — `countdown_current` ticking, ability cooldown decrement, AI picker scaffolding
-5. **Lane targeting** — replace AoE shapes with lane/row rules, update existing ability data
+5. **Lane targeting** — replace AoE shapes with lane rules, update existing ability data
 6. **AI simplification** — new lean priority-list module, retire role/scoring complexity
+7. **Polish + test rooms** — dev panel rebuilds, headless tests, end-to-end play-test
+8. **Consumable balance pass** — buff existing consumables to feel impactful as sole agency
 
-🎯 **First-playable milestone:** after step 6, combat is functional end-to-end. Caleb can play-test the *core* autobattler shape with no status effects, no countdown manipulation, no DoTs. **This is the slice's actual test moment** — does turn-tick autobattler with consumable agency feel right? Hold further work pending a "yes."
+🎯 **End of slice.** After step 8 the autobattler core is testable end-to-end with no status effects, no countdown manipulation, no front/back depth, no hazards. **Play-test moment:** does turn-tick autobattler with consumable agency feel right? Hold *all* deferred features until the play-test confirms the core works.
 
-7. **Status effect framework** — new EffectTypes, `StatusEffectProcessor`, DoT/HoT ticking on unit turn
-8. **Countdown manipulation** — `COUNTDOWN_MOD` effect, ability authoring, status interactions
-9. **Polish + test rooms** — dev panel rebuilds, headless tests
-10. **Consumable balance pass** — buff existing consumables to feel impactful as sole agency
+### Deferred Until Slice Validates
 
-Steps 7–10 only land if the play-test at step 6 confirms the core works. Per the vert-slice discipline note in `CLAUDE.md`, do not pre-build them.
+Captured here so they're not lost — but not in scope for this implementation:
+
+- **Status effects** — BURN, POISON, BLEED, REGEN, STUN, SILENCE, HASTE, SLOW (DoT/HoT/control framework + new EffectTypes + `StatusEffectProcessor`)
+- **Countdown manipulation** — `COUNTDOWN_MOD` EffectType for haste/slow/skip/ready abilities (Frostbind, Haste, Snap Strike, Stun Hammer)
+- **Front/back depth** — adding the row dimension (3×2 per side, hazards per cell, row-targeting shapes)
+- **Hazards** — lane-wide tile effects (lava, regen, caltrops)
+- **Stance toggle** — Aggressive/Balanced/Careful biasing AI ability picks
+- **Class-button override** — manual fire of a specific ability, skipping cooldown
+- **Defining class abilities** — auto-granted slot identity per class (Tower Slam etc.)
+- **Multi-attack penalty** — PF2e-style escalating cost on repeated same-attack use
+- **Boss-difficulty scaling** — boss-specific ability injection + threat-based stat tiers (existing backlog)
+- **WIL → CHA rename** — vocabulary drift away from Paizo identity
+
+Per the vert-slice discipline note in `CLAUDE.md`, do not pre-build any of these.
 
 ---
 
