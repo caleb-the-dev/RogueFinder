@@ -205,6 +205,7 @@ func _serialize_combatant(d: CombatantData) -> Dictionary:
 		"cognition":      d.cognition,
 		"willpower":      d.willpower,
 		"vitality":       d.vitality,
+		"spd":            d.spd,
 		"physical_armor": d.physical_armor,
 		"magic_armor":    d.magic_armor,
 		"qte_resolution": d.qte_resolution,
@@ -289,6 +290,7 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 	d.cognition      = dict.get("cognition", 2)
 	d.willpower      = dict.get("willpower", 2)
 	d.vitality       = dict.get("vitality", 2)
+	d.spd            = dict.get("spd", 4)  # default 4 for old saves missing the field
 	# Migrate old saves that stored a single armor_defense value — apply to both lanes.
 	if dict.has("physical_armor"):
 		d.physical_armor = dict.get("physical_armor", 3)

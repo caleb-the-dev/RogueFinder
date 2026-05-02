@@ -6,6 +6,7 @@ func _ready() -> void:
 	test_spd_serializes()
 	test_kindred_spd_bonus_applies()
 	test_kindred_library_returns_spd_bonus()
+	test_spd_round_trips_through_save_dict()
 	print("=== All SPD tests passed ===")
 
 func test_spd_default() -> void:
@@ -32,3 +33,11 @@ func test_kindred_library_returns_spd_bonus() -> void:
 	assert(KindredLibrary.get_stat_bonus("Skeleton", "spd") == -1, "Skeleton should have spd -1")
 	assert(KindredLibrary.get_stat_bonus("Human", "spd") == 0, "Human should have spd 0")
 	print("  PASS test_kindred_library_returns_spd_bonus")
+
+func test_spd_round_trips_through_save_dict() -> void:
+	var d := CombatantData.new()
+	d.spd = 7
+	var dict: Dictionary = GameState._serialize_combatant(d)
+	var rebuilt: CombatantData = GameState._deserialize_combatant(dict)
+	assert(rebuilt.spd == 7, "spd should round-trip through save dict, got %d" % rebuilt.spd)
+	print("  PASS test_spd_round_trips_through_save_dict")
