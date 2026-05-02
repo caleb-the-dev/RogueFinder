@@ -96,6 +96,16 @@ Do NOT test: rendering, input, anything needing a live scene.
 
 ---
 
+## Scoping Discipline (Vertical Slices & Prototypes)
+
+When working on a vertical slice, prototype, or proof-of-concept, **push back on scope creep.** A slice is meant to test a core question fast and stay disposable — features added defensively are wasted work when the slice reveals a needed pivot.
+
+When Caleb adds a feature mid-slice, ask: *"Is this needed to learn what the slice is meant to learn?"* If no, push to defer it. Default to less, not more.
+
+**Lesson from Stage 1.5 (2026-05-02):** ~2 weeks spent over-scoping the vertical slice — full 10×10 grid combat, role-driven enemy AI, FORCE planner backlog, 36 tiered items, layered build system — before play-testing revealed the combat genre itself needed to pivot. Most of that combat-layer work is now being thrown out. Depth can come after the slice proves the core.
+
+---
+
 ## Version Control Workflow
 
 - Every session, create and push a branch named `claude/<feature>-<YYYYMMDD>` before any work.
