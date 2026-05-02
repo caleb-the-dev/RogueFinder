@@ -72,7 +72,8 @@ enum DamageType {
 ## RADIAL: if false, a unit at distance-1 blocks distance-2 cells behind it.
 ## LINE: if false, effect stops at the first occupied cell.
 @export var passthrough:   bool         = false
-@export var energy_cost:   int          = 0
+@export var energy_cost:   int          = 0  # legacy — retired in Slice 7
+@export var cooldown_max:  int          = 0  # autobattler — turns until ability can fire again
 @export var effects:       Array[EffectData] = []
 @export var description:   String       = ""
 ## ID of the upgraded form of this ability; empty if no upgrade exists.

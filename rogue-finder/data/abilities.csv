@@ -1,64 +1,64 @@
-id,name,attribute,target,applicable_to,range,passthrough,cost,description,effects,damage_type,upgraded_id,notes
-strike,Strike,STRENGTH,SINGLE,ENEMY,1,false,2,Deal 5 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,
-heavy_strike,Heavy Strike,STRENGTH,SINGLE,ENEMY,1,false,4,Deal 9 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":9,""pool"":""HP""}]",PHYSICAL,,
-quick_shot,Quick Shot,DEXTERITY,SINGLE,ENEMY,3,false,2,Deal 4 physical damage to one enemy within 3 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,,
-disengage,Disengage,DEXTERITY,SELF,ANY,1,false,2,Move 1 tile freely.,"[{""type"":""TRAVEL"",""base_value"":1,""move"":""FREE""}]",NONE,,
-acid_splash,Acid Splash,COGNITION,SINGLE,ENEMY,3,false,3,Deal 3 magic damage and reduce target DEX by 1 (range 3).,"[{""type"":""HARM"",""base_value"":3,""pool"":""HP""},{""type"":""DEBUFF"",""base_value"":1,""stat"":""DEXTERITY""}]",MAGIC,,
-smoke_bomb,Smoke Bomb,COGNITION,RADIAL,ANY,2,false,2,Reduce DEX by 1 for all units within 2 tiles.,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""DEXTERITY""}]",NONE,,
-healing_draught,Healing Draught,VITALITY,SELF,ANY,0,false,3,Restore 5 HP to yourself.,"[{""type"":""MEND"",""base_value"":5,""pool"":""HP""}]",NONE,,
-shield_bash,Shield Bash,STRENGTH,SINGLE,ENEMY,1,false,3,Deal 3 physical damage to one adjacent enemy and reduce their STR by 1.,"[{""type"":""HARM"",""base_value"":3,""pool"":""HP""},{""type"":""DEBUFF"",""base_value"":1,""stat"":""STRENGTH""}]",PHYSICAL,,
-counter,Counter,WILLPOWER,SELF,ANY,0,false,2,Gain +2 STR until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""STRENGTH""}]",NONE,,
-taunt,Taunt,WILLPOWER,SINGLE,ENEMY,3,false,1,Reduce target WIL by 1 (range 3).,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""WILLPOWER""}]",NONE,,
-inspire,Inspire,WILLPOWER,SINGLE,ALLY,3,false,3,Grant one ally +1 STR (range 3).,"[{""type"":""BUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,
-guard,Guard,VITALITY,SELF,ANY,0,false,2,Gain +2 VIT until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""VITALITY""}]",NONE,enhanced_guard,armor ability
-sweep,Sweep,STRENGTH,ARC,ENEMY,1,false,3,Deal 4 physical damage to all enemies in a 3-wide arc.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,,
-fireball,Fireball,COGNITION,RADIAL,ANY,4,false,5,"Deal 6 magic damage to all units within 4 tiles. Hits allies. Inner units block those behind them.","[{""type"":""HARM"",""base_value"":6,""pool"":""HP""}]",MAGIC,,passthrough=false is explicit; inner units block those behind them
-heal_burst,Heal Burst,WILLPOWER,RADIAL,ALLY,2,true,4,Restore 5 HP to all allies within 2 tiles.,"[{""type"":""MEND"",""base_value"":5,""pool"":""HP""}]",NONE,,
-charge,Charge,STRENGTH,SELF,ANY,3,false,2,Move 3 tiles in a straight line.,"[{""type"":""TRAVEL"",""base_value"":3,""move"":""LINE""}]",NONE,,
-gust,Gust,DEXTERITY,SINGLE,ANY,3,false,2,Push target 2 tiles away (range 3).,"[{""type"":""FORCE"",""base_value"":2,""force"":""PUSH""}]",NONE,,
-yank,Yank,STRENGTH,SINGLE,ANY,3,false,2,Pull target 2 tiles toward you (range 3).,"[{""type"":""FORCE"",""base_value"":2,""force"":""PULL""}]",NONE,,
-shove,Shove,STRENGTH,SINGLE,ENEMY,1,false,3,Push one adjacent enemy 2 tiles away.,"[{""type"":""FORCE"",""base_value"":2,""force"":""PUSH""}]",NONE,,
-windblast,Windblast,COGNITION,RADIAL,ENEMY,3,true,3,Push all enemies 2 tiles away from the center (range 3).,"[{""type"":""FORCE"",""base_value"":2,""force"":""RADIAL""}]",NONE,,
-fire_breath,Fire Breath,COGNITION,CONE,ENEMY,1,false,4,Deal 5 magic damage to all enemies in a cone up to 3 tiles deep.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",MAGIC,,
-piercing_shot,Piercing Shot,DEXTERITY,LINE,ENEMY,4,true,3,Deal 4 physical damage to all enemies in a straight line up to 4 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,,
-focused_strike,Focused Strike,STRENGTH,SINGLE,ENEMY,1,false,2,Deal 5 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,kindred: Human natural attack
-savage_blow,Savage Blow,STRENGTH,SINGLE,ENEMY,1,false,2,Deal 6 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":6,""pool"":""HP""}]",PHYSICAL,,kindred: Half-Orc natural attack
-gadget_spark,Gadget Spark,COGNITION,SINGLE,ENEMY,2,false,2,Deal 4 magic damage to one enemy within 2 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",MAGIC,,kindred: Gnome natural attack; range 2 to reflect tinkerer distance
-stone_fist,Stone Fist,STRENGTH,SINGLE,ENEMY,1,false,2,Deal 5 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,kindred: Dwarf natural attack
-steadfast,Steadfast,WILLPOWER,SELF,ANY,0,false,2,Gain +2 VIT until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""VITALITY""}]",NONE,,kindred ancestry; Human + Dwarf pool
-battle_surge,Battle Surge,STRENGTH,SELF,ANY,0,false,3,Gain +2 STR until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""STRENGTH""}]",NONE,,kindred ancestry; Half-Orc pool
-warcry,Warcry,WILLPOWER,ARC,ENEMY,1,false,2,Reduce all adjacent enemies' STR by 1.,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,kindred ancestry; Half-Orc pool
-tinker_boost,Tinker Boost,COGNITION,SELF,ANY,0,false,2,Gain +1 COG until end of combat.,"[{""type"":""BUFF"",""base_value"":1,""stat"":""COGNITION""}]",NONE,,kindred ancestry; Gnome pool
-quick_wit,Quick Wit,COGNITION,SINGLE,ENEMY,3,false,2,Reduce target COG by 1 (range 3).,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""COGNITION""}]",NONE,,kindred ancestry; Gnome + Human pool
-stone_guard,Stone Guard,STRENGTH,SELF,ANY,0,false,2,Gain +2 physical armor for this combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""PHYSICAL_ARMOR_MOD""}]",NONE,fortified_guard,kindred ancestry; Dwarf pool; armor ability
-tower_slam,Tower Slam,STRENGTH,SINGLE,ENEMY,1,false,3,Deal 4 physical damage to one adjacent enemy and push them 1 tile away.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""},{""type"":""FORCE"",""base_value"":1,""force"":""PUSH""}]",PHYSICAL,,class defining; Vanguard
-arcane_bolt,Arcane Bolt,COGNITION,SINGLE,ENEMY,4,false,3,Deal 5 magic damage to one enemy within 4 tiles.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",MAGIC,,class defining; Arcanist
-slipshot,Slipshot,DEXTERITY,SINGLE,ENEMY,3,false,3,Deal 4 physical damage to one enemy within 3 tiles then move 1 tile freely.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""},{""type"":""TRAVEL"",""base_value"":1,""move"":""FREE""}]",PHYSICAL,,class defining; Prowler
-bless,Bless,WILLPOWER,SINGLE,ALLY,3,false,2,Grant one ally +1 STR (range 3).,"[{""type"":""BUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,class defining; Warden
-backstab,Backstab,DEXTERITY,SINGLE,ENEMY,1,false,3,Deal 6 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":6,""pool"":""HP""}]",PHYSICAL,,Prowler pool
-crippling_shot,Crippling Shot,DEXTERITY,SINGLE,ENEMY,3,false,3,Deal 3 physical damage and reduce target DEX by 1 (range 3).,"[{""type"":""HARM"",""base_value"":3,""pool"":""HP""},{""type"":""DEBUFF"",""base_value"":1,""stat"":""DEXTERITY""}]",PHYSICAL,,Prowler pool
-vanishing_step,Vanishing Step,DEXTERITY,SELF,ANY,0,false,2,Gain +2 DEX until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""DEXTERITY""}]",NONE,,Prowler pool
-lay_on_hands,Lay on Hands,WILLPOWER,SINGLE,ALLY,1,false,3,Restore 6 HP to one adjacent ally.,"[{""type"":""MEND"",""base_value"":6,""pool"":""HP""}]",NONE,,Warden pool
-divine_ward,Divine Ward,WILLPOWER,SELF,ANY,0,false,2,Gain +2 magic armor for this combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""MAGIC_ARMOR_MOD""}]",NONE,greater_ward,Warden pool; armor ability
-rallying_shout,Rallying Shout,WILLPOWER,ARC,ALLY,1,false,3,Grant all adjacent allies +1 STR.,"[{""type"":""BUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,Warden pool
-bone_strike,Bone Strike,STRENGTH,SINGLE,ENEMY,1,false,2,Deal 5 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,kindred: Skeleton natural attack
-grim_endurance,Grim Endurance,WILLPOWER,SELF,ANY,0,false,2,Gain +2 VIT until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""VITALITY""}]",NONE,,kindred ancestry; Skeleton pool
-death_rattle,Death Rattle,WILLPOWER,SINGLE,ENEMY,2,false,2,Reduce target WIL by 1 (range 2).,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""WILLPOWER""}]",NONE,,kindred ancestry; Skeleton pool
-gnaw,Gnaw,STRENGTH,SINGLE,ENEMY,1,false,2,Deal 4 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,,kindred: Giant Rat natural attack
-scatter,Scatter,DEXTERITY,SELF,ANY,0,false,1,Move 2 tiles freely.,"[{""type"":""TRAVEL"",""base_value"":2,""move"":""FREE""}]",NONE,,kindred ancestry; Giant Rat pool; cost 1 — intentionally cheapest move in the game
-pack_instinct,Pack Instinct,WILLPOWER,ARC,ALLY,1,false,2,Grant all adjacent allies +1 STR.,"[{""type"":""BUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,kindred ancestry; Giant Rat pool
-venom_bite,Venom Bite,DEXTERITY,SINGLE,ENEMY,1,false,2,Deal 3 physical damage to one adjacent enemy and reduce their DEX by 1.,"[{""type"":""HARM"",""base_value"":3,""pool"":""HP""},{""type"":""DEBUFF"",""base_value"":1,""stat"":""DEXTERITY""}]",PHYSICAL,,kindred: Spider natural attack
-web_shot,Web Shot,COGNITION,SINGLE,ENEMY,3,false,3,Reduce target DEX by 2 (range 3).,"[{""type"":""DEBUFF"",""base_value"":2,""stat"":""DEXTERITY""}]",NONE,,kindred ancestry; Spider pool; -2 dex intentionally potent
-skitter,Skitter,DEXTERITY,SELF,ANY,0,false,2,Gain +2 DEX until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""DEXTERITY""}]",NONE,,kindred ancestry; Spider pool
-claw_swipe,Claw Swipe,STRENGTH,ARC,ENEMY,1,false,2,Deal 5 physical damage to all enemies in a 3-wide arc.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,kindred: Dragon natural attack; arc target at natural-attack cost
-draconic_breath,Draconic Breath,COGNITION,CONE,ENEMY,1,false,3,Deal 4 magic damage to all enemies in a cone up to 3 tiles deep.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",MAGIC,,kindred ancestry; Dragon pool; cheaper cone than fire_breath
-scales_up,Scales Up,STRENGTH,SELF,ANY,0,false,2,Gain +2 physical armor for this combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""PHYSICAL_ARMOR_MOD""}]",NONE,,kindred ancestry; Dragon pool
-blade_strike,Blade Strike,STRENGTH,SINGLE,ENEMY,1,false,2,Deal 4 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,heavy_blade_strike,weapon ability; STR family base
-heavy_blade_strike,Heavy Blade Strike,STRENGTH,SINGLE,ENEMY,1,false,2,Deal 7 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":7,""pool"":""HP""}]",PHYSICAL,,weapon ability; STR family upgraded
-quick_draw,Quick Draw,DEXTERITY,SINGLE,ENEMY,3,false,2,Deal 4 physical damage to one enemy within 3 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,aimed_draw,weapon ability; DEX family base
-aimed_draw,Aimed Draw,DEXTERITY,SINGLE,ENEMY,3,false,2,Deal 6 physical damage to one enemy within 3 tiles.,"[{""type"":""HARM"",""base_value"":6,""pool"":""HP""}]",PHYSICAL,,weapon ability; DEX family upgraded
-staff_bolt,Staff Bolt,COGNITION,SINGLE,ENEMY,4,false,3,Deal 4 magic damage to one enemy within 4 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",MAGIC,empowered_bolt,weapon ability; COG family base
-empowered_bolt,Empowered Bolt,COGNITION,SINGLE,ENEMY,4,false,3,Deal 7 magic damage to one enemy within 4 tiles.,"[{""type"":""HARM"",""base_value"":7,""pool"":""HP""}]",MAGIC,,weapon ability; COG family upgraded
-fortified_guard,Fortified Guard,STRENGTH,SELF,ANY,0,false,2,Gain +3 physical armor for this combat.,"[{""type"":""BUFF"",""base_value"":3,""stat"":""PHYSICAL_ARMOR_MOD""}]",NONE,,armor ability; Iron Plate upgraded
-enhanced_guard,Enhanced Guard,VITALITY,SELF,ANY,0,false,2,Gain +3 VIT until end of combat.,"[{""type"":""BUFF"",""base_value"":3,""stat"":""VITALITY""}]",NONE,,armor ability; Scale Mail upgraded
-greater_ward,Greater Ward,WILLPOWER,SELF,ANY,0,false,2,Gain +3 magic armor for this combat.,"[{""type"":""BUFF"",""base_value"":3,""stat"":""MAGIC_ARMOR_MOD""}]",NONE,,armor ability; Mystic Robe upgraded
+id,name,attribute,target,applicable_to,range,passthrough,cost,cooldown,description,effects,damage_type,upgraded_id,notes
+strike,Strike,STRENGTH,SINGLE,ENEMY,1,false,2,2,Deal 5 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,
+heavy_strike,Heavy Strike,STRENGTH,SINGLE,ENEMY,1,false,4,3,Deal 9 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":9,""pool"":""HP""}]",PHYSICAL,,
+quick_shot,Quick Shot,DEXTERITY,SINGLE,ENEMY,3,false,2,2,Deal 4 physical damage to one enemy within 3 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,,
+disengage,Disengage,DEXTERITY,SELF,ANY,1,false,2,2,Move 1 tile freely.,"[{""type"":""TRAVEL"",""base_value"":1,""move"":""FREE""}]",NONE,,
+acid_splash,Acid Splash,COGNITION,SINGLE,ENEMY,3,false,3,3,Deal 3 magic damage and reduce target DEX by 1 (range 3).,"[{""type"":""HARM"",""base_value"":3,""pool"":""HP""},{""type"":""DEBUFF"",""base_value"":1,""stat"":""DEXTERITY""}]",MAGIC,,
+smoke_bomb,Smoke Bomb,COGNITION,RADIAL,ANY,2,false,2,2,Reduce DEX by 1 for all units within 2 tiles.,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""DEXTERITY""}]",NONE,,
+healing_draught,Healing Draught,VITALITY,SELF,ANY,0,false,3,3,Restore 5 HP to yourself.,"[{""type"":""MEND"",""base_value"":5,""pool"":""HP""}]",NONE,,
+shield_bash,Shield Bash,STRENGTH,SINGLE,ENEMY,1,false,3,3,Deal 3 physical damage to one adjacent enemy and reduce their STR by 1.,"[{""type"":""HARM"",""base_value"":3,""pool"":""HP""},{""type"":""DEBUFF"",""base_value"":1,""stat"":""STRENGTH""}]",PHYSICAL,,
+counter,Counter,WILLPOWER,SELF,ANY,0,false,2,2,Gain +2 STR until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""STRENGTH""}]",NONE,,
+taunt,Taunt,WILLPOWER,SINGLE,ENEMY,3,false,1,2,Reduce target WIL by 1 (range 3).,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""WILLPOWER""}]",NONE,,
+inspire,Inspire,WILLPOWER,SINGLE,ALLY,3,false,3,3,Grant one ally +1 STR (range 3).,"[{""type"":""BUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,
+guard,Guard,VITALITY,SELF,ANY,0,false,2,2,Gain +2 VIT until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""VITALITY""}]",NONE,enhanced_guard,armor ability
+sweep,Sweep,STRENGTH,ARC,ENEMY,1,false,3,3,Deal 4 physical damage to all enemies in a 3-wide arc.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,,
+fireball,Fireball,COGNITION,RADIAL,ANY,4,false,5,5,"Deal 6 magic damage to all units within 4 tiles. Hits allies. Inner units block those behind them.","[{""type"":""HARM"",""base_value"":6,""pool"":""HP""}]",MAGIC,,passthrough=false is explicit; inner units block those behind them
+heal_burst,Heal Burst,WILLPOWER,RADIAL,ALLY,2,true,4,3,Restore 5 HP to all allies within 2 tiles.,"[{""type"":""MEND"",""base_value"":5,""pool"":""HP""}]",NONE,,
+charge,Charge,STRENGTH,SELF,ANY,3,false,2,2,Move 3 tiles in a straight line.,"[{""type"":""TRAVEL"",""base_value"":3,""move"":""LINE""}]",NONE,,
+gust,Gust,DEXTERITY,SINGLE,ANY,3,false,2,2,Push target 2 tiles away (range 3).,"[{""type"":""FORCE"",""base_value"":2,""force"":""PUSH""}]",NONE,,
+yank,Yank,STRENGTH,SINGLE,ANY,3,false,2,2,Pull target 2 tiles toward you (range 3).,"[{""type"":""FORCE"",""base_value"":2,""force"":""PULL""}]",NONE,,
+shove,Shove,STRENGTH,SINGLE,ENEMY,1,false,3,3,Push one adjacent enemy 2 tiles away.,"[{""type"":""FORCE"",""base_value"":2,""force"":""PUSH""}]",NONE,,
+windblast,Windblast,COGNITION,RADIAL,ENEMY,3,true,3,3,Push all enemies 2 tiles away from the center (range 3).,"[{""type"":""FORCE"",""base_value"":2,""force"":""RADIAL""}]",NONE,,
+fire_breath,Fire Breath,COGNITION,CONE,ENEMY,1,false,4,3,Deal 5 magic damage to all enemies in a cone up to 3 tiles deep.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",MAGIC,,
+piercing_shot,Piercing Shot,DEXTERITY,LINE,ENEMY,4,true,3,3,Deal 4 physical damage to all enemies in a straight line up to 4 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,,
+focused_strike,Focused Strike,STRENGTH,SINGLE,ENEMY,1,false,2,2,Deal 5 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,kindred: Human natural attack
+savage_blow,Savage Blow,STRENGTH,SINGLE,ENEMY,1,false,2,2,Deal 6 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":6,""pool"":""HP""}]",PHYSICAL,,kindred: Half-Orc natural attack
+gadget_spark,Gadget Spark,COGNITION,SINGLE,ENEMY,2,false,2,2,Deal 4 magic damage to one enemy within 2 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",MAGIC,,kindred: Gnome natural attack; range 2 to reflect tinkerer distance
+stone_fist,Stone Fist,STRENGTH,SINGLE,ENEMY,1,false,2,2,Deal 5 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,kindred: Dwarf natural attack
+steadfast,Steadfast,WILLPOWER,SELF,ANY,0,false,2,2,Gain +2 VIT until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""VITALITY""}]",NONE,,kindred ancestry; Human + Dwarf pool
+battle_surge,Battle Surge,STRENGTH,SELF,ANY,0,false,3,3,Gain +2 STR until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""STRENGTH""}]",NONE,,kindred ancestry; Half-Orc pool
+warcry,Warcry,WILLPOWER,ARC,ENEMY,1,false,2,2,Reduce all adjacent enemies' STR by 1.,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,kindred ancestry; Half-Orc pool
+tinker_boost,Tinker Boost,COGNITION,SELF,ANY,0,false,2,2,Gain +1 COG until end of combat.,"[{""type"":""BUFF"",""base_value"":1,""stat"":""COGNITION""}]",NONE,,kindred ancestry; Gnome pool
+quick_wit,Quick Wit,COGNITION,SINGLE,ENEMY,3,false,2,2,Reduce target COG by 1 (range 3).,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""COGNITION""}]",NONE,,kindred ancestry; Gnome + Human pool
+stone_guard,Stone Guard,STRENGTH,SELF,ANY,0,false,2,2,Gain +2 physical armor for this combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""PHYSICAL_ARMOR_MOD""}]",NONE,fortified_guard,kindred ancestry; Dwarf pool; armor ability
+tower_slam,Tower Slam,STRENGTH,SINGLE,ENEMY,1,false,3,3,Deal 4 physical damage to one adjacent enemy and push them 1 tile away.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""},{""type"":""FORCE"",""base_value"":1,""force"":""PUSH""}]",PHYSICAL,,class defining; Vanguard
+arcane_bolt,Arcane Bolt,COGNITION,SINGLE,ENEMY,4,false,3,3,Deal 5 magic damage to one enemy within 4 tiles.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",MAGIC,,class defining; Arcanist
+slipshot,Slipshot,DEXTERITY,SINGLE,ENEMY,3,false,3,3,Deal 4 physical damage to one enemy within 3 tiles then move 1 tile freely.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""},{""type"":""TRAVEL"",""base_value"":1,""move"":""FREE""}]",PHYSICAL,,class defining; Prowler
+bless,Bless,WILLPOWER,SINGLE,ALLY,3,false,2,2,Grant one ally +1 STR (range 3).,"[{""type"":""BUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,class defining; Warden
+backstab,Backstab,DEXTERITY,SINGLE,ENEMY,1,false,3,3,Deal 6 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":6,""pool"":""HP""}]",PHYSICAL,,Prowler pool
+crippling_shot,Crippling Shot,DEXTERITY,SINGLE,ENEMY,3,false,3,3,Deal 3 physical damage and reduce target DEX by 1 (range 3).,"[{""type"":""HARM"",""base_value"":3,""pool"":""HP""},{""type"":""DEBUFF"",""base_value"":1,""stat"":""DEXTERITY""}]",PHYSICAL,,Prowler pool
+vanishing_step,Vanishing Step,DEXTERITY,SELF,ANY,0,false,2,2,Gain +2 DEX until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""DEXTERITY""}]",NONE,,Prowler pool
+lay_on_hands,Lay on Hands,WILLPOWER,SINGLE,ALLY,1,false,3,3,Restore 6 HP to one adjacent ally.,"[{""type"":""MEND"",""base_value"":6,""pool"":""HP""}]",NONE,,Warden pool
+divine_ward,Divine Ward,WILLPOWER,SELF,ANY,0,false,2,2,Gain +2 magic armor for this combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""MAGIC_ARMOR_MOD""}]",NONE,greater_ward,Warden pool; armor ability
+rallying_shout,Rallying Shout,WILLPOWER,ARC,ALLY,1,false,3,3,Grant all adjacent allies +1 STR.,"[{""type"":""BUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,Warden pool
+bone_strike,Bone Strike,STRENGTH,SINGLE,ENEMY,1,false,2,2,Deal 5 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,kindred: Skeleton natural attack
+grim_endurance,Grim Endurance,WILLPOWER,SELF,ANY,0,false,2,2,Gain +2 VIT until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""VITALITY""}]",NONE,,kindred ancestry; Skeleton pool
+death_rattle,Death Rattle,WILLPOWER,SINGLE,ENEMY,2,false,2,2,Reduce target WIL by 1 (range 2).,"[{""type"":""DEBUFF"",""base_value"":1,""stat"":""WILLPOWER""}]",NONE,,kindred ancestry; Skeleton pool
+gnaw,Gnaw,STRENGTH,SINGLE,ENEMY,1,false,2,2,Deal 4 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,,kindred: Giant Rat natural attack
+scatter,Scatter,DEXTERITY,SELF,ANY,0,false,1,2,Move 2 tiles freely.,"[{""type"":""TRAVEL"",""base_value"":2,""move"":""FREE""}]",NONE,,kindred ancestry; Giant Rat pool; cost 1 — intentionally cheapest move in the game
+pack_instinct,Pack Instinct,WILLPOWER,ARC,ALLY,1,false,2,2,Grant all adjacent allies +1 STR.,"[{""type"":""BUFF"",""base_value"":1,""stat"":""STRENGTH""}]",NONE,,kindred ancestry; Giant Rat pool
+venom_bite,Venom Bite,DEXTERITY,SINGLE,ENEMY,1,false,2,2,Deal 3 physical damage to one adjacent enemy and reduce their DEX by 1.,"[{""type"":""HARM"",""base_value"":3,""pool"":""HP""},{""type"":""DEBUFF"",""base_value"":1,""stat"":""DEXTERITY""}]",PHYSICAL,,kindred: Spider natural attack
+web_shot,Web Shot,COGNITION,SINGLE,ENEMY,3,false,3,3,Reduce target DEX by 2 (range 3).,"[{""type"":""DEBUFF"",""base_value"":2,""stat"":""DEXTERITY""}]",NONE,,kindred ancestry; Spider pool; -2 dex intentionally potent
+skitter,Skitter,DEXTERITY,SELF,ANY,0,false,2,2,Gain +2 DEX until end of combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""DEXTERITY""}]",NONE,,kindred ancestry; Spider pool
+claw_swipe,Claw Swipe,STRENGTH,ARC,ENEMY,1,false,2,2,Deal 5 physical damage to all enemies in a 3-wide arc.,"[{""type"":""HARM"",""base_value"":5,""pool"":""HP""}]",PHYSICAL,,kindred: Dragon natural attack; arc target at natural-attack cost
+draconic_breath,Draconic Breath,COGNITION,CONE,ENEMY,1,false,3,3,Deal 4 magic damage to all enemies in a cone up to 3 tiles deep.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",MAGIC,,kindred ancestry; Dragon pool; cheaper cone than fire_breath
+scales_up,Scales Up,STRENGTH,SELF,ANY,0,false,2,2,Gain +2 physical armor for this combat.,"[{""type"":""BUFF"",""base_value"":2,""stat"":""PHYSICAL_ARMOR_MOD""}]",NONE,,kindred ancestry; Dragon pool
+blade_strike,Blade Strike,STRENGTH,SINGLE,ENEMY,1,false,2,2,Deal 4 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,heavy_blade_strike,weapon ability; STR family base
+heavy_blade_strike,Heavy Blade Strike,STRENGTH,SINGLE,ENEMY,1,false,2,2,Deal 7 physical damage to one adjacent enemy.,"[{""type"":""HARM"",""base_value"":7,""pool"":""HP""}]",PHYSICAL,,weapon ability; STR family upgraded
+quick_draw,Quick Draw,DEXTERITY,SINGLE,ENEMY,3,false,2,2,Deal 4 physical damage to one enemy within 3 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",PHYSICAL,aimed_draw,weapon ability; DEX family base
+aimed_draw,Aimed Draw,DEXTERITY,SINGLE,ENEMY,3,false,2,2,Deal 6 physical damage to one enemy within 3 tiles.,"[{""type"":""HARM"",""base_value"":6,""pool"":""HP""}]",PHYSICAL,,weapon ability; DEX family upgraded
+staff_bolt,Staff Bolt,COGNITION,SINGLE,ENEMY,4,false,3,3,Deal 4 magic damage to one enemy within 4 tiles.,"[{""type"":""HARM"",""base_value"":4,""pool"":""HP""}]",MAGIC,empowered_bolt,weapon ability; COG family base
+empowered_bolt,Empowered Bolt,COGNITION,SINGLE,ENEMY,4,false,3,3,Deal 7 magic damage to one enemy within 4 tiles.,"[{""type"":""HARM"",""base_value"":7,""pool"":""HP""}]",MAGIC,,weapon ability; COG family upgraded
+fortified_guard,Fortified Guard,STRENGTH,SELF,ANY,0,false,2,2,Gain +3 physical armor for this combat.,"[{""type"":""BUFF"",""base_value"":3,""stat"":""PHYSICAL_ARMOR_MOD""}]",NONE,,armor ability; Iron Plate upgraded
+enhanced_guard,Enhanced Guard,VITALITY,SELF,ANY,0,false,2,2,Gain +3 VIT until end of combat.,"[{""type"":""BUFF"",""base_value"":3,""stat"":""VITALITY""}]",NONE,,armor ability; Scale Mail upgraded
+greater_ward,Greater Ward,WILLPOWER,SELF,ANY,0,false,2,2,Gain +3 magic armor for this combat.,"[{""type"":""BUFF"",""base_value"":3,""stat"":""MAGIC_ARMOR_MOD""}]",NONE,,armor ability; Mystic Robe upgraded
