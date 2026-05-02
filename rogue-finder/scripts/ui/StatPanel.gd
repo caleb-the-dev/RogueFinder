@@ -122,7 +122,7 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	lines.append("[b]── Attributes ──[/b]")
 	lines.append("STR [b]%d[/b]   DEX [b]%d[/b]   COG [b]%d[/b]" \
 		% [d.strength, d.dexterity, d.cognition])
-	lines.append("WIL [b]%d[/b]   VIT [b]%d[/b]" % [d.willpower, d.vitality])
+	lines.append("WIL [b]%d[/b]   VIT [b]%d[/b]   SPD [b]%d[/b]" % [d.willpower, d.vitality, d.effective_stat("spd")])
 	lines.append("")
 
 	# -- Derived Stats --

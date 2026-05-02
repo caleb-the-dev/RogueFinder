@@ -57,6 +57,7 @@ extends Resource
 @export_range(1, 10) var cognition: int = 4  # Intelligence; reserved for ability costs
 @export_range(1, 10) var willpower: int = 4  # Resolve; drives energy recharge
 @export_range(1, 10) var vitality:  int = 4  # Toughness; drives HP and energy pool
+@export_range(1, 10) var spd:       int = 4  # Speed; drives countdown_max in autobattler
 
 ## ======================================================
 ## --- Equipment Slots ---
@@ -230,6 +231,7 @@ func effective_stat(stat: String) -> int:
 		"cognition": raw = cognition
 		"vitality":  raw = vitality
 		"willpower": raw = willpower
+		"spd":       raw = spd
 		_: return 0
 	return raw + _equip_bonus(stat) + get_feat_stat_bonus(stat) + get_class_stat_bonus(stat) \
 		+ get_kindred_stat_bonus(stat) + get_background_stat_bonus(stat) + get_temperament_stat_bonus(stat)
