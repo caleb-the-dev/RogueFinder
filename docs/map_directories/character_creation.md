@@ -54,7 +54,7 @@ Layout — two-column body inside a full-rect `MarginContainer` (40 px margins).
   - `LineEdit` (name) + 🎲 button (random name from active kindred's pool; "Unit" fallback on empty pool)
   - Four slot-wheel dial columns: Kindred · Class · Background · Portrait
   - "Begin Run" confirm button
-- **Right column (2)** — live preview `PanelContainer` showing HP, Speed, per-attribute row (STR / DEX / COG / WIL / VIT — **deterministic values from pillar picks**), class ability name + description, kindred ability name + description, background feat name + description. Updates live from `_calc_preview()` on every dial change.
+- **Right column (2)** — live preview `PanelContainer` showing HP, Speed, per-attribute row (STR / DEX / COG / WIL / VIT / **SPD** — **deterministic values from pillar picks**), class ability name + description, kindred ability name + description, background feat name + description. Updates live from `_calc_preview()` on every dial change.
 
 Each dial column shows the current selection (20 px, light highlight panel) flanked by ghost neighbours at 25% opacity / 12 px. All children built in `_build_ui()`.
 
@@ -67,12 +67,12 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_build_ui()` | Constructs name row + four dial columns + confirm button + preview panel |
 | `_build_text_dial(header, ids, display, on_select)` | Returns a `PanelContainer` drum column with ▲/▼ and three visible text rows (prev ghost, current highlighted, next ghost). `idx` stored in a single-element `Array[int]` — required because GDScript 4 closures capture locals by value. |
 | `_build_portrait_dial()` | Same drum column shape but shows `TextureRect` (icon.svg). Arrows disabled (1 portrait option until art ships). |
-| `_build_preview_panel()` | Returns a `PanelContainer` holding: HP + Speed strip, per-attribute row (STR/DEX/COG/WIL/VIT), class ability name+desc, kindred ability name+desc, background feat name+desc. Stores thirteen label refs as instance vars. No Reroll button (stats are deterministic). |
+| `_build_preview_panel()` | Returns a `PanelContainer` holding: HP + Speed strip, per-attribute row (STR/DEX/COG/WIL/VIT/SPD), class ability name+desc, kindred ability name+desc, background feat name+desc. Stores fourteen label refs as instance vars. No Reroll button (stats are deterministic). |
 | `_make_stat_label(text)` | One-line `Label` helper with font size 14. |
 | `_on_back()` | Changes scene to `MainMenuScene`. No state mutation — save survives. |
 | `_on_dice_name()` | Reads active kindred's name pool via `KindredLibrary.get_name_pool()`; falls back to "Unit" on empty pool |
 | `_on_confirm()` | **Commit point.** Calls `GameState.delete_save()` + `GameState.reset()`, then `_build_pc(...)`, appends to `GameState.party`, transitions to `MapScene`. |
-| `_calc_preview()` | Returns a `Dictionary` of preview values AND pushes them into the preview labels. Reads `_kindred_idx` / `_class_idx` / `_bg_idx`. Computes stats deterministically: `base 4 + class_bonus + kindred_bonus + bg_bonus`. HP and speed computed from pillar picks. Preview shows class ability, kindred ability, background feat. Returns `-> Dictionary` so a future component can consume it without a live UI. |
+| `_calc_preview()` | Returns a `Dictionary` of preview values AND pushes them into the preview labels. Reads `_kindred_idx` / `_class_idx` / `_bg_idx`. Computes stats deterministically: `base 4 + class_bonus + kindred_bonus + bg_bonus`. SPD = `4 + kindred.spd_bonus + class.spd_bonus + bg.spd_bonus` (most classes/bg have 0 spd; only kindred currently contributes). HP and speed computed from pillar picks. Preview shows class ability, kindred ability, background feat. Returns `-> Dictionary` so a future component can consume it without a live UI. |
 | `static _build_pc(char_name, kindred_id, class_id, bg_id, _portrait_id)` | Builds `CombatantData` field-by-field from picks. **Static** so unit tests call it without a live scene. Stats are deterministic (no `rolled_stats` param). |
 
 ### _build_pc field assignments
@@ -112,7 +112,7 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 | `_bg_idx` | `int` | Current background dial selection index |
 | `_preview_hp_lbl` | `Label` | "HP: N" (deterministic from pillar picks) |
 | `_preview_speed_lbl` | `Label` | "Speed: N" |
-| `_preview_str_lbl` / `_dex` / `_cog` / `_wil` / `_vit` | `Label` × 5 | Per-attribute row labels — deterministic pillar-computed values |
+| `_preview_str_lbl` / `_dex` / `_cog` / `_wil` / `_vit` / `_spd` | `Label` × 6 | Per-attribute row labels — deterministic pillar-computed values; SPD added in Combat Pivot Slice 1 |
 | `_preview_class_name` | `Label` | "Class Ability — \<name\>" row |
 | `_preview_class_desc` | `Label` | Class ability description (autowrap, 75% opacity) |
 | `_preview_kindred_name` | `Label` | "Kindred Ability — \<name\>" row |
@@ -154,6 +154,7 @@ Each dial column shows the current selection (20 px, light highlight panel) flan
 
 | Date | Change |
 |---|---|
+| 2026-05-02 | **Combat Pivot Slice 1 — SPD preview label.** `_preview_spd_lbl: Label` added as a 14th preview label. `_build_preview_panel()` creates it and appends it to `attr_row` after VIT. `_calc_preview()` computes `spd_val = 4 + kindred.spd_bonus + class.spd_bonus + bg.spd_bonus` and pushes `"SPD: %d"`. Return dict extended with `"spd": spd_val`. Spider = 7, Skeleton = 3, Rat = 6, others = 4. |
 | 2026-04-27 | **Temperament assignment.** `_build_pc()` now assigns a random `temperament_id` via `TemperamentLibrary.random_id(rng)` after all deterministic fields. Temperament is hidden from the player during creation — not shown in the preview panel. `current_hp`/`current_energy` seeded at the end, after temperament, so they reflect the full hp_max including temperament. `TemperamentLibrary` added as a new dependency. `test_build_pc_arcanist_crook_human_stats` assertion updated for new arcanist wil:2 (wil = 7, was 6). |
 | 2026-04-26 | **Pillar foundation.** Stats fully deterministic — `_roll_stats()`, `_on_reroll_stats()`, Reroll Stats button, and `_rolled_stats` dict all removed. `_build_pc()` signature loses `rolled_stats` param; stats are `4 + class_bonus + kindred_bonus + bg_bonus`. Ability seeding changed: slot 0 = class defining ability, slot 1 = kindred natural attack (was: slot 0 = class, slot 1 = bg ability). `feat_ids` seeded from `bg_data.starting_feat_id` (was: kindred feat). Preview panel: kindred ability row added (was: bg ability row); feat row label changed to "Background Feat" (was: "Kindred Feat"). `_preview_bg_name`/`_preview_bg_desc` renamed to `_preview_kindred_name`/`_preview_kindred_desc`; new `_preview_feat_lbl`/`_preview_feat_desc` retain background feat display. 12 tests (was 11). |
 | 2026-04-24 | **Back button + stat reroll.** Back button returns to MainMenu without mutating save state. Stats rolled at `_ready()` and shown as concrete values. 🎲 Reroll Stats button (now removed). `_build_pc()` extended with optional `rolled_stats: Dictionary = {}` (now removed). 2 new tests (11 total at time). |

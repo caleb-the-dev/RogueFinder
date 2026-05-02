@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-05-02 (UX Polish — new_ability_ids transient field added for glow badge)
+> Last updated: 2026-05-02 (Combat Pivot Slice 1 — spd field added as 6th core attribute)
 
 ---
 
@@ -77,6 +77,7 @@ Like a Pokémon: the archetype is Pikachu, the character_name is whatever the tr
 | `cognition` | Reserved for ability cost scaling (TBD) |
 | `willpower` | `energy_regen` (2 + WIL + kindred + bg + class + feat + equip) |
 | `vitality` | `hp_max` (10 + kindred_hp_bonus + VIT×4 + kindred + bg + class + feat + equip) and `energy_max` (5 + VIT + kindred + bg + class + feat + equip). Multiplier is ×4 to keep HP in 14–50 range with the 1–10 attribute scale. |
+| `spd` | Reserved for the autobattler countdown system (Combat Pivot). **Base value 4.** `effective_stat("spd")` returns `spd + kindred_spd_bonus + all other pillar bonuses` — lower countdown_max = acts more often. Not used by old 3D combat. |
 
 > **Attribute defaults changed 5→4** (2026-04-26). Stats at character creation are now deterministic: base 4 + class pillar bonus + kindred pillar bonus + background pillar bonus. Random rolling removed.
 
@@ -151,9 +152,10 @@ All derived stats include equipment bonuses via `_equip_bonus(stat_name)`, which
 | `hp_max` | `10 + KindredLibrary.get_hp_bonus(kindred) + (vitality × 4) + equip("vitality") + feat("vitality") + class("vitality") + kindred("vitality") + bg("vitality") + temp("vitality")` |
 | `energy_max` | `5 + vitality + equip("vitality") + feat("vitality") + class("vitality") + kindred("vitality") + bg("vitality") + temp("vitality")` |
 | `energy_regen` | `2 + willpower + equip("willpower") + feat("willpower") + class("willpower") + kindred("willpower") + bg("willpower") + temp("willpower")` |
-| `speed` | `1 + KindredLibrary.get_speed_bonus(kindred)` — no dex passthrough; DEX reserved for future dodge/evasion |
+| `speed` | `1 + KindredLibrary.get_speed_bonus(kindred)` — legacy grid-movement; no dex passthrough; DEX reserved for future dodge/evasion |
 | `physical_defense` | `physical_armor + physical_armor_mod + equip("physical_armor") + feat("physical_armor") + class("physical_armor") + kindred("physical_armor") + bg("physical_armor")` |
 | `magic_defense` | `magic_armor + magic_armor_mod + equip("magic_armor") + feat("magic_armor") + class("magic_armor") + kindred("magic_armor") + bg("magic_armor")` |
+| `effective_stat("spd")` | `spd + equip("spd") + feat("spd") + class("spd") + kindred("spd") + bg("spd") + temp("spd")` — full 7-source stack for autobattler countdown |
 
 `equip(stat)` = `_equip_bonus(stat)`. `feat(stat)` = `get_feat_stat_bonus(stat)`. `class(stat)` = `get_class_stat_bonus(stat)`. `kindred(stat)` = `get_kindred_stat_bonus(stat)`. `bg(stat)` = `get_background_stat_bonus(stat)`. `temp(stat)` = `get_temperament_stat_bonus(stat)`. All six are **flat bonuses to the derived result**.
 
@@ -191,17 +193,19 @@ func get_temperament_stat_bonus(stat: String) -> int
 
 **Kindred bonus values (from KindredLibrary):**
 
-| Kindred | speed_bonus → speed | hp_bonus | stat_bonuses | HP range (no class/equip/feat) |
-|---------|---------------------|----------|--------------|-------------------------------|
-| Human | 3 → 4 | +5 | willpower:1 | 19–55 (VIT 1–10) |
-| Half-Orc | 2 → 3 | +12 | strength:1 | 26–62 (VIT 1–10) |
-| Gnome | 4 → 5 | +2 | cognition:1 | 16–52 (VIT 1–10) |
-| Dwarf | 1 → 2 | +8 | **physical_armor:2** | 22–58 (VIT 1–10) |
-| Skeleton | 0 → 1 | +4 | **physical_armor:2** | 18–54 (VIT 1–10) |
-| Giant Rat | 4 → 5 | +3 | dexterity:2 | 17–53 (VIT 1–10) |
-| Spider | 2 → 3 | +4 | dexterity:1 | 18–54 (VIT 1–10) |
-| Dragon | 0 → 1 | +15 | strength:2 | 29–65 (VIT 1–10) |
+| Kindred | speed_bonus → speed | hp_bonus | stat_bonuses (incl. spd) | HP range (no class/equip/feat) |
+|---------|---------------------|----------|--------------------------|-------------------------------|
+| Human | 3 → 4 | +5 | willpower:1, spd:0 | 19–55 (VIT 1–10) |
+| Half-Orc | 2 → 3 | +12 | strength:1, spd:−1 | 26–62 (VIT 1–10) |
+| Gnome | 4 → 5 | +2 | cognition:1, spd:0 | 16–52 (VIT 1–10) |
+| Dwarf | 1 → 2 | +8 | **physical_armor:2**, spd:−1 | 22–58 (VIT 1–10) |
+| Skeleton | 2 → 3 | +4 | **physical_armor:2**, spd:−1 | 18–54 (VIT 1–10) |
+| Giant Rat | 5 → 6 | +3 | dexterity:2, spd:+2 | 17–53 (VIT 1–10) |
+| Spider | 3 → 4 | +4 | dexterity:1, spd:+3 | 18–54 (VIT 1–10) |
+| Dragon | 1 → 2 | +15 | strength:2, spd:0 | 29–65 (VIT 1–10) |
 | Unknown / empty | 0 → 1 | 0 | — | safe default, no crash |
+
+> Spider effective SPD = 7 (4 base + 3 kindred), Skeleton = 3 (4 − 1), Giant Rat = 6 (4 + 2). These are the design anchors for autobattler speed feel.
 
 > See `kindreds.csv` for authoritative values — the HP range estimates above assume base VIT 1–10 × 4 + kindred hp_bonus only. Actual in-game ranges vary with class/equip/feat bonuses.
 
@@ -288,6 +292,7 @@ static func reload() -> void                             # cache-clear for tests
 
 | Date | Change |
 |---|---|
+| 2026-05-02 | **Combat Pivot Slice 1 — `spd` attribute added.** `@export_range(1, 10) var spd: int = 4` added to `CombatantData` as the 6th core attribute. `effective_stat("spd")` case added — full 7-source stack (equip+feat+class+kindred+bg+temp). `kindreds.csv` `stat_bonuses` column extended with `spd:X` for all 8 kindreds: Spider +3, Giant Rat +2, Human/Gnome/Dragon 0, Half-Orc/Dwarf/Skeleton −1. `GameState._serialize_combatant()` writes `"spd": d.spd`; `_deserialize_combatant()` reads `dict.get("spd", 4)` — old saves default to 4. `spd` is **not used by the old 3D combat system**; it will drive `countdown_max` in the autobattler (Combat Pivot Slices 3–8). |
 | 2026-05-02 | **new_ability_ids transient field.** `var new_ability_ids: Array[String] = []` added to `CombatantData`. Plain `var` (not `@export`) — never serialized. Set in `PartySheet._fill_ability_phase()` when an ability is picked at level-up; consumed by `PartySheet._build_ability_pool_tabs()` for the gold glow badge; cleared entry-by-entry on mouse hover. Mirrors the `item["seen"]` pattern used for inventory item glow. Persists in memory across scene changes but resets on game restart. |
 | 2026-04-29 | **Speed formula — dex passthrough severed.** `speed` computed property simplified from `1 + kindred_speed_bonus + [dex sources × 6]` to `1 + KindredLibrary.get_speed_bonus(kindred)`. All dexterity-keyed contributions (equip, feat, class, kindred stat_bonuses, bg, temperament) removed from speed. DEX is now fully inert until the future dodge/evasion system is built. `dexterity` attribute row updated in docs. `test_class_stat_bonus.gd` + `test_temperament.gd` updated to assert DEX has zero speed effect. |
 | 2026-04-28 | **Follower Slice 6 — hire_cost + kindred name pool expansion.** `ArchetypeData.hire_cost: int = 0` added. `archetypes.csv` gained `hire_cost` column (RogueFinder=0, grunts=20, others 25–60). `ArchetypeLibrary._row_to_data()` parses it as `int(val)`. `kindreds.csv` name pools expanded from 6 to 22 names per kindred. `BadurgaManager._create_hire_candidate(arch, rng)` added — seeded parallel to `create()`, produces deterministic `CombatantData` so hire card and bench match exactly. |
