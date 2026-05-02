@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-04-30 (Enemy AI Slice 1 — ArchetypeData.Role enum added; role field + archetypes.csv column; ArchetypeLibrary._parse_role() helper)
+> Last updated: 2026-05-02 (UX Polish — new_ability_ids transient field added for glow badge)
 
 ---
 
@@ -119,6 +119,7 @@ Bonus sources that contribute to these stats use the stat key strings `"physical
 |-------|------|---------|-------|
 | `physical_armor_mod` | `int` | `0` | Mid-combat delta to physical defense. Set by BUFF/DEBUFF effects whose `target_stat` is `Attribute.PHYSICAL_ARMOR_MOD`. Snapshotted in `_attr_snapshots` at combat start and rolled back in `_end_combat()`. Clamped to `[-10, 10]` by `_apply_stat_delta`. Plain `var` (not `@export`) — never written to disk. |
 | `magic_armor_mod` | `int` | `0` | Same pattern for magic defense; target stat `Attribute.MAGIC_ARMOR_MOD`. |
+| `new_ability_ids` | `Array[String]` | `[]` | Ability ids added to `ability_pool` since the party sheet was last opened. Set by `PartySheet._fill_ability_phase()` on-pick lambda. Read by `PartySheet._build_ability_pool_tabs()` to render the gold glow badge. Erased one entry at a time when the player hovers the ability in the pool list. Plain `var` — not `@export`, never serialized. Persists across scene transitions (lives on the `CombatantData` object in `GameState.party`) but is lost on game restart. |
 
 Powering `stone_guard` (Dwarf kindred ancestry — `+2 PHYSICAL_ARMOR_MOD`) and `divine_ward` (Warden pool — `+2 MAGIC_ARMOR_MOD`). Both abilities were no-ops before this session because the old `"ARMOR_DEFENSE"` JSON key didn't resolve to a real `Attribute` enum value.
 
@@ -287,6 +288,7 @@ static func reload() -> void                             # cache-clear for tests
 
 | Date | Change |
 |---|---|
+| 2026-05-02 | **new_ability_ids transient field.** `var new_ability_ids: Array[String] = []` added to `CombatantData`. Plain `var` (not `@export`) — never serialized. Set in `PartySheet._fill_ability_phase()` when an ability is picked at level-up; consumed by `PartySheet._build_ability_pool_tabs()` for the gold glow badge; cleared entry-by-entry on mouse hover. Mirrors the `item["seen"]` pattern used for inventory item glow. Persists in memory across scene changes but resets on game restart. |
 | 2026-04-29 | **Speed formula — dex passthrough severed.** `speed` computed property simplified from `1 + kindred_speed_bonus + [dex sources × 6]` to `1 + KindredLibrary.get_speed_bonus(kindred)`. All dexterity-keyed contributions (equip, feat, class, kindred stat_bonuses, bg, temperament) removed from speed. DEX is now fully inert until the future dodge/evasion system is built. `dexterity` attribute row updated in docs. `test_class_stat_bonus.gd` + `test_temperament.gd` updated to assert DEX has zero speed effect. |
 | 2026-04-28 | **Follower Slice 6 — hire_cost + kindred name pool expansion.** `ArchetypeData.hire_cost: int = 0` added. `archetypes.csv` gained `hire_cost` column (RogueFinder=0, grunts=20, others 25–60). `ArchetypeLibrary._row_to_data()` parses it as `int(val)`. `kindreds.csv` name pools expanded from 6 to 22 names per kindred. `BadurgaManager._create_hire_candidate(arch, rng)` added — seeded parallel to `create()`, produces deterministic `CombatantData` so hire card and bench match exactly. |
 | 2026-04-28 | **ArchetypeLibrary.create() empty-backgrounds guard.** `randi_range(0, bgs.size()-1)` on an empty array caused a crash (manifested on `skeleton_warrior` and `rat_scrapper` archetypes, both of which have no backgrounds column value). Fixed: `data.background = bgs[...] if not bgs.is_empty() else ""`. These archetypes now work as followers; their `background` field will be `""` at runtime. |

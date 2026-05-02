@@ -1,6 +1,6 @@
 # System: Party Sheet
 
-> Last updated: 2026-04-29 (ATK stat removed — derived stats row now 5 cols; STR tooltip updated)
+> Last updated: 2026-05-02 (UX Polish — ESC level-up dismiss; auto-slot on acquire; ability glow; functional descriptions)
 
 ---
 
@@ -78,6 +78,7 @@ Runs on `CanvasLayer` at layer 20 — above every other overlay in the map scene
 | `_inv_view_wide` | `bool` | Inventory view mode |
 | `_drag_compare_panel` | `Control` | Live compare overlay; child of the CanvasLayer, not `_content_root` — survives rebuilds |
 | `_cmp_existing` / `_cmp_incoming` | `String` | IDs of the pair currently shown in compare panel; guard to skip redundant rebuilds |
+| `_level_up_overlay` | `CanvasLayer` | Non-null while a level-up pick overlay is open. Set in `_start_level_up()`; cleared on `queue_free()` in `_finish_level_up()` and on ESC dismiss. Checked by `_unhandled_input()` to intercept ESC before the sheet close path. |
 
 ---
 
@@ -100,7 +101,7 @@ Each card divided into 4 quadrants by 50%-alpha separators:
 - **BOTTOM-RIGHT:** "ABILITIES" + 2×2 grid of slotted abilities as `Control` + `Label`. Drop target for abilities from the right panel. **Right-click** to clear. Hovering drag over a filled slot shows a side-by-side compare panel (`_show_drag_compare()`). Cross-member ability drops are rejected via `_can_drop_ability_here()`.
 
 ### RIGHT (374 px) — TabContainer per member card
-- **Abilities tab:** Top bar with `1×/2×` view toggle + "drag to slot →" hint. Sort row: Name / Type / EN (per-member, independent). Search bar with live filter (focus restored after each rebuild via `grab_focus.call_deferred()` + `set_caret_column.call_deferred()` — prevents the backwards-typing bug). Scrollable pool list in `VBoxContainer` (1-per-row) or `GridContainer` (2-per-row). Slotted abilities show gold highlight + `●` prefix + `[s1]`–`[s4]` slot badge. In 2-per-row mode the EN/type sub-line is hidden (tooltip still shows it).
+- **Abilities tab:** Top bar with `1×/2×` view toggle + "drag to slot →" hint. Sort row: Name / Type / EN (per-member, independent). Search bar with live filter (focus restored after each rebuild via `grab_focus.call_deferred()` + `set_caret_column.call_deferred()` — prevents the backwards-typing bug). Scrollable pool list in `VBoxContainer` (1-per-row) or `GridContainer` (2-per-row). Slotted abilities show gold highlight + `●` prefix + `[s1]`–`[s4]` slot badge. In 2-per-row mode the EN/type sub-line is hidden (tooltip still shows it). **New-ability glow:** Abilities in `member.new_ability_ids` render with a gold border (all four sides) and a looping alpha pulse (0.65→1.0, 0.9 s). `mouse_entered` erases the id from `new_ability_ids` and calls `_rebuild()`, clearing the glow. Only abilities whose id is in `new_ability_ids` get the hover connection. Gold glow takes priority over the slotted yellow highlight.
 - **Feats tab:** Mirrors the Abilities tab layout — 1×/2× view toggle, Name sort (asc/desc toggle), search bar, scrollable list of `PanelContainer` feat cards (gold name label + hover tooltip). Source: `member.feat_ids` (background/class/event feats in grant order). **Accessory feat card:** if `member.accessory.feat_id != ""` and the feat is NOT already in `feat_ids`, a second card is appended with a **purple border** and a small `from <accessory name>` sub-label — visually distinct from permanent feats. Respects the search filter. The accessory feat is read-time only — it is never written to `feat_ids`. Per-member state: `_feat_views_wide`, `_feat_sort_ascs`, `_feat_search_texts`.
 
 ---
@@ -144,7 +145,7 @@ A `Theme` with a `StyleBoxFlat` for `TooltipPanel` (dark bg, gold border) is set
 - Line 1: `<name>  [<SLOT>]`
 - Line 2: stat bonuses from `eq.stat_bonuses` via `_bonuses_str()`
 - Lines 3-4 (if applicable): `[Ability] <name>` via `_granted_abilities_str(eq)` and/or `[Feat] <name>  (<stat> +N)` via `_feat_str(eq)` — each only present when the field is non-empty
-- Final line: flavor description
+- Final line: functional description (strictly mechanical — no flavor text as of 2026-05-02)
 
 **Helper functions:**
 - `_bonuses_str(bonuses: Dictionary) -> String` — formats `{strength: 1}` → `"STR +1"`
@@ -158,7 +159,7 @@ A `Theme` with a `StyleBoxFlat` for `TooltipPanel` (dark bg, gold border) is set
 
 `MapManager._input()` has an early-return guard: `if _party_sheet != null and _party_sheet.visible: return`. Required because `MapManager` uses `_input()` (not `_unhandled_input()`); without this guard, map pan/zoom fires through the CanvasLayer overlay.
 
-`PartySheet._unhandled_input()` intercepts `ui_cancel` (ESC) while visible, calls `hide_sheet()`, and marks input handled. This ensures ESC closes the party sheet rather than opening the pause menu.
+`PartySheet._unhandled_input()` intercepts `ui_cancel` (ESC) with a two-stage check: if `_level_up_overlay` is non-null and valid, it frees the overlay and returns (leaving the party sheet open and `pending_level_ups` untouched — the "Level Up!" button reappears). Only when no overlay is active does ESC call `hide_sheet()`. This ensures ESC can back out of a mid-pick without closing the full sheet.
 
 `PartySheet` joins the `"blocks_pause"` group on `_ready()`. `PauseMenuManager` queries this group each `_process` tick to hide its ☰ button and on each ESC keypress to skip opening the pause menu while any member of the group is visible.
 
@@ -168,7 +169,7 @@ A `Theme` with a `StyleBoxFlat` for `TooltipPanel` (dark bg, gold border) is set
 
 Opened from the "Level Up! (N)" button in a member card. Runs above the party sheet (layer 25 vs layer 20).
 
-**Entry point:** `_start_level_up(pc: CombatantData)` — finds `pc`'s index in `GameState.party`, builds the overlay, and calls `_fill_next_pick()`.
+**Entry point:** `_start_level_up(pc: CombatantData)` — finds `pc`'s index in `GameState.party`, builds the overlay, adds it to the `"blocks_pause"` group, stores the reference in `_level_up_overlay`, and calls `_fill_next_pick()`.
 
 **Pick routing** — `_fill_next_pick(content, overlay, pc, pc_index)`:
 - Computes `pick_level = pc.level - pc.pending_level_ups + 1` to identify which historical level is being resolved.
@@ -184,7 +185,9 @@ Opened from the "Level Up! (N)" button in a member card. Runs above the party sh
 1. Decrements `pc.pending_level_ups`.
 2. Calls `GameState.save()`.
 3. If `pending_level_ups > 0`: calls `_fill_next_pick()` to show the next pick immediately in the same overlay — no overlay close/reopen.
-4. If `pending_level_ups == 0`: calls `overlay.queue_free()`, `_rebuild()`, `level_up_resolved.emit()`.
+4. If `pending_level_ups == 0`: calls `overlay.queue_free()`, clears `_level_up_overlay = null`, `_rebuild()`, `level_up_resolved.emit()`.
+
+**ESC dismiss (backing out):** `_unhandled_input` frees `_level_up_overlay` without calling `_finish_level_up()`. `pending_level_ups` is NOT decremented — the "Level Up!" button reappears on next `_rebuild()`. No save is called. The player can re-enter the overlay by clicking "Level Up!" again.
 
 **Persistence gotcha:** ability picks (`pc.ability_pool.append()`) are NOT saved until `_finish_level_up()` calls `GameState.save()`. Feat picks call `GameState.grant_feat()` which saves internally AND then `_finish_level_up()` saves again — double-save is harmless.
 
@@ -200,6 +203,9 @@ Opened from the "Level Up! (N)" button in a member card. Runs above the party sh
 
 | Date | Session | What changed |
 |---|---|---|
+| 2026-05-02 | UX Polish | **ESC backs out of level-up overlay.** `_level_up_overlay: CanvasLayer = null` member var tracks the active pick overlay. `_start_level_up()` now sets this ref and adds the overlay to `"blocks_pause"`. `_unhandled_input()` now has a two-stage ESC check: if `_level_up_overlay` is non-null, it frees the overlay without consuming the pick (`pending_level_ups` stays set — "Level Up!" button reappears). Otherwise ESC still closes the sheet. `_finish_level_up()` clears the ref on normal close. |
+| 2026-05-02 | UX Polish | **Auto-slot on ability pick.** In `_fill_ability_phase()`'s on-pick lambda, after `ability_pool.append()`, `pc.abilities.find("")` locates the first empty active slot and fills it immediately. No action needed if all slots are already full. |
+| 2026-05-02 | UX Polish | **New ability glow.** In `_fill_ability_phase()`'s on-pick lambda, the chosen ability id is appended to `pc.new_ability_ids` (if not already present). In `_build_ability_pool_tabs()`, abilities in `new_ability_ids` get a gold all-sides border + looping alpha pulse (0.65→1.0, 0.9 s). `mouse_entered` erases from `new_ability_ids` and calls `_rebuild()`. Mirrors the item `seen` glow pattern in the inventory panel. |
 | 2026-04-30 | Vendor Slice 6 | **Gold readout in header.** `_build_header()` now adds a gold-colored "GP: X" `Label` (font_size 16, `Color(0.90, 0.80, 0.30)`, right-aligned at x=VIEWPORT_W−210) between the hint text and the ✕ Close button. Reads `GameState.gold` at rebuild time (always current since sheet is rebuilt on every open). ESC now closes the sheet via `_unhandled_input`. Joined `"blocks_pause"` group so the pause menu ☰ button hides while the sheet is open. |
 | 2026-04-29 | Accessory Tier Families (Slice 5) | **Equipment tooltips show feat + ability.** Bag item tooltip, equipped slot tooltip, and drag compare panel now include `[Ability] <name>` and `[Feat] <name> (<stat> +N)` lines when the item has `granted_ability_ids` or `feat_id`. New helpers: `_feat_str(eq)`, `_granted_abilities_str(eq)`. Compare panel: ability lines in green, feat lines in purple. |
 | 2026-04-29 | ATK stat removal | **ATK column removed from derived stats row.** There is no attack stat — ability damage scales from the caster's relevant attribute (STR/DEX/COG) directly. Derived stats row is now 5 cols: P.Def / M.Def / Speed / EN Max / Regen. STR tooltip updated from "Used in attack formulas" to "Scales STR-based abilities. Contributes to HARM damage." |
