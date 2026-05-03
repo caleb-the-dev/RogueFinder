@@ -1,6 +1,6 @@
 # System: Game State
 
-> Last updated: 2026-05-02 (Combat Pivot Slice 1 — spd added to _serialize_combatant / _deserialize_combatant)
+> Last updated: 2026-05-02 (Combat Pivot Slice 4 — pending_combat_enemies bridge field added)
 
 ---
 
@@ -45,6 +45,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 | `pending_node_type` | `String` | `""` | Consumed by `NodeStub._ready()` on scene entry to know which stub to display. Set by `MapManager._enter_current_node()` for non-combat/non-city nodes. **NOT saved to disk.** |
 | `current_combat_node_id` | `String` | `""` | Set by `MapManager._enter_current_node()` immediately before transitioning to `CombatScene3D`. Read by `EndCombatScreen._on_reward_chosen()` to know which node to append to `cleared_nodes`. **NOT saved to disk** (transient handoff, like `pending_node_type`). |
 | `current_combat_ring` | `String` | `""` | Set by `MapManager._enter_current_node()` alongside `current_combat_node_id` when entering a COMBAT or BOSS node. Value is `"inner"`, `"middle"`, or `"outer"` (from `_get_ring()`). Read by `CombatManager3D._calc_gold_reward()` at combat end to scale the gold drop. **NOT saved to disk.** |
+| `pending_combat_enemies` | `Array[CombatantData]` | `[]` | Autobattler bridge: stashed by `MapManager._roll_combat_enemies()` immediately before `change_scene_to_file("res://scenes/combat/CombatSceneAuto.tscn")`. Read and cleared by `CombatManagerAuto._ready()`. If empty on scene entry, autobattler prints a warning and does not start. **NOT saved to disk — transient handoff.** |
 | `cleared_nodes` | `Array[String]` | `[]` | Nodes where the player completed combat AND collected a reward. Show a `✗` stamp on the map; traversable as pass-through. **Saved to disk.** |
 | `threat_level` | `float` | `0.0` | Run-wide danger gauge. Range 0.0–1.0 (0%–100%). Incremented by MapManager on both travel (+0.05) and node entry (+0.05); capped at 1.0 via `minf()`. Reset to `0.0` by EndCombatScreen when a BOSS node is defeated. Displayed as a vertical bar in the map HUD. **Saved to disk.** |
 | `used_event_ids` | `Array[String]` | `[]` | Event ids already drawn this run. Appended to by `EventSelector.pick_for_node()` whenever an EVENT node is entered. Used to filter the candidate pool so the same event doesn't repeat until all ring events are exhausted. **Saved to disk.** |
@@ -112,7 +113,7 @@ Registered as an autoload in `project.godot` so it is accessible from any script
 
 **What is saved now:** map position, visited nodes, map topology seed, node type assignments, cleared (completed) nodes, threat level, used event ids, **encountered archetypes**, **recruited archetypes**, party roster, **bench roster** (all CombatantData fields, same format as party), inventory, **gold**, **vendor_stocks** (pre-rolled manifests keyed by vendor_id/node_id).
 
-Note: `pending_node_type`, `current_combat_node_id`, and `current_combat_ring` are **not** saved — they are transient handoffs consumed within a single scene transition.
+Note: `pending_node_type`, `current_combat_node_id`, `current_combat_ring`, and `pending_combat_enemies` are **not** saved — they are transient handoffs consumed within a single scene transition.
 
 **Deferred (Stage 2+):** combat state, faction reputation.
 

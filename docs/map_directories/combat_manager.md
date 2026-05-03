@@ -1,12 +1,12 @@
 # System: Combat Manager
 
-> Last updated: 2026-05-02 (Combat Pivot Slice 3 — CombatManagerAuto + LaneBoard + PlacementOverlay skeletons; USE_AUTOBATTLER_COMBAT flag in MapManager)
+> Last updated: 2026-05-02 (Combat Pivot Slice 4 — CountdownTracker module; CombatManagerAuto tick loop + real-time driver; GameState bridge; MapManager enemy rolling; USE_AUTOBATTLER_COMBAT = true)
 
 ---
 
 ## Coexistence Strategy (Combat Pivot)
 
-The old combat (CombatManager3D) and new autobattler (CombatManagerAuto) **coexist until Slice 7**. `MapManager.USE_AUTOBATTLER_COMBAT: bool = false` is the feature flag — flip it to `true` to load `CombatSceneAuto.tscn` instead of `CombatScene3D.tscn`. Default is `false`; old combat runs by default. Slice 7 will flip it permanently, rip out 3D combat, and remove the constant.
+The old combat (CombatManager3D) and new autobattler (CombatManagerAuto) **coexist until Slice 7**. `MapManager.USE_AUTOBATTLER_COMBAT: bool = true` is the feature flag — `true` loads `CombatSceneAuto.tscn`; `false` would load `CombatScene3D.tscn`. **Default is now `true`** (flipped in Slice 4) — the autobattler is the active path. Slice 7 will rip out 3D combat and remove the constant entirely.
 
 ---
 
@@ -23,12 +23,13 @@ Does **NOT** own: grid math (see `grid_system.md`), unit visuals/HP state (see `
 | File | Scene | Role |
 |------|-------|------|
 | `scripts/combat/CombatManager3D.gd` | `scenes/combat/CombatScene3D.tscn` | **Active** — 3D tactical grid state machine |
-| `scripts/combat/CombatManagerAuto.gd` | `scenes/combat/CombatSceneAuto.tscn` | **Skeleton** — autobattler (Slice 3); no tick loop yet; `class_name CombatManagerAuto` |
+| `scripts/combat/CombatManagerAuto.gd` | `scenes/combat/CombatSceneAuto.tscn` | **Active** — autobattler tick loop (Slice 4); `class_name CombatManagerAuto extends Node3D`; default combat path |
+| `scripts/combat/CountdownTracker.gd` | — | **Active** — static module; `class_name CountdownTracker extends RefCounted`; all countdown + cooldown math lives here |
 | `scripts/combat/LaneBoard.gd` | — | **Active data layer** — 3-lane × 2-side board; `class_name LaneBoard extends RefCounted`; used by CombatManagerAuto |
 | `scripts/ui/PlacementOverlay.gd` | `scenes/ui/PlacementOverlay.tscn` | **Skeleton** — pre-fight lane assignment; `class_name PlacementOverlay extends CanvasLayer`; layer 22 |
 | `scripts/combat/CombatManager.gd` | `scenes/combat/CombatScene.tscn` | Legacy 2D — reference only |
 
-`CombatScene3D.tscn` is the active combat scene (flag false). `CombatSceneAuto.tscn` loads when flag true — currently just prints ready message, exits cleanly via PauseMenu ESC. Reached via `MainMenuScene` → `MapScene` → node click → `change_scene_to_file()`. `main.tscn` loads `MainMenuScene.tscn`.
+`CombatSceneAuto.tscn` is the **active** combat scene (`USE_AUTOBATTLER_COMBAT = true`). `CombatScene3D.tscn` is the legacy path (flag false, still compiles). Entry: `MainMenuScene` → `MapScene` → COMBAT/BOSS node click → `MapManager._enter_current_node()` → `change_scene_to_file("res://scenes/combat/CombatSceneAuto.tscn")`. `main.tscn` loads `MainMenuScene.tscn`.
 
 ---
 
@@ -54,6 +55,66 @@ Constants: `LANE_COUNT = 3`, `SIDES = ["ally", "enemy"]`. Sides: `"ally"` = play
 
 ---
 
+## CountdownTracker API
+
+`CountdownTracker` is a `RefCounted` static module — no instance state. All methods are `static func`.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `compute_countdown_max` | `(spd: int) -> int` | Formula: `clamp(8 - spd, 2, 12)`. SPD 4 → 4 ticks, SPD 6 → 2 ticks, SPD 1 → 7 ticks. |
+| `tick` | `(units: Array[CombatantData]) -> void` | Decrements `countdown_current` on every unit by 1, floored at 0. |
+| `tick_and_collect_ready` | `(units: Array[CombatantData]) -> Array[CombatantData]` | Calls `tick()`, then returns all units whose `countdown_current == 0`. |
+| `tick_cooldowns` | `(cooldowns: Array[int]) -> void` | Decrements every slot cooldown by 1, floored at 0. Mutates in-place. |
+| `available_slot_indices` | `(cooldowns: Array[int]) -> Array[int]` | Returns indices where `cooldowns[i] == 0` (ability is off cooldown). |
+| `tiebreak_ready` | `(ready: Array[CombatantData]) -> Array[CombatantData]` | Returns a new array sorted by descending SPD. Deterministic — input unchanged. |
+| `reset_countdown` | `(unit: CombatantData) -> void` | Sets `unit.countdown_current = unit.countdown_max` after the unit acts. |
+
+---
+
+## CombatManagerAuto API
+
+`CombatManagerAuto extends Node3D`. Scene root of `CombatSceneAuto.tscn`. All combat state lives here.
+
+### Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `board` | `LaneBoard` | 3-lane × 2-side data structure; initialized at declaration (`= LaneBoard.new()`); re-initialized in `_ready()` |
+| `combat_running` | `bool` | False until `start_combat()` is called; set false by `end_combat()` |
+| `current_tick` | `int` | Incremented once per `_advance_tick()` call |
+| `_all_units` | `Array[CombatantData]` | Flattened list of all units (allies then enemies) for tick iteration |
+| `_tick_accum` | `float` | Accumulates `delta` in `_process()`; fires a tick every `TICK_INTERVAL_SEC = 0.6s` |
+
+### Public Methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `start_combat` | `(party: Array[CombatantData], enemies: Array[CombatantData]) -> void` | Places units on lanes; calls `_init_unit_for_combat()` per unit; sets `combat_running = true`. Called by `_ready()` from GameState bridge, or directly in tests. |
+| `_advance_tick` | `() -> void` | One tick: decrements all countdowns + cooldowns; fires ready units in SPD tiebreak order; checks win/lose after each fire. Exposed as non-private so headless tests can drive it deterministically. |
+| `end_combat` | `(victory: bool) -> void` | Sets `combat_running = false`; prints result. Slice 5+ will route to `EndCombatScreen` / `RunSummaryScene`. |
+
+### Key Internal Methods
+
+| Method | Description |
+|--------|-------------|
+| `_ready()` | Reads `GameState.party` (non-dead, up to 3) and `GameState.pending_combat_enemies` (cleared after read); calls `start_combat()`. |
+| `_process(delta)` | Accumulates delta; fires `_advance_tick()` every `TICK_INTERVAL_SEC`. No-ops when `combat_running == false`. |
+| `_init_unit_for_combat(u)` | Computes `countdown_max` from `effective_stat("spd")`; seeds `countdown_current`; resets `cooldowns = [0, 0, 0]`. |
+| `_fire_unit_turn(u)` | **Stub AI (Slice 4):** always picks slot 0. Looks up ability via `AbilityLibrary`; calls `_stub_pick_target()`; calls `_apply_ability()`; sets `u.cooldowns[0] = ability.cooldown_max`. Slice 6 replaces with real AI. |
+| `_stub_pick_target(caster, ability)` | Returns opposite-lane unit if alive; falls back to first living unit on enemy side. Ignores ability shape entirely. Slice 5 replaces with shape-aware targeting. |
+| `_apply_ability(caster, target, ability)` | Iterates `ability.effects`; handles HARM only (`effect_type == EffectData.EffectType.HARM`): `raw_dmg = base_value + effective_stat(attr)`; subtracts `physical_defense` or `magic_defense` based on `ability.damage_type`; minimum 1 damage. All other effect types silently ignored (BUFF/DEBUFF/MEND do nothing yet). Slice 5 wires the rest. |
+| `_check_combat_end()` | Returns `true` and calls `end_combat()` if either side is fully wiped. Called after every unit fires. |
+
+### Gotchas
+
+- **`board` is initialized at declaration** (`var board: LaneBoard = LaneBoard.new()`) — this allows tests to call `start_combat()` directly without `_ready()` being invoked (Node not in scene tree). The `_ready()` re-initializes it on normal scene entry, which is fine.
+- **Stub AI ignores cooldowns** — `_fire_unit_turn()` always picks slot 0 regardless of `u.cooldowns[0]`. This means a unit that just fired will re-fire slot 0 even while on cooldown. Real cooldown gating lands in Slice 6.
+- **`_apply_ability` is HARM-only** — BUFF abilities (like Bless) will fire their print line but deal 0 damage and change nothing. This is expected until Slice 5.
+- **`end_combat()` does not route to map yet** — it only prints. Slice 5+ will add `change_scene_to_file()` back to the map with appropriate reward/defeat handling.
+- **`GameState.pending_combat_enemies` must be populated before scene load** — `MapManager._roll_combat_enemies()` fills it and `change_scene_to_file()` in the same call. `_ready()` reads and clears it. If empty on `_ready()`, combat never starts (prints a warning).
+
+---
+
 ## PlacementOverlay API (Skeleton)
 
 Layer 22 (above PartySheet 20, below PauseMenu 26). Invisible by default (`visible = false`).
@@ -63,7 +124,7 @@ Layer 22 (above PartySheet 20, below PauseMenu 26). Invisible by default (`visib
 | `show_placement(party: Array[CombatantData])` | Defaults each unit to lane = its index; sets visible; Slice 4 builds real drag UI |
 | `placement_locked(party_by_lane: Array)` | Emitted when Begin pressed; carries 3-element Array (CombatantData per lane) |
 
-Not wired into CombatManagerAuto yet — Slice 4 connects it.
+Not yet connected — Slice 5 will wire it into CombatManagerAuto.
 
 ---
 
@@ -340,6 +401,7 @@ Stored in `unit.stat_effects: Array[Dictionary]` as `{display_name, stat, delta}
 
 | Date | Change |
 |---|---|
+| 2026-05-02 | **Combat Pivot Slice 4 — countdown engine + tick loop.** `CountdownTracker.gd` added (`class_name CountdownTracker extends RefCounted`): `compute_countdown_max(spd)` formula (`clamp(8-spd,2,12)`), `tick()`, `tick_and_collect_ready()`, `tick_cooldowns()`, `available_slot_indices()`, `tiebreak_ready()` (stable sort by descending SPD), `reset_countdown()`. 6 headless tests (`test_countdown_tracker.gd/.tscn`). `CombatManagerAuto.gd` fully rewritten: `board: LaneBoard = LaneBoard.new()` at declaration (allows headless test instantiation), `start_combat()` places units + seeds countdown/cooldowns, `_advance_tick()` drives tick loop (countdown+cooldown decrement → collect ready → tiebreak sort → fire each → check end), `_fire_unit_turn()` stub AI (always slot 0), `_stub_pick_target()` (opposite lane, fallback to first enemy), `_apply_ability()` (HARM-only), `_process()` real-time 0.6s driver. `CombatantData` gains 3 transient fields: `countdown_current`, `countdown_max`, `cooldowns: Array[int] = [0,0,0]`. `GameState.pending_combat_enemies: Array[CombatantData] = []` added (transient, NOT serialized). `MapManager._roll_combat_enemies()` helper added (3 enemies from pool); COMBAT/BOSS branch populates `pending_combat_enemies` then loads `CombatSceneAuto.tscn`. `MapManager.USE_AUTOBATTLER_COMBAT` flipped to `true` — autobattler is now the default. Integration test (`test_combat_loop.gd/.tscn`): 1v1, 6 ticks, ally wins — passes. 9 total Slice 4 tests pass. |
 | 2026-05-02 | **Combat Pivot Slice 3 — autobattler scaffold.** `CombatManagerAuto.gd` added (`class_name CombatManagerAuto extends Node3D`): skeleton with `board: LaneBoard`, `start_combat(party, enemies)` (default lane placement), `end_combat(victory)`. `CombatSceneAuto.tscn` added (minimal). `LaneBoard.gd` added (`class_name LaneBoard extends RefCounted`): 3-lane × 2-side pure-data board; full API live (see table above). `PlacementOverlay.gd` added (`class_name PlacementOverlay extends CanvasLayer`, layer 22): `show_placement(party)`, `placement_locked` signal — stub, Slice 4 wires it. `MapManager.USE_AUTOBATTLER_COMBAT: bool = false` constant added to top of constants section — gates COMBAT/BOSS scene dispatch. 6 headless tests (`test_lane_board.gd/.tscn`) — all 6 pass. Note: `CombatManagerAuto.gd` is named `Auto` to avoid collision with legacy `CombatManager.gd` (2D, class_name `CombatManager`). |
 | 2026-05-01 | **Enemy AI Slice 3 — within-bucket scoring + move priority + buff/debuff tracker.** `_process_enemy_actions()` now sorts `_enemy_units` by `EnemyAI.MOVE_PRIORITY` before iterating (HEALER=0 → CONTROLLER=4). `EnemyAI.pick_stride_target()` replaces random-hostile heuristic for the movement target. FORCE-aware CONTROLLER stride (`pick_force_stride_cell`) is disabled pending Slice 4 — all roles use greedy Manhattan. `_apply_non_harm_effects()` BUFF case: appends `ability.ability_id` to `target.active_buff_ability_ids`. DEBUFF case: appends to `target.active_debuff_ability_ids`, increments `target.debuff_stat_stacks[stat]`. `_end_combat()` clears all 5 transient AI fields on every unit after snapshot restore. `_cardinal_direction()`, `_get_shape_cells()`, and `_pick_best_aoe_origin()` now delegate to EnemyAI statics. `_spawn_test_room()` `p_pos`/`e_pos` params changed from `Array[Vector2i] = []` to `Array = []` + internal `.assign()` (Godot 4.5 typed-array default param bug). `_setup_test_room_units()` dispatcher extended with 6 new Slice 3 AI rooms. `MapManager` dev panel gains "AI SLICE 3 — SCORING" row of 6 buttons. |
 | 2026-05-01 | **Enemy AI Slice 2 — EnemyAI module wired in.** `_process_enemy_actions()` refactored: old randi() target + ability picks replaced with `EnemyAI.choose_action(enemy, allies, hostiles, grid)`. Movement stride still uses a random hostile as a positioning heuristic (suboptimal for HEALER; fix is Slice 3). `enemy.last_ability_id = chosen.ability_id` set after each confirmed pick so EnemyAI can deprioritize repeats next turn. Two new private helpers: `_player_units_alive() -> Array[Unit3D]` and `_enemy_units_alive_excluding(self_enemy) -> Array[Unit3D]`. `_setup_test_room_units()` dispatcher extended: `"ai_roles"` → AI Roles scenario (Grunt/Alchemist/Cave Spider); `"ai_crit_heal"` → AI Crit-Heal scenario (Alchemist with `heal_burst` + Near-Dead Grunt at 1 HP + Healthy Grunt). `_ai_roles_*_defs()` and `_ai_crit_heal_*_defs()` factory methods added. EnemyAI added to Dependencies table. |

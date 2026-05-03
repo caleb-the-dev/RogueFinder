@@ -1,6 +1,6 @@
 # System: Combatant Data Model
 
-> Last updated: 2026-05-02 (Combat Pivot Slice 1 — spd field added as 6th core attribute)
+> Last updated: 2026-05-02 (Combat Pivot Slice 4 — countdown_current, countdown_max, cooldowns transient fields added)
 
 ---
 
@@ -121,6 +121,9 @@ Bonus sources that contribute to these stats use the stat key strings `"physical
 | `physical_armor_mod` | `int` | `0` | Mid-combat delta to physical defense. Set by BUFF/DEBUFF effects whose `target_stat` is `Attribute.PHYSICAL_ARMOR_MOD`. Snapshotted in `_attr_snapshots` at combat start and rolled back in `_end_combat()`. Clamped to `[-10, 10]` by `_apply_stat_delta`. Plain `var` (not `@export`) — never written to disk. |
 | `magic_armor_mod` | `int` | `0` | Same pattern for magic defense; target stat `Attribute.MAGIC_ARMOR_MOD`. |
 | `new_ability_ids` | `Array[String]` | `[]` | Ability ids added to `ability_pool` since the party sheet was last opened. Set by `PartySheet._fill_ability_phase()` on-pick lambda. Read by `PartySheet._build_ability_pool_tabs()` to render the gold glow badge. Erased one entry at a time when the player hovers the ability in the pool list. Plain `var` — not `@export`, never serialized. Persists across scene transitions (lives on the `CombatantData` object in `GameState.party`) but is lost on game restart. |
+| `countdown_current` | `int` | `0` | Ticks down each autobattler combat tick (via `CountdownTracker.tick()`); when it reaches 0 the unit fires its turn. Reset to `countdown_max` by `CountdownTracker.reset_countdown()` after firing. Plain `var` — NOT serialized. Set by `CombatManagerAuto._init_unit_for_combat()` at combat start. |
+| `countdown_max` | `int` | `0` | Computed once at combat start: `CountdownTracker.compute_countdown_max(effective_stat("spd"))` = `clamp(8 - spd, 2, 12)`. Plain `var` — NOT serialized. |
+| `cooldowns` | `Array[int]` | `[0, 0, 0]` | Per-slot cooldown remaining (one entry per ability slot; 3 slots). Decremented each tick by `CountdownTracker.tick_cooldowns()`; a slot with value 0 is available to fire. Set to `ability.cooldown_max` after firing that slot. Plain `var` — NOT serialized. |
 
 Powering `stone_guard` (Dwarf kindred ancestry — `+2 PHYSICAL_ARMOR_MOD`) and `divine_ward` (Warden pool — `+2 MAGIC_ARMOR_MOD`). Both abilities were no-ops before this session because the old `"ARMOR_DEFENSE"` JSON key didn't resolve to a real `Attribute` enum value.
 
@@ -292,6 +295,7 @@ static func reload() -> void                             # cache-clear for tests
 
 | Date | Change |
 |---|---|
+| 2026-05-02 | **Combat Pivot Slice 4 — autobattler transient fields.** Three new plain `var` fields added (NOT `@export`, NOT serialized): `countdown_current: int = 0` (ticks down per combat tick; unit fires when 0), `countdown_max: int = 0` (computed from `effective_stat("spd")` at combat start via `clamp(8-spd,2,12)`), `cooldowns: Array[int] = [0,0,0]` (per-slot cooldown remaining; 0 = off cooldown). All three initialized by `CombatManagerAuto._init_unit_for_combat()` at combat start and managed exclusively by `CountdownTracker` static methods thereafter. |
 | 2026-05-02 | **Combat Pivot Slice 1 — `spd` attribute added.** `@export_range(1, 10) var spd: int = 4` added to `CombatantData` as the 6th core attribute. `effective_stat("spd")` case added — full 7-source stack (equip+feat+class+kindred+bg+temp). `kindreds.csv` `stat_bonuses` column extended with `spd:X` for all 8 kindreds: Spider +3, Giant Rat +2, Human/Gnome/Dragon 0, Half-Orc/Dwarf/Skeleton −1. `GameState._serialize_combatant()` writes `"spd": d.spd`; `_deserialize_combatant()` reads `dict.get("spd", 4)` — old saves default to 4. `spd` is **not used by the old 3D combat system**; it will drive `countdown_max` in the autobattler (Combat Pivot Slices 3–8). |
 | 2026-05-02 | **new_ability_ids transient field.** `var new_ability_ids: Array[String] = []` added to `CombatantData`. Plain `var` (not `@export`) — never serialized. Set in `PartySheet._fill_ability_phase()` when an ability is picked at level-up; consumed by `PartySheet._build_ability_pool_tabs()` for the gold glow badge; cleared entry-by-entry on mouse hover. Mirrors the `item["seen"]` pattern used for inventory item glow. Persists in memory across scene changes but resets on game restart. |
 | 2026-04-29 | **Speed formula — dex passthrough severed.** `speed` computed property simplified from `1 + kindred_speed_bonus + [dex sources × 6]` to `1 + KindredLibrary.get_speed_bonus(kindred)`. All dexterity-keyed contributions (equip, feat, class, kindred stat_bonuses, bg, temperament) removed from speed. DEX is now fully inert until the future dodge/evasion system is built. `dexterity` attribute row updated in docs. `test_class_stat_bonus.gd` + `test_temperament.gd` updated to assert DEX has zero speed effect. |
