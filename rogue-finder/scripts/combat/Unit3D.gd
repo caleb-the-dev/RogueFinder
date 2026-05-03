@@ -7,39 +7,11 @@ extends Node3D
 ## Mirrors the public API of Unit.gd so HUD / CombatManager work with both.
 
 signal unit_died(unit: Unit3D)
-signal unit_moved(unit: Unit3D, new_pos: Vector2i)
 
 @export var data: CombatantData
 
-var current_hp: int     = 0
-var current_energy: int = 0
-var grid_pos: Vector2i  = Vector2i.ZERO
-var remaining_move: int = 0
-var has_acted: bool     = false
-var is_alive: bool      = true
-## Set to "force_random" by the future Confused status condition to bypass EnemyAI role-walk.
-## Transient — never serialized; cleared when combat resets.
-var ai_override: String = ""
-## Last ability_id used by this unit. EnemyAI deprioritizes it within its effect-type bucket
-## so the AI cycles through options rather than spamming the same move every turn.
-## Transient — intentionally NOT reset in reset_turn(); must persist across turns.
-var last_ability_id: String = ""
-## Ability IDs whose BUFF effect is currently active on this unit.
-## Used by EnemyAI to skip redundant BUFF applications.
-## Transient — not serialized; cleared at combat end via _end_combat().
-var active_buff_ability_ids: Array[String] = []
-## Ability IDs whose DEBUFF effect is currently active on this unit.
-## Used by EnemyAI to skip redundant DEBUFF applications.
-## Transient — not serialized; cleared at combat end via _end_combat().
-var active_debuff_ability_ids: Array[String] = []
-## Maps AbilityData.Attribute int → stack count for DEBUFF effects.
-## EnemyAI enforces a 3-stack cap per stat to prevent infinite debuff spirals.
-## Transient — not serialized; cleared at combat end via _end_combat().
-var debuff_stat_stacks: Dictionary = {}
-
-## Applied stat effects — populated by CombatManager3D._apply_stat_delta().
-## Each entry: { "display_name": String, "stat": int, "delta": int }
-var stat_effects: Array[Dictionary] = []
+var current_hp: int = 0
+var is_alive: bool  = true
 
 const BOX_SIZE: Vector3     = Vector3(0.7, 1.6, 0.7)
 const BOX_HALF_HEIGHT: float = 0.8   # BOX_SIZE.y / 2 — keeps feet at y = 0
@@ -56,6 +28,10 @@ var _countdown_label: Label3D       = null  # floating countdown number above he
 
 func _ready() -> void:
 	_build_visuals()
+	if data != null:
+		current_hp = data.current_hp
+		is_alive = current_hp > 0
+		_refresh_visuals()
 
 ## --- Visual Construction ---
 
@@ -141,16 +117,6 @@ func _build_visuals() -> void:
 
 ## --- Public API ---
 
-func setup(unit_data: CombatantData, pos: Vector2i) -> void:
-	data           = unit_data
-	current_hp     = data.current_hp
-	current_energy = data.current_energy
-	grid_pos       = pos
-	is_alive       = true
-	remaining_move = data.speed
-	has_acted      = false
-	_refresh_visuals()
-
 func take_damage(amount: int) -> void:
 	current_hp = maxi(0, current_hp - amount)
 	show_floating_text("-%d" % amount, Color(1.0, 0.22, 0.18))
@@ -168,26 +134,6 @@ func heal(amount: int) -> void:
 	show_floating_text("+%d" % amount, Color(0.18, 1.0, 0.38))
 	_refresh_visuals()
 
-func spend_energy(amount: int) -> bool:
-	if current_energy < amount:
-		return false
-	current_energy -= amount
-	return true
-
-func regen_energy() -> void:
-	current_energy = mini(current_energy + data.energy_regen, data.energy_max)
-
-func reset_turn() -> void:
-	remaining_move = data.speed
-	has_acted      = false
-	_refresh_visuals()
-
-func can_stride() -> bool:
-	return is_alive and remaining_move > 0
-
-func can_act(energy_cost: int = 3) -> bool:
-	return is_alive and not has_acted and current_energy >= energy_cost
-
 func set_selected(selected: bool) -> void:
 	if _selection_ring:
 		_selection_ring.visible = selected
@@ -196,28 +142,16 @@ func update_countdown_display(value: int) -> void:
 	if _countdown_label != null:
 		_countdown_label.text = str(value)
 
-func move_to(new_pos: Vector2i) -> void:
-	grid_pos = new_pos
-	unit_moved.emit(self, new_pos)
-
-## Records an applied buff or debuff and refreshes the visual indicators.
-## Called by CombatManager3D._apply_stat_delta() after the stat change lands.
-func add_stat_effect(display_name: String, stat: int, delta: int) -> void:
-	stat_effects.append({"display_name": display_name, "stat": stat, "delta": delta})
-	_refresh_effect_indicators()
-
-func _refresh_effect_indicators() -> void:
-	var has_buff: bool   = false
-	var has_debuff: bool = false
-	for e: Dictionary in stat_effects:
-		if e["delta"] > 0:
-			has_buff = true
-		else:
-			has_debuff = true
-	if _buff_indicator:
-		_buff_indicator.visible = has_buff
-	if _debuff_indicator:
-		_debuff_indicator.visible = has_debuff
+## Called by CombatManagerAuto after modifying data.current_hp to keep the visual in sync.
+func sync_from_data() -> void:
+	if data == null:
+		return
+	var was_alive := is_alive
+	current_hp = data.current_hp
+	is_alive = current_hp > 0
+	_refresh_visuals()
+	if was_alive and not is_alive:
+		unit_died.emit(self)
 
 ## --- Visual Helpers ---
 
@@ -252,8 +186,6 @@ func _refresh_hp_bar() -> void:
 func _update_base_color() -> void:
 	if not is_alive:
 		_base_color = Color(0.25, 0.25, 0.25)
-	elif has_acted:
-		_base_color = Color(0.40, 0.40, 0.50)
 	elif data and data.is_player_unit:
 		_base_color = Color(0.22, 0.50, 1.0)
 	else:

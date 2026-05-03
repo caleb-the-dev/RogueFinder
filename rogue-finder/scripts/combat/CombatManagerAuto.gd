@@ -208,6 +208,9 @@ func _apply_ability(caster: CombatantData, target: CombatantData, ability: Abili
 			EffectData.EffectType.DEBUFF:
 				_apply_stat_delta(target, effect, -1)
 			# FORCE / TRAVEL: no movement in autobattler, ignored
+	var node: Unit3D = _unit_nodes.get(target, null)
+	if node != null:
+		node.sync_from_data()
 
 func _apply_harm(caster: CombatantData, target: CombatantData, effect: EffectData, attr: AbilityData.Attribute, dt: AbilityData.DamageType) -> void:
 	var attr_name: String = _attr_to_string(attr)
@@ -252,7 +255,7 @@ func _build_consumable_hud(party: Array[CombatantData]) -> void:
 		var btn := Button.new()
 		btn.text = _consumable_btn_label(party[i])
 		btn.custom_minimum_size = Vector2(180, 60)
-		var idx := i
+		var idx: int = i
 		btn.pressed.connect(func() -> void: _use_consumable(_active_party[idx]))
 		hbox.add_child(btn)
 		_consumable_buttons.append(btn)

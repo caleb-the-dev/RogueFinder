@@ -3,10 +3,6 @@ extends Node2D
 
 ## --- Constants ---
 
-## Flip to true to enter the new autobattler combat scene instead of the legacy 3D grid combat.
-## Slice 7 of the combat pivot will flip this on, rip out the old combat, and remove this constant.
-const USE_AUTOBATTLER_COMBAT: bool = true
-
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const CENTER        := Vector2(640.0, 360.0)
 const ZOOM_MIN      := 0.35
@@ -1046,11 +1042,8 @@ func _enter_current_node() -> void:
 		"COMBAT", "BOSS":
 			GameState.current_combat_node_id = GameState.player_node_id
 			GameState.current_combat_ring = _get_ring(GameState.player_node_id)
-			if USE_AUTOBATTLER_COMBAT:
-				GameState.pending_combat_enemies = _roll_combat_enemies()
-				get_tree().change_scene_to_file("res://scenes/combat/CombatSceneAuto.tscn")
-			else:
-				get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
+			GameState.pending_combat_enemies = _roll_combat_enemies()
+			get_tree().change_scene_to_file("res://scenes/combat/CombatSceneAuto.tscn")
 		"CITY":
 			get_tree().change_scene_to_file("res://scenes/city/BadurgaScene.tscn")
 		"EVENT":
@@ -1251,120 +1244,6 @@ func _build_dev_event_panel() -> void:
 
 	var sep := HSeparator.new()
 	vbox.add_child(sep)
-
-	# --- Combat section ---
-	var combat_hdr := Label.new()
-	combat_hdr.text = "COMBAT"
-	combat_hdr.add_theme_font_size_override("font_size", 11)
-	combat_hdr.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
-	vbox.add_child(combat_hdr)
-
-	var test_room_row := HBoxContainer.new()
-	test_room_row.add_theme_constant_override("separation", 8)
-	vbox.add_child(test_room_row)
-
-	var armor_showcase_btn := Button.new()
-	armor_showcase_btn.text = "⚔ Test Room — Armor Showcase"
-	armor_showcase_btn.custom_minimum_size = Vector2(220.0, 32.0)
-	armor_showcase_btn.add_theme_font_size_override("font_size", 13)
-	armor_showcase_btn.pressed.connect(func() -> void:
-		_dev_event_panel.visible = false
-		GameState.test_room_mode = true
-		GameState.test_room_kind = "armor_showcase"
-		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
-	)
-	test_room_row.add_child(armor_showcase_btn)
-
-	var armor_mod_btn := Button.new()
-	armor_mod_btn.text = "⚔ Test Room — Armor Mod"
-	armor_mod_btn.custom_minimum_size = Vector2(220.0, 32.0)
-	armor_mod_btn.add_theme_font_size_override("font_size", 13)
-	armor_mod_btn.pressed.connect(func() -> void:
-		_dev_event_panel.visible = false
-		GameState.test_room_mode = true
-		GameState.test_room_kind = "armor_mod"
-		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
-	)
-	test_room_row.add_child(armor_mod_btn)
-
-	var recruit_test_btn := Button.new()
-	recruit_test_btn.text = "⊕ Test Room — Recruit"
-	recruit_test_btn.custom_minimum_size = Vector2(220.0, 32.0)
-	recruit_test_btn.add_theme_font_size_override("font_size", 13)
-	recruit_test_btn.pressed.connect(func() -> void:
-		_dev_event_panel.visible = false
-		GameState.test_room_mode = true
-		GameState.test_room_kind = "recruit_test"
-		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
-	)
-	test_room_row.add_child(recruit_test_btn)
-
-	var ai_test_row := HBoxContainer.new()
-	ai_test_row.add_theme_constant_override("separation", 8)
-	vbox.add_child(ai_test_row)
-
-	var ai_roles_btn := Button.new()
-	ai_roles_btn.text = "🤖 Test Room — AI Roles"
-	ai_roles_btn.custom_minimum_size = Vector2(220.0, 32.0)
-	ai_roles_btn.add_theme_font_size_override("font_size", 13)
-	ai_roles_btn.pressed.connect(func() -> void:
-		_dev_event_panel.visible = false
-		GameState.test_room_mode = true
-		GameState.test_room_kind = "ai_roles"
-		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
-	)
-	ai_test_row.add_child(ai_roles_btn)
-
-	var ai_crit_btn := Button.new()
-	ai_crit_btn.text = "🤖 Test Room — AI Crit-Heal"
-	ai_crit_btn.custom_minimum_size = Vector2(220.0, 32.0)
-	ai_crit_btn.add_theme_font_size_override("font_size", 13)
-	ai_crit_btn.pressed.connect(func() -> void:
-		_dev_event_panel.visible = false
-		GameState.test_room_mode = true
-		GameState.test_room_kind = "ai_crit_heal"
-		get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
-	)
-	ai_test_row.add_child(ai_crit_btn)
-
-	# --- AI Slice 3 scoring test rooms ---
-	var ai_s3_hdr := Label.new()
-	ai_s3_hdr.text = "AI SLICE 3 — SCORING"
-	ai_s3_hdr.add_theme_font_size_override("font_size", 11)
-	ai_s3_hdr.add_theme_color_override("font_color", Color(0.45, 0.75, 1.0))
-	vbox.add_child(ai_s3_hdr)
-
-	var ai_s3_row1 := HBoxContainer.new()
-	ai_s3_row1.add_theme_constant_override("separation", 8)
-	vbox.add_child(ai_s3_row1)
-
-	var _make_ai_s3_btn := func(label: String, kind: String) -> Button:
-		var b := Button.new()
-		b.text = label
-		b.custom_minimum_size = Vector2(220.0, 32.0)
-		b.add_theme_font_size_override("font_size", 12)
-		b.pressed.connect(func() -> void:
-			_dev_event_panel.visible = false
-			GameState.test_room_mode = true
-			GameState.test_room_kind = kind
-			get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
-		)
-		return b
-
-	ai_s3_row1.add_child(_make_ai_s3_btn.call("🤖 AoE Bomb", "ai_aoe_bomb"))
-	ai_s3_row1.add_child(_make_ai_s3_btn.call("🤖 Finish Blow", "ai_finish_blow"))
-	ai_s3_row1.add_child(_make_ai_s3_btn.call("🤖 Smart Heal", "ai_healer"))
-
-	var ai_s3_row2 := HBoxContainer.new()
-	ai_s3_row2.add_theme_constant_override("separation", 8)
-	vbox.add_child(ai_s3_row2)
-
-	ai_s3_row2.add_child(_make_ai_s3_btn.call("🤖 Buff/Debuff", "ai_buff_debuff"))
-	ai_s3_row2.add_child(_make_ai_s3_btn.call("🤖 Edge Push", "ai_force_edge"))
-	ai_s3_row2.add_child(_make_ai_s3_btn.call("🤖 Slice 3 Mix", "ai_slice3_mix"))
-
-	var sep_combat := HSeparator.new()
-	vbox.add_child(sep_combat)
 
 	# --- Inventory section ---
 	var inv_hdr := Label.new()
