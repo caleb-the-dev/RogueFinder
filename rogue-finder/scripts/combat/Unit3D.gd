@@ -52,6 +52,7 @@ var _body_mat: StandardMaterial3D   = null  # kept for hit-flash restore
 var _base_color: Color              = Color.WHITE
 var _buff_indicator: Label3D        = null  # ▲ shown when unit has active buffs
 var _debuff_indicator: Label3D      = null  # ▼ shown when unit has active debuffs
+var _countdown_label: Label3D       = null  # floating countdown number above head
 
 func _ready() -> void:
 	_build_visuals()
@@ -127,6 +128,17 @@ func _build_visuals() -> void:
 	_debuff_indicator.visible       = false
 	add_child(_debuff_indicator)
 
+	# Countdown number (autobattler) — ticks down to 0 each turn
+	_countdown_label = Label3D.new()
+	_countdown_label.position      = Vector3(0.0, BOX_SIZE.y + 1.25, 0.0)
+	_countdown_label.font_size     = 52
+	_countdown_label.outline_size  = 4
+	_countdown_label.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
+	_countdown_label.no_depth_test = true
+	_countdown_label.modulate      = Color(1.0, 0.9, 0.25)  # gold
+	_countdown_label.text          = ""
+	add_child(_countdown_label)
+
 ## --- Public API ---
 
 func setup(unit_data: CombatantData, pos: Vector2i) -> void:
@@ -179,6 +191,10 @@ func can_act(energy_cost: int = 3) -> bool:
 func set_selected(selected: bool) -> void:
 	if _selection_ring:
 		_selection_ring.visible = selected
+
+func update_countdown_display(value: int) -> void:
+	if _countdown_label != null:
+		_countdown_label.text = str(value)
 
 func move_to(new_pos: Vector2i) -> void:
 	grid_pos = new_pos

@@ -4,10 +4,14 @@ extends Node3D
 ## --- CombatManagerAuto ---
 ## Turn-tick autobattler controller. Hosts the LaneBoard, drives the tick loop,
 ## fires unit turns, manages combat lifecycle (entry, victory, defeat).
-## Coexists with the legacy CombatManager3D until Slice 7.
 
 ## --- Constants ---
 const TICK_INTERVAL_SEC: float = 0.6  # cosmetic delay between ticks for player readability
+
+## Lane x-positions for 3D unit placement (lanes 0, 1, 2)
+const LANE_X: Array[float] = [-3.0, 0.0, 3.0]
+const ALLY_Z: float = -3.0
+const ENEMY_Z: float = 3.0
 
 ## --- State ---
 var board: LaneBoard = LaneBoard.new()
@@ -15,11 +19,16 @@ var combat_running: bool = false
 var current_tick: int = 0
 var _all_units: Array[CombatantData] = []
 var _tick_accum: float = 0.0
+## CombatantData → Unit3D; populated in start_combat()
+var _unit_nodes: Dictionary = {}
+## Active party in lane order; used by consumable HUD
+var _active_party: Array[CombatantData] = []
+var _consumable_buttons: Array[Button] = []
 
 ## --- Lifecycle ---
 func _ready() -> void:
 	board = LaneBoard.new()
-	# Task 4.5 wires party + enemies from GameState here.
+	_setup_scene()
 	var party: Array[CombatantData] = []
 	for cd: CombatantData in GameState.party:
 		if not cd.is_dead:
@@ -31,7 +40,35 @@ func _ready() -> void:
 	if party.is_empty() or enemies.is_empty():
 		push_warning("[CombatManagerAuto] missing party or enemies on scene entry")
 		return
-	start_combat(party, enemies)
+	var overlay: PlacementOverlay = preload("res://scenes/ui/PlacementOverlay.tscn").instantiate()
+	add_child(overlay)
+	overlay.placement_locked.connect(func(party_by_lane: Array) -> void:
+		var assigned: Array[CombatantData] = []
+		for u: Variant in party_by_lane:
+			if u != null:
+				assigned.append(u as CombatantData)
+		overlay.queue_free()
+		start_combat(assigned, enemies)
+	)
+	overlay.show_placement(party)
+
+func _setup_scene() -> void:
+	var world_env := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.08, 0.08, 0.14)
+	world_env.environment = env
+	add_child(world_env)
+
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-50.0, 30.0, 0.0)
+	sun.shadow_enabled = true
+	add_child(sun)
+
+	var cam := Camera3D.new()
+	cam.position = Vector3(0.0, 9.0, 8.0)
+	cam.rotation_degrees = Vector3(-50.0, 0.0, 0.0)
+	add_child(cam)
 
 ## Real-time tick driver — called each frame by the scene tree.
 func _process(delta: float) -> void:
@@ -42,25 +79,43 @@ func _process(delta: float) -> void:
 		_tick_accum -= TICK_INTERVAL_SEC
 		_advance_tick()
 
-## Public entry point — called by _ready() or tests.
+## Public entry point — called by _ready() (via PlacementOverlay) or tests.
 func start_combat(party: Array[CombatantData], enemies: Array[CombatantData]) -> void:
 	combat_running = true
 	current_tick = 0
 	_all_units.clear()
+	_unit_nodes.clear()
+	_active_party = party
 	for i in min(party.size(), LaneBoard.LANE_COUNT):
 		board.place(party[i], i, "ally")
 		_init_unit_for_combat(party[i])
 		_all_units.append(party[i])
+		_spawn_unit_3d(party[i], i, "ally")
 	for i in min(enemies.size(), LaneBoard.LANE_COUNT):
 		board.place(enemies[i], i, "enemy")
 		_init_unit_for_combat(enemies[i])
 		_all_units.append(enemies[i])
+		_spawn_unit_3d(enemies[i], i, "enemy")
+	_build_consumable_hud(party)
 	print("[CombatManagerAuto] combat started: %d allies, %d enemies" % [party.size(), enemies.size()])
 
 func _init_unit_for_combat(u: CombatantData) -> void:
 	u.countdown_max = CountdownTracker.compute_countdown_max(u.effective_stat("spd"))
 	u.countdown_current = u.countdown_max
 	u.cooldowns = [0, 0, 0]
+
+func _spawn_unit_3d(unit: CombatantData, lane: int, side: String) -> void:
+	var u3d: Unit3D = preload("res://scenes/combat/Unit3D.tscn").instantiate()
+	u3d.data = unit
+	u3d.position = Vector3(LANE_X[lane], 0.0, ALLY_Z if side == "ally" else ENEMY_Z)
+	add_child(u3d)
+	_unit_nodes[unit] = u3d
+	u3d.update_countdown_display(unit.countdown_current)
+
+func _refresh_unit_label(d: CombatantData) -> void:
+	var node: Unit3D = _unit_nodes.get(d, null)
+	if node != null:
+		node.update_countdown_display(d.countdown_current)
 
 ## Drives one tick of combat. Decrements all counters; fires any units that hit 0.
 ## Called by _process() in real-time mode and by tests for deterministic stepping.
@@ -71,6 +126,7 @@ func _advance_tick() -> void:
 	var ready := CountdownTracker.tick_and_collect_ready(_all_units)
 	for u: CombatantData in _all_units:
 		CountdownTracker.tick_cooldowns(u.cooldowns)
+		_refresh_unit_label(u)
 	var ordered := CountdownTracker.tiebreak_ready(ready)
 	for u: CombatantData in ordered:
 		if u.current_hp <= 0:
@@ -181,6 +237,52 @@ func _attr_to_string(a: AbilityData.Attribute) -> String:
 		AbilityData.Attribute.WILLPOWER: return "willpower"
 		AbilityData.Attribute.VITALITY:  return "vitality"
 		_: return ""
+
+## --- Consumable Interject HUD ---
+
+func _build_consumable_hud(party: Array[CombatantData]) -> void:
+	var canvas := CanvasLayer.new()
+	canvas.layer = 12
+	add_child(canvas)
+	var hbox := HBoxContainer.new()
+	hbox.position = Vector2(50, 600)
+	canvas.add_child(hbox)
+	_consumable_buttons.clear()
+	for i in min(party.size(), 3):
+		var btn := Button.new()
+		btn.text = _consumable_btn_label(party[i])
+		btn.custom_minimum_size = Vector2(180, 60)
+		var idx := i
+		btn.pressed.connect(func() -> void: _use_consumable(_active_party[idx]))
+		hbox.add_child(btn)
+		_consumable_buttons.append(btn)
+
+func _consumable_btn_label(u: CombatantData) -> String:
+	if u.consumable == "":
+		return "%s\n(no consumable)" % u.character_name
+	var c := ConsumableLibrary.get_consumable(u.consumable)
+	return "%s\n%s" % [u.character_name, c.consumable_name]
+
+func _use_consumable(u: CombatantData) -> void:
+	if u.consumable == "":
+		return
+	var c := ConsumableLibrary.get_consumable(u.consumable)
+	_apply_consumable_effect(u, c)
+	u.consumable = ""
+	_refresh_consumable_hud()
+
+func _apply_consumable_effect(target: CombatantData, c: ConsumableData) -> void:
+	match c.effect_type:
+		EffectData.EffectType.MEND:
+			target.current_hp = min(target.hp_max, target.current_hp + c.base_value)
+			var node: Unit3D = _unit_nodes.get(target, null)
+			if node != null:
+				node.show_floating_text("+%d" % c.base_value, Color(0.18, 1.0, 0.38))
+
+func _refresh_consumable_hud() -> void:
+	for i in _consumable_buttons.size():
+		if i < _active_party.size():
+			_consumable_buttons[i].text = _consumable_btn_label(_active_party[i])
 
 func _check_combat_end() -> bool:
 	if board.is_side_wiped("ally"):
