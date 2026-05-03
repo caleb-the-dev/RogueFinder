@@ -89,27 +89,59 @@ func _fire_unit_turn(u: CombatantData) -> void:
 		print("  [%s] skips turn (slot 0 empty)" % u.character_name)
 		return
 	var ability: AbilityData = AbilityLibrary.get_ability(ability_id)
-	# Slice 5 replaces with proper lane targeting; for now pick opposite-lane unit
-	var target: CombatantData = _stub_pick_target(u, ability)
-	if target == null:
+	var targets := CombatManagerAuto.resolve_targets(u, ability, board)
+	if targets.is_empty():
 		print("  [%s] no valid target" % u.character_name)
 		return
-	_apply_ability(u, target, ability)
+	for target: CombatantData in targets:
+		_apply_ability(u, target, ability)
 	u.cooldowns[slot] = ability.cooldown_max
-	print("  [%s] tick %d: %s on %s" % [u.character_name, current_tick, ability.ability_name, target.character_name])
+	print("  [%s] tick %d: %s on %d target(s)" % [u.character_name, current_tick, ability.ability_name, targets.size()])
 
-## Stub: picks opposite-lane unit; falls back to first living enemy.
-## Slice 5 replaces with shape-aware targeting.
-func _stub_pick_target(caster: CombatantData, _ability: AbilityData) -> CombatantData:
-	var target: CombatantData = board.get_opposite(caster)
-	if target != null and target.current_hp > 0:
-		return target
-	var caster_side: String = board.get_side_of(caster)
-	var enemy_side: String = board.get_opposite_side(caster_side)
-	for u: CombatantData in board.get_all_on_side(enemy_side):
-		if u.current_hp > 0:
-			return u
-	return null
+## Returns the array of target units for a given (caster, ability, board) triple.
+## Empty array = no valid target (caller skips turn).
+static func resolve_targets(caster: CombatantData, ability: AbilityData, board: LaneBoard) -> Array[CombatantData]:
+	var caster_lane := board.get_lane_of(caster)
+	var caster_side := board.get_side_of(caster)
+	var enemy_side := board.get_opposite_side(caster_side)
+	var result: Array[CombatantData] = []
+	match ability.target_shape:
+		AbilityData.TargetShape.SELF:
+			result.append(caster)
+		AbilityData.TargetShape.SAME_LANE, AbilityData.TargetShape.SINGLE:
+			# Try direct opposite first; fall back to nearest non-empty enemy.
+			var opp := board.get_unit(caster_lane, enemy_side)
+			if opp != null and opp.current_hp > 0:
+				result.append(opp)
+			else:
+				for u: CombatantData in board.get_all_on_side(enemy_side):
+					if u.current_hp > 0:
+						result.append(u)
+						break
+		AbilityData.TargetShape.ADJACENT_LANE:
+			for u: CombatantData in board.get_adjacent_lane_units(caster_lane, enemy_side):
+				if u.current_hp > 0:
+					result.append(u)
+		AbilityData.TargetShape.ALL_LANES:
+			for u: CombatantData in board.get_all_on_side(enemy_side):
+				if u.current_hp > 0:
+					result.append(u)
+		AbilityData.TargetShape.ALL_ALLIES:
+			for u: CombatantData in board.get_all_on_side(caster_side):
+				if u.current_hp > 0:
+					result.append(u)
+		_:
+			# Legacy shapes (CONE/LINE/RADIAL/ARC): autobattler treats as SAME_LANE.
+			# Slice 7 strips legacy shape support.
+			var opp := board.get_unit(caster_lane, enemy_side)
+			if opp != null and opp.current_hp > 0:
+				result.append(opp)
+			else:
+				for u: CombatantData in board.get_all_on_side(enemy_side):
+					if u.current_hp > 0:
+						result.append(u)
+						break
+	return result
 
 ## Stub: applies HARM only. Slice 5 replaces with full effect dispatch.
 func _apply_ability(caster: CombatantData, target: CombatantData, ability: AbilityData) -> void:

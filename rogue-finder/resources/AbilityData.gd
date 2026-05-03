@@ -27,12 +27,16 @@ enum Attribute {
 ## Separated from ApplicableTo so shape and filter are independent.
 ## ======================================================
 enum TargetShape {
-	SELF   = 0,  ## auto-targets the caster; no highlight step
-	SINGLE = 1,  ## player picks one valid unit within range
-	CONE   = 2,  ## expanding triangle: 1 cell at depth 1, 2 at depth 2, 3 at depth 3 (fire-breath)
-	LINE   = 3,  ## straight line extending from the caster in a chosen direction
-	RADIAL = 4,  ## diamond AoE — 5 wide × 5 tall
-	ARC    = 5,  ## 3-wide adjacent arc — left, center, right of the chosen direction
+	SELF          = 0,  ## auto-targets the caster; no highlight step
+	SINGLE        = 1,  ## legacy grid — retired Slice 7
+	CONE          = 2,  ## legacy grid — retired Slice 7
+	LINE          = 3,  ## legacy grid — retired Slice 7
+	RADIAL        = 4,  ## legacy grid — retired Slice 7
+	ARC           = 5,  ## legacy grid — retired Slice 7
+	SAME_LANE     = 6,  ## autobattler — direct opposite in caster's lane; falls back to nearest
+	ADJACENT_LANE = 7,  ## autobattler — enemies in lanes ±1 of caster
+	ALL_LANES     = 8,  ## autobattler — every enemy on the opposite side
+	ALL_ALLIES    = 9,  ## autobattler — every ally on the caster's side
 }
 
 ## ======================================================
