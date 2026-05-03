@@ -7,6 +7,7 @@ func _ready() -> void:
 	print("=== test_combat_loop.gd ===")
 	test_one_v_one_resolves()
 	print("=== All combat loop tests passed ===")
+	get_tree().quit()
 
 func test_one_v_one_resolves() -> void:
 	var ally := _make_unit("Ally", true, 6, 20, "strike")
