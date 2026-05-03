@@ -5,7 +5,7 @@ extends Node2D
 
 ## Flip to true to enter the new autobattler combat scene instead of the legacy 3D grid combat.
 ## Slice 7 of the combat pivot will flip this on, rip out the old combat, and remove this constant.
-const USE_AUTOBATTLER_COMBAT: bool = false
+const USE_AUTOBATTLER_COMBAT: bool = true
 
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const CENTER        := Vector2(640.0, 360.0)
