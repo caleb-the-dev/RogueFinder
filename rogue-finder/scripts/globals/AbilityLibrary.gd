@@ -28,12 +28,16 @@ const _ATTRIBUTE: Dictionary = {
 	"MAGIC_ARMOR_MOD":    AbilityData.Attribute.MAGIC_ARMOR_MOD,
 }
 const _TARGET_SHAPE: Dictionary = {
-	"SELF":   AbilityData.TargetShape.SELF,
-	"SINGLE": AbilityData.TargetShape.SINGLE,
-	"CONE":   AbilityData.TargetShape.CONE,
-	"LINE":   AbilityData.TargetShape.LINE,
-	"RADIAL": AbilityData.TargetShape.RADIAL,
-	"ARC":    AbilityData.TargetShape.ARC,
+	"SELF":          AbilityData.TargetShape.SELF,
+	"SINGLE":        AbilityData.TargetShape.SINGLE,
+	"CONE":          AbilityData.TargetShape.CONE,
+	"LINE":          AbilityData.TargetShape.LINE,
+	"RADIAL":        AbilityData.TargetShape.RADIAL,
+	"ARC":           AbilityData.TargetShape.ARC,
+	"SAME_LANE":     AbilityData.TargetShape.SAME_LANE,
+	"ADJACENT_LANE": AbilityData.TargetShape.ADJACENT_LANE,
+	"ALL_LANES":     AbilityData.TargetShape.ALL_LANES,
+	"ALL_ALLIES":    AbilityData.TargetShape.ALL_ALLIES,
 }
 const _APPLICABLE_TO: Dictionary = {
 	"ALLY":  AbilityData.ApplicableTo.ALLY,
