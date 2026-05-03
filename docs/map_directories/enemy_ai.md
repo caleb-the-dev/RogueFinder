@@ -1,23 +1,34 @@
 # System: Enemy AI
 
-> Last updated: 2026-05-01 (Slice 3 — within-bucket scoring, role-aware stride, buff/debuff tracker, move priority, FORCE disabled pending Slice 4)
+> Last updated: 2026-05-02 (Slice 6 — AutobattlerEnemyAI static module added; priority-list picker for CombatManagerAuto)
 
 ---
 
 ## Purpose
 
-Role-driven AI system for enemy combatants. Each archetype has a `Role` that determines which effect types it prioritizes each turn. Within each effect-type bucket, situational scoring picks the best target and ability. Movement is role-aware (support roles stride first; healers move toward low-HP allies).
+Role-driven AI system for combatants. Two separate modules serve the two combat systems:
+
+- **`EnemyAI.gd`** — used by `CombatManager3D` (legacy 3D tactical grid). Full within-bucket scoring, geometry helpers, move priority. Retires in Slice 7.
+- **`AutobattlerEnemyAI.gd`** — used by `CombatManagerAuto` (autobattler). Simple priority-list pick per role; no scoring, no geometry. Active as of Slice 6.
 
 ---
 
 ## Build Status
+
+### AutobattlerEnemyAI (CombatManagerAuto — active)
+
+| Slice | Description | Status |
+|-------|-------------|--------|
+| Slice 6 | AutobattlerEnemyAI — priority-list pick; role prefs from archetype; cooldown + target filters | ✅ Done |
+
+### EnemyAI (CombatManager3D — legacy, retires Slice 7)
 
 | Slice | Description | Status |
 |-------|-------------|--------|
 | Slice 1 | Role data layer — `ArchetypeData.Role` enum + `archetypes.csv` column + `ArchetypeLibrary._parse_role()` | ✅ Done |
 | Slice 2 | EnemyAI module — role preference walk, critical-heal override, last-ability cycling, `last_ability_id` tracker | ✅ Done |
 | Slice 3 | Within-bucket scoring — HARM AoE/finishing-blow/best-damage, MEND closest-fit, BUFF/DEBUFF redundancy/stack-cap, role-aware movement stride, buff/debuff tracker fields on Unit3D, move priority sort, FORCE **disabled** | ✅ Done (FORCE disabled) |
-| Slice 4 | FORCE multi-step positioning planner — stride-to-align, hazard/edge push scoring re-enabled | ⏳ Planned |
+| Slice 4 | FORCE multi-step positioning planner — stride-to-align, hazard/edge push scoring re-enabled | ⏳ Deferred (retires with old combat in Slice 7) |
 
 ---
 
@@ -44,13 +55,60 @@ Defined on `ArchetypeData` (`resources/ArchetypeData.gd`). Stored in `archetypes
 | `resources/ArchetypeData.gd` | Defines `Role` enum + `role: Role` field |
 | `data/archetypes.csv` | `role` column — one of: attacker / healer / supporter / debuffer / controller |
 | `scripts/globals/ArchetypeLibrary.gd` | `_parse_role(val)` — case-insensitive string → enum |
-| `scripts/combat/EnemyAI.gd` | Static module — `choose_action()` + all private helpers + geometry statics. No instance state. |
+| `scripts/combat/AutobattlerEnemyAI.gd` | **Active** — static module for CombatManagerAuto; `pick()` + role prefs table. No instance state. |
+| `scripts/combat/EnemyAI.gd` | **Legacy** — static module for CombatManager3D; `choose_action()` + scoring helpers + geometry statics. Retires Slice 7. |
 | `scripts/combat/CombatManager3D.gd` | Calls `EnemyAI.choose_action()` inside `_process_enemy_actions()`; sorts enemies by `MOVE_PRIORITY` before processing; sets `enemy.last_ability_id` after each pick; updates buff/debuff tracker fields in `_apply_non_harm_effects()` |
-| `scripts/combat/Unit3D.gd` | Holds all transient AI fields: `ai_override`, `last_ability_id`, `active_buff_ability_ids`, `active_debuff_ability_ids`, `debuff_stat_stacks` |
+| `scripts/combat/Unit3D.gd` | Holds all transient AI fields for EnemyAI: `ai_override`, `last_ability_id`, `active_buff_ability_ids`, `active_debuff_ability_ids`, `debuff_stat_stacks` |
+| `tests/test_autobattler_ai.gd/.tscn` | 4 headless tests — ATTACKER prefers HARM, HEALER prefers MEND, cooldown skip, HARM-fallback |
 | `tests/test_archetype_role.gd/.tscn` | 6 headless tests — role CSV parse, stub fallback, reload() |
 | `tests/test_enemy_ai.gd` | 10 headless SceneTree tests — affordable filter, consumable trigger, QTE tiers (Slice 1 era) |
 | `tests/test_enemy_ai_2.gd/.tscn` | 9 headless tests — Slice 2 behaviors + CONTROLLER FORCE-disabled fallback |
 | `tests/test_enemy_ai_scoring.gd/.tscn` | 13 headless tests — all Slice 3 scoring behaviors (see below) |
+
+---
+
+## AutobattlerEnemyAI Module (`scripts/combat/AutobattlerEnemyAI.gd`)
+
+Static `RefCounted`. Called once per unit turn by `CombatManagerAuto._fire_unit_turn()`. Used by **both** ally and enemy units — player units run the same AI in the autobattler (consumable interject is the player's agency, not per-turn ability picking).
+
+### Constants
+
+| Constant | Type | Purpose |
+|----------|------|---------|
+| `ROLE_PREFS` | `Dictionary` | Maps `ArchetypeData.Role` enum value → ordered `Array[EffectData.EffectType]` |
+| `DEFAULT_PREFS` | `Array` | HARM → DEBUFF → BUFF → MEND. Used for units with `archetype_id == ""` or `"generic"`. |
+
+### Role Preference Table
+
+| Role | Effect-type priority order |
+|------|---------------------------|
+| ATTACKER (0) | HARM → DEBUFF → BUFF → MEND |
+| HEALER (1) | MEND → BUFF → HARM → DEBUFF |
+| SUPPORTER (2) | BUFF → DEBUFF → MEND → HARM |
+| DEBUFFER (3) | DEBUFF → HARM → BUFF → MEND |
+| CONTROLLER (4) | DEBUFF → HARM → BUFF → MEND |
+
+### Public API
+
+```gdscript
+## Returns {ability: AbilityData, targets: Array[CombatantData], slot: int}.
+## ability is null if nothing fires (no off-cooldown ability with a valid target).
+static func pick(unit: CombatantData, _allies: Array, _hostiles: Array, board: LaneBoard) -> Dictionary
+```
+
+### Decision Flow
+
+1. Look up role prefs from `unit.archetype_id` → `ArchetypeLibrary.get_archetype()` → `arch.role`. Falls back to `DEFAULT_PREFS` for `archetype_id == "" / "generic"` or unknown archetypes.
+2. Get available slots via `CountdownTracker.available_slot_indices(unit.cooldowns)`.
+3. For each `effect_type` in prefs, for each available slot: check if the ability at that slot has that effect type (via first-effect check). If yes, call `CombatManagerAuto.resolve_targets(unit, ability, board)`. First non-empty result wins.
+4. If no valid pick: return `{ability: null, targets: [], slot: -1}` → caller skips turn.
+
+### Gotchas
+
+- **Bucketing by first effect only** — `_has_effect_type()` checks ALL effects in the array, not just the first. An ability with HARM primary + DEBUFF secondary counts for both buckets. This means a mixed-effect ability can be picked when either of its types is preferred.
+- **`_allies` and `_hostiles` params are unused** — target resolution goes through `board`. Parameters are kept for future extension (e.g., lowest-HP target selection).
+- **Player units use the same AI** — there is no separate player branch. In the autobattler all 6 units run through `pick()`. Player agency comes from consumable interject (Slice 7).
+- **Role read from archetype, not unit** — `CombatantData` has no `role` field. Role is looked up from `ArchetypeData` at pick time. Player character uses `archetype_id = "RogueFinder"` (role: ATTACKER) → DEFAULT_PREFS.
 
 ---
 
@@ -266,6 +324,7 @@ Earlier Slice 2 rooms also available (AI Roles, AI Crit-Heal) in the COMBAT sect
 
 | Date | Change |
 |------|--------|
+| 2026-05-02 | **Slice 6 — AutobattlerEnemyAI added.** `AutobattlerEnemyAI.gd` created (`class_name AutobattlerEnemyAI extends RefCounted`). `ROLE_PREFS` dictionary maps `ArchetypeData.Role` enum values → ordered `Array[EffectData.EffectType]`. `pick(unit, _allies, _hostiles, board)` walks prefs → available slots → ability has effect type → `resolve_targets` non-empty → return `{ability, targets, slot}`. `_get_role_prefs()` looks up role via `ArchetypeLibrary.get_archetype(unit.archetype_id).role`; falls back to `DEFAULT_PREFS` for generic/empty IDs. `_has_effect_type()` checks all effects in the array (not just first). `CombatManagerAuto._fire_unit_turn()` stub deleted; replaced with `AutobattlerEnemyAI.pick()` call. 4 headless tests (`test_autobattler_ai.gd/.tscn`) — all pass. |
 | 2026-05-01 | **Slice 3 complete (FORCE disabled).** `_try_effect_type()` rewritten: old two-pass situational-useful walk replaced by per-type scorer dispatch (`_pick_best_harm`, `_pick_best_mend`, `_pick_best_buff`, `_pick_best_debuff`). FORCE case returns null pending Slice 4. `_pick_best_harm()`: AoE-2+ → finishing-blow → best expected damage. `_pick_best_mend()`: lowest-HP target, closest-fit heal. `_pick_best_buff()`: highest-HP non-redundant ally. `_pick_best_debuff()`: highest-HP non-capped hostile with 3-stack cap. `_expected_damage()` helper mirrors CM3D HARM formula (no QTE). Geometry statics extracted from CM3D: `_get_shape_cells_static`, `_cardinal_direction_static`, `_aoe_hostile_count`, `_compute_force_dest`, `_force_push_dir`. `pick_force_stride_cell()` added (CONTROLLER stride planner) but disabled in CM3D. New public: `pick_stride_target()`, `pick_best_aoe_origin()`, `pick_force_stride_cell()`. `MOVE_PRIORITY` const added — support roles (HEALER/SUPPORTER/DEBUFFER) process before ATTACKER/CONTROLLER. CM3D buff/debuff tracking: `active_buff_ability_ids`, `active_debuff_ability_ids`, `debuff_stat_stacks` on Unit3D; populated by `_apply_non_harm_effects()`; cleared in `_end_combat()`. 6 new dev test rooms (AI SLICE 3 — SCORING section). 13 headless tests (`test_enemy_ai_scoring.gd/.tscn`). |
 | 2026-05-01 | **Slice 2 complete.** `EnemyAI.gd` created — `choose_action()`, `ROLE_PREFERENCES` table, critical-heal override (15%), `_is_situationally_useful()` per type (now replaced in Slice 3), two-pass `_try_effect_type()` with last-ability cycling. `Unit3D` gains `ai_override` + `last_ability_id`. CM3D `_process_enemy_actions()` replaces randi() picks with EnemyAI; adds `_player_units_alive()` + `_enemy_units_alive_excluding()` helpers. AI Roles + AI Crit-Heal dev test rooms. 9 headless tests. |
 | 2026-04-30 | **Slice 1 complete.** `ArchetypeData.Role` enum (5 values), `role` column in `archetypes.csv`, `ArchetypeLibrary._parse_role()`. 6 headless tests. |
