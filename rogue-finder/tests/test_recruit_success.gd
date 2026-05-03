@@ -47,7 +47,6 @@ func _make_combatant(level: int) -> CombatantData:
 	d.xp = 0
 	d.pending_level_ups = 0
 	d.current_hp = d.hp_max
-	d.current_energy = d.energy_max
 	d.is_dead = false
 	d.consumable = ""
 	d.qte_resolution = 0.0

@@ -98,8 +98,6 @@ func test_hp_and_energy_seeded_at_max() -> void:
 	var pc := CharacterCreationManager._build_pc("Tess", "Human", "arcanist", "crook", "portrait_human_f")
 	assert(pc.current_hp == pc.hp_max,
 		"current_hp must equal hp_max at creation (got %d, max %d)" % [pc.current_hp, pc.hp_max])
-	assert(pc.current_energy == pc.energy_max,
-		"current_energy must equal energy_max (got %d, max %d)" % [pc.current_energy, pc.energy_max])
 	print("  PASS test_hp_and_energy_seeded_at_max")
 
 func test_build_pc_deterministic_stats() -> void:

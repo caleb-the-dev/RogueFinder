@@ -155,9 +155,9 @@ func _build_reward_card(item: Dictionary, w: float) -> PanelContainer:
 				ab_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 				var range_str: String = "whole map" if ab.tile_range == -1 \
 					else "%d tile%s" % [ab.tile_range, "s" if ab.tile_range != 1 else ""]
-				ab_lbl.tooltip_text = "%s\n%s · %d Energy · %s\n\n%s" % [
+				ab_lbl.tooltip_text = "%s\n%s · CD %d · %s\n\n%s" % [
 					ab.ability_name, _attr_abbrev(ab.attribute),
-					ab.energy_cost, range_str, ab.description]
+					ab.cooldown_max, range_str, ab.description]
 				ab_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
 				vbox.add_child(ab_lbl)
 

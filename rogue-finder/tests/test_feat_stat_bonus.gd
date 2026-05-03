@@ -9,9 +9,7 @@ func _ready() -> void:
 	test_single_feat_sums_correctly()
 	test_multiple_feats_sum()
 	test_wrong_stat_returns_zero()
-	test_attack_increases_with_strength_feat()
 	test_physical_defense_increases_with_armor_feat()
-	test_energy_regen_increases_with_willpower_feat()
 	test_unknown_feat_id_does_not_crash()
 	print("=== All feat stat bonus tests passed ===")
 
@@ -62,14 +60,6 @@ func test_wrong_stat_returns_zero() -> void:
 		"iron_guard: physical_armor bonus should be 2, got %d" % d.get_feat_stat_bonus("physical_armor"))
 	print("  PASS test_wrong_stat_returns_zero")
 
-func test_attack_increases_with_strength_feat() -> void:
-	var d := _bare_combatant()
-	var base_attack: int = d.attack
-	d.feat_ids = ["combat_mastery"]  # strength:1
-	assert(d.attack == base_attack + 1,
-		"combat_mastery should raise attack by 1, got %d (base %d)" % [d.attack, base_attack])
-	print("  PASS test_attack_increases_with_strength_feat")
-
 func test_physical_defense_increases_with_armor_feat() -> void:
 	var d := _bare_combatant()
 	var base_pdef: int = d.physical_defense
@@ -77,14 +67,6 @@ func test_physical_defense_increases_with_armor_feat() -> void:
 	assert(d.physical_defense == base_pdef + 2,
 		"iron_guard should raise physical_defense by 2, got %d (base %d)" % [d.physical_defense, base_pdef])
 	print("  PASS test_physical_defense_increases_with_armor_feat")
-
-func test_energy_regen_increases_with_willpower_feat() -> void:
-	var d := _bare_combatant()
-	var base_regen: int = d.energy_regen
-	d.feat_ids = ["war_cry_discipline"]  # willpower:1
-	assert(d.energy_regen == base_regen + 1,
-		"war_cry_discipline should raise energy_regen by 1, got %d (base %d)" % [d.energy_regen, base_regen])
-	print("  PASS test_energy_regen_increases_with_willpower_feat")
 
 func test_unknown_feat_id_does_not_crash() -> void:
 	var d := _bare_combatant()

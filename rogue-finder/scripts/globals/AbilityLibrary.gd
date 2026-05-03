@@ -168,8 +168,6 @@ static func _row_to_data(header: PackedStringArray, row: PackedStringArray,
 				a.tile_range = int(val)
 			"passthrough":
 				a.passthrough = (val == "true")
-			"cost":
-				a.energy_cost = int(val)
 			"cooldown":
 				a.cooldown_max = int(val)
 			"description":

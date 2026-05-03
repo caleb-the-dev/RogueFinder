@@ -27,16 +27,16 @@ enum Attribute {
 ## Separated from ApplicableTo so shape and filter are independent.
 ## ======================================================
 enum TargetShape {
-	SELF          = 0,  ## auto-targets the caster; no highlight step
-	SINGLE        = 1,  ## legacy grid — retired Slice 7
-	CONE          = 2,  ## legacy grid — retired Slice 7
-	LINE          = 3,  ## legacy grid — retired Slice 7
-	RADIAL        = 4,  ## legacy grid — retired Slice 7
-	ARC           = 5,  ## legacy grid — retired Slice 7
-	SAME_LANE     = 6,  ## autobattler — direct opposite in caster's lane; falls back to nearest
-	ADJACENT_LANE = 7,  ## autobattler — enemies in lanes ±1 of caster
-	ALL_LANES     = 8,  ## autobattler — every enemy on the opposite side
-	ALL_ALLIES    = 9,  ## autobattler — every ally on the caster's side
+	SELF          = 0,
+	SINGLE        = 1,  ## deprecated alias — treated as SAME_LANE by resolve_targets()
+	CONE          = 2,  ## deprecated alias — treated as SAME_LANE
+	LINE          = 3,  ## deprecated alias — treated as SAME_LANE
+	RADIAL        = 4,  ## deprecated alias — treated as SAME_LANE
+	ARC           = 5,  ## deprecated alias — treated as SAME_LANE
+	SAME_LANE     = 6,
+	ADJACENT_LANE = 7,
+	ALL_LANES     = 8,
+	ALL_ALLIES    = 9,
 }
 
 ## ======================================================
@@ -76,8 +76,7 @@ enum DamageType {
 ## RADIAL: if false, a unit at distance-1 blocks distance-2 cells behind it.
 ## LINE: if false, effect stops at the first occupied cell.
 @export var passthrough:   bool         = false
-@export var energy_cost:   int          = 0  # legacy — retired in Slice 7
-@export var cooldown_max:  int          = 0  # autobattler — turns until ability can fire again
+@export var cooldown_max:  int          = 0
 @export var effects:       Array[EffectData] = []
 @export var description:   String       = ""
 ## ID of the upgraded form of this ability; empty if no upgrade exists.

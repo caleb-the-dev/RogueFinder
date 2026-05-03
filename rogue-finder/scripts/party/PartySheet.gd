@@ -594,13 +594,10 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 	var tr_w: float = half_w - 16.0   ## = 239
 	var tr_y: float = card_pos.y + 10.0
 
-	# Derived stats — 6 columns
+	# Derived stats — 2 columns (energy retired; speed replaced by SPD attribute)
 	var derived_defs: Array = [
-		["P.Def",  str(member.physical_defense),  "Physical Defense\nReduces physical HARM.\n= physical_armor + gear + feats"],
-		["M.Def",  str(member.magic_defense),     "Magic Defense\nReduces magic HARM.\n= magic_armor + gear + feats"],
-		["Speed",  str(member.speed),             "Speed\nMovement cells per turn.\n= 1 + kindred bonus"],
-		["EN Max", str(member.energy_max),        "Energy Max\nTotal energy pool.\n= 5 + VIT + gear + feats"],
-		["Regen",  str(member.energy_regen),      "Energy Regen\nEnergy restored per turn.\n= 2 + WIL + gear + feats"],
+		["P.Def", str(member.physical_defense), "Physical Defense\nReduces physical HARM.\n= physical_armor + gear + feats"],
+		["M.Def", str(member.magic_defense),    "Magic Defense\nReduces magic HARM.\n= magic_armor + gear + feats"],
 	]
 	var dcol_w: float = tr_w / float(derived_defs.size())
 	for i in range(derived_defs.size()):
@@ -887,8 +884,8 @@ func _build_stats_gear(parent: Control, member: CombatantData, card_pos: Vector2
 			slot_lbl.add_theme_font_size_override("font_size", 12)
 			slot_lbl.add_theme_color_override("font_color",
 				Color(0.42, 0.50, 0.42) if is_dead else Color(0.58, 0.85, 0.62))
-			slot_ctrl.tooltip_text = _wrap_tooltip("%s\nCost: %d Energy\nAttribute: %s\n\n%s\n\nRight-click to clear." % [
-				ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description
+			slot_ctrl.tooltip_text = _wrap_tooltip("%s\nCooldown: %d\nAttribute: %s\n\n%s\n\nRight-click to clear." % [
+				ab.ability_name, ab.cooldown_max, _attr_name(ab.attribute), ab.description
 			])
 		slot_ctrl.add_child(slot_lbl)
 
@@ -984,7 +981,7 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 	sort_lbl.add_theme_font_size_override("font_size", 9)
 	sort_lbl.add_theme_color_override("font_color", Color(0.50, 0.48, 0.42))
 	sort_row.add_child(sort_lbl)
-	for sf: Array in [["name", "Name"], ["attribute", "Type"], ["energy", "EN"]]:
+	for sf: Array in [["name", "Name"], ["attribute", "Type"], ["cooldown", "CD"]]:
 		var field: String = sf[0]; var caption: String = sf[1]
 		var is_active: bool = (_sort_fields[member_idx] == field)
 		var arrow: String   = (" ▲" if _sort_ascs[member_idx] else " ▼") if is_active else ""
@@ -1059,7 +1056,7 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			match sf_cur:
 				"name":      cmp = _strcmp(ab_a.ability_name, ab_b.ability_name)
 				"attribute": cmp = ab_a.attribute - ab_b.attribute
-				"energy":    cmp = ab_a.energy_cost - ab_b.energy_cost
+				"cooldown":  cmp = ab_a.cooldown_max - ab_b.cooldown_max
 				_:           cmp = _strcmp(ab_a.ability_name, ab_b.ability_name)
 			return cmp < 0 if sa_cur else cmp > 0
 		)
@@ -1081,8 +1078,8 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 			var ab: AbilityData  = AbilityLibrary.get_ability(ab_id)
 			var slot_idx: int    = member.abilities.find(ab_id)
 			var is_slotted: bool = slot_idx >= 0
-			var tip: String = _wrap_tooltip("%s\nCost: %d Energy\nAttribute: %s\n\n%s%s" % [
-				ab.ability_name, ab.energy_cost, _attr_name(ab.attribute), ab.description,
+			var tip: String = _wrap_tooltip("%s\nCooldown: %d\nAttribute: %s\n\n%s%s" % [
+				ab.ability_name, ab.cooldown_max, _attr_name(ab.attribute), ab.description,
 				("\n\nSlotted in slot %d." % (slot_idx + 1)) if is_slotted \
 					else "\n\nDrag onto an ability slot to equip."
 			])
@@ -1134,7 +1131,7 @@ func _build_ability_pool_tabs(parent: Control, member: CombatantData,
 
 			if not wide:
 				var ab_sub := Label.new()
-				ab_sub.text = "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)]
+				ab_sub.text = "CD %d  ·  %s" % [ab.cooldown_max, _attr_name(ab.attribute)]
 				ab_sub.add_theme_font_size_override("font_size", 10)
 				ab_sub.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
 				ab_sub.tooltip_text = tip
@@ -1342,7 +1339,7 @@ func _show_drag_compare(near_pos: Vector2, existing_id: String, incoming_id: Str
 		var ab: AbilityData = AbilityLibrary.get_ability(pair[1])
 		var col := _make_compare_col(hbox, pair[0], pair[2])
 		_add_cmp_label(col, ab.ability_name, 14, Color(0.92, 0.88, 0.78))
-		_add_cmp_label(col, "%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)],
+		_add_cmp_label(col, "CD %d  ·  %s" % [ab.cooldown_max, _attr_name(ab.attribute)],
 			10, Color(0.65, 0.62, 0.50))
 		_add_cmp_desc(col, ab.description)
 
@@ -1646,7 +1643,7 @@ func _fill_ability_phase(content: VBoxContainer, overlay: CanvasLayer,
 		var chosen_id: String = ab_id
 		hbox.add_child(_build_pick_card(
 			ab.ability_name,
-			"%d EN  ·  %s" % [ab.energy_cost, _attr_name(ab.attribute)],
+			"CD %d  ·  %s" % [ab.cooldown_max, _attr_name(ab.attribute)],
 			ab.description,
 			func():
 				pc_ref.ability_pool.append(chosen_id)

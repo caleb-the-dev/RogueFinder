@@ -216,9 +216,8 @@ func _serialize_combatant(d: CombatantData) -> Dictionary:
 		"level":          d.level,
 		"xp":             d.xp,
 		"pending_level_ups": d.pending_level_ups,
-		"current_hp":     d.current_hp,
-		"current_energy": d.current_energy,
-		"is_dead":        d.is_dead,
+		"current_hp": d.current_hp,
+		"is_dead":    d.is_dead,
 		"consumable":     d.consumable,
 		"weapon_id":      d.weapon.equipment_id if d.weapon else "",
 		"armor_id":       d.armor.equipment_id if d.armor else "",
@@ -325,9 +324,9 @@ func _deserialize_combatant(dict: Dictionary) -> CombatantData:
 	d.level             = dict.get("level", 1)
 	d.xp                = dict.get("xp", 0)
 	d.pending_level_ups = dict.get("pending_level_ups", 0)
-	d.current_hp     = dict.get("current_hp", 0)
-	d.current_energy = dict.get("current_energy", 0)
-	d.is_dead        = dict.get("is_dead", false)
+	d.current_hp = dict.get("current_hp", 0)
+	# "current_energy" key dropped — old saves silently ignored
+	d.is_dead    = dict.get("is_dead", false)
 	d.consumable     = dict.get("consumable", "")
 	var weapon_id: String    = dict.get("weapon_id", "")
 	d.weapon    = null if weapon_id    == "" else EquipmentLibrary.get_equipment(weapon_id)

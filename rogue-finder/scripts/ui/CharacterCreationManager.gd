@@ -515,6 +515,5 @@ static func _build_pc(char_name: String, kindred_id: String, class_id: String,
 	rng.randomize()
 	d.temperament_id = TemperamentLibrary.random_id(rng)
 
-	d.current_hp     = d.hp_max
-	d.current_energy = d.energy_max
+	d.current_hp = d.hp_max
 	return d

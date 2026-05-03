@@ -16,10 +16,7 @@ func _ready() -> void:
 	test_boosted_stat_returns_plus_one()
 	test_hindered_stat_returns_minus_one()
 	test_unaffected_stat_returns_zero()
-	test_temperament_wires_into_attack()
 	test_temperament_wires_into_hp_max()
-	test_temperament_wires_into_energy_regen()
-	test_temperament_dex_does_not_affect_speed()
 	test_archetype_create_assigns_temperament()
 	test_all_temperaments_boosted_ne_hindered()
 	test_all_backgrounds_single_plus_one()
@@ -87,18 +84,6 @@ func test_unaffected_stat_returns_zero() -> void:
 
 ## --- Derived-stat wiring tests ---
 
-func test_temperament_wires_into_attack() -> void:
-	var d := _bare_combatant()
-	d.temperament_id = "even"
-	var base_attack: int = d.attack
-	d.temperament_id = "brutish"  # +strength / -dexterity
-	assert(d.attack == base_attack + 1,
-		"brutish (+STR) should raise attack by 1, got %d (base %d)" % [d.attack, base_attack])
-	d.temperament_id = "nimble"  # +dexterity / -strength
-	assert(d.attack == base_attack - 1,
-		"nimble (-STR) should lower attack by 1, got %d (base %d)" % [d.attack, base_attack])
-	print("  PASS test_temperament_wires_into_attack")
-
 func test_temperament_wires_into_hp_max() -> void:
 	var d := _bare_combatant()
 	d.temperament_id = "even"
@@ -110,30 +95,6 @@ func test_temperament_wires_into_hp_max() -> void:
 	assert(d.hp_max == base_hp - 1,
 		"fierce (-VIT) should lower hp_max by 1, got %d (base %d)" % [d.hp_max, base_hp])
 	print("  PASS test_temperament_wires_into_hp_max")
-
-func test_temperament_wires_into_energy_regen() -> void:
-	var d := _bare_combatant()
-	d.temperament_id = "even"
-	var base_regen: int = d.energy_regen
-	d.temperament_id = "stoic"  # +willpower / -strength
-	assert(d.energy_regen == base_regen + 1,
-		"stoic (+WIL) should raise energy_regen by 1, got %d (base %d)" % [d.energy_regen, base_regen])
-	d.temperament_id = "reckless"  # +strength / -willpower
-	assert(d.energy_regen == base_regen - 1,
-		"reckless (-WIL) should lower energy_regen by 1, got %d (base %d)" % [d.energy_regen, base_regen])
-	print("  PASS test_temperament_wires_into_energy_regen")
-
-func test_temperament_dex_does_not_affect_speed() -> void:
-	var d := _bare_combatant()
-	d.temperament_id = "even"
-	var base_speed: int = d.speed
-	d.temperament_id = "nimble"  # +dexterity / -strength — DEX no longer flows into speed
-	assert(d.speed == base_speed,
-		"nimble (+DEX) must NOT change speed; speed=%d base=%d" % [d.speed, base_speed])
-	d.temperament_id = "brutish"  # +strength / -dexterity
-	assert(d.speed == base_speed,
-		"brutish (-DEX) must NOT change speed; speed=%d base=%d" % [d.speed, base_speed])
-	print("  PASS test_temperament_dex_does_not_affect_speed")
 
 ## --- Creation tests ---
 

@@ -114,8 +114,7 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 
 	# -- Live State --
 	lines.append("[b]── Live State ──[/b]")
-	lines.append("[b]HP:[/b]     %d / %d" % [unit.current_hp, d.hp_max])
-	lines.append("[b]Energy:[/b] %d / %d" % [unit.current_energy, d.energy_max])
+	lines.append("[b]HP:[/b] %d / %d" % [unit.current_hp, d.hp_max])
 	lines.append("")
 
 	# -- Core Attributes --
@@ -129,8 +128,6 @@ func _format(d: CombatantData, unit: Unit3D) -> String:
 	lines.append("[b]── Derived Stats ──[/b]")
 	lines.append("[b]P.Def:[/b]   %d   (physical armor)" % d.physical_defense)
 	lines.append("[b]M.Def:[/b]   %d   (magic armor)" % d.magic_defense)
-	lines.append("[b]Speed:[/b]   %d tiles   (1 + kindred)" % d.speed)
-	lines.append("[b]E.Regen:[/b] %d/turn   (2 + WIL)" % d.energy_regen)
 	if not d.is_player_unit:
 		lines.append("[b]QTE Res:[/b] %.2f" % d.qte_resolution)
 	lines.append("")

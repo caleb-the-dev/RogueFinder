@@ -558,7 +558,6 @@ static func _create_hire_candidate(arch: ArchetypeData, rng: RandomNumberGenerat
 		if not name_pool.is_empty() else "Unit"
 
 	data.current_hp     = data.hp_max
-	data.current_energy = data.energy_max
 	return data
 
 func _build_hire_card(candidate: CombatantData, card_index: int) -> Control:
@@ -692,8 +691,7 @@ func _build_hire_card(candidate: CombatantData, card_index: int) -> Control:
 
 	for pair: Array in [
 		["Health",       candidate.hp_max],
-		["Energy",       candidate.energy_max],
-		["Speed",        candidate.speed],
+		["SPD",          candidate.spd],
 		["Phys Armor",   candidate.physical_armor],
 		["Magic Armor",  candidate.magic_armor],
 		["Strength",     candidate.strength],
@@ -796,8 +794,8 @@ func _build_hire_card(candidate: CombatantData, card_index: int) -> Control:
 
 func _hire_ability_row(ab_id: String) -> Control:
 	var ab: AbilityData = AbilityLibrary.get_ability(ab_id)
-	var tip: String = _hire_wrap_tooltip("%s\nCost: %d Energy  ·  %s\n\n%s" % [
-		ab.ability_name, ab.energy_cost, _hire_attr_name(ab.attribute), ab.description])
+	var tip: String = _hire_wrap_tooltip("%s\nCooldown: %d  ·  %s\n\n%s" % [
+		ab.ability_name, ab.cooldown_max, _hire_attr_name(ab.attribute), ab.description])
 
 	var pnl := PanelContainer.new()
 	var sbox := StyleBoxFlat.new()
@@ -822,7 +820,7 @@ func _hire_ability_row(ab_id: String) -> Control:
 	inner.add_child(name_lbl)
 
 	var sub_lbl := Label.new()
-	sub_lbl.text = "%d EN  ·  %s" % [ab.energy_cost, _hire_attr_name(ab.attribute)]
+	sub_lbl.text = "CD %d  ·  %s" % [ab.cooldown_max, _hire_attr_name(ab.attribute)]
 	sub_lbl.add_theme_font_size_override("font_size", 10)
 	sub_lbl.add_theme_color_override("font_color", Color(0.55, 0.52, 0.44))
 	sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -927,8 +925,7 @@ func _on_hire_pressed(candidate: CombatantData, card_index: int) -> void:
 		candidate.level = GameState.party[0].level
 	candidate.xp = 0
 	candidate.pending_level_ups = 0
-	candidate.current_hp     = candidate.hp_max
-	candidate.current_energy = candidate.energy_max
+	candidate.current_hp = candidate.hp_max
 
 	if GameState.bench.size() < GameState.BENCH_CAP:
 		GameState.add_to_bench(candidate)

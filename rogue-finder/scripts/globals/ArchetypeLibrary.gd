@@ -100,8 +100,7 @@ static func create(archetype_id: String, character_name: String = "",
 	data.qte_resolution  = rng.randf_range(src.qte_range[0],   src.qte_range[1])
 	data.temperament_id  = TemperamentLibrary.random_id(rng)
 
-	data.current_hp     = data.hp_max
-	data.current_energy = data.energy_max
+	data.current_hp = data.hp_max
 
 	if character_name != "":
 		data.character_name = character_name

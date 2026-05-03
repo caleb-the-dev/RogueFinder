@@ -8,10 +8,6 @@ extends Node
 func _ready() -> void:
 	print("=== test_combatant_data.gd ===")
 	test_derived_hp()
-	test_derived_energy()
-	test_derived_energy_regen()
-	test_derived_speed()
-	test_derived_attack()
 	test_derived_defense()
 	test_unit_name_alias()
 	test_vitality_min_guard()
@@ -26,13 +22,10 @@ func _ready() -> void:
 	test_archetype_ally_auto_name_from_pool()
 	test_ability_pool_superset_of_slots()
 	test_fresh_hp_equals_hp_max()
-	test_fresh_energy_equals_energy_max()
 	test_is_dead_default_false()
 	test_ability_pool_size_all_archetypes()
-	test_kindred_speed_formula()
 	test_kindred_hp_formula()
 	test_kindred_stat_bonus_structural()
-	test_kindred_unknown_defaults_safe()
 	test_kindred_name_pool_loaded()
 	test_kindred_name_pool_unknown_safe()
 	print("=== All CombatantData tests passed ===")
@@ -47,39 +40,6 @@ func test_derived_hp() -> void:
 	d.vitality = 1
 	assert(d.hp_max == 14, "hp_max should be 10+0+4=14 (no kindred, vit 1), got %d" % d.hp_max)
 	print("  PASS test_derived_hp")
-
-func test_derived_energy() -> void:
-	var d := CombatantData.new()
-	d.vitality = 4
-	assert(d.energy_max == 9, "energy_max should be 5 + vitality (9), got %d" % d.energy_max)
-	d.vitality = 1
-	assert(d.energy_max == 6, "energy_max should be 6 for vitality 1, got %d" % d.energy_max)
-	print("  PASS test_derived_energy")
-
-func test_derived_energy_regen() -> void:
-	var d := CombatantData.new()
-	d.willpower = 3
-	assert(d.energy_regen == 5, "energy_regen should be 2 + willpower (5), got %d" % d.energy_regen)
-	d.willpower = 0
-	assert(d.energy_regen == 2, "energy_regen should be 2 for willpower 0, got %d" % d.energy_regen)
-	print("  PASS test_derived_energy_regen")
-
-func test_derived_speed() -> void:
-	# No kindred set → bonus = 0. Formula: 1 + 0 = 1 regardless of DEX.
-	var d := CombatantData.new()
-	d.dexterity = 4  # DEX no longer drives speed
-	assert(d.speed == 1, "speed should be 1+0=1 (no kindred), got %d" % d.speed)
-	d.kindred = "Human"
-	assert(d.speed == 4, "Human speed should be 1+3=4, got %d" % d.speed)
-	print("  PASS test_derived_speed")
-
-func test_derived_attack() -> void:
-	var d := CombatantData.new()
-	d.strength = 5
-	assert(d.attack == 10, "attack should be 5 + strength (10), got %d" % d.attack)
-	d.strength = 0
-	assert(d.attack == 5, "attack should be 5 for strength 0, got %d" % d.attack)
-	print("  PASS test_derived_attack")
 
 func test_derived_defense() -> void:
 	var d := CombatantData.new()
@@ -203,13 +163,6 @@ func test_fresh_hp_equals_hp_max() -> void:
 			"%s: current_hp %d != hp_max %d" % [archetype.archetype_id, d.current_hp, d.hp_max])
 	print("  PASS test_fresh_hp_equals_hp_max")
 
-func test_fresh_energy_equals_energy_max() -> void:
-	for archetype in ArchetypeLibrary.all_archetypes():
-		var d: CombatantData = ArchetypeLibrary.create(archetype.archetype_id)
-		assert(d.current_energy == d.energy_max,
-			"%s: current_energy %d != energy_max %d" % [archetype.archetype_id, d.current_energy, d.energy_max])
-	print("  PASS test_fresh_energy_equals_energy_max")
-
 func test_is_dead_default_false() -> void:
 	for archetype in ArchetypeLibrary.all_archetypes():
 		var d: CombatantData = ArchetypeLibrary.create(archetype.archetype_id)
@@ -218,17 +171,6 @@ func test_is_dead_default_false() -> void:
 	print("  PASS test_is_dead_default_false")
 
 ## --- Kindred Stat Tests ---
-
-func test_kindred_speed_formula() -> void:
-	# 1 + kindred_speed_bonus; DEX is irrelevant
-	var cases: Dictionary = { "Human": 4, "Half-Orc": 3, "Gnome": 5, "Dwarf": 2 }
-	for kindred in cases.keys():
-		var d: CombatantData = CombatantData.new()
-		d.kindred   = kindred
-		d.dexterity = 5  # should have zero effect on speed
-		assert(d.speed == cases[kindred],
-			"%s: expected speed %d, got %d" % [kindred, cases[kindred], d.speed])
-	print("  PASS test_kindred_speed_formula")
 
 func test_kindred_hp_formula() -> void:
 	# Formula: 10 + hp_bonus + vitality*4
@@ -261,16 +203,6 @@ func test_kindred_stat_bonus_structural() -> void:
 	assert(guard.get_kindred_stat_bonus("physical_armor") == 2,
 		"elite_guard (Dwarf) kindred physical_armor bonus should be 2, got %d" % guard.get_kindred_stat_bonus("physical_armor"))
 	print("  PASS test_kindred_stat_bonus_structural")
-
-func test_kindred_unknown_defaults_safe() -> void:
-	var d: CombatantData = CombatantData.new()
-	d.kindred = "Unknown"
-	assert(d.speed  == 1, "Unknown kindred speed should be 1+0=1, got %d" % d.speed)
-	assert(d.hp_max == 10 + (d.vitality * 4),
-		"Unknown kindred hp_max should use 0 bonus, got %d" % d.hp_max)
-	assert(KindredLibrary.get_stat_bonus("Unknown", "strength") == 0,
-		"Unknown kindred stat bonus should be 0")
-	print("  PASS test_kindred_unknown_defaults_safe")
 
 ## Every known kindred must load a non-empty name pool with a known flavor name —
 ## proves the CSV `name_pool` column parses correctly and reaches get_name_pool().

@@ -192,7 +192,6 @@ func _on_choice_pressed(choice: EventChoiceData) -> void:
 			pending_recruit.xp = 0
 			pending_recruit.pending_level_ups = 0
 			pending_recruit.current_hp     = pending_recruit.hp_max
-			pending_recruit.current_energy = pending_recruit.energy_max
 
 			_choices_container.visible = false
 			_show_bench_picker(pending_recruit)

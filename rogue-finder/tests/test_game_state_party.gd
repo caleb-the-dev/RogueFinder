@@ -41,15 +41,12 @@ func test_round_trip_identity() -> void:
 func test_scalar_preservation() -> void:
 	_clean()
 	GameState.init_party()
-	GameState.party[0].current_hp     = 7
-	GameState.party[0].current_energy = 3
+	GameState.party[0].current_hp = 7
 	GameState.save()
 	GameState.reset()
 	GameState.load_save()
 	assert(GameState.party[0].current_hp == 7,
 		"current_hp not preserved: expected 7, got %d" % GameState.party[0].current_hp)
-	assert(GameState.party[0].current_energy == 3,
-		"current_energy not preserved: expected 3, got %d" % GameState.party[0].current_energy)
 	print("  PASS test_scalar_preservation")
 
 func test_typed_arrays_preserved() -> void:

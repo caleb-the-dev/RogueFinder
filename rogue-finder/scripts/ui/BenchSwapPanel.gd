@@ -232,16 +232,15 @@ static func _bench_card(member: CombatantData, recruit: CombatantData,
 ## Returns [ [label, value], ... ] for the 10 tracked stats in display order.
 static func _stat_list(c: CombatantData) -> Array:
 	return [
-		["HP",     c.hp_max],
-		["Energy", c.energy_max],
-		["STR",    c.strength],
-		["DEX",    c.dexterity],
-		["COG",    c.cognition],
-		["WIL",    c.willpower],
-		["VIT",    c.vitality],
-		["Spd",    c.speed],
-		["P.Arm",  c.physical_armor],
-		["M.Arm",  c.magic_armor],
+		["HP",    c.hp_max],
+		["SPD",   c.spd],
+		["STR",   c.strength],
+		["DEX",   c.dexterity],
+		["COG",   c.cognition],
+		["WIL",   c.willpower],
+		["VIT",   c.vitality],
+		["P.Arm", c.physical_armor],
+		["M.Arm", c.magic_armor],
 	]
 
 

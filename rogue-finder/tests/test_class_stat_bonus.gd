@@ -10,10 +10,7 @@ func _ready() -> void:
 	test_get_class_stat_bonus_known_class()
 	test_get_class_stat_bonus_unknown_stat_returns_zero()
 	test_get_class_stat_bonus_unknown_class_returns_zero()
-	test_attack_includes_class_bonus()
 	test_hp_max_includes_class_vit_bonus()
-	test_energy_regen_includes_class_wil_bonus()
-	test_speed_unaffected_by_class_dex_bonus()
 	test_attribute_range_min_boundary()
 	test_attribute_range_max_boundary()
 	test_hp_formula_with_max_vit()
@@ -69,14 +66,6 @@ func test_get_class_stat_bonus_unknown_class_returns_zero() -> void:
 		"unknown class should return 0 for any stat bonus")
 	print("  PASS test_get_class_stat_bonus_unknown_class_returns_zero")
 
-func test_attack_includes_class_bonus() -> void:
-	var d := _bare_combatant()
-	var base_attack: int = d.attack  # unit_class = "", so no class bonus
-	d.unit_class = "vanguard"  # str:2
-	assert(d.attack == base_attack + 2,
-		"vanguard str:2 should raise attack by 2, got %d (base %d)" % [d.attack, base_attack])
-	print("  PASS test_attack_includes_class_bonus")
-
 func test_hp_max_includes_class_vit_bonus() -> void:
 	var d := _bare_combatant()
 	var base_hp: int = d.hp_max  # unit_class = ""
@@ -85,48 +74,16 @@ func test_hp_max_includes_class_vit_bonus() -> void:
 		"vanguard vit:2 should raise hp_max by 2, got %d (base %d)" % [d.hp_max, base_hp])
 	print("  PASS test_hp_max_includes_class_vit_bonus")
 
-func test_energy_regen_includes_class_wil_bonus() -> void:
-	var d := _bare_combatant()
-	var base_regen: int = d.energy_regen  # unit_class = ""
-	d.unit_class = "arcanist"  # wil:2
-	assert(d.energy_regen == base_regen + 2,
-		"arcanist wil:2 should raise energy_regen by 2, got %d (base %d)" % [d.energy_regen, base_regen])
-	print("  PASS test_energy_regen_includes_class_wil_bonus")
-
-func test_speed_unaffected_by_class_dex_bonus() -> void:
-	var d := _bare_combatant()
-	var base_speed: int = d.speed  # unit_class = ""
-	d.unit_class = "prowler"  # dex:2 — DEX no longer flows into speed
-	assert(d.speed == base_speed,
-		"prowler dex:2 must NOT raise speed; speed=%d base=%d" % [d.speed, base_speed])
-	print("  PASS test_speed_unaffected_by_class_dex_bonus")
-
 func test_attribute_range_min_boundary() -> void:
 	var d := _bare_combatant()
-	d.strength  = 1
-	d.dexterity = 1
-	d.cognition = 1
-	d.willpower = 1
-	d.vitality  = 1
-	# hp = 10 + 0 + 1*4 = 14; energy_max = 5 + 1 = 6; energy_regen = 2 + 1 = 3; attack = 5 + 1 = 6
-	assert(d.hp_max == 14,       "min vit=1: hp_max should be 14, got %d" % d.hp_max)
-	assert(d.energy_max == 6,    "min vit=1: energy_max should be 6, got %d" % d.energy_max)
-	assert(d.energy_regen == 3,  "min wil=1: energy_regen should be 3, got %d" % d.energy_regen)
-	assert(d.attack == 6,        "min str=1: attack should be 6, got %d" % d.attack)
+	d.vitality = 1
+	assert(d.hp_max == 14, "min vit=1: hp_max should be 14, got %d" % d.hp_max)
 	print("  PASS test_attribute_range_min_boundary")
 
 func test_attribute_range_max_boundary() -> void:
 	var d := _bare_combatant()
-	d.strength  = 10
-	d.dexterity = 10
-	d.cognition = 10
-	d.willpower = 10
-	d.vitality  = 10
-	# hp = 10 + 0 + 10*4 = 50; energy_max = 5 + 10 = 15; energy_regen = 2 + 10 = 12; attack = 5 + 10 = 15
-	assert(d.hp_max == 50,       "max vit=10: hp_max should be 50, got %d" % d.hp_max)
-	assert(d.energy_max == 15,   "max vit=10: energy_max should be 15, got %d" % d.energy_max)
-	assert(d.energy_regen == 12, "max wil=10: energy_regen should be 12, got %d" % d.energy_regen)
-	assert(d.attack == 15,       "max str=10: attack should be 15, got %d" % d.attack)
+	d.vitality = 10
+	assert(d.hp_max == 50, "max vit=10: hp_max should be 50, got %d" % d.hp_max)
 	print("  PASS test_attribute_range_max_boundary")
 
 func test_hp_formula_with_max_vit() -> void:

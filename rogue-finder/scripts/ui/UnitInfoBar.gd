@@ -159,13 +159,14 @@ func hide_bar() -> void:
 func _refresh_bars(unit: Unit3D) -> void:
 	var d: CombatantData = unit.data
 	var hp_ratio: float = float(unit.current_hp) / float(d.hp_max) if d.hp_max > 0 else 0.0
-	var en_ratio: float = float(unit.current_energy) / float(d.energy_max) if d.energy_max > 0 else 0.0
 
 	_hp_fill.size = Vector2(BAR_W * clampf(hp_ratio, 0.0, 1.0), BAR_H)
-	_en_fill.size = Vector2(BAR_W * clampf(en_ratio, 0.0, 1.0), BAR_H)
+	if is_instance_valid(_en_fill):
+		_en_fill.visible = false  # energy bar retired
 
 	_hp_text.text = "%d/%d" % [unit.current_hp, d.hp_max]
-	_en_text.text = "%d/%d" % [unit.current_energy, d.energy_max]
+	if is_instance_valid(_en_text):
+		_en_text.text = ""
 
 	# HP bar color shifts green → yellow → red as HP falls
 	if hp_ratio > 0.66:

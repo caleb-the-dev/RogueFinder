@@ -101,10 +101,7 @@ extends Resource
 ## Live HP that persists between combats. Seeded to hp_max at creation.
 @export var current_hp: int = 0
 
-## Live energy that persists between combats. Seeded to energy_max at creation.
-@export var current_energy: int = 0
-
-## Permanent death flag. Flipped by CombatManager3D; defaults false.
+## Permanent death flag. Flipped by CombatManagerAuto; defaults false.
 @export var is_dead: bool = false
 
 ## ======================================================
@@ -197,23 +194,6 @@ var hp_max: int:
 		+ _equip_bonus("vitality") + get_feat_stat_bonus("vitality") \
 		+ get_class_stat_bonus("vitality") + get_kindred_stat_bonus("vitality") \
 		+ get_background_stat_bonus("vitality") + get_temperament_stat_bonus("vitality")
-
-## energy_max: 5 + vitality
-var energy_max: int:
-	get: return 5 + vitality + _equip_bonus("vitality") + get_feat_stat_bonus("vitality") \
-		+ get_class_stat_bonus("vitality") + get_kindred_stat_bonus("vitality") \
-		+ get_background_stat_bonus("vitality") + get_temperament_stat_bonus("vitality")
-
-## energy_regen: energy restored at the start of each turn — 2 + willpower
-var energy_regen: int:
-	get: return 2 + willpower + _equip_bonus("willpower") + get_feat_stat_bonus("willpower") \
-		+ get_class_stat_bonus("willpower") + get_kindred_stat_bonus("willpower") \
-		+ get_background_stat_bonus("willpower") + get_temperament_stat_bonus("willpower")
-
-## speed: movement range in grid cells — base 1 + kindred bonus.
-## DEX is reserved for dodge/evasion (future). Nothing flows into speed through dex.
-var speed: int:
-	get: return 1 + KindredLibrary.get_speed_bonus(kindred)
 
 ## physical_defense: resists PHYSICAL HARM — base + transient mod + 5 pillar bonuses keyed "physical_armor".
 var physical_defense: int:
