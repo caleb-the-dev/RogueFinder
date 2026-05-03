@@ -81,21 +81,17 @@ func _advance_tick() -> void:
 			return
 
 func _fire_unit_turn(u: CombatantData) -> void:
-	# Stub AI: always pick slot 0 regardless of cooldown.
-	# Slice 6 replaces this with AutobattlerEnemyAI.pick().
-	var slot: int = 0
-	var ability_id: String = u.abilities[slot] if u.abilities.size() > slot else ""
-	if ability_id == "":
-		print("  [%s] skips turn (slot 0 empty)" % u.character_name)
+	var allies: Array[CombatantData] = board.get_all_on_side(board.get_side_of(u))
+	var hostiles: Array[CombatantData] = board.get_all_on_side(board.get_opposite_side(board.get_side_of(u)))
+	var pick: Dictionary = AutobattlerEnemyAI.pick(u, allies, hostiles, board)
+	if pick.ability == null:
+		print("  [%s] tick %d: skips (no valid action)" % [u.character_name, current_tick])
 		return
-	var ability: AbilityData = AbilityLibrary.get_ability(ability_id)
-	var targets := CombatManagerAuto.resolve_targets(u, ability, board)
-	if targets.is_empty():
-		print("  [%s] no valid target" % u.character_name)
-		return
+	var ability: AbilityData = pick.ability
+	var targets: Array = pick.targets
 	for target: CombatantData in targets:
 		_apply_ability(u, target, ability)
-	u.cooldowns[slot] = ability.cooldown_max
+	u.cooldowns[pick.slot] = ability.cooldown_max
 	print("  [%s] tick %d: %s on %d target(s)" % [u.character_name, current_tick, ability.ability_name, targets.size()])
 
 ## Returns the array of target units for a given (caster, ability, board) triple.
@@ -143,15 +139,39 @@ static func resolve_targets(caster: CombatantData, ability: AbilityData, board: 
 						break
 	return result
 
-## Stub: applies HARM only. Slice 5 replaces with full effect dispatch.
 func _apply_ability(caster: CombatantData, target: CombatantData, ability: AbilityData) -> void:
 	for effect: EffectData in ability.effects:
-		if effect.effect_type == EffectData.EffectType.HARM:
-			var attr_name: String = _attr_to_string(ability.attribute)
-			var raw_dmg: int = effect.base_value + caster.effective_stat(attr_name)
-			var defense: int = target.physical_defense if ability.damage_type == AbilityData.DamageType.PHYSICAL else target.magic_defense
-			var dmg: int = max(1, raw_dmg - defense)
-			target.current_hp = max(0, target.current_hp - dmg)
+		match effect.effect_type:
+			EffectData.EffectType.HARM:
+				_apply_harm(caster, target, effect, ability.attribute, ability.damage_type)
+			EffectData.EffectType.MEND:
+				var heal_amount: int = effect.base_value + caster.effective_stat("willpower")
+				target.current_hp = min(target.hp_max, target.current_hp + heal_amount)
+			EffectData.EffectType.BUFF:
+				_apply_stat_delta(target, effect, 1)
+			EffectData.EffectType.DEBUFF:
+				_apply_stat_delta(target, effect, -1)
+			# FORCE / TRAVEL: no movement in autobattler, ignored
+
+func _apply_harm(caster: CombatantData, target: CombatantData, effect: EffectData, attr: AbilityData.Attribute, dt: AbilityData.DamageType) -> void:
+	var attr_name: String = _attr_to_string(attr)
+	var raw_dmg: int = effect.base_value + caster.effective_stat(attr_name)
+	var defense: int = 0
+	if dt == AbilityData.DamageType.PHYSICAL:
+		defense = target.physical_defense
+	elif dt == AbilityData.DamageType.MAGIC:
+		defense = target.magic_defense
+	var dmg: int = max(1, raw_dmg - defense)
+	target.current_hp = max(0, target.current_hp - dmg)
+
+func _apply_stat_delta(target: CombatantData, effect: EffectData, sign: int) -> void:
+	# Slice 7+: full transient stat-mod tracking (snapshots, durations).
+	# For vert slice: only armor mods are implemented; other targets are no-ops.
+	match effect.target_stat:
+		AbilityData.Attribute.PHYSICAL_ARMOR_MOD:
+			target.physical_armor_mod = clamp(target.physical_armor_mod + sign * effect.base_value, -10, 10)
+		AbilityData.Attribute.MAGIC_ARMOR_MOD:
+			target.magic_armor_mod = clamp(target.magic_armor_mod + sign * effect.base_value, -10, 10)
 
 func _attr_to_string(a: AbilityData.Attribute) -> String:
 	match a:
