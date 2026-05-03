@@ -1,6 +1,6 @@
 # System: Ability System
 
-> Last updated: 2026-05-02 (Combat Pivot Slice 2 — cooldown_max field + cooldown CSV column added; energy_cost retained as legacy)
+> Last updated: 2026-05-02 (Combat Pivot Slice 5 — lane TargetShape enum values added; abilities.csv migrated to lane shapes; old CONE/LINE/RADIAL/ARC values marked legacy)
 
 ---
 
@@ -38,16 +38,27 @@ Resource subclass. One instance per ability, created by `AbilityLibrary.get_abil
 
 `PHYSICAL_ARMOR_MOD` and `MAGIC_ARMOR_MOD` are runtime-only BUFF/DEBUFF targets — they tweak the transient `physical_armor_mod` / `magic_armor_mod` fields on `CombatantData` and roll back at combat end. They are never used as ability scaling stats.
 
-**TargetShape** — the geometry of the targeting area:
+**TargetShape** — the geometry of the targeting area.
+
+*Lane-based values (active — autobattler):*
 
 | Value | Behavior |
 |-------|---------|
-| `SELF(0)` | Auto-targets the caster; no highlight step |
+| `SELF(0)` | Auto-targets the caster |
+| `SAME_LANE(6)` | The unit directly opposite in the caster's lane; falls back to nearest living enemy if that slot is empty |
+| `ADJACENT_LANE(7)` | All living enemies in lanes ±1 of the caster (up to 2 targets) |
+| `ALL_LANES(8)` | Every living enemy on the opposite side (up to 3 targets) |
+| `ALL_ALLIES(9)` | Every living unit on the caster's own side (up to 3 targets; includes caster) |
+
+*Legacy grid values (Slice 7 retirement — still parse correctly, autobattler treats them as `SAME_LANE`):*
+
+| Value | Old behavior (retired) |
+|-------|---------|
 | `SINGLE(1)` | Player picks one valid unit within range |
-| `CONE(2)` | Expanding T: stem(1) → 3-wide crossbar(2) → 5-wide back row(3). Without passthrough, a unit at the stem blocks depth 2+3. |
-| `LINE(3)` | Straight ray up to tile_range; stops at first unit unless passthrough=true |
-| `RADIAL(4)` | Diamond ≤ 2 Manhattan. Without passthrough, pure cardinal distance-2 cells blocked by a unit directly between them and origin. Diagonal cells never blocked. |
-| `ARC(5)` | 3-wide adjacent row: left, center, right of the chosen direction. No passthrough logic. |
+| `CONE(2)` | Expanding T cone (grid combat) |
+| `LINE(3)` | Straight ray (grid combat) |
+| `RADIAL(4)` | Diamond AoE (grid combat) |
+| `ARC(5)` | 3-wide adjacent arc (grid combat) |
 
 **ApplicableTo** — which units can be affected:
 `ALLY(0)`, `ENEMY(1)`, `ANY(2)`
@@ -143,43 +154,43 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 
 #### Base Abilities (22)
 
-| ID | Name | Attr | Cost | Range | Shape | Targets | Effects |
-|----|------|------|------|-------|-------|---------|---------|
-| `strike` | Strike | STR | 2 | 1 | Single | Enemy | HARM 5 HP |
-| `heavy_strike` | Heavy Strike | STR | 4 | 1 | Single | Enemy | HARM 9 HP |
-| `quick_shot` | Quick Shot | DEX | 2 | 3 | Single | Enemy | HARM 4 HP |
-| `disengage` | Disengage | DEX | 2 | 1 | Self | Any | TRAVEL 1 FREE |
-| `acid_splash` | Acid Splash | COG | 3 | 3 | Single | Enemy | HARM 3 HP + DEBUFF 1 DEX |
-| `smoke_bomb` | Smoke Bomb | COG | 2 | 2 | Radial | Any | DEBUFF 1 DEX |
-| `healing_draught` | Healing Draught | VIT | 3 | 0 | Self | Any | MEND 5 HP |
-| `shield_bash` | Shield Bash | STR | 3 | 1 | Single | Enemy | HARM 3 HP + DEBUFF 1 STR |
-| `counter` | Counter | WIL | 2 | 0 | Self | Any | BUFF 2 STR |
-| `taunt` | Taunt | WIL | 1 | 3 | Single | Enemy | DEBUFF 1 WIL |
-| `inspire` | Inspire | WIL | 3 | 3 | Single | Ally | BUFF 1 STR |
-| `guard` | Guard | VIT | 2 | 0 | Self | Any | BUFF 2 VIT | `enhanced_guard` |
-| `sweep` | Sweep | STR | 3 | 1 | Arc | Enemy | HARM 4 HP |
-| `piercing_shot` | Piercing Shot | DEX | 3 | 4 | Line | Enemy | HARM 4 HP (passthrough) |
-| `fire_breath` | Fire Breath | COG | 4 | 1 | Cone | Enemy | HARM 5 HP |
-| `fireball` | Fireball | COG | 5 | 4 | Radial | Any | HARM 6 HP (passthrough=false) |
-| `heal_burst` | Heal Burst | WIL | 4 | 2 | Radial | Ally | MEND 5 HP (passthrough=true) |
-| `charge` | Charge | STR | 2 | 3 | Self | Any | TRAVEL 3 LINE |
-| `gust` | Gust | DEX | 2 | 3 | Single | Any | FORCE PUSH 2 |
-| `yank` | Yank | STR | 2 | 3 | Single | Any | FORCE PULL 2 |
-| `shove` | Shove | STR | 3 | 1 | Single | Enemy | FORCE PUSH 2 |
-| `windblast` | Windblast | COG | 3 | 3 | Radial | Enemy | FORCE RADIAL 2 |
+| ID | Name | Attr | Cost | Shape | Targets | Effects |
+|----|------|------|------|-------|---------|---------|
+| `strike` | Strike | STR | 2 | SameLane | Enemy | HARM 5 HP |
+| `heavy_strike` | Heavy Strike | STR | 4 | SameLane | Enemy | HARM 9 HP |
+| `quick_shot` | Quick Shot | DEX | 2 | SameLane | Enemy | HARM 4 HP |
+| `disengage` | Disengage | DEX | 2 | Self | Any | TRAVEL 1 FREE |
+| `acid_splash` | Acid Splash | COG | 3 | SameLane | Enemy | HARM 3 HP + DEBUFF 1 DEX |
+| `smoke_bomb` | Smoke Bomb | COG | 2 | AllLanes | Any | DEBUFF 1 DEX |
+| `healing_draught` | Healing Draught | VIT | 3 | Self | Any | MEND 5 HP |
+| `shield_bash` | Shield Bash | STR | 3 | SameLane | Enemy | HARM 3 HP + DEBUFF 1 STR |
+| `counter` | Counter | WIL | 2 | Self | Any | BUFF 2 STR |
+| `taunt` | Taunt | WIL | 1 | SameLane | Enemy | DEBUFF 1 WIL |
+| `inspire` | Inspire | WIL | 3 | AllAllies | Ally | BUFF 1 STR |
+| `guard` | Guard | VIT | 2 | Self | Any | BUFF 2 VIT → `enhanced_guard` |
+| `sweep` | Sweep | STR | 3 | AllLanes | Enemy | HARM 4 HP |
+| `piercing_shot` | Piercing Shot | DEX | 3 | SameLane | Enemy | HARM 4 HP |
+| `fire_breath` | Fire Breath | COG | 4 | AdjacentLane | Enemy | HARM 5 HP |
+| `fireball` | Fireball | COG | 5 | AllLanes | Any | HARM 6 HP |
+| `heal_burst` | Heal Burst | WIL | 4 | AllAllies | Ally | MEND 5 HP |
+| `charge` | Charge | STR | 2 | Self | Any | TRAVEL 3 LINE |
+| `gust` | Gust | DEX | 2 | SameLane | Any | FORCE PUSH 2 |
+| `yank` | Yank | STR | 2 | SameLane | Any | FORCE PULL 2 |
+| `shove` | Shove | STR | 3 | SameLane | Enemy | FORCE PUSH 2 |
+| `windblast` | Windblast | COG | 3 | AllLanes | Enemy | FORCE RADIAL 2 |
 
 #### Kindred Natural Attacks (8) — assigned as `abilities[1]` at character creation
 
 | ID | Name | Kindred | Attr | Cost | Effects |
 |----|------|---------|------|------|---------|
-| `focused_strike` | Focused Strike | Human | STR | 2 | HARM 5 HP |
-| `savage_blow` | Savage Blow | Half-Orc | STR | 2 | HARM 6 HP |
-| `gadget_spark` | Gadget Spark | Gnome | COG | 2 | HARM 4 HP (range 2) |
-| `stone_fist` | Stone Fist | Dwarf | STR | 2 | HARM 5 HP |
-| `bone_strike` | Bone Strike | Skeleton | STR | 2 | HARM 5 HP |
-| `gnaw` | Gnaw | Giant Rat | STR | 2 | HARM 4 HP |
-| `venom_bite` | Venom Bite | Spider | DEX | 2 | HARM 3 HP + DEBUFF 1 DEX |
-| `claw_swipe` | Claw Swipe | Dragon | STR | 2 | ARC HARM 5 HP |
+| `focused_strike` | Focused Strike | Human | STR | 2 | HARM 5 HP (SameLane) |
+| `savage_blow` | Savage Blow | Half-Orc | STR | 2 | HARM 6 HP (SameLane) |
+| `gadget_spark` | Gadget Spark | Gnome | COG | 2 | HARM 4 HP (SameLane) |
+| `stone_fist` | Stone Fist | Dwarf | STR | 2 | HARM 5 HP (SameLane) |
+| `bone_strike` | Bone Strike | Skeleton | STR | 2 | HARM 5 HP (SameLane) |
+| `gnaw` | Gnaw | Giant Rat | STR | 2 | HARM 4 HP (SameLane) |
+| `venom_bite` | Venom Bite | Spider | DEX | 2 | HARM 3 HP + DEBUFF 1 DEX (SameLane) |
+| `claw_swipe` | Claw Swipe | Dragon | STR | 2 | AllLanes HARM 5 HP |
 
 #### Kindred Ancestry Abilities (14) — in kindred `ability_pool` (not granted at creation)
 
@@ -187,17 +198,17 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 |----|------|------|------|---------|
 | `steadfast` | Steadfast | WIL | 2 | BUFF 2 VIT |
 | `battle_surge` | Battle Surge | STR | 3 | BUFF 2 STR |
-| `warcry` | Warcry | WIL | 2 | ARC DEBUFF 1 STR (range 1) |
+| `warcry` | Warcry | WIL | 2 | AdjacentLane DEBUFF 1 STR |
 | `tinker_boost` | Tinker Boost | COG | 2 | BUFF 1 COG |
 | `quick_wit` | Quick Wit | COG | 2 | DEBUFF 1 COG (range 3) |
 | `stone_guard` | Stone Guard | STR | 2 | BUFF 2 PHYSICAL_ARMOR_MOD | `fortified_guard` |
 | `grim_endurance` | Grim Endurance | WIL | 2 | BUFF 2 VIT (Skeleton) |
 | `death_rattle` | Death Rattle | WIL | 2 | DEBUFF 1 WIL range 2 (Skeleton) |
 | `scatter` | Scatter | DEX | 1 | TRAVEL 2 FREE — cost 1, cheapest ability (Giant Rat) |
-| `pack_instinct` | Pack Instinct | WIL | 2 | ARC BUFF 1 STR (Giant Rat) |
+| `pack_instinct` | Pack Instinct | WIL | 2 | AllAllies BUFF 1 STR (Giant Rat) |
 | `web_shot` | Web Shot | COG | 3 | DEBUFF 2 DEX range 3 (Spider) |
 | `skitter` | Skitter | DEX | 2 | BUFF 2 DEX (Spider) |
-| `draconic_breath` | Draconic Breath | COG | 3 | CONE HARM 4 MAGIC (Dragon) |
+| `draconic_breath` | Draconic Breath | COG | 3 | AdjacentLane HARM 4 MAGIC (Dragon) |
 | `scales_up` | Scales Up | STR | 2 | BUFF 2 PHYSICAL_ARMOR_MOD (Dragon) |
 
 #### Class Defining Abilities (4) — unique per class, assigned as `abilities[0]` at character creation
@@ -207,7 +218,7 @@ Rows are grouped by origin; all share the same CSV format and `get_ability()` lo
 | `tower_slam` | Tower Slam | Vanguard | STR | 3 | 1 | Enemy | HARM 4 HP + FORCE PUSH 1 |
 | `arcane_bolt` | Arcane Bolt | Arcanist | COG | 3 | 4 | Enemy | HARM 5 HP |
 | `slipshot` | Slipshot | Prowler | DEX | 3 | 3 | Enemy | HARM 4 HP + TRAVEL 1 FREE |
-| `bless` | Bless | Warden | WIL | 2 | 3 | Ally | BUFF 1 STR |
+| `bless` | Bless | Warden | WIL | 2 | 3 | AllAllies | BUFF 1 STR |
 
 > Defining abilities must **not** appear in any class's `ability_pool` — they are auto-granted separately.
 
@@ -244,9 +255,9 @@ Each base ability is linked to its upgrade via `upgraded_id`. These are pool-onl
 | `backstab` | Backstab | DEX | 3 | 1 | Enemy | HARM 6 HP |
 | `crippling_shot` | Crippling Shot | DEX | 3 | 3 | Enemy | HARM 3 HP + DEBUFF 1 DEX |
 | `vanishing_step` | Vanishing Step | DEX | 2 | 0 | Self | BUFF 2 DEX |
-| `lay_on_hands` | Lay on Hands | WIL | 3 | 1 | Ally | MEND 6 HP |
+| `lay_on_hands` | Lay on Hands | WIL | 3 | 1 | AllAllies | MEND 6 HP |
 | `divine_ward` | Divine Ward | WIL | 2 | 0 | Self | BUFF 2 MAGIC_ARMOR_MOD | `greater_ward` |
-| `rallying_shout` | Rallying Shout | WIL | 3 | 1 | Ally (Arc) | BUFF 1 STR |
+| `rallying_shout` | Rallying Shout | WIL | 3 | 1 | AllAllies | BUFF 1 STR |
 
 ### Public API
 
@@ -284,6 +295,8 @@ static func get_upgraded(base_id: String) -> AbilityData
 
 ## Key Patterns & Gotchas
 
+- **New lane TargetShape values are the live vocabulary** — `SAME_LANE`, `ADJACENT_LANE`, `ALL_LANES`, `ALL_ALLIES` are the active autobattler shapes. All 64 CSV rows migrated in Slice 5. Legacy values `SINGLE/CONE/LINE/RADIAL/ARC` still parse (Slice 7 removes them from code); `CombatManagerAuto.resolve_targets` treats them as `SAME_LANE` until then.
+- **`ALL_ALLIES` includes the caster** — `resolve_targets` calls `board.get_all_on_side(caster_side)` which returns every unit on the caster's side, including the caster themselves. Heal/buff abilities using `ALL_ALLIES` will affect the caster.
 - **`energy_cost` and `cooldown_max` coexist until Slice 7** — `energy_cost` drives the old 3D combat; `cooldown_max` drives the new autobattler (Slice 4+). Do not remove `energy_cost` before the Slice 7 cutover. Both fields parse from CSV (`cost` → `energy_cost`, `cooldown` → `cooldown_max`).
 - **`cooldown_max` migration table:** cost 0 → cooldown 0, cost 1–2 → cooldown 2, cost 3–4 → cooldown 3, cost 5+ → cooldown 5. All 63 abilities migrated in Slice 2.
 - **`get_ability()` never returns null** — safe to call without nil checks. Unknown IDs return a stub AbilityData with `ability_id = "unknown"` and `damage_type = DamageType.NONE`.
@@ -299,6 +312,7 @@ static func get_upgraded(base_id: String) -> AbilityData
 
 | Date | Change |
 |---|---|
+| 2026-05-02 | **Combat Pivot Slice 5 — lane targeting.** `AbilityData.TargetShape` gained 4 new values: `SAME_LANE(6)`, `ADJACENT_LANE(7)`, `ALL_LANES(8)`, `ALL_ALLIES(9)`. Old values `SINGLE/CONE/LINE/RADIAL/ARC` remain (Slice 7 retirement). `AbilityLibrary._TARGET_SHAPE` dict extended with the 4 new string keys. `abilities.csv` fully migrated: all 64 rows now use lane-based shapes (no remaining CONE/LINE/RADIAL/ARC). Migration: SINGLE ENEMY→SAME_LANE; SINGLE ALLY→ALL_ALLIES; CONE→ADJACENT_LANE; LINE→SAME_LANE; RADIAL ALLY→ALL_ALLIES; RADIAL ANY/ENEMY→ALL_LANES; ARC HARM→ALL_LANES; ARC DEBUFF→ADJACENT_LANE; ARC ALLY→ALL_ALLIES. `CombatManagerAuto.resolve_targets(caster, ability, board)` static method added — replaces `_stub_pick_target`. `_fire_unit_turn` now calls `resolve_targets` and iterates over the returned array (supports multi-hit AoE). `_stub_pick_target` deleted. 6 headless tests added (`test_lane_targeting.gd/.tscn`). `test_combat_loop.gd` updated with `get_tree().quit()` for headless execution. |
 | 2026-05-02 | **Combat Pivot Slice 2 — cooldown field.** `AbilityData` gained `@export var cooldown_max: int = 0` (next to `energy_cost`; both fields coexist until Slice 7). `abilities.csv` gained a `cooldown` column after `cost`; all 63 rows populated per migration table (cost 1–2 → 2, 3–4 → 3, 5+ → 5, 0 → 0). `AbilityLibrary._row_to_data()` gained `"cooldown"` match case → sets `a.cooldown_max`. `energy_cost` untouched — old combat unaffected. 3 headless tests added (`test_cooldown_field.gd`). |
 | 2026-04-29 | **Armor Tier Families (Slice 4).** 6 new armor abilities added: `stone_guard` / `divine_ward` / `guard` (3 existing) gained `upgraded_id` links to `fortified_guard` / `greater_ward` / `enhanced_guard` (3 new). Upgraded forms are plain BUFF abilities with `base_value` bumped by +1 (2→3). All are SELF-target BUFF, cost 2, NONE damage_type. Total abilities: 60→66. |
 | 2026-04-28 | **Weapon Tier Families (Slice 3).** 6 new weapon abilities added to `abilities.csv`: `blade_strike` (STR base, upgraded_id=heavy_blade_strike), `heavy_blade_strike` (STR upgraded), `quick_draw` (DEX base, upgraded_id=aimed_draw), `aimed_draw` (DEX upgraded), `staff_bolt` (COG base, upgraded_id=empowered_bolt), `empowered_bolt` (COG upgraded). All are HARM-only with the appropriate `DamageType` (PHYSICAL or MAGIC). Total abilities: 54→60. |
