@@ -5,7 +5,7 @@ extends Node2D
 
 ## Flip to true to enter the new autobattler combat scene instead of the legacy 3D grid combat.
 ## Slice 7 of the combat pivot will flip this on, rip out the old combat, and remove this constant.
-const USE_AUTOBATTLER_COMBAT: bool = false
+const USE_AUTOBATTLER_COMBAT: bool = true
 
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const CENTER        := Vector2(640.0, 360.0)
@@ -1047,6 +1047,7 @@ func _enter_current_node() -> void:
 			GameState.current_combat_node_id = GameState.player_node_id
 			GameState.current_combat_ring = _get_ring(GameState.player_node_id)
 			if USE_AUTOBATTLER_COMBAT:
+				GameState.pending_combat_enemies = _roll_combat_enemies()
 				get_tree().change_scene_to_file("res://scenes/combat/CombatSceneAuto.tscn")
 			else:
 				get_tree().change_scene_to_file("res://scenes/combat/CombatScene3D.tscn")
@@ -1072,6 +1073,18 @@ func _enter_current_node() -> void:
 		_:
 			GameState.pending_node_type = node_type
 			get_tree().change_scene_to_file("res://scenes/misc/NodeStub.tscn")
+
+## Rolls 3 enemy CombatantData for the autobattler path.
+## Mirrors the archetype pool from CombatManager3D._setup_units().
+func _roll_combat_enemies() -> Array[CombatantData]:
+	var pool: Array[String] = ["archer_bandit", "grunt", "alchemist", "elite_guard"]
+	var enemies: Array[CombatantData] = []
+	for i in LaneBoard.LANE_COUNT:
+		var arch: String = pool[randi() % pool.size()]
+		var cd: CombatantData = ArchetypeLibrary.create(arch, "", false)
+		GameState.record_archetype(cd.archetype_id)
+		enemies.append(cd)
+	return enemies
 
 func _get_ring(node_id: String) -> String:
 	if "node_i" in node_id:

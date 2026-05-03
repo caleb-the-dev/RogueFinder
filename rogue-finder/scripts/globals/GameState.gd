@@ -18,6 +18,7 @@ var node_types: Dictionary = {}    # id -> String; populated by MapManager on fi
 var pending_node_type: String = "" # consumed by NodeStub on scene entry; NOT saved to disk
 var current_combat_node_id: String = "" # transient handoff to EndCombatScreen; NOT saved to disk
 var current_combat_ring: String = ""    # transient ring name ("inner"/"middle"/"outer"); NOT saved to disk
+var pending_combat_enemies: Array[CombatantData] = [] # autobattler bridge: stashed by MapManager, read+cleared by CombatManagerAuto._ready()
 var cleared_nodes: Array[String] = []  # nodes where player won and collected reward; saved to disk
 var threat_level: float = 0.0          # 0.0–1.0; rises on travel + entry; resets to 0 on BOSS defeat
 var used_event_ids: Array[String] = [] # event ids drawn this run; used by EventSelector for no-repeat logic; saved to disk
